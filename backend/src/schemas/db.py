@@ -19,16 +19,14 @@ class Students(Base):
     student_id: Mapped[int] = mapped_column(Integer, primary_key=True)
     enrollments: Mapped[list["Enrollments"]] = relationship(back_populates="student")
     
-    
 class Courses(Base):
-    __tablename__ = "courses"
-    crn : Mapped[int] = mapped_column(primary_key=True)
+    __tablename__ = "courses" 
+    crn: Mapped[int] = mapped_column(primary_key=True)
     enrollment_count: Mapped[int] = mapped_column(Integer)
     enrollments: Mapped[list["Enrollments"]] = relationship(back_populates="course")
     
-    
 class Conflicts(Base):
-    __tablename__ = "conflicts"
+    __tablename__ = "conflicts"   
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     student_id: Mapped[int] = mapped_column(Integer)
     exam_id: Mapped[int] = mapped_column(Integer)
@@ -38,17 +36,22 @@ class Conflicts(Base):
 def main():
     db_url = "postgresql+psycopg2://postgres:postgres@localhost:5432/exam_engine_db"
     engine = create_engine(db_url, echo=True)
-
-    # Create tables
+    
     Base.metadata.create_all(engine)
-
-    # Add a row
+    
     with Session(engine) as session:
-        enrollments = Enrollments()
-        session.add(Students(student_id=1,enrollments=enrollments))
-        session.add(Courses(crn=1234, enrollment_count=25,enrollments=enrollments))
+        # First create student and course
+        student = Students(student_id=1)
+        course = Courses(crn=1234, enrollment_count=25)
+        
+        # Then create enrollment linking them
+        enrollment = Enrollments(student=student, course=course)
+        
+        # Add all to session
+        session.add(student)
+        session.add(course)
+        session.add(enrollment)
         session.commit()
 
-
-if __name__ == "__main__":
+if __name__ == "__main__":  
     main()

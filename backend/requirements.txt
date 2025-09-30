@@ -4,4 +4,7 @@ networkx
 matplotlib
 openpyxl
 plotly
+
+# Database 
 SQLAlchemy
+psycopg2-binary

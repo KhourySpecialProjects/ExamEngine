@@ -1,12 +1,14 @@
 from sqlalchemy import create_engine, Integer, String, ForeignKey
+from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, Session, relationship
+import uuid
 
 class Base(DeclarativeBase):
     pass
 
 class Enrollments(Base):
     __tablename__ = "enrollments"
-    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     crn: Mapped[int] = mapped_column(ForeignKey("courses.crn"))
     student_id: Mapped[int] = mapped_column(ForeignKey("students.student_id")) #fk constraint
     
@@ -21,15 +23,15 @@ class Students(Base):
     
 class Courses(Base):
     __tablename__ = "courses" 
-    crn: Mapped[int] = mapped_column(primary_key=True)
+    crn: Mapped[int] = mapped_column(Integer, primary_key=True)
     enrollment_count: Mapped[int] = mapped_column(Integer)
     enrollments: Mapped[list["Enrollments"]] = relationship(back_populates="course")
     
 class Conflicts(Base):
     __tablename__ = "conflicts"   
-    id: Mapped[int] = mapped_column(Integer, primary_key=True)
-    student_id: Mapped[int] = mapped_column(Integer)
-    exam_id: Mapped[int] = mapped_column(Integer)
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid = True), primary_key=True, default=uuid.uuid4)
+    student_id: Mapped[int] = mapped_column(ForeignKey("students.student_id"))
+    exam_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid= True))
     conflict_type: Mapped[str] = mapped_column(String)
     
 # --- Main logic ---

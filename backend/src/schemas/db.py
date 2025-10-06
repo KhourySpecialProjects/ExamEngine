@@ -1,4 +1,4 @@
-from sqlalchemy import create_engine, Integer, String, ForeignKey, Uuid
+from sqlalchemy import create_engine, Integer, String, ForeignKey
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, Session, relationship
 import uuid

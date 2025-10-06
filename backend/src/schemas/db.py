@@ -8,7 +8,7 @@ class Base(DeclarativeBase):
 
 class Enrollments(Base):
     __tablename__ = "enrollments"
-    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True)
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     crn: Mapped[int] = mapped_column(ForeignKey("courses.crn"))
     student_id: Mapped[int] = mapped_column(ForeignKey("students.student_id")) #fk constraint
     
@@ -29,7 +29,7 @@ class Courses(Base):
     
 class Conflicts(Base):
     __tablename__ = "conflicts"   
-    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid = True), primary_key=True)
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid = True), primary_key=True, default=uuid.uuid4)
     student_id: Mapped[int] = mapped_column(ForeignKey("students.student_id"))
     exam_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid= True))
     conflict_type: Mapped[str] = mapped_column(String)

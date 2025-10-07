@@ -39,6 +39,7 @@ def main():
     db_url = "postgresql+psycopg2://postgres:postgres@localhost:5432/exam_engine_db"
     engine = create_engine(db_url, echo=True)
     
+    Base.metadata.drop_all(engine)
     Base.metadata.create_all(engine)
     
     with Session(engine) as session:

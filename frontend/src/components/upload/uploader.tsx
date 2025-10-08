@@ -55,7 +55,7 @@ export function Uploader() {
     <Dialog>
       <DialogTrigger asChild>
         <Button className="min-w-2xs">
-          <HardDriveDownload className="h-4 w-4 mr-2" />
+          <HardDriveDownload className="h-4 " />
           Upload CSV
         </Button>
       </DialogTrigger>

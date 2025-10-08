@@ -1,15 +1,22 @@
 "use client";
 
-import { AlertCircle, CheckCircle2, Loader2, Upload } from "lucide-react";
+import {
+  AlertCircle,
+  CheckCircle2,
+  HardDriveDownload,
+  Loader2,
+  Upload,
+} from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
 import { useUploadStore } from "@/store/upload-store";
 import { UploaderSlot } from "./uploader-slot";
 
@@ -45,70 +52,80 @@ export function Uploader() {
   };
 
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle>Upload Dataset</CardTitle>
-        <CardDescription>
-          Upload three CSV files: enrollment data, room availability, and
-          faculty schedules
-        </CardDescription>
-      </CardHeader>
-      <CardContent className="space-y-4">
-        <div className="space-y-3">
-          {slots.map((slot) => (
-            <UploaderSlot
-              key={slot.id}
-              slot={slot}
-              onFileSelect={(file) => handleFileSelect(slot.id, file)}
-              onRemove={() => removeFile(slot.id)}
-              disabled={isUploading}
-            />
-          ))}
+    <Dialog>
+      <DialogTrigger asChild>
+        <Button>
+          <HardDriveDownload className="h-4 w-4 mr-2" />
+          Upload CSV
+        </Button>
+      </DialogTrigger>
+
+      <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
+        <DialogHeader>
+          <DialogTitle>Upload Dataset</DialogTitle>
+          <DialogDescription>
+            Upload three CSV files: enrollment data, room availability, and
+            faculty schedules
+          </DialogDescription>
+        </DialogHeader>
+
+        <div className="space-y-4 py-4">
+          <div className="space-y-3">
+            {slots.map((slot) => (
+              <UploaderSlot
+                key={slot.id}
+                slot={slot}
+                onFileSelect={(file) => handleFileSelect(slot.id, file)}
+                onRemove={() => removeFile(slot.id)}
+                disabled={isUploading}
+              />
+            ))}
+          </div>
+
+          <div className="flex gap-3 pt-4 border-t">
+            <Button
+              onClick={handleUploadAll}
+              disabled={!hasFiles || isUploading}
+              className="flex-1"
+            >
+              {isUploading ? (
+                <>
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  Uploading...
+                </>
+              ) : (
+                <>
+                  <Upload className="h-4 w-4 mr-2" />
+                  Upload All Files
+                </>
+              )}
+            </Button>
+
+            <Button variant="outline" onClick={clearAll} disabled={isUploading}>
+              Clear All
+            </Button>
+          </div>
+
+          {allFilesUploaded && !hasErrors && hasFiles && (
+            <Alert>
+              <CheckCircle2 className="h-4 w-4" />
+              <AlertDescription>
+                All files uploaded successfully! You can now generate the exam
+                schedule.
+              </AlertDescription>
+            </Alert>
+          )}
+
+          {hasErrors && (
+            <Alert variant="destructive">
+              <AlertCircle className="h-4 w-4" />
+              <AlertDescription>
+                Some files failed to upload. Please try again.
+              </AlertDescription>
+            </Alert>
+          )}
         </div>
-
-        <div className="flex gap-3 pt-4 border-t">
-          <Button
-            onClick={handleUploadAll}
-            disabled={!hasFiles || isUploading}
-            className="flex-1"
-          >
-            {isUploading ? (
-              <>
-                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                Uploading...
-              </>
-            ) : (
-              <>
-                <Upload className="h-4 w-4 mr-2" />
-                Upload All Files
-              </>
-            )}
-          </Button>
-
-          <Button variant="outline" onClick={clearAll} disabled={isUploading}>
-            Clear All
-          </Button>
-        </div>
-
-        {allFilesUploaded && !hasErrors && hasFiles && (
-          <Alert>
-            <CheckCircle2 className="h-4 w-4" />
-            <AlertDescription>
-              All files uploaded successfully! You can now generate the exam
-              schedule.
-            </AlertDescription>
-          </Alert>
-        )}
-
-        {hasErrors && (
-          <Alert variant="destructive">
-            <AlertCircle className="h-4 w-4" />
-            <AlertDescription>
-              Some files failed to upload. Please try again.
-            </AlertDescription>
-          </Alert>
-        )}
-      </CardContent>
-    </Card>
+      </DialogContent>
+    </Dialog>
   );
 }

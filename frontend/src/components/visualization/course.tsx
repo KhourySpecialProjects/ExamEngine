@@ -14,12 +14,13 @@ export function Course({ color, title, students, building, className }: CoursePr
     const stud_title = students + " students"
     const bg_color = "bg-" + color + "-50"
     const text_color = "text-" + color + "-500"
-    const border_color = "border-" + color + "-200"
+    const border_color = "border-" + color + "-200" 
   return (
     console.log(bg_color),
     <Button
-      style={{ color: text_color }}
-      className={cn(bg_color, border_color, text_color, `${className} border-2 hover:bg-transparent hover:underline flex flex-col items-start gap-y-0 px-5 py-8`)}
+      variant={color as "link" | "default" | "red" | "blue" | "yellow" | "green" | "ghost" | null | undefined}
+      size="sm"
+      className={`${className} border-2 hover:underline flex flex-col items-start gap-y-0 px-5 py-8`}
     >
     <span className="font-bold">{title}</span>
     <span className="text-xs">{stud_title}</span>

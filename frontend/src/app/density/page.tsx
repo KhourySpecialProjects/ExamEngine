@@ -22,8 +22,8 @@ const generateSampleData = () => {
     const row = { timeSlot, days: [] };
 
     days.forEach((day) => {
-      const examCount = Math.floor(Math.random() * 31);
-      const conflicts = examCount > 15 ? Math.floor(Math.random() * 5) : 0;
+      const examCount = Math.floor(Math.random() * 310);
+      const conflicts = examCount > 15 ? Math.floor(Math.random() * 120) : 0;
 
       const exams = [];
       for (let i = 0; i < examCount; i++) {

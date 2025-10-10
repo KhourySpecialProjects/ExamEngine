@@ -12,11 +12,7 @@ interface CourseProps {
 
 export function Course({ color, title, students, building, className }: CourseProps) {
     const stud_title = students + " students"
-    const bg_color = "bg-" + color + "-50"
-    const text_color = "text-" + color + "-500"
-    const border_color = "border-" + color + "-200" 
   return (
-    console.log(bg_color),
     <Button
       variant={color as "link" | "default" | "red" | "blue" | "yellow" | "green" | "ghost" | null | undefined}
       size="sm"

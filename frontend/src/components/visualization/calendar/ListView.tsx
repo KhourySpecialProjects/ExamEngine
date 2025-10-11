@@ -18,7 +18,6 @@ const columnHelper = createColumnHelper<Exam>();
  * ListView - Table view of all exams with search button
  *
  * Shows all exam details in a sortable table format.
- * Search triggers only when clicking the search button or pressing Enter.
  */
 export default function ListView() {
   const allExams = useCalendarStore((state) => state.allExams);

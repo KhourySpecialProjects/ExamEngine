@@ -62,7 +62,7 @@ interface CalendarGridProps {
 }
 
 /**
- * BaseCalendarGrid - Reusable calendar grid component
+ * CalendarGrid - Reusable calendar grid component
  *
  * This component provides the basic grid structure for calendar views.
  * It handles the layout and passes cell data to the renderCell function.

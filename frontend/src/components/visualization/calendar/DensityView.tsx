@@ -1,8 +1,8 @@
 "use client";
 
+import { AlertCircle } from "lucide-react";
 import { useCalendarStore } from "@/store/calendarStore";
 import { CalendarGrid } from "./CalendarGrid";
-import { AlertCircle } from "lucide-react";
 
 const DAYS = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"];
 /**
@@ -10,9 +10,9 @@ const DAYS = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"];
  */
 const getDensityColor = (count: number): string => {
   if (count === 0) return "bg-gray-50 text-gray-400 border-gray-200";
-  if (count <= 5) return "bg-green-100 text-green-900 border-green-300";
-  if (count <= 10) return "bg-yellow-100 text-yellow-900 border-yellow-300";
-  if (count <= 20) return "bg-orange-200 text-orange-900 border-orange-400";
+  if (count <= 10) return "bg-green-100 text-green-900 border-green-300";
+  if (count <= 20) return "bg-yellow-100 text-yellow-900 border-yellow-300";
+  if (count <= 60) return "bg-orange-200 text-orange-900 border-orange-400";
   return "bg-red-300 text-red-900 border-red-500";
 };
 /**
@@ -38,7 +38,7 @@ export default function DensityView() {
             <div
               onClick={() => cell.examCount > 0 && selectCell(cell)}
               className={`
-                ${colorClass} border-2
+                ${colorClass} border-2 rounded-lg
                 min-h-[120px] m-3 cursor-pointer 
                 transition-all duration-200
                 ${cell.examCount > 0 ? "hover:scale-105 hover:shadow-lg hover:z-10 relative" : ""}

@@ -1,6 +1,6 @@
 "use client";
+import CompactView from "@/components/visualization/calendar/CompactView";
 import { useEffect } from "react";
-import DensityView from "@/components/visualization/calendar/DensityView";
 import { useCalendarStore } from "@/store/calendarStore";
 
 const generateSampleData = () => {
@@ -59,7 +59,7 @@ const generateSampleData = () => {
 
   return data;
 };
-export default function DensityPage() {
+export default function Compact() {
   const setScheduleData = useCalendarStore((state) => state.setScheduleData);
 
   useEffect(() => {
@@ -68,9 +68,5 @@ export default function DensityPage() {
     setScheduleData(data);
   }, [setScheduleData]);
 
-  return (
-    <div className="w-auto">
-      <DensityView />
-    </div>
-  );
+  return <CompactView />;
 }

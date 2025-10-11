@@ -5,7 +5,7 @@ import {
   getCoreRowModel,
   useReactTable,
 } from "@tanstack/react-table";
-import type { ReactNode } from "react";
+import { useMemo, type ReactNode } from "react";
 import type { CalendarRow } from "@/store/calendarStore";
 
 interface CalendarGridProps {
@@ -64,7 +64,7 @@ interface CalendarGridProps {
 /**
  * CalendarGrid - Reusable calendar grid component
  *
- * This component provides the basic grid structure for calendar views.
+ * This component provides the grid structure for calendar views.
  * It handles the layout and passes cell data to the renderCell function.
  */
 export function CalendarGrid({
@@ -78,43 +78,52 @@ export function CalendarGrid({
   defaultCellWidth = 200,
   timeSlotWidth = 150,
 }: CalendarGridProps) {
-  const columnHelper = createColumnHelper<CalendarRow>();
-  const timeSlotColumn = showTimeSlots
-    ? columnHelper.display({
-        id: "timeSlot",
-        header: () => <div className="font-semibold text-sm">Time Slot</div>,
-        cell: ({ row }) => (
-          <div className="font-medium text-sm">{row.original.timeSlot}</div>
+  const columnHelper = useMemo(() => createColumnHelper<CalendarRow>(), []);
+  const columns = useMemo<ColumnDef<CalendarRow, any>[]>(() => {
+    const timeSlotColumn = showTimeSlots
+      ? columnHelper.display({
+          id: "timeSlot",
+          header: () => <div className="font-semibold text-sm">Time Slot</div>,
+          cell: ({ row }) => (
+            <div className="font-medium text-sm">{row.original.timeSlot}</div>
+          ),
+          size: timeSlotWidth,
+          minSize: timeSlotWidth,
+          maxSize: timeSlotWidth,
+        })
+      : null;
+    const dayColumns = days.map((day, dayIndex) =>
+      columnHelper.display({
+        id: day,
+        header: () => (
+          <div className="font-semibold text-sm text-center">{day}</div>
         ),
-        size: timeSlotWidth,
-        minSize: timeSlotWidth,
-        maxSize: timeSlotWidth,
-      })
-    : null;
-  const dayColumns = days.map((day, dayIndex) =>
-    columnHelper.display({
-      id: day,
-      header: () => (
-        <div className="font-semibold text-sm text-center">{day}</div>
-      ),
-      cell: ({ row }) => {
-        const cell = row.original.days[dayIndex];
-        return (
-          <div
-            className={minCellHeight}
-            style={{ minWidth: `${minCellWidth}px` }}
-          >
-            {renderCell(cell)}
-          </div>
-        );
-      },
-      size: defaultCellWidth,
-      minSize: minCellWidth,
-    }),
-  );
-  const columns: ColumnDef<CalendarRow, any>[] = timeSlotColumn
-    ? [timeSlotColumn, ...dayColumns]
-    : dayColumns;
+        cell: ({ row }) => {
+          const cell = row.original.days[dayIndex];
+          return (
+            <div
+              className={minCellHeight}
+              style={{ minWidth: `${minCellWidth}px` }}
+            >
+              {renderCell(cell)}
+            </div>
+          );
+        },
+        size: defaultCellWidth,
+        minSize: minCellWidth,
+      }),
+    );
+    return timeSlotColumn ? [timeSlotColumn, ...dayColumns] : dayColumns;
+  }, [
+    days,
+    showTimeSlots,
+    minCellHeight,
+    minCellWidth,
+    defaultCellWidth,
+    timeSlotWidth,
+    renderCell,
+    columnHelper,
+  ]);
 
   const table = useReactTable({
     data,

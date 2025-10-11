@@ -1,5 +1,3 @@
-"use client";
-
 import { Button } from "@/components/ui/button";
 import { CalendarGrid } from "./CalendarGrid";
 import { useCalendarStore } from "@/store/calendarStore";

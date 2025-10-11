@@ -1,5 +1,3 @@
-"use client";
-
 import { AlertCircle } from "lucide-react";
 import { useCalendarStore } from "@/store/calendarStore";
 import { CalendarGrid } from "./CalendarGrid";

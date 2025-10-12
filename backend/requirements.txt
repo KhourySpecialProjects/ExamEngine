@@ -4,3 +4,9 @@ networkx
 matplotlib
 openpyxl
 plotly
+fastapi
+uvicorn
+pandas
+networkx
+pytest
+python-multipart

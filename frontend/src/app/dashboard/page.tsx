@@ -1,6 +1,6 @@
 "use client";
 
-import { Uploader } from "@/components/upload/uploader";
+import { Uploader } from "@/components/upload/Uploader";
 
 export default function UploadPage() {
   return (

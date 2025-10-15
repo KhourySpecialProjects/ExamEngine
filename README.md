@@ -1,5 +1,8 @@
 # ExamEngine
 
+docker-compose up -d db
+
+
 An intelligent exam scheduling system that uses the DSATUR graph coloring algorithm to automatically generate conflict-free exam schedules. The system optimizes scheduling by analyzing student enrollment data, classroom capacities, and scheduling constraints to produce efficient exam timetables.
 
 ---

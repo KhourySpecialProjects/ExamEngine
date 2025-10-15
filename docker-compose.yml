@@ -1,0 +1,72 @@
+services:
+  # Postgres SQL Database
+  db:
+    image: postgres:15-alpine
+    container_name: exam_engine_db
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: exam_engine_db
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - exam_engine_network
+
+  # Backend API Service
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: exam_engine_backend
+    ports:
+      - "8000:8000"
+    environment:
+      - DATABASE_URL=postgresql://postgres:postgres@db:5432/exam_engine_db
+    volumes:
+      - ./backend:/app
+    depends_on:
+      - db
+    networks:
+      - exam_engine_network
+
+  # Frontend React/Next.js Service
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: exam_engine_frontend
+    ports:
+      - "3000:3000"
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules
+    environment:
+      - NODE_ENV=development
+    networks:
+      - exam_engine_network
+
+  # Nginx Reverse Proxy
+  webserver:
+    image: nginx:latest
+    container_name: exam_engine_nginx
+    ports: 
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx.conf:/etc/nginx/nginx.conf
+      - ./frontend/out:/usr/share/nginx/html
+    depends_on:
+      - frontend
+      - backend
+      - db
+    networks:
+      - exam_engine_network
+
+volumes:
+  postgres_data:
+
+networks:
+  exam_engine_network:
+    driver: bridge

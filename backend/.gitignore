@@ -21,10 +21,3 @@ coverage.xml
 .vscode/
 .idea/
 
-# Node / Next.js (frontend)
-node_modules/
-.next/
-.vercel/
-npm-debug.log*
-yarn-debug.log*
-yarn-error.log*

@@ -8,3 +8,10 @@ plotly
 # Database 
 SQLAlchemy
 psycopg2-binary
+
+# Testing
+pytest
+pytest-asyncio
+pytest-cov
+factory-boy
+faker

@@ -12,16 +12,18 @@ from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column, DeclarativeBase
 from sqlalchemy import String, Integer
 import enum
-from sqlalchemy import Enum, Column, Integer, String
-from sqlalchemy import Time
+import uuid
 import datetime
-from sqlalchemy import String, DateTime
-from sqlalchemy import Text
 from typing import Any
-from sqlalchemy.dialects.postgresql import JSONB
+from uuid import UUID
+
+from sqlalchemy import (
+    Column, Enum, ForeignKey, Integer, String, Text, Time, DateTime,
+    create_engine
+)
+from sqlalchemy.dialects.postgresql import ARRAY, JSONB, UUID
 from sqlalchemy.ext.mutable import MutableDict, MutableList
-from sqlalchemy.dialects.postgresql import ARRAY, UUID as PG_UUID
-from sqlalchemy.ext.mutable import MutableList
+from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, Session
 
 
 class Base(DeclarativeBase):
@@ -62,6 +64,7 @@ class Rooms(Base):
     room_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     capacity: Mapped[int] = mapped_column(Integer, nullable=False)
     location: Mapped[str] = mapped_column(String(50))
+    dataset_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("datasets.dataset_id"))
 
 class DayEnum(enum.Enum):
     Monday = "Monday"
@@ -77,6 +80,7 @@ class TimeSlots(Base):
     day: Mapped[DayEnum] = mapped_column(Enum(DayEnum))
     start_time: Mapped[datetime.time] = mapped_column(Time)
     end_time: Mapped[datetime.time] = mapped_column(Time)
+    dataset_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("datasets.dataset_id"))
     
 class Users(Base):
     __tablename__ = "users"
@@ -91,7 +95,7 @@ class Schedules(Base):
     schedule_name: Mapped[str] = mapped_column(String(50), unique=True, nullable=False)
     created_at: Mapped[datetime.time] = mapped_column(DateTime, default=datetime.datetime.utcnow)
     run_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("runs.run_id"))
-    metrics: Mapped[dict[str, Any]] = mapped_column(MutableDict.as_mutable(JSONB), nullable=True)
+    
 class Datasets(Base):
     __tablename__ = "datasets"
     dataset_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
@@ -113,6 +117,7 @@ class Runs(Base):
     user_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("users.user_id"))
     algorithm_name: Mapped[str] = mapped_column(String(50))
     parameters: Mapped[dict[str, Any]] = mapped_column(MutableDict.as_mutable(JSONB), nullable=True)
+    
     status: Mapped[StatusEnum] = mapped_column(Enum(StatusEnum)) 
 
 # --- Main logic ---
@@ -124,20 +129,17 @@ def main():
     Base.metadata.create_all(engine)
     
     with Session(engine) as session:
-        # First create a user and dataset
         user = Users(name="Test User2", email="test@example2.com", password_hash="hashed_password2")
         session.add(user)
-        session.flush()  # Get the user_id
+        session.flush()  
         
         dataset = Datasets(semester="Fall 20242", user_id=user.user_id, file_paths=["path12.csv", "path22.csv"])
         session.add(dataset)
-        session.flush()  # Get the dataset_id
+        session.flush()  
         
-        # Now create student and course with the dataset_id
         student = Students(dataset_id=dataset.dataset_id)
         course = Courses(course_subject_code="CS1012", enrollment_count=25, dataset_id=dataset.dataset_id)
         
-        # Add all to session
         session.add(student)
         session.add(course)
         session.commit()

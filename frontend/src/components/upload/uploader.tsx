@@ -17,8 +17,8 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
-import { useUploadStore } from "@/store/upload-store";
-import { UploaderSlot } from "./uploader-slot";
+import { useUploadStore } from "@/store/uploadStore";
+import { UploaderSlot } from "./UploaderSlot";
 
 export function Uploader() {
   const slots = useUploadStore((state) => state.slots);

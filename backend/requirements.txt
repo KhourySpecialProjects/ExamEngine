@@ -15,3 +15,9 @@ pytest-asyncio
 pytest-cov
 factory-boy
 faker
+fastapi
+uvicorn
+pandas
+networkx
+pytest
+python-multipart

@@ -1,3 +1,14 @@
+from sqlalchemy import create_engine, Integer, String, ForeignKey
+from sqlalchemy.dialects.postgresql import UUID
+from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, Session
+from uuid import UUID
+import uuid
+from uuid import UUID
+
+import uuid
+from sqlalchemy.dialects.postgresql import UUID  
+from sqlalchemy.orm import Mapped, mapped_column, DeclarativeBase
+from sqlalchemy import String, Integer
 import enum
 import uuid
 import datetime
@@ -5,10 +16,10 @@ from typing import Any
 from uuid import UUID
 
 from sqlalchemy import (
-    Column, Enum, ForeignKey, Integer, String, Text, Time, DateTime,
+    Enum, ForeignKey, Integer, String,  Time, DateTime,
     create_engine
 )
-from sqlalchemy.dialects.postgresql import ARRAY, JSONB, UUID
+from sqlalchemy.dialects.postgresql import JSONB, UUID
 from sqlalchemy.ext.mutable import MutableDict, MutableList
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, Session
 
@@ -112,6 +123,7 @@ def main():
     db_url = "postgresql+psycopg2://postgres:postgres@localhost:5432/exam_engine_db"
     engine = create_engine(db_url, echo=True)
     
+    Base.metadata.drop_all(engine)
     Base.metadata.create_all(engine)
     
     with Session(engine) as session:

@@ -1,6 +1,6 @@
 "use client";
 import { useEffect } from "react";
-import ListView from "@/components/visualization/calendar/ListView";
+import ListView from "@/components/visualization/list/ListView";
 import { useCalendarStore } from "@/store/calendarStore";
 
 const generateSampleData = () => {
@@ -22,7 +22,7 @@ const generateSampleData = () => {
     const row = { timeSlot, days: [] };
 
     days.forEach((day) => {
-      const examCount = Math.floor(Math.random() * 100);
+      const examCount = 270;
       const conflicts = examCount > 15 ? Math.floor(Math.random() * 120) : 0;
 
       const exams = [];

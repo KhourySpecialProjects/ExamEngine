@@ -1,13 +1,11 @@
 from sqlalchemy import create_engine, Integer, String, ForeignKey
 from sqlalchemy.dialects.postgresql import UUID
-from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, Session, relationship
-from uuid import uuid4
+from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, Session
 from uuid import UUID
 import uuid
 from uuid import UUID
 
 import uuid
-from uuid import UUID as PyUUID 
 from sqlalchemy.dialects.postgresql import UUID  
 from sqlalchemy.orm import Mapped, mapped_column, DeclarativeBase
 from sqlalchemy import String, Integer
@@ -18,10 +16,10 @@ from typing import Any
 from uuid import UUID
 
 from sqlalchemy import (
-    Column, Enum, ForeignKey, Integer, String, Text, Time, DateTime,
+    Enum, ForeignKey, Integer, String,  Time, DateTime,
     create_engine
 )
-from sqlalchemy.dialects.postgresql import ARRAY, JSONB, UUID
+from sqlalchemy.dialects.postgresql import JSONB, UUID
 from sqlalchemy.ext.mutable import MutableDict, MutableList
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, Session
 

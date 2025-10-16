@@ -6,7 +6,7 @@ import uuid
 import json
 from datetime import datetime, time
 
-from tests.conftest import (
+from .conftest import (
     TestUsers, TestDatasets, TestStudents, TestCourses, TestRooms, TestTimeSlots, 
     TestDayEnum, TestExamAssignments, TestConflicts, TestSchedules, TestRuns, TestStatusEnum
 )

@@ -1,13 +1,11 @@
 from sqlalchemy import create_engine, Integer, String, ForeignKey
 from sqlalchemy.dialects.postgresql import UUID
-from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, Session, relationship
-from uuid import uuid4
+from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, Session
 from uuid import UUID
 import uuid
 from uuid import UUID
 
 import uuid
-from uuid import UUID as PyUUID 
 from sqlalchemy.dialects.postgresql import UUID  
 from sqlalchemy.orm import Mapped, mapped_column, DeclarativeBase
 from sqlalchemy import String, Integer
@@ -18,10 +16,10 @@ from typing import Any
 from uuid import UUID
 
 from sqlalchemy import (
-    Column, Enum, ForeignKey, Integer, String, Text, Time, DateTime,
+    Enum, ForeignKey, Integer, String, Time, DateTime,
     create_engine
 )
-from sqlalchemy.dialects.postgresql import ARRAY, JSONB, UUID
+from sqlalchemy.dialects.postgresql import JSONB, UUID
 from sqlalchemy.ext.mutable import MutableDict, MutableList
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, Session
 
@@ -93,14 +91,14 @@ class Schedules(Base):
     __tablename__ = "schedules"
     schedule_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     schedule_name: Mapped[str] = mapped_column(String(50), unique=True, nullable=False)
-    created_at: Mapped[datetime.time] = mapped_column(DateTime, default=datetime.datetime.utcnow)
+    created_at: Mapped[datetime.time] = mapped_column(DateTime, default=datetime.datetime.now)
     run_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("runs.run_id"))
     
 class Datasets(Base):
     __tablename__ = "datasets"
     dataset_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     semester: Mapped[str] = mapped_column(String(10))
-    upload_date: Mapped[datetime] = mapped_column(DateTime, default=datetime.datetime.utcnow)
+    upload_date: Mapped[DateTime] = mapped_column(DateTime, default=datetime.datetime.now)
     user_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("users.user_id"))
     file_paths: Mapped[list[str]] = mapped_column(MutableList.as_mutable(JSONB), nullable=False)
 
@@ -113,7 +111,7 @@ class Runs(Base):
     __tablename__ = "runs"
     run_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     dataset_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("datasets.dataset_id"))
-    run_timestamp: Mapped[datetime] = mapped_column(DateTime, default=datetime.datetime.utcnow)
+    run_timestamp: Mapped[DateTime] = mapped_column(DateTime, default=datetime.datetime.now)
     user_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("users.user_id"))
     algorithm_name: Mapped[str] = mapped_column(String(50))
     parameters: Mapped[dict[str, Any]] = mapped_column(MutableDict.as_mutable(JSONB), nullable=True)

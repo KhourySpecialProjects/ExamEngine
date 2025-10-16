@@ -4,7 +4,7 @@ import type {
   UploadedFile,
   UploadState,
   UploadStatus,
-} from "@/types/upload.types";
+} from "@/lib/types/upload.types";
 
 const INITIAL_SLOTS: FileSlot[] = [
   {
@@ -59,7 +59,7 @@ export const useUploadStore = create<UploadState>((set, get) => ({
   // Actions
   setFile: (slotId: string, file: File) => {
     set((state) => ({
-      slots: state.slots.map((slot) =>
+      slots: state.slots.map((slot: FileSlot) =>
         slot.id === slotId
           ? {
             ...slot,
@@ -87,7 +87,7 @@ export const useUploadStore = create<UploadState>((set, get) => ({
     extra?: Partial<UploadedFile>,
   ) => {
     set((state) => ({
-      slots: state.slots.map((slot) =>
+      slots: state.slots.map((slot: FileSlot) =>
         slot.id === slotId && slot.file
           ? {
             ...slot,

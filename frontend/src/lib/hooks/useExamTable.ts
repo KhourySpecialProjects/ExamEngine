@@ -9,7 +9,7 @@ import {
   useReactTable,
 } from "@tanstack/react-table";
 import { useMemo, useState } from "react";
-import { useCalendarStore } from "@/store/calendarStore";
+import { useCalendarStore } from "@/lib/store/calendarStore";
 import { createExamColumns } from "@/components/visualization/list/columns";
 
 /**
@@ -23,12 +23,35 @@ import { createExamColumns } from "@/components/visualization/list/columns";
  */
 export function useExamTable() {
   const allExams = useCalendarStore((state) => state.allExams);
-  const getFilteredExams = useCalendarStore((state) => state.getFilteredExams);
+  const filters = useCalendarStore((state) => state.filters);
 
-  // Memoize filtered exams to prevent unnecessary recalculations
+  // Memoize filtered exams based on allExams and filters
   const filteredExams = useMemo(() => {
-    return getFilteredExams();
-  }, [getFilteredExams, allExams]);
+    return allExams.filter((exam) => {
+      if (filters.searchQuery) {
+        const query = filters.searchQuery.toLowerCase();
+        const matchesSearch =
+          exam.courseCode.toLowerCase().includes(query) ||
+          exam.instructor.toLowerCase().includes(query) ||
+          exam.room.toLowerCase().includes(query);
+
+        if (!matchesSearch) return false;
+      }
+
+      if (
+        filters.departmentFilter &&
+        exam.department !== filters.departmentFilter
+      ) {
+        return false;
+      }
+
+      if (filters.showConflictsOnly && exam.conflicts === 0) {
+        return false;
+      }
+
+      return true;
+    });
+  }, [allExams, filters]);
 
   // Table state management
   const [sorting, setSorting] = useState<SortingState>([]);

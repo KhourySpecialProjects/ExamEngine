@@ -1,5 +1,5 @@
 import type { Table } from "@tanstack/react-table";
-import type { Exam } from "@/store/calendarStore";
+import type { Exam } from "@/lib/store/calendarStore";
 import { Button } from "@/components/ui/button";
 
 interface TablePaginationProps {

@@ -1,5 +1,5 @@
 from fastapi import FastAPI
-from backend.src.api.routes import schedule
+from src.api.routes import schedule
 
 app = FastAPI(title="Exam Scheduler API", version="1.0")
 

@@ -6,7 +6,7 @@ import {
   useReactTable,
 } from "@tanstack/react-table";
 import { useMemo, type ReactNode } from "react";
-import type { CalendarRow } from "@/store/calendarStore";
+import type { CalendarRow } from "@/lib/store/calendarStore";
 
 interface CalendarGridProps {
   /**
@@ -82,15 +82,15 @@ export function CalendarGrid({
   const columns = useMemo<ColumnDef<CalendarRow, any>[]>(() => {
     const timeSlotColumn = showTimeSlots
       ? columnHelper.display({
-          id: "timeSlot",
-          header: () => <div className="font-semibold text-sm">Time Slot</div>,
-          cell: ({ row }) => (
-            <div className="font-medium text-sm">{row.original.timeSlot}</div>
-          ),
-          size: timeSlotWidth,
-          minSize: timeSlotWidth,
-          maxSize: timeSlotWidth,
-        })
+        id: "timeSlot",
+        header: () => <div className="font-semibold text-sm">Time Slot</div>,
+        cell: ({ row }) => (
+          <div className="font-medium text-sm">{row.original.timeSlot}</div>
+        ),
+        size: timeSlotWidth,
+        minSize: timeSlotWidth,
+        maxSize: timeSlotWidth,
+      })
       : null;
     const dayColumns = days.map((day, dayIndex) =>
       columnHelper.display({

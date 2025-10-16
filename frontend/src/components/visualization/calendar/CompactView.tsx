@@ -1,6 +1,6 @@
 import { Button } from "@/components/ui/button";
 import { CalendarGrid } from "./CalendarGrid";
-import { useCalendarStore } from "@/store/calendarStore";
+import { useCalendarStore } from "@/lib/store/calendarStore";
 const DAYS = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"];
 
 /**

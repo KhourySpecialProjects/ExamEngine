@@ -8,7 +8,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
-import type { Exam } from "@/store/calendarStore";
+import type { Exam } from "@/lib/store/calendarStore";
 
 interface TableFiltersProps {
   table: Table<Exam>;

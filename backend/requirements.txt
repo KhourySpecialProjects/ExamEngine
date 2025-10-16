@@ -1,4 +1,9 @@
+# Web Framework
+fastapi
+uvicorn
 streamlit
+
+# Data Processing
 pandas
 networkx
 matplotlib
@@ -15,3 +20,6 @@ pytest-asyncio
 pytest-cov
 factory-boy
 faker
+
+# File Upload
+python-multipart

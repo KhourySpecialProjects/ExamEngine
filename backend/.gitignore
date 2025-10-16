@@ -21,6 +21,7 @@ coverage.xml
 .vscode/
 .idea/
 
+<<<<<<< HEAD
 # Node / Next.js (frontend)
 node_modules/
 .next/
@@ -28,3 +29,5 @@ node_modules/
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
+=======
+>>>>>>> origin/main

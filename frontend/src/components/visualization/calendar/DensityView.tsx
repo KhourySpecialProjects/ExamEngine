@@ -1,5 +1,5 @@
 import { AlertCircle } from "lucide-react";
-import { useCalendarStore } from "@/store/calendarStore";
+import { useCalendarStore } from "@/lib/store/calendarStore";
 import { CalendarGrid } from "./CalendarGrid";
 
 const DAYS = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"];

@@ -1,6 +1,6 @@
 import { flexRender } from "@tanstack/react-table";
 import type { Table } from "@tanstack/react-table";
-import type { Exam } from "@/store/calendarStore";
+import type { Exam } from "@/lib/store/calendarStore";
 import { TableBody, TableCell, TableRow } from "@/components/ui/table";
 import { EmptyState } from "./EmptyState";
 

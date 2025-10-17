@@ -1,6 +1,6 @@
 import { type ColumnDef, createColumnHelper } from "@tanstack/react-table";
 import { AlertCircle, ArrowUpDown } from "lucide-react";
-import type { Exam } from "@/store/calendarStore";
+import type { Exam } from "@/lib/store/calendarStore";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 
@@ -63,7 +63,8 @@ export function createExamColumns(): ColumnDef<Exam, any>[] {
         />
       ),
       filterFn: (row, id, value) => {
-        return row.getValue(id).toLowerCase().includes(value.toLowerCase());
+        const cellValue = row.getValue(id) as string;
+        return cellValue.toLowerCase().includes(value.toLowerCase());
       },
     }),
     columnHelper.accessor("day", {
@@ -83,7 +84,8 @@ export function createExamColumns(): ColumnDef<Exam, any>[] {
         <div className="text-sm font-mono">{info.getValue()}</div>
       ),
       filterFn: (row, id, value) => {
-        return row.getValue(id).toLowerCase().includes(value.toLowerCase());
+        const cellValue = row.getValue(id) as string;
+        return cellValue.toLowerCase().includes(value.toLowerCase());
       },
     }),
     columnHelper.accessor("instructor", {
@@ -97,7 +99,8 @@ export function createExamColumns(): ColumnDef<Exam, any>[] {
         </div>
       ),
       filterFn: (row, id, value) => {
-        return row.getValue(id).toLowerCase().includes(value.toLowerCase());
+        const cellValue = row.getValue(id) as string;
+        return cellValue.toLowerCase().includes(value.toLowerCase());
       },
     }),
     columnHelper.accessor("studentCount", {

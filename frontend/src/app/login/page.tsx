@@ -1,7 +1,7 @@
 "use client";
 
 import { Button } from "@/components/ui/button";
-import { useAuthStore } from "@/store/authStore";
+import { useAuthStore } from "@/lib/store/authStore";
 
 export default function Login() {
   const login = useAuthStore((state) => state.login);

@@ -17,8 +17,9 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
-import { useUploadStore } from "@/store/uploadStore";
+import { useUploadStore } from "@/lib/store/uploadStore";
 import { UploaderSlot } from "./UploaderSlot";
+import type { FileSlot } from "@/lib/types/upload.types";
 
 export function Uploader() {
   const slots = useUploadStore((state) => state.slots);
@@ -71,11 +72,13 @@ export function Uploader() {
 
         <div className="space-y-4 py-4">
           <div className="space-y-3">
-            {slots.map((slot) => (
+            {slots.map((slot: FileSlot) => (
               <UploaderSlot
                 key={slot.id}
                 slot={slot}
-                onFileSelect={(file) => handleFileSelect(slot.id, file)}
+                onFileSelect={(file: File | null) =>
+                  handleFileSelect(slot.id, file)
+                }
                 onRemove={() => removeFile(slot.id)}
                 disabled={isUploading}
               />

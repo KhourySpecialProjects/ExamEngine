@@ -12,7 +12,7 @@ import {
 import { useRef } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import type { FileUploadSlotProps } from "@/types/upload.types";
+import type { FileUploadSlotProps } from "@/lib/types/upload.types";
 
 export function UploaderSlot({
   slot,

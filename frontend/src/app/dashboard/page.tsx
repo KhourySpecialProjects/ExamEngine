@@ -1,11 +1,21 @@
 "use client";
 
-import { Uploader } from "@/components/upload/Uploader";
+import { useEffect } from "react";
+import DensityView from "@/components/visualization/calendar/DensityView";
+import { useCalendarStore } from "@/lib/store/calendarStore";
+import { generateSampleData } from "@/lib/utils";
 
-export default function UploadPage() {
+export default function DashboardPage() {
+  const setScheduleData = useCalendarStore((state) => state.setScheduleData);
+
+  useEffect(() => {
+    const data = generateSampleData();
+    setScheduleData(data);
+  }, [setScheduleData]);
+
   return (
     <div className="space-y-6 m-5">
-      <Uploader />
+      <DensityView />
     </div>
   );
 }

@@ -21,3 +21,5 @@ coverage.xml
 .vscode/
 .idea/
 
+# Remove when have S3
+datasets/

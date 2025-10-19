@@ -66,7 +66,7 @@ export function Uploader() {
           <DialogTitle>Upload Dataset</DialogTitle>
           <DialogDescription>
             Upload three CSV files: enrollment data, room availability, and
-            faculty schedules
+            classes schedules
           </DialogDescription>
         </DialogHeader>
 

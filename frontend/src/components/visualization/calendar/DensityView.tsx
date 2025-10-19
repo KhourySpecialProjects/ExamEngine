@@ -2,17 +2,27 @@ import { AlertCircle } from "lucide-react";
 import { useCalendarStore } from "@/lib/store/calendarStore";
 import { CalendarGrid } from "./CalendarGrid";
 
-const DAYS = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"];
+const DAYS = [
+  "Monday",
+  "Tuesday",
+  "Wednesday",
+  "Thursday",
+  "Friday",
+  "Saturday",
+  "Sunday",
+];
+
 /**
  * Get color based on exam density
  */
 const getDensityColor = (count: number): string => {
-  if (count === 0) return "bg-gray-50 text-gray-400 border-gray-200";
-  if (count <= 10) return "bg-green-100 text-green-900 border-green-300";
-  if (count <= 20) return "bg-yellow-100 text-yellow-900 border-yellow-300";
-  if (count <= 60) return "bg-orange-200 text-orange-900 border-orange-400";
-  return "bg-red-300 text-red-900 border-red-500";
+  if (count === 0) return "bg-white text-black";
+  if (count <= 30) return "bg-[#E3F5FF] text-black";
+  if (count <= 60) return "bg-[#FFEA94] text-black";
+  if (count <= 70) return "bg-[#FFD4D4] text-black";
+  return "bg-red-400 text-black";
 };
+
 /**
  * DensityMapView - Heatmap visualization of exam schedule
  *
@@ -29,35 +39,40 @@ export default function DensityView() {
       <CalendarGrid
         data={scheduleData}
         days={DAYS}
+        minCellHeight="h-[120px]"
+        minCellWidth={140}
+        defaultCellWidth={140}
+        timeSlotWidth={140}
         renderCell={(cell) => {
-          const colorClass = getDensityColor(cell.examCount);
+          const colorClass = getDensityColor(cell ? cell.examCount : 0);
+          const examCount = cell ? cell.examCount : 0;
+          const conflicts = cell ? cell.conflicts : 0;
 
           return (
             <div
-              onClick={() => cell.examCount > 0 && selectCell(cell)}
+              onClick={() => examCount > 0 && cell && selectCell(cell)}
               className={`
-                ${colorClass} border-2 rounded-lg
-                min-h-[120px] m-3 cursor-pointer 
-                transition-all duration-200
-                ${cell.examCount > 0 ? "hover:scale-105 hover:shadow-lg hover:z-10 relative" : ""}
+                ${colorClass}
+                w-full h-full
+                flex items-center
+                border border-gray-200
+                ${examCount > 0 ? "cursor-pointer hover:shadow-lg hover:z-10 relative transition-all duration-200" : "cursor-default"}
               `}
             >
-              <div className="flex flex-col items-center justify-center h-full pt-3">
+              <div className="flex flex-col items-start justify-start p-3 w-full h-full">
                 {/* Exam Count */}
-                <div className="text-4xl font-bold mb-1">{cell.examCount}</div>
-
-                {/* Label */}
-                <div className="text-xs font-medium mb-2">
-                  {cell.examCount === 1 ? "exam" : "exams"}
+                <div className="text-base font-semibold leading-tight">
+                  {examCount === 0
+                    ? "No Exams"
+                    : `${examCount} ${examCount === 1 ? "Exam" : "Exams"}`}
                 </div>
 
                 {/* Conflict Indicator */}
-                {cell.conflicts > 0 && (
-                  <div className="flex items-center gap-1 text-xs bg-red-500 text-white px-2 py-0.5 rounded-full">
-                    <AlertCircle className="size-3" />
-                    {cell.conflicts}
-                  </div>
-                )}
+                <div className="text-xs font-normal pt-1">
+                  {conflicts === 0
+                    ? "No conflicts"
+                    : `${conflicts} ${conflicts === 1 ? "conflict" : "conflicts"}`}
+                </div>
               </div>
             </div>
           );
@@ -69,24 +84,26 @@ export default function DensityView() {
         <h3 className="font-semibold mb-3 text-sm">Density Legend</h3>
         <div className="flex gap-3 items-center flex-wrap text-sm">
           <div className="flex items-center gap-2">
-            <div className="w-10 h-10 bg-gray-50 border-2 border-gray-200 rounded"></div>
-            <span>Empty</span>
+            <div className="w-10 h-10 bg-white border-2 border-gray-300 rounded" />
+            <span>No Exams</span>
           </div>
           <div className="flex items-center gap-2">
-            <div className="w-10 h-10 bg-green-100 border-2 border-green-300 rounded"></div>
-            <span>1-5</span>
+            <div className="w-10 h-10 bg-[#E3F5FF] border-2 border-blue-200 rounded" />
+            <span>1-30</span>
           </div>
           <div className="flex items-center gap-2">
-            <div className="w-10 h-10 bg-yellow-100 border-2 border-yellow-300 rounded"></div>
-            <span>6-10</span>
+            <div className="w-10 h-10 bg-[#FFEA94] border-2 border-yellow-300 rounded" />
+            <span>31-60</span>
           </div>
           <div className="flex items-center gap-2">
-            <div className="w-10 h-10 bg-orange-200 border-2 border-orange-400 rounded"></div>
-            <span>11-20</span>
+            <div className="w-10 h-10 bg-[#FFD4D4] border-2 border-red-200 rounded" />
+            <span>61-70</span>
           </div>
           <div className="flex items-center gap-2">
-            <div className="w-10 h-10 bg-red-300 border-2 border-red-500 rounded"></div>
-            <span>20+</span>
+            <div className="w-10 h-10 bg-[#D7000A] border-2 border-red-600 rounded" />
+            <span className="text-white bg-[#D7000A] px-2 py-0.5 rounded">
+              71+
+            </span>
           </div>
         </div>
       </div>

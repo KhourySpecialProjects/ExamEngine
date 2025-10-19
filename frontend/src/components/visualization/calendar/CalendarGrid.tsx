@@ -74,23 +74,23 @@ export function CalendarGrid({
   className = "",
   showTimeSlots = true,
   minCellHeight = "min-h-[120px]",
-  minCellWidth = 150,
-  defaultCellWidth = 200,
-  timeSlotWidth = 150,
+  minCellWidth = 120,
+  defaultCellWidth = 120,
+  timeSlotWidth = 120,
 }: CalendarGridProps) {
   const columnHelper = useMemo(() => createColumnHelper<CalendarRow>(), []);
   const columns = useMemo<ColumnDef<CalendarRow, any>[]>(() => {
     const timeSlotColumn = showTimeSlots
       ? columnHelper.display({
-        id: "timeSlot",
-        header: () => <div className="font-semibold text-sm">Time Slot</div>,
-        cell: ({ row }) => (
-          <div className="font-medium text-sm">{row.original.timeSlot}</div>
-        ),
-        size: timeSlotWidth,
-        minSize: timeSlotWidth,
-        maxSize: timeSlotWidth,
-      })
+          id: "timeSlot",
+          header: () => <div className="font-semibold text-sm">Time Slot</div>,
+          cell: ({ row }) => (
+            <div className="font-medium text-sm">{row.original.timeSlot}</div>
+          ),
+          size: timeSlotWidth,
+          minSize: timeSlotWidth,
+          maxSize: timeSlotWidth,
+        })
       : null;
     const dayColumns = days.map((day, dayIndex) =>
       columnHelper.display({
@@ -133,9 +133,9 @@ export function CalendarGrid({
   });
   return (
     <div
-      className={`bg-white rounded-lg shadow-lg overflow-hidden ${className}`}
+      className={`bg-white rounded-md shadow-xs overflow-hidden ${className}`}
     >
-      <div className="overflow-x-auto">
+      <div className="overflow-x-auto overflow-hidden">
         <div className="inline-block min-w-full align-middle">
           <table className="min-w-full border-collapse">
             <thead>

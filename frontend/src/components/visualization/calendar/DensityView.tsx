@@ -20,7 +20,7 @@ const getDensityColor = (count: number): string => {
   if (count <= 30) return "bg-[#E3F5FF] text-black";
   if (count <= 60) return "bg-[#FFEA94] text-black";
   if (count <= 70) return "bg-[#FFD4D4] text-black";
-  return "bg-[#D7000A] text-white";
+  return "bg-red-400 text-black";
 };
 
 /**

@@ -23,9 +23,9 @@ const INITIAL_SLOTS: FileSlot[] = [
     file: null,
   },
   {
-    id: "rooms",
-    label: "Room Availability",
-    description: "Classrooms_clean.csv (room_name, capacity)",
+    id: "class",
+    label: "Class Census",
+    description: "Class schedules and preferences",
     file: null,
   },
 ];

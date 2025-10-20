@@ -27,6 +27,7 @@ export interface RoomsFileMetadata extends BaseFileMetadata {
 
 export interface DatasetMetadata {
   dataset_id: string;
+  dataset_name: string;
   created_at: string;
   files: {
     courses: CoursesFileMetadata;

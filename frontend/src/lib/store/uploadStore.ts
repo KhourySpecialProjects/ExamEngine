@@ -7,6 +7,7 @@ import type {
   UploadState,
   UploadStatus,
 } from "@/lib/types/upload.types";
+import { useDatasetStore } from "./datasetStore";
 
 const INITIAL_SLOTS: FileSlot[] = [
   {
@@ -38,7 +39,7 @@ export const useUploadStore = create<UploadState>((set, get) => ({
   datasetId: null,
 
   // Actions
-  setDataSetName: (datasetName: string) => {
+  setDatasetName: (datasetName: string) => {
     set({ datasetName: datasetName });
   },
 
@@ -124,6 +125,9 @@ export const useUploadStore = create<UploadState>((set, get) => ({
         enrollments: enrollmentsSlot.file.file,
         rooms: roomsSlot.file.file,
       });
+
+      // Refresh datasetStore
+      useDatasetStore.getState().refreshDatasets();
 
       // Store dataset ID
       set({ datasetId: result.dataset_id });

@@ -7,6 +7,7 @@ import {
   Loader2,
   Upload,
 } from "lucide-react";
+import { toast } from "sonner";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import {
@@ -17,11 +18,11 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
-import { useUploadStore } from "@/lib/store/uploadStore";
-import { UploaderSlot } from "./UploaderSlot";
-import type { FileSlot } from "@/lib/types/upload.types";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { useUploadStore } from "@/lib/store/uploadStore";
+import type { FileSlot } from "@/lib/types/upload.types";
+import { UploaderSlot } from "./UploaderSlot";
 
 export function Uploader() {
   const slots = useUploadStore((state) => state.slots);
@@ -41,18 +42,55 @@ export function Uploader() {
     if (!file) return;
 
     if (!file.name.endsWith(".csv")) {
-      alert("Please upload a CSV file");
+      toast.error("Invalid file type", {
+        description: "Please upload a CSV file",
+      });
       return;
     }
 
     setFile(slotId, file);
+    toast.success("File added", {
+      description: `${file.name} ready to upload`,
+    });
   };
 
   const handleUploadAll = async () => {
+    const uploadToast = toast.loading("Uploading dataset...", {
+      description: "Please wait while we process your files",
+    });
     try {
-      await uploadAll();
+      const result = await uploadAll();
+      toast.success("Upload successful!", {
+        id: uploadToast,
+        description: `${result.dataset_name} uploaded with ${result.files.courses.rows} courses`,
+      });
     } catch (error) {
-      alert(error instanceof Error ? error.message : "Upload failed");
+      const errorMessage =
+        error instanceof Error ? error.message : "Upload failed";
+
+      try {
+        const errorData = JSON.parse(errorMessage);
+        if (errorData.errors) {
+          const errorList = Object.entries(errorData.errors)
+            .map(([file, msg]) => `${file}: ${msg}`)
+            .join(", ");
+
+          toast.error("Validation failed", {
+            id: uploadToast,
+            description: errorList,
+          });
+        } else {
+          toast.error("Upload failed", {
+            id: uploadToast,
+            description: errorData.message || errorMessage,
+          });
+        }
+      } catch {
+        toast.error("Upload failed", {
+          id: uploadToast,
+          description: errorMessage,
+        });
+      }
     }
   };
 

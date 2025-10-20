@@ -9,7 +9,7 @@ import io
 import zipfile
 import zipfile
 
-router = APIRouter(prefix="/schedule", tags=["Scheduling"])
+router = APIRouter(prefix="/schedule", tags=["schedules"])
 
 
 # This endpoint runs the scheduling algorithm and returns a summary and preview of results

@@ -1,27 +1,29 @@
+import type { DatasetMetadata } from "@/lib/api/client";
+
 export type UploadStatus = "pending" | "uploading" | "success" | "error";
 
 export interface UploadedFile {
   file: File;
   status: UploadStatus;
-  error?: string;
   rowCount?: number;
-  uploadedId?: string;
+  error?: string;
 }
 
 export interface FileSlot {
-  id: string;
+  id: "courses" | "enrollments" | "rooms";
   label: string;
   description: string;
   file: UploadedFile | null;
 }
 
 export interface UploadState {
-  // State
   slots: FileSlot[];
   isUploading: boolean;
   datasetId: string | null;
+  datasetName: string | null;
 
   // Actions
+  setDatasetName: (datasetName: string) => void;
   setFile: (slotId: string, file: File) => void;
   removeFile: (slotId: string) => void;
   updateSlotStatus: (
@@ -29,7 +31,7 @@ export interface UploadState {
     status: UploadStatus,
     extra?: Partial<UploadedFile>,
   ) => void;
-  uploadAll: () => Promise<void>;
+  uploadAll: () => Promise<DatasetMetadata>;
   clearAll: () => void;
   setDatasetId: (id: string | null) => void;
   reset: () => void;

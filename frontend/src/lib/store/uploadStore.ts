@@ -1,62 +1,48 @@
+// lib/stores/upload.store.ts
 import { create } from "zustand";
+import { apiClient } from "@/lib/api/client";
 import type {
   FileSlot,
   UploadedFile,
   UploadState,
   UploadStatus,
 } from "@/lib/types/upload.types";
+import { useDatasetStore } from "./datasetStore";
 
 const INITIAL_SLOTS: FileSlot[] = [
   {
-    id: "enrollment",
+    id: "courses",
+    label: "Courses Data",
+    description:
+      "ClassCensus_clean.csv (CRN, course_ref, Course_Subject_Code, Course_Number, num_students)",
+    file: null,
+  },
+  {
+    id: "enrollments",
     label: "Enrollment Data",
-    description: "Student course enrollment information",
+    description: "Enrollment_clean.csv (student_id, CRN)",
     file: null,
   },
   {
     id: "rooms",
     label: "Room Availability",
-    description: "Available rooms and capacities",
-    file: null,
-  },
-  {
-    id: "class",
-    label: "Class Census",
-    description: "Class schedules and preferences",
+    description: "Classrooms_clean.csv (room_name, capacity)",
     file: null,
   },
 ];
 
-// Upload function
-async function uploadFile(
-  file: File,
-  type: string,
-  datasetId?: string,
-): Promise<{ rowCount: number }> {
-  const formData = new FormData();
-  formData.append("file", file);
-  formData.append("type", type);
-  if (datasetId) {
-    formData.append("dataset_id", datasetId);
-  }
-
-  // TODO: Replace with actual API call
-  await new Promise((resolve) => setTimeout(resolve, 5000));
-
-  if (Math.random() < 0.1) {
-    throw new Error("Network error occurred");
-  }
-
-  return { rowCount: Math.floor(Math.random() * 1000) + 100 };
-}
-
 export const useUploadStore = create<UploadState>((set, get) => ({
   // Initial state
   slots: INITIAL_SLOTS,
+  datasetName: null,
   isUploading: false,
   datasetId: null,
 
   // Actions
+  setDatasetName: (datasetName: string) => {
+    set({ datasetName: datasetName });
+  },
+
   setFile: (slotId: string, file: File) => {
     set((state) => ({
       slots: state.slots.map((slot: FileSlot) =>
@@ -106,41 +92,69 @@ export const useUploadStore = create<UploadState>((set, get) => ({
     const state = get();
     const filesToUpload = state.slots.filter((slot) => slot.file !== null);
 
-    if (filesToUpload.length === 0) {
-      throw new Error("No files to upload");
+    if (!state.datasetName) {
+      throw new Error("Name for the dataset is required");
+    }
+
+    if (filesToUpload.length !== 3) {
+      throw new Error(
+        "All three files are required (courses, enrollments, rooms)",
+      );
     }
 
     set({ isUploading: true });
 
     try {
-      // TODO: Create dataset to receive dataset id
+      // Set all files to uploading status
+      filesToUpload.forEach((slot) => {
+        get().updateSlotStatus(slot.id, "uploading");
+      });
 
-      // Upload each file
-      for (const slot of filesToUpload) {
-        if (!slot.file) continue;
+      // Prepare files object for API
+      const coursesSlot = state.slots.find((s) => s.id === "courses");
+      const enrollmentsSlot = state.slots.find((s) => s.id === "enrollments");
+      const roomsSlot = state.slots.find((s) => s.id === "rooms");
 
-        try {
-          // Update to uploading
-          get().updateSlotStatus(slot.id, "uploading");
+      if (!coursesSlot?.file || !enrollmentsSlot?.file || !roomsSlot?.file) {
+        throw new Error("Missing required files");
+      }
 
-          // Upload file
-          const result = await uploadFile(
-            slot.file.file,
-            slot.id,
-            state.datasetId || undefined,
-          );
+      // Upload all files at once
+      const result = await apiClient.uploadDataset(state.datasetName, {
+        courses: coursesSlot.file.file,
+        enrollments: enrollmentsSlot.file.file,
+        rooms: roomsSlot.file.file,
+      });
 
-          // Update to success
-          get().updateSlotStatus(slot.id, "success", {
-            rowCount: result.rowCount,
-          });
-        } catch (error) {
-          // Update to error
+      // Refresh datasetStore
+      useDatasetStore.getState().refreshDatasets();
+
+      // Store dataset ID
+      set({ datasetId: result.dataset_id });
+
+      // Update each slot with success and row counts
+      get().updateSlotStatus("courses", "success", {
+        rowCount: result.files.courses.rows,
+      });
+      get().updateSlotStatus("enrollments", "success", {
+        rowCount: result.files.enrollments.rows,
+      });
+      get().updateSlotStatus("rooms", "success", {
+        rowCount: result.files.rooms.rows,
+      });
+
+      return result;
+    } catch (error) {
+      // Mark all uploading files as error
+      state.slots.forEach((slot) => {
+        if (slot.file?.status === "uploading") {
           get().updateSlotStatus(slot.id, "error", {
             error: error instanceof Error ? error.message : "Upload failed",
           });
         }
-      }
+      });
+
+      throw error;
     } finally {
       set({ isUploading: false });
     }
@@ -150,6 +164,7 @@ export const useUploadStore = create<UploadState>((set, get) => ({
     set({
       slots: INITIAL_SLOTS,
       datasetId: null,
+      datasetName: null,
     });
   },
 

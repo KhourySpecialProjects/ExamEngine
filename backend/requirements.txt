@@ -21,3 +21,5 @@ pandas
 networkx
 pytest
 python-multipart
+python-jose
+passlib[bcrypt]

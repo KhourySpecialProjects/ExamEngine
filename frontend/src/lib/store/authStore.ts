@@ -14,6 +14,7 @@ interface AuthState {
   isLoading: boolean;
   login: (email: string, password: string) => Promise<void>;
   logout: () => void;
+  signup: (name: string, username: string, email: string, password: string)=> Promise<void>;
   updateProfile: (data: Partial<User>) => void;
 }
 
@@ -45,6 +46,11 @@ export const useAuthStore = create<AuthState>()(
           set({ isLoading: false });
           throw error;
         }
+      },
+
+      signup: async (name: string, username: string, email: string, password: string) => {
+          // Simulated login for now
+          await new Promise((resolve) => setTimeout(resolve, 1000));
       },
 
       logout: () => {

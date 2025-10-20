@@ -1,4 +1,5 @@
-from fastapi import APIRouter, UploadFile, File, HTTPException
+from fastapi import APIRouter, UploadFile, File, HTTPException, Form
+
 import shutil
 
 from src.services.storage import StorageService
@@ -7,6 +8,7 @@ router = APIRouter(prefix="/datasets", tags=["datasets"])
 
 @router.post("/upload")
 async def upload_dataset(
+    dataset_name: str = Form(None),
     courses: UploadFile = File(...),
     enrollments: UploadFile = File(...),
     rooms: UploadFile = File(...)
@@ -47,7 +49,7 @@ async def upload_dataset(
             )
         
         # Save metadata
-        metadata = StorageService.save_metadata(dataset_id, dataset_dir, files_metadata)
+        metadata = StorageService.save_metadata(dataset_name, dataset_id, dataset_dir, files_metadata)
         return metadata
         
     except HTTPException:

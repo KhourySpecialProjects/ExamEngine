@@ -52,10 +52,11 @@ class StorageService:
             return None, f"Error: {str(e)}"
     
     @staticmethod
-    def save_metadata(dataset_id, dataset_dir, files_metadata):
+    def save_metadata(dataset_name, dataset_id, dataset_dir, files_metadata):
         """Save dataset metadata"""
         metadata = {
             'dataset_id': dataset_id,
+            "dataset_name": dataset_name,
             'created_at': datetime.now().isoformat(),
             'files': files_metadata,
             'status': 'uploaded',

@@ -20,15 +20,19 @@ import {
 import { useUploadStore } from "@/lib/store/uploadStore";
 import { UploaderSlot } from "./UploaderSlot";
 import type { FileSlot } from "@/lib/types/upload.types";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 
 export function Uploader() {
   const slots = useUploadStore((state) => state.slots);
   const isUploading = useUploadStore((state) => state.isUploading);
+  const datasetName = useUploadStore((state) => state.datasetName);
   const hasFiles = useUploadStore((state) => state.hasFiles());
   const allFilesUploaded = useUploadStore((state) => state.allFilesUploaded());
   const hasErrors = useUploadStore((state) => state.hasErrors());
 
   const setFile = useUploadStore((state) => state.setFile);
+  const setDatasetName = useUploadStore((state) => state.setDatasetName);
   const removeFile = useUploadStore((state) => state.removeFile);
   const uploadAll = useUploadStore((state) => state.uploadAll);
   const clearAll = useUploadStore((state) => state.clearAll);
@@ -71,6 +75,16 @@ export function Uploader() {
         </DialogHeader>
 
         <div className="space-y-4 py-4">
+          <div className="space-y-2">
+            <Label htmlFor="dataset-name">Dataset Name</Label>
+            <Input
+              id="dataset-name"
+              type="text"
+              placeholder="e.g., Fall 2024 Final Exams"
+              value={datasetName || ""}
+              onChange={(e) => setDatasetName(e.target.value)}
+            />
+          </div>
           <div className="space-y-3">
             {slots.map((slot: FileSlot) => (
               <UploaderSlot
@@ -88,7 +102,7 @@ export function Uploader() {
           <div className="flex gap-3 pt-4 border-t">
             <Button
               onClick={handleUploadAll}
-              disabled={!hasFiles || isUploading}
+              disabled={!hasFiles || !datasetName || isUploading}
               className="flex-1"
             >
               {isUploading ? (

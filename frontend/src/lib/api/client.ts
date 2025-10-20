@@ -46,15 +46,22 @@ export class ApiClient {
     this.baseUrl = baseUrl;
   }
 
-  async uploadDataset(files: {
-    courses: File;
-    enrollments: File;
-    rooms: File;
-  }): Promise<DatasetMetadata> {
+  async uploadDataset(
+    datasetName: string,
+    files: {
+      courses: File;
+      enrollments: File;
+      rooms: File;
+    },
+  ): Promise<DatasetMetadata> {
     const formData = new FormData();
     formData.append("courses", files.courses);
     formData.append("enrollments", files.enrollments);
     formData.append("rooms", files.rooms);
+
+    if (datasetName?.trim()) {
+      formData.append("dataset_name", datasetName.trim());
+    }
 
     const response = await fetch(`${this.baseUrl}/datasets/upload`, {
       method: "POST",

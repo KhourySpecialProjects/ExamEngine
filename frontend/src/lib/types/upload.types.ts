@@ -20,8 +20,10 @@ export interface UploadState {
   slots: FileSlot[];
   isUploading: boolean;
   datasetId: string | null;
+  datasetName: string | null;
 
   // Actions
+  setDatasetName: (datasetName: string) => void;
   setFile: (slotId: string, file: File) => void;
   removeFile: (slotId: string) => void;
   updateSlotStatus: (

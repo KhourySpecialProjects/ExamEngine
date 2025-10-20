@@ -33,10 +33,15 @@ const INITIAL_SLOTS: FileSlot[] = [
 export const useUploadStore = create<UploadState>((set, get) => ({
   // Initial state
   slots: INITIAL_SLOTS,
+  datasetName: null,
   isUploading: false,
   datasetId: null,
 
   // Actions
+  setDataSetName: (datasetName: string) => {
+    set({ datasetName: datasetName });
+  },
+
   setFile: (slotId: string, file: File) => {
     set((state) => ({
       slots: state.slots.map((slot: FileSlot) =>
@@ -86,6 +91,10 @@ export const useUploadStore = create<UploadState>((set, get) => ({
     const state = get();
     const filesToUpload = state.slots.filter((slot) => slot.file !== null);
 
+    if (!state.datasetName) {
+      throw new Error("Name for the dataset is required");
+    }
+
     if (filesToUpload.length !== 3) {
       throw new Error(
         "All three files are required (courses, enrollments, rooms)",
@@ -110,7 +119,7 @@ export const useUploadStore = create<UploadState>((set, get) => ({
       }
 
       // Upload all files at once
-      const result = await apiClient.uploadDataset({
+      const result = await apiClient.uploadDataset(state.datasetName, {
         courses: coursesSlot.file.file,
         enrollments: enrollmentsSlot.file.file,
         rooms: roomsSlot.file.file,
@@ -151,6 +160,7 @@ export const useUploadStore = create<UploadState>((set, get) => ({
     set({
       slots: INITIAL_SLOTS,
       datasetId: null,
+      datasetName: null,
     });
   },
 

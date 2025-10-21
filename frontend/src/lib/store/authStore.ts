@@ -1,5 +1,6 @@
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
+import { apiClient } from "@/lib/api/client";
 
 export interface User {
   id: string;
@@ -12,7 +13,7 @@ interface AuthState {
   user: User | null;
   isAuthenticated: boolean;
   isLoading: boolean;
-  login: (email: string, password: string) => Promise<void>;
+  login: (username: string, password: string) => Promise<void>;
   logout: () => void;
   signup: (name: string, username: string, email: string, password: string)=> Promise<void>;
   updateProfile: (data: Partial<User>) => void;
@@ -25,23 +26,37 @@ export const useAuthStore = create<AuthState>()(
       isAuthenticated: false,
       isLoading: false,
 
-      login: async (email: string, _password: string) => {
+      login: async (username: string, password: string) => {
         set({ isLoading: true });
-
         try {
-          // TODO: Replace with actual API call to FastAPI backend
+          // OAuth2PasswordRequestForm expects form-encoded 'username' and 'password'
+          const body = new URLSearchParams();
+          body.set("username", username);
+          body.set("password", password);
 
-          // Simulated login for now
-          await new Promise((resolve) => setTimeout(resolve, 1000));
+          const res = await fetch(
+            `${apiClient['baseUrl'] || ""}/auth/login`,
+            {
+              method: "POST",
+              headers: { "Content-Type": "application/x-www-form-urlencoded" },
+              body: body.toString(),
+            },
+          );
 
-          // Mock user data
-          const mockUser: User = {
-            id: "1",
-            email,
-            name: email.split("@")[0],
-          };
+          if (!res.ok) {
+            const err = await res.json().catch(() => ({ detail: "Login failed" }));
+            throw new Error(JSON.stringify(err));
+          }
 
-          set({ user: mockUser, isAuthenticated: true, isLoading: false });
+          const data = await res.json();
+          const token = data.access_token as string | undefined;
+          if (!token) throw new Error("No access token returned from server");
+
+          // Store token in ApiClient and in persisted state
+          apiClient.setToken(token);
+
+          const user: User = { id: "", email: "", name: username };
+          set({ user, isAuthenticated: true, isLoading: false });
         } catch (error) {
           set({ isLoading: false });
           throw error;
@@ -49,12 +64,28 @@ export const useAuthStore = create<AuthState>()(
       },
 
       signup: async (name: string, username: string, email: string, password: string) => {
-          // Simulated login for now
-          await new Promise((resolve) => setTimeout(resolve, 1000));
+        // Call backend signup
+        set({ isLoading: true });
+        try {
+          const res = await fetch(`${apiClient['baseUrl'] || ""}/auth/signup`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ name, username, email, password }),
+          });
+          if (!res.ok) {
+            const err = await res.json().catch(() => ({ detail: "Signup failed" }));
+            throw new Error(JSON.stringify(err));
+          }
+          set({ isLoading: false });
+        } catch (error) {
+          set({ isLoading: false });
+          throw error;
+        }
       },
 
       logout: () => {
-        // TODO: Call backend logout endpoint
+        // clear token and state
+        apiClient.setToken(null);
         set({ user: null, isAuthenticated: false });
       },
 

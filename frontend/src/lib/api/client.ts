@@ -39,12 +39,25 @@ export interface DatasetMetadata {
 
 export class ApiClient {
   private baseUrl: string;
+  private token: string | null = null;
 
   constructor(
     baseUrl: string = process.env.NEXT_PUBLIC_API_URL ||
       "http://localhost:8000",
   ) {
     this.baseUrl = baseUrl;
+  }
+
+  setToken(token: string | null) {
+    this.token = token;
+  }
+
+  private async authFetch(input: RequestInfo, init?: RequestInit) {
+    const headers = new Headers(init?.headers || {});
+    if (this.token) {
+      headers.set("Authorization", `Bearer ${this.token}`);
+    }
+    return fetch(input, { ...init, headers });
   }
 
   async uploadDataset(
@@ -64,7 +77,7 @@ export class ApiClient {
       formData.append("dataset_name", datasetName.trim());
     }
 
-    const response = await fetch(`${this.baseUrl}/datasets/upload`, {
+    const response = await this.authFetch(`${this.baseUrl}/datasets/upload`, {
       method: "POST",
       body: formData,
     });
@@ -80,7 +93,7 @@ export class ApiClient {
   }
 
   async listDatasets(): Promise<DatasetMetadata[]> {
-    const response = await fetch(`${this.baseUrl}/datasets`);
+  const response = await this.authFetch(`${this.baseUrl}/datasets`);
 
     if (!response.ok) {
       throw new Error("Failed to fetch datasets");
@@ -90,7 +103,7 @@ export class ApiClient {
   }
 
   async getDataset(datasetId: string): Promise<DatasetMetadata> {
-    const response = await fetch(`${this.baseUrl}/datasets/${datasetId}`);
+  const response = await this.authFetch(`${this.baseUrl}/datasets/${datasetId}`);
 
     if (!response.ok) {
       throw new Error("Dataset not found");
@@ -100,7 +113,7 @@ export class ApiClient {
   }
 
   async deleteDataset(datasetId: string): Promise<void> {
-    const response = await fetch(`${this.baseUrl}/datasets/${datasetId}`, {
+    const response = await this.authFetch(`${this.baseUrl}/datasets/${datasetId}`, {
       method: "DELETE",
     });
 

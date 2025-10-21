@@ -129,19 +129,19 @@ def main():
     with Session(engine) as session:
         user = Users(name="Test User2", email="test@example2.com", password_hash="hashed_password2")
         session.add(user)
-        session.flush()  
-        
+        session.flush()
+
         dataset = Datasets(semester="Fall 20242", user_id=user.user_id, file_paths=["path12.csv", "path22.csv"])
         session.add(dataset)
-        session.flush()  
-        
+        session.flush()
+
         student = Students(dataset_id=dataset.dataset_id)
         course = Courses(course_subject_code="CS1012", enrollment_count=25, dataset_id=dataset.dataset_id)
-        
+
         session.add(student)
         session.add(course)
         session.commit()
-        
+
         print("Successfully created database with test data!")
 
 if __name__ == "__main__":  

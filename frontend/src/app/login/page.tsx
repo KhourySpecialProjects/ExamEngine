@@ -1,4 +1,7 @@
 "use client";
+import React from "react";
+import { toast } from "sonner";
+import { useRouter } from "next/navigation";
 
 import { useAuthStore } from "@/lib/store/authStore";
 import { Tabs, TabsTrigger, TabsContent, TabsList } from "@/components/ui/tabs";
@@ -17,25 +20,58 @@ import Link from "next/link";
 
 export default function Login() {
   const login = useAuthStore((state) => state.login);
+  const signup = useAuthStore((state) => state.signup);
+  const logout = useAuthStore((state) => state.logout);
   const user = useAuthStore((state) => state.user);
+  const router = useRouter();
+
+  const [email, setEmail] = React.useState("");
+  const [username, setUsername] = React.useState("");
+  const [password, setPassword] = React.useState("");
+  const [suName, setSuName] = React.useState("");
+  const [suEmail, setSuEmail] = React.useState("");
+  const [suPassword, setSuPassword] = React.useState("");
 
   const handleLogin = async () => {
     try {
-      await login("hello", "test");
-      console.log("successful");
+      await login(username, password);
+      toast.success("Logged in");
+      router.push("/dashboard");
     } catch (error) {
       console.error("Login failed", error);
+      toast.error("Login failed");
     }
   };
 
   const handleSignup = async () => {
-      const signup = useAuthStore.getState().signup;
-  }
+    // basic client-side validation to avoid 422 from backend
+    if (!suName || !suEmail || !suPassword || !suName) {
+      alert("Please fill name, email and password to sign up.");
+      return;
+    }
+    if (!suEmail.includes("@")) {
+      alert("Please enter a valid email address.");
+      return;
+    }
+
+    try {
+      await signup(suName, suEmail.split("@")[0], suEmail, suPassword);
+      toast.success("Signup successful");
+      router.push("/dashboard");
+    } catch (err: any) {
+      console.error(err);
+      // try to parse error detail from thrown Error
+      try {
+        const parsed = JSON.parse(err.message);
+        toast.error("Signup failed: " + (parsed.detail || JSON.stringify(parsed)));
+      } catch (_) {
+        toast.error("Signup failed");
+      }
+    }
+  };
 
   const handleLogout = () => {
-    // placeholder - auth store likely has a logout action
-    const logout = useAuthStore.getState().logout;
-    if (logout) logout();
+    logout();
   };
 
   return (
@@ -78,19 +114,24 @@ export default function Login() {
                   </CardHeader>
                   <CardContent className="grid gap-6">
                     <div className="grid gap-3">
-                      <Label htmlFor="name">Name</Label>
-                      <Input id="name" defaultValue="Pedro Duarte" />
+                      <Label htmlFor="name">Username</Label>
+                      <Input id="name" value={username} onChange={(e) => setUsername(e.target.value)} />
                     </div>
 
                     <div className="grid gap-3">
                       <Label htmlFor="password">Password</Label>
-                      <Input id="password" type="password" defaultValue="********" />
+                      <Input id="password" type="password" value={password} onChange={(e) => setPassword(e.target.value)} />
                     </div>
 
                     <div className="pt-2">
                       <Button onClick={handleLogin} className="bg-slate-900">
                         Login
                       </Button>
+                      {user && (
+                        <Button variant="ghost" onClick={handleLogout} className="ml-2">
+                          Logout
+                        </Button>
+                      )}
                     </div>
                   </CardContent>
                 </Card>
@@ -105,19 +146,19 @@ export default function Login() {
                   <CardContent className="grid gap-6">
                     <div className="grid gap-3">
                       <Label htmlFor="su-name">Name</Label>
-                      <Input id="su-name" />
+                      <Input id="su-name" value={suName} onChange={(e) => setSuName(e.target.value)} />
                       <div className="grid gap-3">
                       <Label htmlFor="su-email">Username</Label>
-                      <Input id="su-email" />
+                      <Input id="su-email" value={suEmail} onChange={(e) => setSuEmail(e.target.value)} />
                     </div>
                     </div>
                     <div className="grid gap-3">
                       <Label htmlFor="su-email">Email</Label>
-                      <Input id="su-email" />
+                      <Input id="su-email" value={suEmail} onChange={(e) => setSuEmail(e.target.value)} />
                     </div>
                     <div className="grid gap-3">
                       <Label htmlFor="su-password">Password</Label>
-                      <Input id="su-password" type="password" />
+                      <Input id="su-password" type="password" value={suPassword} onChange={(e) => setSuPassword(e.target.value)} />
                     </div>
                   </CardContent>
                   <CardFooter>

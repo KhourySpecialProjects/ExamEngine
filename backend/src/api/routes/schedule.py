@@ -1,12 +1,10 @@
-from fastapi import APIRouter, UploadFile, File
-from fastapi.responses import StreamingResponse
+from fastapi import APIRouter, UploadFile, File, HTTPException
 from fastapi.responses import StreamingResponse
 import pandas as pd
 from src.algorithms.dsatur_scheduler import DSATURExamGraph
 from src.algorithms.create_schedule import export_student_schedule
-from src.algorithms.create_schedule import export_student_schedule
+from src.services.storage import StorageService, DATASETS_DIR
 import io
-import zipfile
 import zipfile
 
 router = APIRouter(prefix="/schedule", tags=["schedules"])
@@ -77,3 +75,112 @@ async def post_output(census: UploadFile = File(...),
 
     headers = {"Content-Disposition": "attachment; filename=student_schedules.zip"}
     return StreamingResponse(zip_buffer, media_type="application/zip", headers=headers)
+
+@router.post("/generate/{dataset_id}")
+async def generate_schedule_from_dataset(
+    dataset_id: str,
+    max_per_day: int = 3,
+    avoid_back_to_back: bool = True,
+    max_days: int = 7
+):
+    """
+    Generate complete schedule from a stored dataset
+    
+    Returns:
+        Complete schedule with all exams, conflicts, and metadata
+    """
+    metadata = StorageService.load_metadata(dataset_id)
+    if not metadata:
+        raise HTTPException(status_code=404, detail="Dataset not found")
+    
+    dataset_dir = DATASETS_DIR / dataset_id
+    
+    try:
+        census_df = pd.read_csv(dataset_dir / "courses.csv")
+        enrollment_df = pd.read_csv(dataset_dir / "enrollments.csv")
+        classrooms_df = pd.read_csv(dataset_dir / "rooms.csv")
+    except FileNotFoundError as e:
+        raise HTTPException(status_code=404, detail=f"Dataset file missing: {e}")
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error reading dataset: {e}")
+    
+    try:
+        graph = DSATURExamGraph(census_df, enrollment_df, classrooms_df)
+        graph.build_graph()
+        graph.dsatur_color()
+        graph.dsatur_schedule(
+            max_per_day=max_per_day,
+            avoid_back_to_back=avoid_back_to_back,
+            max_days=max_days
+        )
+        results_df = graph.assign_rooms()
+        summary = graph.summary()
+        
+        total_conflicts, conflict_details, breakdown_df = graph.count_schedule_conflicts()
+        fail_report = graph.fail_report()
+        complete_schedule = results_df.to_dict(orient="records")
+        calendar_data = _build_calendar_structure(results_df)
+        
+        return {
+            "dataset_id": dataset_id,
+            "dataset_name": metadata.get("dataset_name", "Untitled"),
+            "summary": summary,
+            "conflicts": {
+                "total": total_conflicts,
+                "breakdown": breakdown_df.to_dict(orient="records") if not breakdown_df.empty else [],
+                "details": {str(k): v for k, v in conflict_details.items()} if conflict_details else {}
+            },
+            "failures": fail_report.to_dict(orient="records") if not fail_report.empty else [],
+            "schedule": {
+                "complete": complete_schedule,   
+                "calendar": calendar_data,                     
+                "total_exams": len(complete_schedule)
+            },
+            "parameters": {
+                "max_per_day": max_per_day,
+                "avoid_back_to_back": avoid_back_to_back,
+                "max_days": max_days
+            }
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Schedule generation failed: {e}")
+
+
+def _build_calendar_structure(results_df: pd.DataFrame) -> dict:
+    """
+    Convert schedule DataFrame to calendar structure
+    
+    Returns:
+        {
+            "Monday": {
+                "9:00-11:00": [exam1, exam2, ...],
+                "11:30-13:30": [...]
+            },
+            "Tuesday": {...}
+        }
+    """
+    calendar = {}
+    
+    # Group by Day and Block
+    for _, row in results_df.iterrows():
+        day = row['Day']
+        block = row['Block']
+        
+        if day not in calendar:
+            calendar[day] = {}
+        
+        if block not in calendar[day]:
+            calendar[day][block] = []
+        
+        # Add exam to this day/time slot
+        calendar[day][block].append({
+            "CRN": str(row['CRN']),
+            "Course": row['Course'],
+            "Room": row['Room'],
+            "Capacity": int(row['Capacity']),
+            "Size": int(row['Size']),
+            "Valid": bool(row['Valid'])
+        })
+    
+    return calendar
+

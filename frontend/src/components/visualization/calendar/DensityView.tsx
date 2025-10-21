@@ -1,6 +1,7 @@
-import { AlertCircle } from "lucide-react";
 import { useCalendarStore } from "@/lib/store/calendarStore";
 import { CalendarGrid } from "./CalendarGrid";
+import { useScheduleData } from "@/lib/hooks/useScheduleData";
+import { EmptyScheduleState } from "@/components/common/EmptyScheduleState";
 
 const DAYS = [
   "Monday",
@@ -30,14 +31,15 @@ const getDensityColor = (count: number): string => {
  * Click cell to open detail modal.
  */
 export default function DensityView() {
-  const scheduleData = useCalendarStore((state) => state.scheduleData);
+  const { hasData, isLoading, calendarRows } = useScheduleData();
   const selectCell = useCalendarStore((state) => state.selectCell);
+  if (!hasData) return <EmptyScheduleState isLoading={isLoading} />;
 
   return (
     <div className="space-y-4">
       {/* Calendar Grid */}
       <CalendarGrid
-        data={scheduleData}
+        data={calendarRows}
         days={DAYS}
         minCellHeight="h-[120px]"
         minCellWidth={140}

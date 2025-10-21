@@ -1,5 +1,6 @@
 "use client";
 
+import { Building, Calendar, Database, Users } from "lucide-react";
 import { useEffect } from "react";
 import {
   Select,
@@ -8,9 +9,10 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Database, Calendar, Users, Building } from "lucide-react";
-import { Uploader } from "../upload/Uploader";
 import { useDatasetStore } from "@/lib/store/datasetStore";
+import { ScheduleRunner } from "../schedule/ScheduleRunner";
+import { Uploader } from "../upload/Uploader";
+import { getTimeAgo } from "@/lib/utils";
 
 export function DashboardSidebar() {
   const {
@@ -33,21 +35,6 @@ export function DashboardSidebar() {
 
   const handleValueChange = (value: string) => {
     selectDataset(value);
-  };
-
-  // Format time ago
-  const getTimeAgo = (dateString: string) => {
-    const date = new Date(dateString);
-    const now = new Date();
-    const diffMs = now.getTime() - date.getTime();
-    const diffMins = Math.floor(diffMs / 60000);
-    const diffHours = Math.floor(diffMins / 60);
-    const diffDays = Math.floor(diffHours / 24);
-
-    if (diffMins < 60) return `${diffMins}m ago`;
-    if (diffHours < 24) return `${diffHours}h ago`;
-    if (diffDays < 7) return `${diffDays}d ago`;
-    return date.toLocaleDateString();
   };
 
   return (
@@ -146,6 +133,10 @@ export function DashboardSidebar() {
             )}
           </div>
         )}
+      </section>
+
+      <section>
+        <ScheduleRunner />
       </section>
     </div>
   );

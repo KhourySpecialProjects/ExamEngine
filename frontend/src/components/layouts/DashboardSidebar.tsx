@@ -1,5 +1,6 @@
 "use client";
 
+import { Building, Calendar, Database, Users } from "lucide-react";
 import { useEffect } from "react";
 import {
   Select,
@@ -8,9 +9,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Database, Calendar, Users, Building } from "lucide-react";
-import { Uploader } from "../upload/Uploader";
 import { useDatasetStore } from "@/lib/store/datasetStore";
+import { Uploader } from "../upload/Uploader";
 
 export function DashboardSidebar() {
   const {
@@ -29,7 +29,7 @@ export function DashboardSidebar() {
     if (datasets.length === 0) {
       fetchDatasets();
     }
-  }, []);
+  }, [fetchDatasets, datasets.length]);
 
   const handleValueChange = (value: string) => {
     selectDataset(value);

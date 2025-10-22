@@ -1,19 +1,14 @@
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
-
-export interface User {
-  id: string;
-  email: string;
-  name: string;
-  avatar?: string;
-}
+import { apiClient } from "../api/client";
+import type { User } from "../api/auth";
 
 interface AuthState {
   user: User | null;
-  isAuthenticated: boolean;
   isLoading: boolean;
   login: (email: string, password: string) => Promise<void>;
-  logout: () => void;
+  logout: () => Promise<void>;
+  signup: (name: string, email: string, password: string) => Promise<void>;
   updateProfile: (data: Partial<User>) => void;
 }
 
@@ -24,32 +19,43 @@ export const useAuthStore = create<AuthState>()(
       isAuthenticated: false,
       isLoading: false,
 
-      login: async (email: string, _password: string) => {
+      login: async (email: string, password: string) => {
         set({ isLoading: true });
-
         try {
-          // TODO: Replace with actual API call to FastAPI backend
+          const response = await apiClient.auth.login(email, password);
 
-          // Simulated login for now
-          await new Promise((resolve) => setTimeout(resolve, 1000));
-
-          // Mock user data
-          const mockUser: User = {
-            id: "1",
-            email,
-            name: email.split("@")[0],
-          };
-
-          set({ user: mockUser, isAuthenticated: true, isLoading: false });
+          set({
+            user: response.user,
+            isLoading: false,
+          });
         } catch (error) {
           set({ isLoading: false });
           throw error;
         }
       },
 
-      logout: () => {
-        // TODO: Call backend logout endpoint
-        set({ user: null, isAuthenticated: false });
+      signup: async (name: string, email: string, password: string) => {
+        set({ isLoading: true });
+        try {
+          const response = await apiClient.auth.signup(name, email, password);
+          set({
+            user: response.user,
+            isLoading: false,
+          });
+        } catch (error) {
+          set({ isLoading: false });
+          throw error;
+        }
+      },
+
+      logout: async () => {
+        try {
+          await apiClient.auth.logout();
+        } catch (error) {
+          console.error("Logout error:", error);
+        } finally {
+          set({ user: null });
+        }
       },
 
       updateProfile: (data: Partial<User>) => {

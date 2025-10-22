@@ -1,9 +1,6 @@
 import { create } from "zustand";
-import {
-  apiClient,
-  type ScheduleResult,
-  type ScheduleParameters,
-} from "@/lib/api/client";
+import { apiClient } from "@/lib/api/client";
+import type { ScheduleParameters, ScheduleResult } from "../api/schedules";
 
 interface ScheduleState {
   // Initial data state
@@ -39,7 +36,7 @@ export const useScheduleStore = create<ScheduleState>((set, get) => ({
     set({ isGenerating: true, error: null });
 
     try {
-      const result = await apiClient.generateSchedule(
+      const result = await apiClient.schedules.generate(
         datasetId,
         get().parameters,
       );

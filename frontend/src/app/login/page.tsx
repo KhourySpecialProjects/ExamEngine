@@ -45,12 +45,12 @@ export default function Login() {
 
   const handleSignup = async () => {
     // basic client-side validation to avoid 422 from backend
-    if (!suName || !suEmail || !suPassword || !suName) {
-      alert("Please fill name, email and password to sign up.");
+    if (!suName || !suEmail || !suPassword) {
+      toast.error("Please fill name, email and password to sign up.");
       return;
     }
     if (!suEmail.includes("@")) {
-      alert("Please enter a valid email address.");
+      toast.error("Please enter a valid email address.");
       return;
     }
 

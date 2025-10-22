@@ -1,32 +1,28 @@
 "use client";
+import Link from "next/link";
+import { useRouter } from "next/navigation";
 import React from "react";
 import { toast } from "sonner";
-import { useRouter } from "next/navigation";
-
-import { useAuthStore } from "@/lib/store/authStore";
-import { Tabs, TabsTrigger, TabsContent, TabsList } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
 import {
   Card,
-  CardHeader,
   CardContent,
   CardDescription,
   CardFooter,
+  CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
-import Link from "next/link";
+import { Label } from "@/components/ui/label";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { useAuthStore } from "@/lib/store/authStore";
 
 export default function Login() {
   const login = useAuthStore((state) => state.login);
   const signup = useAuthStore((state) => state.signup);
-  const logout = useAuthStore((state) => state.logout);
-  const user = useAuthStore((state) => state.user);
   const router = useRouter();
 
   const [email, setEmail] = React.useState("");
-  const [username, setUsername] = React.useState("");
   const [password, setPassword] = React.useState("");
   const [suName, setSuName] = React.useState("");
   const [suEmail, setSuEmail] = React.useState("");
@@ -34,7 +30,7 @@ export default function Login() {
 
   const handleLogin = async () => {
     try {
-      await login(username, password);
+      await login(email, password);
       toast.success("Logged in");
       router.push("/dashboard");
     } catch (error) {
@@ -44,8 +40,7 @@ export default function Login() {
   };
 
   const handleSignup = async () => {
-    // basic client-side validation to avoid 422 from backend
-    if (!suName || !suEmail || !suPassword) {
+    if (!suEmail || !suPassword) {
       toast.error("Please fill name, email and password to sign up.");
       return;
     }
@@ -55,7 +50,7 @@ export default function Login() {
     }
 
     try {
-      await signup(suName, suEmail.split("@")[0], suEmail, suPassword);
+      await signup(suName, suEmail, suPassword);
       toast.success("Signup successful");
       router.push("/dashboard");
     } catch (err: any) {
@@ -63,15 +58,13 @@ export default function Login() {
       // try to parse error detail from thrown Error
       try {
         const parsed = JSON.parse(err.message);
-        toast.error("Signup failed: " + (parsed.detail || JSON.stringify(parsed)));
+        toast.error(
+          `Signup failed: ${parsed.detail || JSON.stringify(parsed)}`,
+        );
       } catch (_) {
         toast.error("Signup failed");
       }
     }
-  };
-
-  const handleLogout = () => {
-    logout();
   };
 
   return (
@@ -83,13 +76,6 @@ export default function Login() {
             EE
           </div>
           <span className="font-semibold">ExamEngine</span>
-        </div>
-        <div className="flex items-center gap-4">
-          <button className="text-sm text-slate-600">🔔</button>
-          <button className="text-sm text-slate-600">⚙️</button>
-          <Link href="/login" className="text-sm text-slate-700">
-            Sign in
-          </Link>
         </div>
       </header>
 
@@ -114,24 +100,28 @@ export default function Login() {
                   </CardHeader>
                   <CardContent className="grid gap-6">
                     <div className="grid gap-3">
-                      <Label htmlFor="name">Username</Label>
-                      <Input id="name" value={username} onChange={(e) => setUsername(e.target.value)} />
+                      <Label htmlFor="email">Email</Label>
+                      <Input
+                        id="email"
+                        value={email}
+                        onChange={(e) => setEmail(e.target.value)}
+                      />
                     </div>
 
                     <div className="grid gap-3">
                       <Label htmlFor="password">Password</Label>
-                      <Input id="password" type="password" value={password} onChange={(e) => setPassword(e.target.value)} />
+                      <Input
+                        id="password"
+                        type="password"
+                        value={password}
+                        onChange={(e) => setPassword(e.target.value)}
+                      />
                     </div>
 
                     <div className="pt-2">
                       <Button onClick={handleLogin} className="bg-slate-900">
                         Login
                       </Button>
-                      {user && (
-                        <Button variant="ghost" onClick={handleLogout} className="ml-2">
-                          Logout
-                        </Button>
-                      )}
                     </div>
                   </CardContent>
                 </Card>
@@ -146,19 +136,28 @@ export default function Login() {
                   <CardContent className="grid gap-6">
                     <div className="grid gap-3">
                       <Label htmlFor="su-name">Name</Label>
-                      <Input id="su-name" value={suName} onChange={(e) => setSuName(e.target.value)} />
-                      <div className="grid gap-3">
-                      <Label htmlFor="su-email">Username</Label>
-                      <Input id="su-email" value={suEmail} onChange={(e) => setSuEmail(e.target.value)} />
-                    </div>
+                      <Input
+                        id="su-name"
+                        value={suName}
+                        onChange={(e) => setSuName(e.target.value)}
+                      />
                     </div>
                     <div className="grid gap-3">
                       <Label htmlFor="su-email">Email</Label>
-                      <Input id="su-email" value={suEmail} onChange={(e) => setSuEmail(e.target.value)} />
+                      <Input
+                        id="su-email"
+                        value={suEmail}
+                        onChange={(e) => setSuEmail(e.target.value)}
+                      />
                     </div>
                     <div className="grid gap-3">
                       <Label htmlFor="su-password">Password</Label>
-                      <Input id="su-password" type="password" value={suPassword} onChange={(e) => setSuPassword(e.target.value)} />
+                      <Input
+                        id="su-password"
+                        type="password"
+                        value={suPassword}
+                        onChange={(e) => setSuPassword(e.target.value)}
+                      />
                     </div>
                   </CardContent>
                   <CardFooter>
@@ -176,9 +175,24 @@ export default function Login() {
         <div className="max-w-6xl mx-auto flex items-center justify-between">
           <div className="text-sm text-slate-600">Powered by ExamEngine</div>
           <div className="flex items-center gap-3">
-            <Link href="/about" className="px-3 py-1 rounded-full bg-slate-900 text-white text-sm">About</Link>
-            <Link href="/faq" className="px-3 py-1 rounded-full bg-slate-900 text-white text-sm">FAQ</Link>
-            <Link href="/contact" className="px-3 py-1 rounded-full bg-slate-900 text-white text-sm">Contact us</Link>
+            <Link
+              href="/about"
+              className="px-3 py-1 rounded-full bg-slate-900 text-white text-sm"
+            >
+              About
+            </Link>
+            <Link
+              href="/faq"
+              className="px-3 py-1 rounded-full bg-slate-900 text-white text-sm"
+            >
+              FAQ
+            </Link>
+            <Link
+              href="/contact"
+              className="px-3 py-1 rounded-full bg-slate-900 text-white text-sm"
+            >
+              Contact us
+            </Link>
           </div>
         </div>
       </footer>

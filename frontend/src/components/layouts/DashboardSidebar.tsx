@@ -10,9 +10,9 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { useDatasetStore } from "@/lib/store/datasetStore";
+import { getTimeAgo } from "@/lib/utils";
 import { ScheduleRunner } from "../schedule/ScheduleRunner";
 import { Uploader } from "../upload/Uploader";
-import { getTimeAgo } from "@/lib/utils";
 
 export function DashboardSidebar() {
   const {
@@ -31,7 +31,7 @@ export function DashboardSidebar() {
     if (datasets.length === 0) {
       fetchDatasets();
     }
-  }, []);
+  }, [fetchDatasets, datasets.length]);
 
   const handleValueChange = (value: string) => {
     selectDataset(value);

@@ -1,13 +1,36 @@
 import os
+from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from src.api.routes import schedule
 from src.api.routes import datasets
 from src.api.routes import auth
+from src.schemas.db import Base
+from dotenv import load_dotenv 
+from sqlalchemy import create_engine
+load_dotenv()
 
-app = FastAPI(title="Exam Scheduler API", version="1.0")
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """Lifespan event handler - runs on startup and shutdown"""
+    # Startup
+    db_url = os.getenv("DATABASE_URL", "sqlite:///./dev.db")
+    connect_args = {"check_same_thread": False} if db_url.startswith("sqlite") else {}
+    
+    engine = create_engine(db_url, connect_args=connect_args, echo=False)
+    Base.metadata.create_all(bind=engine)
+    
+    yield  # Server runs here
+    
 
-# Allow CORS from the frontend during development. Set FRONTEND_URL in env for prod.
+# Create app with lifespan
+app = FastAPI(
+    title="Exam Scheduler API", 
+    version="1.0",
+    lifespan=lifespan
+)
+
+# CORS
 frontend_origin = os.getenv("FRONTEND_URL", "http://localhost:3000")
 app.add_middleware(
     CORSMiddleware,
@@ -17,7 +40,6 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# TODO Initialize DB 
 app.include_router(schedule.router)
 app.include_router(datasets.router)
 app.include_router(auth.router)

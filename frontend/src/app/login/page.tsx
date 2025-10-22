@@ -31,11 +31,10 @@ export default function Login() {
   const handleLogin = async () => {
     try {
       await login(email, password);
-      toast.success("Logged in");
+      toast.success("Logged In");
       router.push("/dashboard");
-    } catch (error) {
-      console.error("Login failed", error);
-      toast.error("Login failed");
+    } catch (_error) {
+      toast.error("Login Failed");
     }
   };
 
@@ -51,10 +50,9 @@ export default function Login() {
 
     try {
       await signup(suName, suEmail, suPassword);
-      toast.success("Signup successful");
+      toast.success("Sign Up Successful");
       router.push("/dashboard");
     } catch (err: any) {
-      console.error(err);
       // try to parse error detail from thrown Error
       try {
         const parsed = JSON.parse(err.message);

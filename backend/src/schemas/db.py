@@ -86,10 +86,10 @@ class Schedules(Base):
 class Datasets(Base):
     __tablename__ = "datasets"
     dataset_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    semester: Mapped[str] = mapped_column(String(10))
+    dataset_name: Mapped[str] = mapped_column(String(255))
     upload_date: Mapped[DateTime] = mapped_column(DateTime, default=datetime.datetime.now)
     user_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("users.user_id"))
-    file_paths: Mapped[list[str]] = mapped_column(MutableList.as_mutable(JSONB), nullable=False)
+    file_paths: Mapped[list[dict]] = mapped_column(MutableList.as_mutable(JSONB), nullable=False)
 
 class StatusEnum(enum.Enum):
     Running = "Running"

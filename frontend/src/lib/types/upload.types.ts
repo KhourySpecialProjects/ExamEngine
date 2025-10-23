@@ -1,4 +1,4 @@
-import type { DatasetMetadata } from "@/lib/api/client";
+import { DatasetMetadata } from "../api/datasets";
 
 export type UploadStatus = "pending" | "uploading" | "success" | "error";
 

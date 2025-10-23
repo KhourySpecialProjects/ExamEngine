@@ -12,20 +12,26 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { useRouter } from "next/navigation";
 
 export function DashboardHeader() {
   const { user, logout } = useAuthStore();
+  const router = useRouter();
+  const handleLogout = () => {
+    logout();
+    router.push("/login");
+  };
 
   return (
     <header className="h-16 border-b bg-white flex items-center justify-between px-6">
       {/* Logo */}
       <div className="flex items-center gap-3">
-        <div className="h-10 w-10 bg-primary rounded-lg flex items-center justify-center">
-          <span className="text-white font-bold">
-            <Calendar />
-          </span>
+        <div className="flex items-center gap-3">
+          <div className="w-10 h-10 bg-black text-white rounded flex items-center justify-center font-semibold">
+            EE
+          </div>
+          <span className="font-semibold">ExamEngine</span>
         </div>
-        <h1 className="text-xl font-bold">ExamEngine</h1>
       </div>
 
       {/* Right Side - Notifications, Settings, User */}
@@ -66,7 +72,7 @@ export function DashboardHeader() {
             <DropdownMenuItem>Profile</DropdownMenuItem>
             <DropdownMenuItem>Settings</DropdownMenuItem>
             <DropdownMenuSeparator />
-            <DropdownMenuItem onClick={logout} className="text-red-600">
+            <DropdownMenuItem onClick={handleLogout} className="text-red-600">
               Logout
             </DropdownMenuItem>
           </DropdownMenuContent>

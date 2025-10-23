@@ -9,6 +9,7 @@ python-dotenv
 dotenv
 
 # Database 
+python-dotenv
 SQLAlchemy
 psycopg2-binary
 
@@ -24,3 +25,8 @@ pandas
 networkx
 pytest
 python-multipart
+python-jose
+passlib[bcrypt]
+bcrypt==3.2.0
+
+pydantic[email]

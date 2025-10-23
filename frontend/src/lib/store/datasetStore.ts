@@ -1,6 +1,7 @@
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
-import { apiClient, type DatasetMetadata } from "@/lib/api/client";
+import type { DatasetMetadata } from "../api/datasets";
+import { apiClient } from "../api/client";
 
 interface DatasetState {
   // State
@@ -11,7 +12,6 @@ interface DatasetState {
 
   // Actions
   fetchDatasets: () => Promise<void>;
-  fetchDataset: (datasetId: string) => Promise<DatasetMetadata | null>;
   selectDataset: (datasetId: string | null) => void;
   deleteDataset: (datasetId: string) => Promise<void>;
   clearError: () => void;
@@ -35,7 +35,7 @@ export const useDatasetStore = create<DatasetState>()(
       fetchDatasets: async () => {
         set({ isLoading: true, error: null });
         try {
-          const datasets = await apiClient.listDatasets();
+          const datasets = await apiClient.datasets.list();
           set({ datasets, isLoading: false });
         } catch (error) {
           set({
@@ -48,33 +48,6 @@ export const useDatasetStore = create<DatasetState>()(
         }
       },
 
-      // Fetch single dataset with analysis
-      fetchDataset: async (datasetId: string) => {
-        set({ isLoading: true, error: null });
-        try {
-          const dataset = await apiClient.getDataset(datasetId);
-
-          // Update the dataset in the list
-          set((state) => ({
-            datasets: state.datasets.map((d) =>
-              d.dataset_id === datasetId ? dataset : d,
-            ),
-            isLoading: false,
-          }));
-
-          return dataset;
-        } catch (error) {
-          set({
-            error:
-              error instanceof Error
-                ? error.message
-                : "Failed to fetch dataset",
-            isLoading: false,
-          });
-          return null;
-        }
-      },
-
       // Select a dataset
       selectDataset: (datasetId: string | null) => {
         set({ selectedDatasetId: datasetId });
@@ -84,7 +57,7 @@ export const useDatasetStore = create<DatasetState>()(
       deleteDataset: async (datasetId: string) => {
         set({ isLoading: true, error: null });
         try {
-          await apiClient.deleteDataset(datasetId);
+          await apiClient.datasets.deleteDataset(datasetId);
 
           set((state) => ({
             datasets: state.datasets.filter((d) => d.dataset_id !== datasetId),

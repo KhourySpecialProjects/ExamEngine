@@ -1,27 +1,16 @@
-from sqlalchemy import create_engine, Integer, String, ForeignKey
-from sqlalchemy.dialects.postgresql import UUID
-from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, Session
-from uuid import UUID
-import uuid
-from uuid import UUID
-
-import uuid
-from sqlalchemy.dialects.postgresql import UUID  
 from sqlalchemy.orm import Mapped, mapped_column, DeclarativeBase
 from sqlalchemy import String, Integer
 import enum
-import uuid
 import datetime
 from typing import Any
-from uuid import UUID
+import uuid
 
 from sqlalchemy import (
     Enum, ForeignKey, Integer, String, Time, DateTime,
-    create_engine
 )
 from sqlalchemy.dialects.postgresql import JSONB, UUID
 from sqlalchemy.ext.mutable import MutableDict, MutableList
-from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, Session
+from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 
 
 class Base(DeclarativeBase):
@@ -83,9 +72,9 @@ class TimeSlots(Base):
 class Users(Base):
     __tablename__ = "users"
     user_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    name: Mapped[str] = mapped_column(String(25), nullable=False)
-    email: Mapped[str] = mapped_column(String(25), unique=True, nullable=False)
-    password_hash: Mapped[str] = mapped_column(String(50), nullable=False)
+    name: Mapped[str] = mapped_column(String(255), nullable=False)
+    email: Mapped[str] = mapped_column(String(255), unique=True, nullable=False)
+    password_hash: Mapped[str] = mapped_column(String(255), nullable=False)
 
 class Schedules(Base):
     __tablename__ = "schedules"
@@ -97,10 +86,10 @@ class Schedules(Base):
 class Datasets(Base):
     __tablename__ = "datasets"
     dataset_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    semester: Mapped[str] = mapped_column(String(10))
+    dataset_name: Mapped[str] = mapped_column(String(255))
     upload_date: Mapped[DateTime] = mapped_column(DateTime, default=datetime.datetime.now)
     user_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("users.user_id"))
-    file_paths: Mapped[list[str]] = mapped_column(MutableList.as_mutable(JSONB), nullable=False)
+    file_paths: Mapped[list[dict]] = mapped_column(MutableList.as_mutable(JSONB), nullable=False)
 
 class StatusEnum(enum.Enum):
     Running = "Running"
@@ -118,31 +107,3 @@ class Runs(Base):
     
     status: Mapped[StatusEnum] = mapped_column(Enum(StatusEnum)) 
 
-# --- Main logic ---
-def main():
-    db_url = "postgresql+psycopg2://postgres:postgres@localhost:5432/exam_engine_db"
-    engine = create_engine(db_url, echo=True)
-    
-    Base.metadata.drop_all(engine)
-    Base.metadata.create_all(engine)
-    
-    with Session(engine) as session:
-        user = Users(name="Test User2", email="test@example2.com", password_hash="hashed_password2")
-        session.add(user)
-        session.flush()  
-        
-        dataset = Datasets(semester="Fall 20242", user_id=user.user_id, file_paths=["path12.csv", "path22.csv"])
-        session.add(dataset)
-        session.flush()  
-        
-        student = Students(dataset_id=dataset.dataset_id)
-        course = Courses(course_subject_code="CS1012", enrollment_count=25, dataset_id=dataset.dataset_id)
-        
-        session.add(student)
-        session.add(course)
-        session.commit()
-        
-        print("Successfully created database with test data!")
-
-if __name__ == "__main__":  
-    main()

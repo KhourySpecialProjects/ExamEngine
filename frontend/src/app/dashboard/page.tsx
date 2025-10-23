@@ -7,6 +7,7 @@ import {
   generateSampleData,
   wrapSampleDataAsScheduleResult,
 } from "@/lib/utils";
+import { ExamListDialog } from "@/components/visualization/calendar/ExamListDialog";
 
 export default function DashboardPage() {
   const setScheduleData = useScheduleStore((state) => state.setScheduleData);
@@ -20,6 +21,7 @@ export default function DashboardPage() {
   return (
     <div className="space-y-6 m-5">
       <DensityView />
+      <ExamListDialog />
     </div>
   );
 }

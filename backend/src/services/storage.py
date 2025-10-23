@@ -4,12 +4,15 @@ import json
 from datetime import datetime
 import pandas as pd
 from pathlib import Path
+from src.services.s3_client import get_client
+from botocore.exceptions import ClientError, EndpointConnectionError
+import io as _io
 
-from .validation import validate_csv_schema, get_file_statistics
 
 
 BASE_DIR = Path(__file__).parent.parent.parent
 DATASETS_DIR =  BASE_DIR / "datasets"
+S3_CLIENT = get_client()
 
 class StorageService:
     
@@ -22,34 +25,42 @@ class StorageService:
         dataset_dir.mkdir(parents=True, exist_ok=True)
         return dataset_id, dataset_dir
     
+
+    
+
     @staticmethod
-    async def save_and_validate_file(upload_file, file_type, dataset_dir):
-        """Save and validate uploaded file"""
-        file_path = dataset_dir / f"{file_type}.csv"
-        
+    async def save_and_validate_file(upload_file, file_type, dataset_uuid):
+        """
+        Save one uploaded CSV to S3 and validate schema.
+        Returns: (stats: dict | None, error: str | None)
+        """
         try:
-            # Save file
-            with file_path.open("wb") as buffer:
-                shutil.copyfileobj(upload_file.file, buffer)
-            
-            # Read and validate
-            df = pd.read_csv(file_path)
-            
-            # Check schema
-            missing_cols = validate_csv_schema(df, file_type)
-            if missing_cols:
-                return None, f"Missing columns: {', '.join(missing_cols)}"
-            
-            # Get statistics
-            file_size = file_path.stat().st_size
-            stats = get_file_statistics(df, file_type, file_size, upload_file.filename)
-            
-            return stats, None
-            
-        except pd.errors.EmptyDataError:
-            return None, "File is empty"
+            # Read the uploaded file bytes (SpooledTemporaryFile)
+            content = await upload_file.read()  # bytes
+            if not content:
+                return "empty_file"
+
+            #Creates a directory 
+            key = f"{dataset_uuid}/{file_type}.csv"
+
+            S3_CLIENT.upload_fileobj(
+                _io.BytesIO(content),
+                "exam-engine-csvs",
+                key,
+                ExtraArgs={"ContentType": "text/csv"}
+            )
+        
+            return None, {
+            "dataset_id": dataset_uuid,
+            "dataset_name": file_type,
+            "status": "uploaded",
+            }
+
+        except (ClientError) as e:
+            return f"s3_error: {str(e)}", None
         except Exception as e:
-            return None, f"Error: {str(e)}"
+            return f"validation_or_io_error: {str(e)}", None
+
     
     @staticmethod
     def save_metadata(dataset_name, dataset_id, dataset_dir, files_metadata):

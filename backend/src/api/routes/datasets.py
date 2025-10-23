@@ -1,7 +1,7 @@
 from fastapi import APIRouter, UploadFile, File, HTTPException, Form
 
 import shutil
-
+import uuid
 from src.services.storage import StorageService
 
 router = APIRouter(prefix="/datasets", tags=["datasets"])
@@ -13,53 +13,43 @@ async def upload_dataset(
     enrollments: UploadFile = File(...),
     rooms: UploadFile = File(...)
 ):
-    """Upload dataset CSVs"""
-    dataset_id, dataset_dir = StorageService.create_dataset_directory()
     
-    try:
-        files_metadata = {}
-        validation_errors = {}
+
         
         uploaded_files = {
-            'courses': courses,
-            'enrollments': enrollments,
-            'rooms': rooms
+            'ClassCensus': courses,
+            'Enrollments': enrollments,
+            'Classrooms': rooms
         }
         
+        new_uuid = str(uuid.uuid4())
+        
+        ###
+        validation_errors = {}
+        uploaded = {}
         # Process each file
         for file_type, upload_file in uploaded_files.items():
-            stats, error = await StorageService.save_and_validate_file(
-                upload_file, file_type, dataset_dir
+            error, stats = await StorageService.save_and_validate_file(
+                upload_file, file_type, new_uuid
             )
-            
-            if error:
-                validation_errors[file_type] = error
-            else:
-                files_metadata[file_type] = stats
-        
-        # If validation failed, clean up
+        if error:
+            validation_errors[file_type] = error
+        else:
+            uploaded[file_type] = stats
+
         if validation_errors:
-            shutil.rmtree(dataset_dir)
+
             raise HTTPException(
                 status_code=400,
-                detail={
-                    "message": "Validation failed",
-                    "errors": validation_errors
-                }
+                detail={"message": "Validation failed", "errors": validation_errors},
             )
-        
-        # Save metadata
-        metadata = StorageService.save_metadata(dataset_name, dataset_id, dataset_dir, files_metadata)
-        return metadata
-        
-    except HTTPException:
-        raise
-    except Exception as e:
-        if dataset_dir.exists():
-            shutil.rmtree(dataset_dir)
-        raise HTTPException(status_code=500, detail=f"Upload failed: {str(e)}")
 
-
+        return {
+            "dataset_id": new_uuid,
+            "dataset_name": dataset_name,
+            "status": "uploaded",
+            "files": uploaded,  # contains whatever stats you return (s3_key, bytes, etc.)
+        }
 @router.get("")
 async def list_datasets():
     """List all datasets"""

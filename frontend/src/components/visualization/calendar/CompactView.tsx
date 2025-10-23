@@ -1,6 +1,9 @@
+import { EmptyScheduleState } from "@/components/common/EmptyScheduleState";
 import { Button } from "@/components/ui/button";
-import { CalendarGrid } from "./CalendarGrid";
+import { useScheduleData } from "@/lib/hooks/useScheduleData";
 import { useCalendarStore } from "@/lib/store/calendarStore";
+import { CalendarGrid } from "./CalendarGrid";
+
 const DAYS = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"];
 
 /**
@@ -10,11 +13,12 @@ const DAYS = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"];
  * Shows "+X more" button when there are additional exams.
  */
 export default function CompactView() {
-  const scheduleData = useCalendarStore((state) => state.scheduleData);
+  const { hasData, isLoading, calendarRows } = useScheduleData();
   const selectCell = useCalendarStore((state) => state.selectCell);
+  if (!hasData) return <EmptyScheduleState isLoading={isLoading} />;
   return (
     <CalendarGrid
-      data={scheduleData}
+      data={calendarRows}
       days={DAYS}
       minCellHeight="min-h-[150px]"
       renderCell={(cell) => {

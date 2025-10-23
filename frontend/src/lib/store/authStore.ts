@@ -16,7 +16,6 @@ export const useAuthStore = create<AuthState>()(
   persist(
     (set) => ({
       user: null,
-      isAuthenticated: false,
       isLoading: false,
 
       login: async (email: string, password: string) => {
@@ -55,6 +54,10 @@ export const useAuthStore = create<AuthState>()(
           console.error("Logout error:", error);
         } finally {
           set({ user: null });
+          // prevent BFCache
+          if (typeof window !== "undefined") {
+            window.location.replace("/login");
+          }
         }
       },
 

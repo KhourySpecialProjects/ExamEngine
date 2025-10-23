@@ -26,41 +26,28 @@ export interface CalendarRow {
   timeSlot: string;
   days: CalendarCell[];
 }
+
 export interface CalendarFilters {
   searchQuery: string;
   departmentFilter: string;
   showConflictsOnly: boolean;
 }
 
-export interface CalendarStats {
-  totalExams: number;
-  totalConflicts: number;
-}
-
-interface CalendarStore {
-  scheduleData: CalendarRow[];
-  allExams: Exam[];
-
+interface CalendarState {
+  // Initial state
   filters: CalendarFilters;
-
   selectedCell: CalendarCell | null;
 
-  setScheduleData: (data: CalendarRow[]) => void;
+  // Actions
   setSearchQuery: (query: string) => void;
   setDepartmentFilter: (department: string) => void;
   setShowConflictsOnly: (show: boolean) => void;
   clearFilters: () => void;
   selectCell: (cell: CalendarCell | null) => void;
-
-  getFilteredExams: () => Exam[];
-  getStats: () => CalendarStats;
-  getDepartments: () => string[];
 }
 
-export const useCalendarStore = create<CalendarStore>((set, get) => ({
-  // States
-  scheduleData: [] as CalendarRow[],
-  allExams: [],
+export const useCalendarStore = create<CalendarState>((set) => ({
+  // Initial state
   filters: {
     searchQuery: "",
     departmentFilter: "",
@@ -68,26 +55,20 @@ export const useCalendarStore = create<CalendarStore>((set, get) => ({
   },
   selectedCell: null,
 
-  setScheduleData: (data) => {
-    const allExams: Exam[] = data.flatMap((row) =>
-      row.days.flatMap((day) => day.exams),
-    );
-    set({ scheduleData: data, allExams });
-  },
-
+  // Filter actions
   setSearchQuery: (query) => {
     set((state) => ({
       filters: { ...state.filters, searchQuery: query },
     }));
   },
 
-  setDepartmentFilter: (department: string) => {
+  setDepartmentFilter: (department) => {
     set((state) => ({
       filters: { ...state.filters, departmentFilter: department },
     }));
   },
 
-  setShowConflictsOnly: (show: boolean) => {
+  setShowConflictsOnly: (show) => {
     set((state) => ({
       filters: { ...state.filters, showConflictsOnly: show },
     }));
@@ -102,54 +83,9 @@ export const useCalendarStore = create<CalendarStore>((set, get) => ({
       },
     });
   },
+
+  // Selection
   selectCell: (cell) => {
     set({ selectedCell: cell });
-  },
-  getFilteredExams: () => {
-    const { allExams, filters } = get();
-
-    return allExams.filter((exam) => {
-      if (filters.searchQuery) {
-        const query = filters.searchQuery.toLowerCase();
-        const matchesSearch =
-          exam.courseCode.toLowerCase().includes(query) ||
-          exam.instructor.toLowerCase().includes(query) ||
-          exam.room.toLowerCase().includes(query);
-
-        if (!matchesSearch) return false;
-      }
-
-      if (
-        filters.departmentFilter &&
-        exam.department !== filters.departmentFilter
-      ) {
-        return false;
-      }
-
-      // Conflicts filter
-      if (filters.showConflictsOnly && exam.conflicts === 0) {
-        return false;
-      }
-
-      return true;
-    });
-  },
-  getStats: () => {
-    const { allExams } = get();
-
-    const totalExams = allExams.length;
-    const totalConflicts = allExams.reduce(
-      (sum, exam) => sum + exam.conflicts,
-      0,
-    );
-
-    return {
-      totalExams,
-      totalConflicts,
-    };
-  },
-  getDepartments: () => {
-    const { allExams } = get();
-    return [...new Set(allExams.map((e) => e.department))].sort();
   },
 }));

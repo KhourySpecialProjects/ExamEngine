@@ -1,6 +1,7 @@
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
-import { apiClient, type DatasetMetadata } from "@/lib/api/client";
+import type { DatasetMetadata } from "../api/datasets";
+import { apiClient } from "../api/client";
 
 interface DatasetState {
   // State
@@ -35,7 +36,7 @@ export const useDatasetStore = create<DatasetState>()(
       fetchDatasets: async () => {
         set({ isLoading: true, error: null });
         try {
-          const datasets = await apiClient.listDatasets();
+          const datasets = await apiClient.datasets.list();
           set({ datasets, isLoading: false });
         } catch (error) {
           set({
@@ -52,7 +53,7 @@ export const useDatasetStore = create<DatasetState>()(
       fetchDataset: async (datasetId: string) => {
         set({ isLoading: true, error: null });
         try {
-          const dataset = await apiClient.getDataset(datasetId);
+          const dataset = await apiClient.datasets.getById(datasetId);
 
           // Update the dataset in the list
           set((state) => ({
@@ -84,7 +85,7 @@ export const useDatasetStore = create<DatasetState>()(
       deleteDataset: async (datasetId: string) => {
         set({ isLoading: true, error: null });
         try {
-          await apiClient.deleteDataset(datasetId);
+          await apiClient.datasets.deleteDataset(datasetId);
 
           set((state) => ({
             datasets: state.datasets.filter((d) => d.dataset_id !== datasetId),

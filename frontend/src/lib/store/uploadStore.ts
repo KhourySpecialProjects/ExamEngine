@@ -1,6 +1,5 @@
 // lib/stores/upload.store.ts
 import { create } from "zustand";
-import { apiClient } from "@/lib/api/client";
 import type {
   FileSlot,
   UploadedFile,
@@ -8,6 +7,7 @@ import type {
   UploadStatus,
 } from "@/lib/types/upload.types";
 import { useDatasetStore } from "./datasetStore";
+import { apiClient } from "../api/client";
 
 const INITIAL_SLOTS: FileSlot[] = [
   {
@@ -120,7 +120,7 @@ export const useUploadStore = create<UploadState>((set, get) => ({
       }
 
       // Upload all files at once
-      const result = await apiClient.uploadDataset(state.datasetName, {
+      const result = await apiClient.datasets.upload(state.datasetName, {
         courses: coursesSlot.file.file,
         enrollments: enrollmentsSlot.file.file,
         rooms: roomsSlot.file.file,

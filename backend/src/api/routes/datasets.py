@@ -75,9 +75,9 @@ async def upload_dataset(
     
     storage_keys = {}
     for file_type, content in file_contents.items():
-        
+        key = f"{dataset_uuid}/{file_type}.csv"
         error, storage_key = await storage_service.upload_file(
-            content, file_type, dataset_uuid
+            content, key
         )
         
         if error:

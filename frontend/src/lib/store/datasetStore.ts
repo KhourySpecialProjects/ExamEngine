@@ -12,7 +12,6 @@ interface DatasetState {
 
   // Actions
   fetchDatasets: () => Promise<void>;
-  fetchDataset: (datasetId: string) => Promise<DatasetMetadata | null>;
   selectDataset: (datasetId: string | null) => void;
   deleteDataset: (datasetId: string) => Promise<void>;
   clearError: () => void;
@@ -46,33 +45,6 @@ export const useDatasetStore = create<DatasetState>()(
                 : "Failed to fetch datasets",
             isLoading: false,
           });
-        }
-      },
-
-      // Fetch single dataset with analysis
-      fetchDataset: async (datasetId: string) => {
-        set({ isLoading: true, error: null });
-        try {
-          const dataset = await apiClient.datasets.getById(datasetId);
-
-          // Update the dataset in the list
-          set((state) => ({
-            datasets: state.datasets.map((d) =>
-              d.dataset_id === datasetId ? dataset : d,
-            ),
-            isLoading: false,
-          }));
-
-          return dataset;
-        } catch (error) {
-          set({
-            error:
-              error instanceof Error
-                ? error.message
-                : "Failed to fetch dataset",
-            isLoading: false,
-          });
-          return null;
         }
       },
 

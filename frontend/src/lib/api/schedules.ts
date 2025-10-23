@@ -103,26 +103,4 @@ export class SchedulesAPI extends BaseAPI {
       },
     );
   }
-
-  async downloadOutput(files: {
-    census: File;
-    enrollment: File;
-    classrooms: File;
-  }): Promise<Blob> {
-    const formData = new FormData();
-    formData.append("census", files.census);
-    formData.append("enrollment", files.enrollment);
-    formData.append("classrooms", files.classrooms);
-
-    const response = await fetch(`${this.baseUrl} / schedule / output`, {
-      method: "POST",
-      body: formData,
-      credentials: "include",
-    });
-
-    if (!response.ok) throw new Error("Download failed");
-    return response.blob();
-  }
 }
-
-// ==================== Main API Client ====================

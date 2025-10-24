@@ -7,6 +7,7 @@ import {
   generateSampleData,
   wrapSampleDataAsScheduleResult,
 } from "@/lib/utils";
+import { ExamListDialog } from "@/components/visualization/calendar/ExamListDialog";
 import { ViewTabSwitcher } from "@/components/common/ViewTabSwitcher";
 import CompactView from "@/components/visualization/calendar/CompactView";
 import ListView from "@/components/visualization/list/ListView";
@@ -25,6 +26,7 @@ export default function DashboardPage() {
 
   return (
     <div className="space-y-6 m-5">
+      <DensityView />
       <div className="flex items-center justify-between">
         <ViewTabSwitcher activeView={activeView} onViewChange={setActiveView} />
       </div>
@@ -32,6 +34,8 @@ export default function DashboardPage() {
       {activeView === "density" && <DensityView />}
       {activeView === "compact" && <CompactView />}
       {activeView === "list" && <ListView />}
+      
+       <ExamListDialog />
     </div>
   );
 }

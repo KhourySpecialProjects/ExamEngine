@@ -1,7 +1,7 @@
 import { type ClassValue, clsx } from "clsx";
 import { twMerge } from "tailwind-merge";
 import type { CalendarRow } from "@/lib/store/calendarStore";
-import type { ScheduleResult } from "./api/schedules";
+import type { CalendarExam, ScheduleResult } from "./api/schedules";
 
 export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));

@@ -23,9 +23,7 @@ export function ExamListDialog() {
           </DialogTitle>
           <DialogDescription className="flex items-center gap-4 text-sm pt-2">
             <div className="flex items-center gap-2 font-semibold text-foreground">
-              <span className="">
-                {selectedCell?.examCount || 0} exams scheduled
-              </span>
+              {selectedCell?.examCount || 0} exams scheduled
             </div>
           </DialogDescription>
         </DialogHeader>

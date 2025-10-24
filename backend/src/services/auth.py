@@ -1,17 +1,16 @@
+import os
 from datetime import datetime, timedelta
-from typing import Optional
 
+from fastapi import HTTPException, Request, status
+from fastapi.security import OAuth2PasswordBearer
 from jose import JWTError, jwt
 from passlib.context import CryptContext
-from fastapi import HTTPException, status, Request
-from fastapi.security import OAuth2PasswordBearer
+from sqlalchemy import create_engine, select
+from sqlalchemy.exc import OperationalError
+from sqlalchemy.orm import sessionmaker
 
 from src.schemas.db import Users
-from sqlalchemy import select
-from sqlalchemy.orm import sessionmaker
-from sqlalchemy import create_engine
-from sqlalchemy.exc import OperationalError
-import os
+
 
 # Config (use real env vars in production)
 SECRET_KEY = os.getenv("SECRET_KEY", "change-me-to-a-secure-random-string")
@@ -28,7 +27,9 @@ def verify_password(plain_password, hashed_password):
         return pwd_context.verify(plain_password, hashed_password)
     except ValueError as e:
         # e.g. input too long for bcrypt
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST, detail=str(e)
+        ) from e
     except AttributeError as e:
         # bcrypt backend issue
         raise HTTPException(
@@ -38,15 +39,20 @@ def verify_password(plain_password, hashed_password):
                 "Install a compatible package (pip install bcrypt or passlib[bcrypt]). "
                 f"Original error: {e}"
             ),
-        )
+        ) from e
 
 
 def get_password_hash(password):
     # Hash password, validate input length for bcrypt (72 bytes)
     try:
-        pw_bytes = password.encode("utf-8") if isinstance(password, str) else bytes(password)
-    except Exception:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Password must be a text string")
+        pw_bytes = (
+            password.encode("utf-8") if isinstance(password, str) else bytes(password)
+        )
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Password must be a text string",
+        ) from e
 
     if len(pw_bytes) > 72:
         raise HTTPException(
@@ -66,9 +72,11 @@ def get_password_hash(password):
                 "Install a compatible package (pip install bcrypt or passlib[bcrypt]). "
                 f"Original error: {e}"
             ),
-        )
+        ) from e
     except ValueError as e:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST, detail=str(e)
+        ) from e
 
 
 # Simple DB session factory using same DB URL as db.main (adjust as needed)
@@ -86,7 +94,7 @@ def get_session():
     try:
         engine = create_engine(db_url, connect_args=connect_args)
         # quick connect to fail fast if DB is down
-        with engine.connect() as conn:
+        with engine.connect():
             pass
     except OperationalError as exc:
         raise HTTPException(
@@ -95,13 +103,13 @@ def get_session():
                 "Database connection failed. Check DATABASE_URL or start your Postgres server. "
                 f"Original error: {exc}"
             ),
-        )
+        ) from exc
 
     SessionLocal = sessionmaker(bind=engine)
     return SessionLocal()
 
 
-def authenticate_user(username: str, password: str) -> Optional[Users]:
+def authenticate_user(username: str, password: str) -> Users | None:
     # Try email first (unambiguous), then fallback to name.
     session = get_session()
     try:
@@ -136,7 +144,7 @@ def authenticate_user(username: str, password: str) -> Optional[Users]:
         session.close()
 
 
-def create_access_token(data: dict, expires_delta: Optional[timedelta] = None):
+def create_access_token(data: dict, expires_delta: timedelta | None = None):
     to_encode = data.copy()
     if expires_delta:
         expire = datetime.now() + expires_delta
@@ -145,6 +153,7 @@ def create_access_token(data: dict, expires_delta: Optional[timedelta] = None):
     to_encode.update({"exp": expire})
     encoded_jwt = jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
     return encoded_jwt
+
 
 def get_token_from_cookie(request: Request) -> str:
     """Extract token from HTTP-only cookie"""
@@ -165,15 +174,15 @@ def get_current_user(request: Request):
         detail="Could not validate credentials",
         headers={"WWW-Authenticate": "Bearer"},
     )
-    
+
     try:
         token = get_token_from_cookie(request)
         payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
         user_id: str = payload.get("sub")
         if user_id is None:
             raise credentials_exception
-    except JWTError:
-        raise credentials_exception
+    except JWTError as e:
+        raise credentials_exception from e
 
     session = get_session()
     try:

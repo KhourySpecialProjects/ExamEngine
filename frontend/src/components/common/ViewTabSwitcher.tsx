@@ -17,7 +17,7 @@ export function ViewTabSwitcher({
 }: ViewTabSwitcherProps) {
   return (
     <Tabs value={activeView} onValueChange={(v) => onViewChange(v as ViewType)}>
-      <TabsList className="border border-gray-300 !p-1">
+      <TabsList className="border border-gray-300 p-1!">
         <TabsTrigger
           value="density"
           className="gap-2 data-[state=active]:bg-black data-[state=active]:text-white transition-all duration-300"

@@ -2,8 +2,8 @@ import { EmptyScheduleState } from "@/components/common/EmptyScheduleState";
 import { Button } from "@/components/ui/button";
 import { useScheduleData } from "@/lib/hooks/useScheduleData";
 import { useCalendarStore } from "@/lib/store/calendarStore";
-import { CalendarGrid } from "./CalendarGrid";
 import { Course } from "../Course";
+import { CalendarGrid } from "./CalendarGrid";
 
 const DAYS = [
   "Monday",

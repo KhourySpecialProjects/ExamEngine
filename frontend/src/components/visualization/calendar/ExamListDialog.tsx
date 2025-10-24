@@ -32,7 +32,7 @@ export function ExamListDialog() {
 
         <Separator />
 
-        <div className="flex-1 overflow-y-auto no-scrollbar">
+        <div className="flex-1 overflow-auto no-scrollbar">
           <ExamList exams={selectedCell?.exams || []} />
         </div>
       </DialogContent>

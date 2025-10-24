@@ -1,45 +1,44 @@
 import type { Exam } from "@/lib/store/calendarStore";
-import {
-  Card,
-  CardAction,
-  CardContent,
-  CardDescription,
-  CardFooter,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
+import { Card } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { AlertCircle } from "lucide-react";
 
 interface ExamCardProps {
   exam: Exam;
-  showTimeSlot?: boolean;
+  onClick?: () => void;
 }
 
-export function ExamCard({ exam, showTimeSlot = false }: ExamCardProps) {
+export function ExamCard({ exam, onClick }: ExamCardProps) {
   const hasConflict = exam.conflicts > 0;
 
   return (
     <Card
-      className={`p-2
-        ${hasConflict ? "border-red-300 bg-red-50" : "border-border bg-card"}
-      `}
+      onClick={onClick}
+      className={`p-3 ${onClick ? "cursor-pointer hover:shadow-md" : ""} ${
+        hasConflict ? "border-red-400 bg-red-50" : ""
+      }`}
     >
-      {/* Exam Stats */}
-      <div className="flex items-start justify-between gap-3">
+      {/* Header */}
+      <div className="flex items-start justify-between">
         <div>
-          <h3 className="font-semibold text-lg">{exam.courseCode}</h3>
-          <p className="text-sm text-muted-foreground">
+          <h3 className="font-bold text-sm">{exam.courseCode}</h3>
+          <p className="text-xs text-muted-foreground">
             Section {exam.section}
           </p>
         </div>
-        {hasConflict && <div>{exam.conflicts}</div>}
+        {hasConflict && (
+          <Badge variant="destructive" className="gap-1">
+            <AlertCircle className="h-3 w-3" />
+            {exam.conflicts}
+          </Badge>
+        )}
       </div>
 
-      {/* Exam  Details */}
-      <div className="grid grid-cols-2 gap-3 text-sm">
-        Building:{exam.building}
-        Room: {exam.room}
-        Student Count: {exam.studentCount}
-        Instructor: {exam.instructor}
+      {/* Exam Details */}
+      <div className="text-xs">
+        <div>Room: {exam.room}</div>
+        <div>Enrollments: {exam.studentCount} students</div>
+        <div>Instructor: {exam.instructor}</div>
       </div>
     </Card>
   );

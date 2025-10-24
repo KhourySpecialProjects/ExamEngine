@@ -2,10 +2,10 @@
 
 import { flexRender } from "@tanstack/react-table";
 import { Table, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { useExamTable } from "@/lib/hooks/useExamTable";
+import { ExamTableBody } from "./ExamTableBody";
 import { TableFilters } from "./TableFilters";
 import { TablePagination } from "./TablePagination";
-import { ExamTableBody } from "./ExamTableBody";
-import { useExamTable } from "@/lib/hooks/useExamTable";
 
 /**
  * ListView - Main table view component

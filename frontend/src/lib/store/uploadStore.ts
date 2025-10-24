@@ -6,8 +6,8 @@ import type {
   UploadState,
   UploadStatus,
 } from "@/lib/types/upload.types";
-import { useDatasetStore } from "./datasetStore";
 import { apiClient } from "../api/client";
+import { useDatasetStore } from "./datasetStore";
 
 const INITIAL_SLOTS: FileSlot[] = [
   {

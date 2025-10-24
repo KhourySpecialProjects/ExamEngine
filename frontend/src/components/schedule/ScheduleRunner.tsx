@@ -1,6 +1,6 @@
 "use client";
 
-import { Settings, Loader2, Play, Download, AlertCircle } from "lucide-react";
+import { AlertCircle, Loader2, Play, Settings } from "lucide-react";
 import { toast } from "sonner";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";

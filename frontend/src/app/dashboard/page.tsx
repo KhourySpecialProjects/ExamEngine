@@ -1,16 +1,16 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { ViewTabSwitcher } from "@/components/common/ViewTabSwitcher";
+import CompactView from "@/components/visualization/calendar/CompactView";
 import DensityView from "@/components/visualization/calendar/DensityView";
+import { ExamListDialog } from "@/components/visualization/calendar/ExamListDialog";
+import ListView from "@/components/visualization/list/ListView";
 import { useScheduleStore } from "@/lib/store/scheduleStore";
 import {
   generateSampleData,
   wrapSampleDataAsScheduleResult,
 } from "@/lib/utils";
-import { ExamListDialog } from "@/components/visualization/calendar/ExamListDialog";
-import { ViewTabSwitcher } from "@/components/common/ViewTabSwitcher";
-import CompactView from "@/components/visualization/calendar/CompactView";
-import ListView from "@/components/visualization/list/ListView";
 
 type ViewType = "density" | "compact" | "list";
 

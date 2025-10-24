@@ -5,8 +5,8 @@ import {
   getCoreRowModel,
   useReactTable,
 } from "@tanstack/react-table";
-import { useMemo, type ReactNode } from "react";
-import type { CalendarRow } from "@/lib/store/calendarStore";
+import { type ReactNode, useMemo } from "react";
+import type { CalendarRow, Exam } from "@/lib/store/calendarStore";
 
 interface CalendarGridProps {
   /**
@@ -27,7 +27,7 @@ interface CalendarGridProps {
     timeSlot: string;
     examCount: number;
     conflicts: number;
-    exams: any[];
+    exams: Exam[];
   }) => ReactNode;
 
   /**
@@ -79,7 +79,7 @@ export function CalendarGrid({
   timeSlotWidth = 120,
 }: CalendarGridProps) {
   const columnHelper = useMemo(() => createColumnHelper<CalendarRow>(), []);
-  const columns = useMemo<ColumnDef<CalendarRow, any>[]>(() => {
+  const columns = useMemo<ColumnDef<CalendarRow, unknown>[]>(() => {
     const timeSlotColumn = showTimeSlots
       ? columnHelper.display({
           id: "timeSlot",

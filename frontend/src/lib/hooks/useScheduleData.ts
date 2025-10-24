@@ -71,9 +71,11 @@ function convertToCalendarRows(
 
   // Get all time slots
   const timeSlotSet = new Set<string>();
-  Object.values(calendar).forEach((daySchedule) => {
-    Object.keys(daySchedule).forEach((timeSlot) => timeSlotSet.add(timeSlot));
-  });
+  for (const daySchedule of Object.values(calendar)) {
+    for (const timeSlot of Object.keys(daySchedule)) {
+      timeSlotSet.add(timeSlot);
+    }
+  }
 
   const timeSlots = Array.from(timeSlotSet).sort();
 

@@ -1,7 +1,7 @@
-import { clsx, type ClassValue } from "clsx";
+import { type ClassValue, clsx } from "clsx";
 import { twMerge } from "tailwind-merge";
-import type { CalendarRow, Exam } from "@/lib/store/calendarStore";
-import { ScheduleResult } from "./api/client";
+import type { CalendarRow } from "@/lib/store/calendarStore";
+import type { ScheduleResult } from "./api/schedules";
 
 export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
@@ -71,7 +71,7 @@ export function wrapSampleDataAsScheduleResult(
   calendarRows: CalendarRow[],
 ): ScheduleResult {
   // Convert CalendarRow[] back to calendar structure
-  const calendar: Record<string, Record<string, any[]>> = {};
+  const calendar: Record<string, Record<string, CalendarExam[]>> = {};
   const backendDays = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
   calendarRows.forEach((row) => {
     row.days.forEach((cell, index) => {

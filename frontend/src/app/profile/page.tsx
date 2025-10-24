@@ -1,3 +1,3 @@
 export default function Profile() {
-  return <>Hello Profile </>;
+  return "Hello Profile";
 }

@@ -61,7 +61,9 @@ const SortableHeader = ({
 /**
  * Creates column definitions for the exam table
  */
-export function createExamColumns(): ColumnDef<Exam, string>[] {
+
+// biome-ignore lint/suspicious/noExplicitAny: cannot support string and number
+export function createExamColumns(): ColumnDef<Exam, any>[] {
   return [
     columnHelper.accessor("courseCode", {
       id: "courseCode",

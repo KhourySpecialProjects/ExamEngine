@@ -22,8 +22,8 @@ services:
   # Backend API Service
   backend:
     build:
-      context: ./backend
-      dockerfile: Dockerfile
+      context: .
+      dockerfile: backend/Dockerfile
     env_file:
       - ./backend/.env 
     container_name: exam_engine_backend
@@ -40,13 +40,13 @@ services:
       - db
     networks:
       - exam_engine_network
-    command: uvicorn src.main:app --host 0.0.0.0 --port 8000 --reload
+    command: npm run dev:backend
 
   # Frontend React/Next.js Service
   frontend:
     build:
-      context: ./frontend
-      dockerfile: Dockerfile
+      context: .
+      dockerfile: frontend/Dockerfile
     container_name: exam_engine_frontend
     ports:
       - "3000:3000"

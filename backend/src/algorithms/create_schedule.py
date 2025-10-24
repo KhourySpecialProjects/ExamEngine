@@ -1,8 +1,13 @@
 import pandas as pd
 
-def export_student_schedule(g_backend, enrollment_df, df_schedule,
-                            base_name="student_schedule",
-                            max_exams_in_wide=12):
+
+def export_student_schedule(
+    g_backend,
+    enrollment_df,
+    df_schedule,
+    base_name="student_schedule",
+    max_exams_in_wide=12,
+):
     """
     Creates two files:
       - {base_name}_long.csv : one row per student-exam with separate columns
@@ -33,18 +38,20 @@ def export_student_schedule(g_backend, enrollment_df, df_schedule,
 
         # build long-form rows
         for i, (_, _, crn, info) in enumerate(items, 1):
-            long_rows.append({
-                "student_id": sid,
-                "exam_num": i,
-                "CRN": crn,
-                "Course": info.get("Course", ""),
-                "Day": info.get("Day", ""),
-                "Block": info.get("Block", ""),
-                "Room": info.get("Room", ""),
-                "Capacity": info.get("Capacity", ""),
-                "Size": info.get("Size", ""),
-                "Valid": info.get("Valid", "")
-            })
+            long_rows.append(
+                {
+                    "student_id": sid,
+                    "exam_num": i,
+                    "CRN": crn,
+                    "Course": info.get("Course", ""),
+                    "Day": info.get("Day", ""),
+                    "Block": info.get("Block", ""),
+                    "Room": info.get("Room", ""),
+                    "Capacity": info.get("Capacity", ""),
+                    "Size": info.get("Size", ""),
+                    "Valid": info.get("Valid", ""),
+                }
+            )
 
     long_df = pd.DataFrame(long_rows)
     long_path = f"{base_name}_long.csv"

@@ -1,0 +1,44 @@
+{
+	"name": "exam-engine",
+	"version": "1.0.0",
+	"private": true,
+	"workspaces": [
+		"frontend"
+	],
+	"scripts": {
+		"prepare": "husky",
+		"install:backend": "cd backend && pip install -r requirements.txt",
+		"install:all": "npm install && npm run install:backend",
+		"dev": "concurrently -n \"backend,frontend\" -c \"blue,green\" \"npm run dev:backend\" \"npm run dev:frontend\"",
+		"dev:backend": "cd backend && uvicorn src.main:app --reload --host 0.0.0.0 --port 8000",
+		"dev:frontend": "npm run dev --workspace=frontend",
+		"format": "npm run format:backend && npm run format:frontend",
+		"format:backend": "cd backend && ruff format . && ruff check --fix .",
+		"format:frontend": "npm run format --workspace=frontend",
+		"lint": "npm run lint:backend && npm run lint:frontend",
+		"lint:backend": "cd backend && ruff check .",
+		"lint:frontend": "npm run lint --workspace=frontend",
+		"test": "npm run test:backend && npm run test:frontend",
+		"test:backend": "cd backend && pytest",
+		"test:frontend": "npm run test --workspace=frontend",
+		"build": "npm run build --workspace=frontend",
+		"docker:up": "docker-compose up -d",
+		"docker:down": "docker-compose down",
+		"docker:logs": "docker-compose logs -f"
+	},
+	"lint-staged": {
+		"backend/**/*.py": [
+			"ruff format",
+			"ruff check --fix"
+		],
+		"frontend/**/*.{ts,tsx,js,jsx,json}": [
+			"cd frontend && biome format --write --no-errors-on-unmatched",
+			"cd frontend && biome check --write --no-errors-on-unmatched"
+		]
+	},
+	"devDependencies": {
+		"concurrently": "^8.2.2",
+		"husky": "^9.0.11",
+		"lint-staged": "^15.2.10"
+	}
+}

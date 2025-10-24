@@ -1,9 +1,9 @@
 "use client";
 
-import { Bell, Calendar, Settings } from "lucide-react";
-import { useAuthStore } from "@/lib/store/authStore";
-import { Button } from "@/components/ui/button";
+import { Bell, Settings } from "lucide-react";
+import { useRouter } from "next/navigation";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -12,7 +12,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { useRouter } from "next/navigation";
+import { useAuthStore } from "@/lib/store/authStore";
 
 export function DashboardHeader() {
   const { user, logout } = useAuthStore();

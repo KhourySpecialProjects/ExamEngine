@@ -1,7 +1,7 @@
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
-import type { DatasetMetadata } from "../api/datasets";
 import { apiClient } from "../api/client";
+import type { DatasetMetadata } from "../api/datasets";
 
 interface DatasetState {
   // State

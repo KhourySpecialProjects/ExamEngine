@@ -1,7 +1,7 @@
-import type { Exam } from "@/lib/store/calendarStore";
-import { Card } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
 import { AlertCircle } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
+import { Card } from "@/components/ui/card";
+import type { Exam } from "@/lib/store/calendarStore";
 
 interface ExamCardProps {
   exam: Exam;

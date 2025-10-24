@@ -1,5 +1,4 @@
 from abc import ABC, abstractmethod
-from typing import Optional, Tuple
 
 
 class IStorage(ABC):
@@ -9,27 +8,25 @@ class IStorage(ABC):
     This interface defines operations for file storage
     Implementation can use S3, local filesystem, etc
     """
+
     @abstractmethod
     async def upload_file(
-            self, 
-            file_content: bytes,
-            key: str,
-            content_type: str = "text/csv"
-    ) -> Tuple[Optional[str], Optional[str]]:
+        self, file_content: bytes, key: str, content_type: str = "text/csv"
+    ) -> tuple[str | None, str | None]:
         """
-        Upload a file to storage. 
+        Upload a file to storage.
         """
         pass
 
     @abstractmethod
-    def download_file(self, key: str) -> Optional[bytes]: 
+    def download_file(self, key: str) -> bytes | None:
         """
         Download a file from storage
         """
         pass
 
     @abstractmethod
-    def delete_file(self, key: str) -> bool: 
+    def delete_file(self, key: str) -> bool:
         """
         Delete a single file from storage
         """
@@ -48,4 +45,3 @@ class IStorage(ABC):
         Check if a file exists in storage.
         """
         pass
-

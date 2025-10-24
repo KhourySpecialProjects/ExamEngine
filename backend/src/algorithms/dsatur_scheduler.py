@@ -1,7 +1,9 @@
-import pandas as pd
-import networkx as nx
+from collections import Counter, defaultdict
 from itertools import combinations
-from collections import defaultdict, Counter
+
+import networkx as nx
+import pandas as pd
+
 
 class DSATURExamGraph:
     """
@@ -13,20 +15,21 @@ class DSATURExamGraph:
       classrooms:  DataFrame with columns -> room_name, capacity (int)
     """
 
-    def __init__(self, census: pd.DataFrame, enrollment: pd.DataFrame, classrooms: pd.DataFrame):
+    def __init__(
+        self, census: pd.DataFrame, enrollment: pd.DataFrame, classrooms: pd.DataFrame
+    ):
         self.census = census.copy()
         self.enrollment = enrollment.copy()
         self.classrooms = classrooms.copy()
 
-        self.G = nx.Graph()                 # potential-overlap graph
-        self.colors = {}                    # CRN -> dsatur color (int)
-        self.assignment = {}                # CRN -> (day, block)
+        self.G = nx.Graph()  # potential-overlap graph
+        self.colors = {}  # CRN -> dsatur color (int)
+        self.assignment = {}  # CRN -> (day, block)
         self.block_load = defaultdict(int)  # (day, block) -> number of exams
 
         # keep these at top of __init__
-        self.block_exam_count = defaultdict(int)   # (day, block) -> #exams placed
-        self.block_seat_load  = defaultdict(int)   # (day, block) -> sum of class sizes
-
+        self.block_exam_count = defaultdict(int)  # (day, block) -> #exams placed
+        self.block_seat_load = defaultdict(int)  # (day, block) -> sum of class sizes
 
         # 7 days (Mon..Sun) × 5 blocks/day
         self.exam_blocks = [(d, b) for d in range(7) for b in range(5)]
@@ -50,8 +53,8 @@ class DSATURExamGraph:
         }
 
         # diagnostics
-        self.unplaced_reason_counts = {}   # CRN -> {reason: count}
-        self.fallback_courses = set()      # CRNs that needed fallback
+        self.unplaced_reason_counts = {}  # CRN -> {reason: count}
+        self.fallback_courses = set()  # CRNs that needed fallback
 
     # ---------------------------------------------------------------------
     # Build graph of potential overlaps (shared students add an edge)
@@ -82,7 +85,9 @@ class DSATURExamGraph:
 
     # ---------------------------------------------------------------------
     # Helper: can a student take this (day, block)?
-    def _check_student_slot(self, student_sched, sid, day, block, max_per_day, avoid_back_to_back):
+    def _check_student_slot(
+        self, student_sched, sid, day, block, max_per_day, avoid_back_to_back
+    ):
         todays = [b for d, b in student_sched[sid] if d == day]
         if len(todays) >= max_per_day:
             return False, "too_many_day"
@@ -94,13 +99,18 @@ class DSATURExamGraph:
 
     # ---------------------------------------------------------------------
     # Map DSATUR colors -> (day, block) with constraint-aware placement
-    def dsatur_schedule(self, max_per_day: int = 3, avoid_back_to_back: bool = True,
-                        rotate_start: bool = True, max_days: int = 7):
+    def dsatur_schedule(
+        self,
+        max_per_day: int = 3,
+        avoid_back_to_back: bool = True,
+        rotate_start: bool = True,
+        max_days: int = 7,
+    ):
         if not self.colors:
             raise RuntimeError("Run dsatur_color() before dsatur_schedule().")
 
         usable_blocks = [(d, b) for (d, b) in self.exam_blocks if d < max_days]
-        total_slots = len(usable_blocks)
+        len(usable_blocks)
 
         # group CRNs by DSATUR color
         color_to_crns = defaultdict(list)
@@ -109,24 +119,26 @@ class DSATURExamGraph:
 
         # sort courses within each color (largest first)
         for c in color_to_crns:
-            color_to_crns[c].sort(key=lambda crn: int(self.G.nodes[crn].get("size", 0)), reverse=True)
+            color_to_crns[c].sort(
+                key=lambda crn: int(self.G.nodes[crn].get("size", 0)), reverse=True
+            )
 
         # order colors by total load (heavier colors first)
         ordered_colors = sorted(
             color_to_crns.keys(),
-            key=lambda c: sum(int(self.G.nodes[crn].get("size", 0)) for crn in color_to_crns[c]),
-            reverse=True
+            key=lambda c: sum(
+                int(self.G.nodes[crn].get("size", 0)) for crn in color_to_crns[c]
+            ),
+            reverse=True,
         )
 
         student_sched = defaultdict(list)
-        start_index = 0
 
-        for ci, color in enumerate(ordered_colors):
+        for _ci, color in enumerate(ordered_colors):
             # start attempt block for this color
             # base_idx = (start_index + ci) % total_slots if rotate_start else (ci % total_slots)
 
             for crn in color_to_crns[color]:
-                placed = False
                 reason_counter = Counter()
 
                 # try sequential slots, starting from base_idx
@@ -151,18 +163,27 @@ class DSATURExamGraph:
                 #         break
 
                 candidates = []
-                for idx, (day, block) in enumerate(usable_blocks):
+                for _idx, (day, block) in enumerate(usable_blocks):
                     ok = True
                     for sid in self.students_by_crn.get(crn, ()):
-                        ok_one, reason = self._check_student_slot(student_sched, sid, day, block,
-                                                                  max_per_day, avoid_back_to_back)
+                        ok_one, reason = self._check_student_slot(
+                            student_sched,
+                            sid,
+                            day,
+                            block,
+                            max_per_day,
+                            avoid_back_to_back,
+                        )
                         if not ok_one:
                             ok = False
                             reason_counter[reason] += 1
                             break
                     if ok:
                         # heuristic: prefer the least loaded slot by seats, then by exam count
-                        load_key = (self.block_seat_load[(day, block)], self.block_exam_count[(day, block)])
+                        load_key = (
+                            self.block_seat_load[(day, block)],
+                            self.block_exam_count[(day, block)],
+                        )
                         candidates.append((load_key, day, block))
 
                 if candidates:
@@ -172,8 +193,9 @@ class DSATURExamGraph:
                         student_sched[sid].append((day, block))
                     self.block_load[(day, block)] += 1
                     self.block_exam_count[(day, block)] += 1
-                    self.block_seat_load[(day, block)]  += int(self.G.nodes[crn].get("size", 0))
-                    placed = True
+                    self.block_seat_load[(day, block)] += int(
+                        self.G.nodes[crn].get("size", 0)
+                    )
                 else:
                     # fallback unchanged
                     day, block = usable_blocks[0]
@@ -182,11 +204,11 @@ class DSATURExamGraph:
                         student_sched[sid].append((day, block))
                     self.block_load[(day, block)] += 1
                     self.block_exam_count[(day, block)] += 1
-                    self.block_seat_load[(day, block)]  += int(self.G.nodes[crn].get("size", 0))
+                    self.block_seat_load[(day, block)] += int(
+                        self.G.nodes[crn].get("size", 0)
+                    )
                     self.fallback_courses.add(crn)
                     self.unplaced_reason_counts[crn] = dict(reason_counter)
-
-
 
         return self.assignment
 
@@ -205,7 +227,9 @@ class DSATURExamGraph:
             attrs = self.G.nodes[crn]
             size = int(attrs.get("size", 0))
 
-            fit_mask = (rooms_asc["capacity"] >= size) & (~rooms_asc["room_name"].isin(used_rooms[(day, block)]))
+            fit_mask = (rooms_asc["capacity"] >= size) & (
+                ~rooms_asc["room_name"].isin(used_rooms[(day, block)])
+            )
             candidate = rooms_asc[fit_mask].head(1)
 
             valid = True
@@ -220,20 +244,22 @@ class DSATURExamGraph:
             room = candidate.iloc[0]
             used_rooms[(day, block)].add(room["room_name"])
 
-            rows.append({
-                "CRN": crn,
-                "Course": attrs.get("course_ref", ""),
-                "Day": self.day_names[day],
-                "Block": f"{block} ({self.block_times[block]})",
-                "Room": room["room_name"],
-                "Capacity": int(room["capacity"]),
-                "Size": size,
-                "Valid": valid,
-            })
+            rows.append(
+                {
+                    "CRN": crn,
+                    "Course": attrs.get("course_ref", ""),
+                    "Day": self.day_names[day],
+                    "Block": f"{block} ({self.block_times[block]})",
+                    "Room": room["room_name"],
+                    "Capacity": int(room["capacity"]),
+                    "Size": size,
+                    "Valid": valid,
+                }
+            )
 
         df = pd.DataFrame(rows)
         invalid = (~df["Valid"]).sum()
-        print(f"Room assignment: {len(df)-invalid} valid, {invalid} invalid.")
+        print(f"Room assignment: {len(df) - invalid} valid, {invalid} invalid.")
         return df
 
     # ---------------------------------------------------------------------
@@ -245,16 +271,24 @@ class DSATURExamGraph:
         rows = []
         for crn in sorted(self.fallback_courses):
             nd = self.G.nodes.get(crn, {})
-            rows.append({
-                "CRN": crn,
-                "Course": nd.get("course_ref", ""),
-                "Size": int(nd.get("size", 0)) if pd.notna(nd.get("size", 0)) else 0,
-                "reasons": self.unplaced_reason_counts.get(crn, {}),
-            })
-        return pd.DataFrame(rows, columns=cols).sort_values("Size", ascending=False, ignore_index=True)
+            rows.append(
+                {
+                    "CRN": crn,
+                    "Course": nd.get("course_ref", ""),
+                    "Size": int(nd.get("size", 0))
+                    if pd.notna(nd.get("size", 0))
+                    else 0,
+                    "reasons": self.unplaced_reason_counts.get(crn, {}),
+                }
+            )
+        return pd.DataFrame(rows, columns=cols).sort_values(
+            "Size", ascending=False, ignore_index=True
+        )
 
     # ---------------------------------------------------------------------
-    def count_schedule_conflicts(self, max_per_day: int = 3, check_back_to_back: bool = True):
+    def count_schedule_conflicts(
+        self, max_per_day: int = 3, check_back_to_back: bool = True
+    ):
         if not self.assignment:
             raise RuntimeError("Run dsatur_schedule() before counting conflicts.")
 
@@ -263,7 +297,9 @@ class DSATURExamGraph:
         rows = []
 
         for sid, grp in self.enrollment.groupby("student_id"):
-            slots = [self.assignment.get(crn) for crn in grp["CRN"] if crn in self.assignment]
+            slots = [
+                self.assignment.get(crn) for crn in grp["CRN"] if crn in self.assignment
+            ]
             if not slots:
                 continue
 
@@ -277,17 +313,40 @@ class DSATURExamGraph:
                 if len(blocks) > max_per_day:
                     total += 1
                     details[sid].append(f"{self.day_names[day]}: >{max_per_day} exams")
-                    rows.append({"student_id": sid, "day": self.day_names[day], "conflict_type": f">{max_per_day}_per_day", "blocks": blocks})
+                    rows.append(
+                        {
+                            "student_id": sid,
+                            "day": self.day_names[day],
+                            "conflict_type": f">{max_per_day}_per_day",
+                            "blocks": blocks,
+                        }
+                    )
 
                 if len(blocks) != len(set(blocks)):
                     total += 1
                     details[sid].append(f"{self.day_names[day]}: double_book")
-                    rows.append({"student_id": sid, "day": self.day_names[day], "conflict_type": "double_book", "blocks": blocks})
+                    rows.append(
+                        {
+                            "student_id": sid,
+                            "day": self.day_names[day],
+                            "conflict_type": "double_book",
+                            "blocks": blocks,
+                        }
+                    )
 
-                if check_back_to_back and any(blocks[i] == blocks[i-1] + 1 for i in range(1, len(blocks))):
+                if check_back_to_back and any(
+                    blocks[i] == blocks[i - 1] + 1 for i in range(1, len(blocks))
+                ):
                     total += 1
                     details[sid].append(f"{self.day_names[day]}: back_to_back")
-                    rows.append({"student_id": sid, "day": self.day_names[day], "conflict_type": "back_to_back", "blocks": blocks})
+                    rows.append(
+                        {
+                            "student_id": sid,
+                            "day": self.day_names[day],
+                            "conflict_type": "back_to_back",
+                            "blocks": blocks,
+                        }
+                    )
 
         breakdown_df = pd.DataFrame(rows)
         return total, details, breakdown_df
@@ -299,7 +358,9 @@ class DSATURExamGraph:
         if self.assignment:
             real_conflicts, _, _ = self.count_schedule_conflicts()
 
-        slots_used = len({self.assignment[c] for c in self.assignment}) if self.assignment else 0
+        slots_used = (
+            len({self.assignment[c] for c in self.assignment}) if self.assignment else 0
+        )
 
         return {
             "num_classes": len(self.G.nodes),

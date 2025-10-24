@@ -1,17 +1,19 @@
-from .interface import IStorage
-from typing import Optional, Tuple
-from botocore.exceptions import ClientError
 import io
+
 import boto3
+from botocore.exceptions import ClientError
+
+from .interface import IStorage
 
 
 class S3(IStorage):
     """
     AWS S3 storage implementation
     """
+
     def __init__(
         self,
-        bucket_name: str, 
+        bucket_name: str,
         region: str = "us-east-1",
     ) -> None:
         super().__init__()
@@ -21,18 +23,15 @@ class S3(IStorage):
         self.client = boto3.client("s3", region_name=self.region)
 
     async def upload_file(
-        self,
-        file_content: bytes,
-        key: str,
-        content_type: str = "text/csv"
-    ) -> Tuple[Optional[str], Optional[str]]:
+        self, file_content: bytes, key: str, content_type: str = "text/csv"
+    ) -> tuple[str | None, str | None]:
         """Upload file to S3"""
         try:
             self.client.upload_fileobj(
                 io.BytesIO(file_content),
                 self.bucket_name,
                 key,
-                ExtraArgs={"ContentType": content_type}
+                ExtraArgs={"ContentType": content_type},
             )
             return None, key
         except ClientError as e:
@@ -40,12 +39,11 @@ class S3(IStorage):
         except Exception as e:
             return f"Upload error: {str(e)}", None
 
-    
-    def download_file(self, key: str) -> Optional[bytes]:
+    def download_file(self, key: str) -> bytes | None:
         """Download file from S3"""
         try:
             response = self.client.get_object(Bucket=self.bucket_name, Key=key)
-            return response['Body'].read()
+            return response["Body"].read()
         except ClientError as e:
             print(f"S3 download error: {e}")
             return None
@@ -66,24 +64,22 @@ class S3(IStorage):
         """Delete all files with given prefix from S3"""
         try:
             # Ensure prefix ends with /
-            if prefix and not prefix.endswith('/'):
-                prefix += '/'
+            if prefix and not prefix.endswith("/"):
+                prefix += "/"
 
             # List all objects with prefix
             response = self.client.list_objects_v2(
-                Bucket=self.bucket_name,
-                Prefix=prefix
+                Bucket=self.bucket_name, Prefix=prefix
             )
 
-            if 'Contents' not in response:
+            if "Contents" not in response:
                 return True  # No files to delete
 
             # Delete all objects
-            objects_to_delete = [{'Key': obj['Key']} for obj in response['Contents']]
-            
+            objects_to_delete = [{"Key": obj["Key"]} for obj in response["Contents"]]
+
             self.client.delete_objects(
-                Bucket=self.bucket_name,
-                Delete={'Objects': objects_to_delete}
+                Bucket=self.bucket_name, Delete={"Objects": objects_to_delete}
             )
 
             return True

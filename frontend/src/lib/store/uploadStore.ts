@@ -6,8 +6,8 @@ import type {
   UploadState,
   UploadStatus,
 } from "@/lib/types/upload.types";
-import { useDatasetStore } from "./datasetStore";
 import { apiClient } from "../api/client";
+import { useDatasetStore } from "./datasetStore";
 
 const INITIAL_SLOTS: FileSlot[] = [
   {
@@ -48,12 +48,12 @@ export const useUploadStore = create<UploadState>((set, get) => ({
       slots: state.slots.map((slot: FileSlot) =>
         slot.id === slotId
           ? {
-            ...slot,
-            file: {
-              file,
-              status: "pending" as UploadStatus,
-            },
-          }
+              ...slot,
+              file: {
+                file,
+                status: "pending" as UploadStatus,
+              },
+            }
           : slot,
       ),
     }));
@@ -76,13 +76,13 @@ export const useUploadStore = create<UploadState>((set, get) => ({
       slots: state.slots.map((slot: FileSlot) =>
         slot.id === slotId && slot.file
           ? {
-            ...slot,
-            file: {
-              ...slot.file,
-              status,
-              ...extra,
-            },
-          }
+              ...slot,
+              file: {
+                ...slot.file,
+                status,
+                ...extra,
+              },
+            }
           : slot,
       ),
     }));

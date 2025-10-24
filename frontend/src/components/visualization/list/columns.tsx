@@ -1,8 +1,12 @@
-import { type ColumnDef, createColumnHelper } from "@tanstack/react-table";
+import {
+  type Column,
+  type ColumnDef,
+  createColumnHelper,
+} from "@tanstack/react-table";
 import { AlertCircle, ArrowUpDown } from "lucide-react";
-import type { Exam } from "@/lib/store/calendarStore";
-import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import type { Exam } from "@/lib/store/calendarStore";
 
 const columnHelper = createColumnHelper<Exam>();
 
@@ -36,7 +40,13 @@ const ConflictCell = ({ conflicts }: { conflicts: number }) => (
   </div>
 );
 
-const SortableHeader = ({ label, column }: { label: string; column: any }) => (
+const SortableHeader = ({
+  label,
+  column,
+}: {
+  label: string;
+  column: Column<Exam, unknown>;
+}) => (
   <Button
     variant="ghost"
     size="sm"
@@ -51,7 +61,7 @@ const SortableHeader = ({ label, column }: { label: string; column: any }) => (
 /**
  * Creates column definitions for the exam table
  */
-export function createExamColumns(): ColumnDef<Exam, any>[] {
+export function createExamColumns(): ColumnDef<Exam, string>[] {
   return [
     columnHelper.accessor("courseCode", {
       id: "courseCode",

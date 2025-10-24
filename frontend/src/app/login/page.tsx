@@ -52,14 +52,14 @@ export default function Login() {
       await signup(suName, suEmail, suPassword);
       toast.success("Sign Up Successful");
       router.push("/dashboard");
-    } catch (err: any) {
-      // try to parse error detail from thrown Error
+    } catch (err: unknown) {
       try {
-        const parsed = JSON.parse(err.message);
+        const errorMessage = err instanceof Error ? err.message : String(err);
+        const parsed = JSON.parse(errorMessage);
         toast.error(
           `Signup failed: ${parsed.detail || JSON.stringify(parsed)}`,
         );
-      } catch (_) {
+      } catch (_err: unknown) {
         toast.error("Signup failed");
       }
     }

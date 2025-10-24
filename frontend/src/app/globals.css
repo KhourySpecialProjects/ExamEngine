@@ -120,3 +120,6 @@
     @apply bg-background text-foreground;
   }
 }
+@utility no-scrollbar {
+  @apply [scrollbar-width:none] [&::-webkit-scrollbar]:hidden;
+}

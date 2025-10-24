@@ -29,8 +29,6 @@ export interface CalendarRow {
 
 export interface CalendarFilters {
   searchQuery: string;
-  departmentFilter: string;
-  showConflictsOnly: boolean;
 }
 
 interface CalendarState {
@@ -50,8 +48,6 @@ export const useCalendarStore = create<CalendarState>((set) => ({
   // Initial state
   filters: {
     searchQuery: "",
-    departmentFilter: "",
-    showConflictsOnly: false,
   },
   selectedCell: null,
 
@@ -78,8 +74,6 @@ export const useCalendarStore = create<CalendarState>((set) => ({
     set({
       filters: {
         searchQuery: "",
-        departmentFilter: "",
-        showConflictsOnly: false,
       },
     });
   },

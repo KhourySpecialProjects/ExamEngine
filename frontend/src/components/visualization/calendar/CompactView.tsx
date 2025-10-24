@@ -31,7 +31,7 @@ export default function CompactView() {
         }
 
         return (
-          <div className="p-2 space-y-1 max-h-[150px] overflow-y-auto">
+          <div className="p-2 space-y-1 max-h-[150px] overflow-auto no-scrollbar">
             {visibleExams.map((exam) => (
               <div
                 key={exam.id}

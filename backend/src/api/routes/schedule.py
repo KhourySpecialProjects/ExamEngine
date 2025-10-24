@@ -1,12 +1,9 @@
 from fastapi import APIRouter, UploadFile, File
 from fastapi.responses import StreamingResponse
-from fastapi.responses import StreamingResponse
 import pandas as pd
-from backend.src.algorithms.dsatur_scheduler import DSATURExamGraph
-from backend.src.algorithms.create_schedule import export_student_schedule
-from backend.src.algorithms.create_schedule import export_student_schedule
+from src.algorithms.dsatur_scheduler import DSATURExamGraph
+from src.algorithms.create_schedule import export_student_schedule
 import io
-import zipfile
 import zipfile
 
 router = APIRouter(prefix="/schedule", tags=["Scheduling"])

@@ -21,10 +21,8 @@ export function ExamListDialog() {
           <DialogTitle className="text-xl font-bold">
             {selectedCell?.day} - {selectedCell?.timeSlot}
           </DialogTitle>
-          <DialogDescription className="flex items-center gap-4 text-sm pt-2">
-            <div className="flex items-center gap-2 font-semibold text-foreground">
-              {selectedCell?.examCount || 0} exams scheduled
-            </div>
+          <DialogDescription className="flex items-center gap-4 text-sm pt-2 font-semibold text-foreground">
+            {selectedCell?.examCount || 0} exams scheduled
           </DialogDescription>
         </DialogHeader>
 

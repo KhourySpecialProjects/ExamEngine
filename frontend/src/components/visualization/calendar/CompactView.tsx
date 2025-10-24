@@ -3,8 +3,17 @@ import { Button } from "@/components/ui/button";
 import { useScheduleData } from "@/lib/hooks/useScheduleData";
 import { useCalendarStore } from "@/lib/store/calendarStore";
 import { CalendarGrid } from "./CalendarGrid";
+import { Course } from "../Course";
 
-const DAYS = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"];
+const DAYS = [
+  "Monday",
+  "Tuesday",
+  "Wednesday",
+  "Thursday",
+  "Friday",
+  "Saturday",
+  "Sunday",
+];
 
 /**
  * CompactView - Shows exam cards in calendar grid
@@ -31,20 +40,14 @@ export default function CompactView() {
         }
 
         return (
-          <div className="p-2 space-y-1 max-h-[150px] overflow-y-auto">
+          <div className="p-2 space-y-1 max-h-[150px] overflow-auto no-scrollbar">
             {visibleExams.map((exam) => (
-              <div
+              <Course
                 key={exam.id}
-                onClick={() => selectCell(cell)}
-                className="bg-blue-50 border border-blue-200 rounded px-2 py-1 text-xs cursor-pointer hover:bg-blue-100 transition-colors"
-              >
-                <div className="font-medium text-blue-900">
-                  {exam.courseCode}
-                </div>
-                <div className="text-gray-600">
-                  {exam.studentCount} students
-                </div>
-              </div>
+                title={exam.courseCode}
+                students={exam.studentCount.toString()}
+                building={exam.building}
+              />
             ))}
 
             {hasMore && (

@@ -4,6 +4,9 @@ networkx
 matplotlib
 openpyxl
 plotly
+boto3
+python-dotenv
+dotenv
 
 # Database 
 python-dotenv

@@ -83,10 +83,6 @@ export function createExamColumns(): ColumnDef<Exam, any>[] {
       cell: (info) => (
         <div className="text-sm font-mono">{info.getValue()}</div>
       ),
-      filterFn: (row, id, value) => {
-        const cellValue = row.getValue(id) as string;
-        return cellValue.toLowerCase().includes(value.toLowerCase());
-      },
     }),
     columnHelper.accessor("instructor", {
       id: "instructor",
@@ -98,10 +94,6 @@ export function createExamColumns(): ColumnDef<Exam, any>[] {
           {info.getValue()}
         </div>
       ),
-      filterFn: (row, id, value) => {
-        const cellValue = row.getValue(id) as string;
-        return cellValue.toLowerCase().includes(value.toLowerCase());
-      },
     }),
     columnHelper.accessor("studentCount", {
       id: "studentCount",

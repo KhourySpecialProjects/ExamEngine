@@ -1,6 +1,5 @@
 // frontend/src/lib/hooks/useExamTable.ts
 import {
-  type ColumnFiltersState,
   getCoreRowModel,
   getFilteredRowModel,
   getPaginationRowModel,
@@ -26,7 +25,6 @@ export function useExamTable() {
 
   // Table state management
   const [sorting, setSorting] = useState<SortingState>([]);
-  const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([]);
   const [columnVisibility, setColumnVisibility] = useState<VisibilityState>({});
 
   // Memoize columns to prevent recreation on every render
@@ -38,11 +36,9 @@ export function useExamTable() {
     columns,
     state: {
       sorting,
-      columnFilters,
       columnVisibility,
     },
     onSortingChange: setSorting,
-    onColumnFiltersChange: setColumnFilters,
     onColumnVisibilityChange: setColumnVisibility,
     getCoreRowModel: getCoreRowModel(),
     getSortedRowModel: getSortedRowModel(),
@@ -50,7 +46,7 @@ export function useExamTable() {
     getPaginationRowModel: getPaginationRowModel(),
     initialState: {
       pagination: {
-        pageSize: 25,
+        pageSize: 10,
       },
     },
     // Performance optimizations

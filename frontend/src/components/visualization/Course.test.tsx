@@ -1,10 +1,9 @@
 import { describe, it, expect } from "vitest";
 import { render, screen } from "@testing-library/react";
-import { Course } from "./course";
+import { Course } from "./Course";
 
 describe("Course Component", () => {
   const defaultProps = {
-    color: "blue",
     title: "CS 4535",
     students: "50",
     building: "Richards Hall 101",

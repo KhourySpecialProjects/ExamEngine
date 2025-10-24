@@ -1,7 +1,7 @@
 import { useMemo } from "react";
-import type { CalendarExam } from "@/lib/api/client";
 import type { CalendarRow, Exam } from "@/lib/store/calendarStore";
 import { useScheduleStore } from "@/lib/store/scheduleStore";
+import type { CalendarExam } from "../api/schedules";
 
 /**
  * Hook that transforms schedule data for different views

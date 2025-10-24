@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import DensityView from "@/components/visualization/calendar/DensityView";
 import { useScheduleStore } from "@/lib/store/scheduleStore";
 import {
@@ -8,8 +8,14 @@ import {
   wrapSampleDataAsScheduleResult,
 } from "@/lib/utils";
 import { ExamListDialog } from "@/components/visualization/calendar/ExamListDialog";
+import { ViewTabSwitcher } from "@/components/common/ViewTabSwitcher";
+import CompactView from "@/components/visualization/calendar/CompactView";
+import ListView from "@/components/visualization/list/ListView";
+
+type ViewType = "density" | "compact" | "list";
 
 export default function DashboardPage() {
+  const [activeView, setActiveView] = useState<ViewType>("density");
   const setScheduleData = useScheduleStore((state) => state.setScheduleData);
 
   useEffect(() => {
@@ -21,7 +27,15 @@ export default function DashboardPage() {
   return (
     <div className="space-y-6 m-5">
       <DensityView />
-      <ExamListDialog />
+      <div className="flex items-center justify-between">
+        <ViewTabSwitcher activeView={activeView} onViewChange={setActiveView} />
+      </div>
+
+      {activeView === "density" && <DensityView />}
+      {activeView === "compact" && <CompactView />}
+      {activeView === "list" && <ListView />}
+      
+       <ExamListDialog />
     </div>
   );
 }

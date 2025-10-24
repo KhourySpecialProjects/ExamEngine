@@ -8,6 +8,7 @@ from src.api.routes import auth
 from src.schemas.db import Base
 from dotenv import load_dotenv 
 from sqlalchemy import create_engine
+
 load_dotenv()
 
 @asynccontextmanager

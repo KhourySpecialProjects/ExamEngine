@@ -48,10 +48,6 @@ export class DatasetsAPI extends BaseAPI {
     return this.request(`/datasets/${datasetId}`, { method: "DELETE" });
   }
 
-  async getById(datasetId: string): Promise<DatasetMetadata> {
-    return this.request(`/datasets/${datasetId}`);
-  }
-
   async upload(
     datasetName: string,
     files: { courses: File; enrollments: File; rooms: File },

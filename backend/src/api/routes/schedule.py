@@ -1,13 +1,27 @@
-from fastapi import APIRouter, UploadFile, File, HTTPException
+from fastapi import APIRouter, UploadFile, File, HTTPException, Depends
 from fastapi.responses import StreamingResponse
+from sqlalchemy.orm import Session
 import pandas as pd
 from src.algorithms.dsatur_scheduler import DSATURExamGraph
 from src.algorithms.create_schedule import export_student_schedule
-from src.services.storage import StorageService, DATASETS_DIR
+from src.services.auth import get_session, get_current_user
+from src.services.storage import storage_service
+from src.schemas.db import Users, Datasets
 import io
 import zipfile
+import uuid
+from typing import Any
 
 router = APIRouter(prefix="/schedule", tags=["schedules"])
+
+
+def get_db():
+    """Database session dependency"""
+    db = get_session()
+    try:
+        yield db
+    finally:
+        db.close()
 
 
 # This endpoint runs the scheduling algorithm and returns a summary and preview of results
@@ -81,7 +95,9 @@ async def generate_schedule_from_dataset(
     dataset_id: str,
     max_per_day: int = 3,
     avoid_back_to_back: bool = True,
-    max_days: int = 7
+    max_days: int = 7,
+    current_user: Users = Depends(get_current_user),
+    db: Session = Depends(get_db)
 ):
     """
     Generate complete schedule from a stored dataset
@@ -89,20 +105,32 @@ async def generate_schedule_from_dataset(
     Returns:
         Complete schedule with all exams, conflicts, and metadata
     """
-    metadata = StorageService.load_metadata(dataset_id)
-    if not metadata:
-        raise HTTPException(status_code=404, detail="Dataset not found")
-    
-    dataset_dir = DATASETS_DIR / dataset_id
-    
     try:
-        census_df = pd.read_csv(dataset_dir / "courses.csv")
-        enrollment_df = pd.read_csv(dataset_dir / "enrollments.csv")
-        classrooms_df = pd.read_csv(dataset_dir / "rooms.csv")
-    except FileNotFoundError as e:
-        raise HTTPException(status_code=404, detail=f"Dataset file missing: {e}")
+        dataset = db.query(Datasets).filter(
+            Datasets.dataset_id == uuid.UUID(dataset_id),
+            Datasets.user_id == current_user.user_id
+        ).first()
+
+        if not dataset:
+            raise HTTPException(404, "Dataset not found or access denied")
+        
+        files_data = {}
+        for file_entry in dataset.file_paths:
+            file_type = file_entry['type']
+            storage_key = file_entry['storage_key']
+
+            content = storage_service.download_file(storage_key)
+            if not content:
+                raise HTTPException(404, f"File not found in S3: {file_type}")
+            
+            files_data[file_type] = content
+        
+        census_df = pd.read_csv(io.BytesIO(files_data['courses']))
+        enrollment_df = pd.read_csv(io.BytesIO(files_data['enrollments']))
+        classrooms_df = pd.read_csv(io.BytesIO(files_data['rooms']))
+        
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Error reading dataset: {e}")
+        raise HTTPException(500, f"Error computing algorithm: {str(e)}")
     
     try:
         graph = DSATURExamGraph(census_df, enrollment_df, classrooms_df)
@@ -123,7 +151,7 @@ async def generate_schedule_from_dataset(
         
         return {
             "dataset_id": dataset_id,
-            "dataset_name": metadata.get("dataset_name", "Untitled"),
+            "dataset_name": dataset.dataset_name,
             "summary": summary,
             "conflicts": {
                 "total": total_conflicts,

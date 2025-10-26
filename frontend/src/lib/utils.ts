@@ -131,7 +131,14 @@ export function wrapSampleDataAsScheduleResult(
 export const getTimeAgo = (dateString: string) => {
   const date = new Date(dateString);
   const now = new Date();
+  if (Number.isNaN(date.getTime())) {
+    return "Invalid date";
+  }
+
   const diffMs = now.getTime() - date.getTime();
+  if (diffMs < 0) {
+    return "Just now";
+  }
   const diffMins = Math.floor(diffMs / 60000);
   const diffHours = Math.floor(diffMins / 60);
   const diffDays = Math.floor(diffHours / 24);

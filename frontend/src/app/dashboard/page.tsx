@@ -6,23 +6,11 @@ import CompactView from "@/components/visualization/calendar/CompactView";
 import DensityView from "@/components/visualization/calendar/DensityView";
 import { ExamListDialog } from "@/components/visualization/calendar/ExamListDialog";
 import ListView from "@/components/visualization/list/ListView";
-import { useScheduleStore } from "@/lib/store/scheduleStore";
-import {
-  generateSampleData,
-  wrapSampleDataAsScheduleResult,
-} from "@/lib/utils";
 
 type ViewType = "density" | "compact" | "list";
 
 export default function DashboardPage() {
   const [activeView, setActiveView] = useState<ViewType>("density");
-  const setScheduleData = useScheduleStore((state) => state.setScheduleData);
-
-  useEffect(() => {
-    const data = generateSampleData();
-    const wrapped_data = wrapSampleDataAsScheduleResult(data);
-    setScheduleData(wrapped_data);
-  }, [setScheduleData]);
 
   return (
     <div className="space-y-6 m-5">

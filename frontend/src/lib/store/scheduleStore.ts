@@ -14,7 +14,7 @@ interface ScheduleState {
   parameters: ScheduleParameters;
 
   // Actions
-  generateSchedule: (datasetId: string) => Promise<void>;
+  generateSchedule: (datasetId: string) => Promise<ScheduleResult>;
   setScheduleData: (schedule: ScheduleResult) => void;
   setParameters: (params: Partial<ScheduleParameters>) => void;
   clearSchedule: () => void;
@@ -41,6 +41,7 @@ export const useScheduleStore = create<ScheduleState>((set, get) => ({
         get().parameters,
       );
       set({ currentSchedule: result, isGenerating: false });
+      return result;
     } catch (error) {
       set({
         error:

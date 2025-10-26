@@ -46,10 +46,10 @@ export function ScheduleRunner() {
     });
 
     try {
-      await generateSchedule(selectedDatasetId);
+      const result = await generateSchedule(selectedDatasetId);
       toast.success("Schedule generated!", {
         id: toastId,
-        description: `${currentSchedule?.schedule.total_exams} exams scheduled`,
+        description: `${result.schedule.total_exams} exams scheduled`,
       });
     } catch (error) {
       toast.error("Generation failed", {

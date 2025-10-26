@@ -39,7 +39,7 @@ async def login(response: Response, form_data: OAuth2PasswordRequestForm = Depen
         key="auth_token",
         value=access_token,
         httponly=True,
-        secure=True,
+        secure=False,  # Allow HTTP in development
         samesite="lax",
         max_age=ACCESS_TOKEN_EXPIRE_MINUTES * 60,
         path="/",
@@ -105,7 +105,7 @@ async def signup(response: Response, user: UserCreate):
             key="auth_token",
             value=access_token,
             httponly=True,
-            secure=True,
+            secure=False,  # Allow HTTP in development
             samesite="lax",
             max_age=ACCESS_TOKEN_EXPIRE_MINUTES * 60,
             path="/",

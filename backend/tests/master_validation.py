@@ -569,7 +569,7 @@ The enhanced algorithm includes:
 """
         
         # Save the updated summary
-        with open('../../Data/ALGORITHM_VALIDATION_SUMMARY.md', 'w') as f:
+        with open('../Data/ALGORITHM_VALIDATION_SUMMARY.md', 'w') as f:
             f.write(summary_content)
         
         print(f"   SUCCESS: Algorithm validation summary updated: Data/ALGORITHM_VALIDATION_SUMMARY.md")

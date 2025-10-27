@@ -1,7 +1,9 @@
-import pandas as pd
-import networkx as nx
+from collections import Counter, defaultdict
 from itertools import combinations
-from collections import defaultdict, Counter
+
+import networkx as nx
+import pandas as pd
+
 
 class DSATURExamGraph:
     """
@@ -32,7 +34,9 @@ class DSATURExamGraph:
 
         # Rename to canonical columns
         c = c.rename(columns={"CourseID": "course_ref"})
-        e = e.rename(columns={"Student_PIDM": "student_id", "Instructor Name": "instructor_name"})
+        e = e.rename(
+            columns={"Student_PIDM": "student_id", "Instructor Name": "instructor_name"}
+        )
 
         # Keep only required columns (ignore extras)
         need_c = ["CRN", "course_ref", "num_students"]
@@ -56,7 +60,8 @@ class DSATURExamGraph:
         # Clean CRNs to string without ".0"
         def clean_crn(v):
             try:
-                if pd.isna(v): return None
+                if pd.isna(v):
+                    return None
                 return str(int(float(v))).strip()
             except Exception:
                 return str(v).strip()
@@ -65,10 +70,14 @@ class DSATURExamGraph:
         e["CRN"] = e["CRN"].apply(clean_crn)
 
         # Types
-        c["num_students"] = pd.to_numeric(c["num_students"], errors="coerce").fillna(0).astype(int)
+        c["num_students"] = (
+            pd.to_numeric(c["num_students"], errors="coerce").fillna(0).astype(int)
+        )
         e["student_id"] = e["student_id"].astype(str)
         e["instructor_name"] = e["instructor_name"].fillna("").astype(str).str.strip()
-        r["capacity"] = pd.to_numeric(r["capacity"], errors="coerce").fillna(0).astype(int)
+        r["capacity"] = (
+            pd.to_numeric(r["capacity"], errors="coerce").fillna(0).astype(int)
+        )
 
         # Filter empties & dedupe enrollment to prevent false collisions
         c = c.dropna(subset=["CRN"])
@@ -77,36 +86,41 @@ class DSATURExamGraph:
 
         return c, e, r
 
-    def __init__(self,
-                 census: pd.DataFrame,
-                 enrollment: pd.DataFrame,
-                 classrooms: pd.DataFrame,
-                 weight_large_late: int = 1,
-                 weight_b2b_student: int = 6,
-                 weight_b2b_instructor: int = 2):
-
-        self.census, self.enrollment, self.classrooms = self._normalize_inputs(census, enrollment, classrooms)
+    def __init__(
+        self,
+        census: pd.DataFrame,
+        enrollment: pd.DataFrame,
+        classrooms: pd.DataFrame,
+        weight_large_late: int = 1,
+        weight_b2b_student: int = 6,
+        weight_b2b_instructor: int = 2,
+    ):
+        self.census, self.enrollment, self.classrooms = self._normalize_inputs(
+            census, enrollment, classrooms
+        )
 
         # Keep only CRNs that exist in census
         crn_census = set(self.census["CRN"].unique())
-        self.enrollment = self.enrollment[self.enrollment["CRN"].isin(crn_census)].copy()
+        self.enrollment = self.enrollment[
+            self.enrollment["CRN"].isin(crn_census)
+        ].copy()
 
         # Soft weights
-        self.weight_large_late     = int(weight_large_late)
-        self.weight_b2b_student    = int(weight_b2b_student)
+        self.weight_large_late = int(weight_large_late)
+        self.weight_b2b_student = int(weight_b2b_student)
         self.weight_b2b_instructor = int(weight_b2b_instructor)
 
         # Core structures
         self.G = nx.Graph()
-        self.colors = {}                      # CRN -> DSATUR color
-        self.assignment = {}                  # CRN -> (day, block)
-        self.unassigned = set()               # CRNs we could not place without breaking hard rules
+        self.colors = {}  # CRN -> DSATUR color
+        self.assignment = {}  # CRN -> (day, block)
+        self.unassigned = set()  # CRNs we could not place without breaking hard rules
         self.block_exam_count = defaultdict(int)
-        self.block_seat_load  = defaultdict(int)
+        self.block_seat_load = defaultdict(int)
 
         # Time grid
         self.exam_blocks = [(d, b) for d in range(7) for b in range(5)]
-        self.day_names   = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]
+        self.day_names = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]
         self.block_times = {
             0: "9:00-11:00",
             1: "11:30-1:30",
@@ -120,12 +134,12 @@ class DSATURExamGraph:
         self.usable_blocks = [(d, b) for d in range(self.max_days) for b in range(5)]
 
         # Caches built later
-        self.students_by_crn    = {}   # CRN -> set(student_id)
-        self.instructors_by_crn = {}   # CRN -> set(instructor_name)
+        self.students_by_crn = {}  # CRN -> set(student_id)
+        self.instructors_by_crn = {}  # CRN -> set(instructor_name)
 
         # Diagnostics
-        self.fallback_courses = set()          # logically impossible (no legal slot)
-        self.unplaced_reason_counts = {}       # CRN -> {reason: count}
+        self.fallback_courses = set()  # logically impossible (no legal slot)
+        self.unplaced_reason_counts = {}  # CRN -> {reason: count}
 
         # Post-schedule reports
         self.student_soft_violations = pd.DataFrame()
@@ -145,13 +159,16 @@ class DSATURExamGraph:
         # Students per CRN
         self.students_by_crn = (
             self.enrollment.groupby("CRN")["student_id"].apply(set).to_dict()
-            if not self.enrollment.empty else {}
+            if not self.enrollment.empty
+            else {}
         )
 
         # Instructors per CRN (collect all names for safety)
-        tmp = (self.enrollment[self.enrollment["instructor_name"] != ""]
-               .groupby("CRN")["instructor_name"]
-               .apply(lambda s: {x for x in s if x}))
+        tmp = (
+            self.enrollment[self.enrollment["instructor_name"] != ""]
+            .groupby("CRN")["instructor_name"]
+            .apply(lambda s: {x for x in s if x})
+        )
         self.instructors_by_crn = tmp.to_dict()
 
         crn_set = set(self.census["CRN"])
@@ -231,13 +248,16 @@ class DSATURExamGraph:
 
         # tie-breakers
         seat_load = self.block_seat_load[(day, block)]
-        exam_ct   = self.block_exam_count[(day, block)]
+        exam_ct = self.block_exam_count[(day, block)]
 
         return (
             large_late * self.weight_large_late,
             b2b_students * self.weight_b2b_student,
             b2b_instr * self.weight_b2b_instructor,
-            seat_load, exam_ct, day, block
+            seat_load,
+            exam_ct,
+            day,
+            block,
         )
 
     # ---------- scheduling ----------
@@ -254,30 +274,44 @@ class DSATURExamGraph:
         for crn, c in self.colors.items():
             color_to_crns[c].append(crn)
         for c in color_to_crns:
-            color_to_crns[c].sort(key=lambda x: int(self.G.nodes[x].get("size", 0) or 0), reverse=True)
+            color_to_crns[c].sort(
+                key=lambda x: int(self.G.nodes[x].get("size", 0) or 0), reverse=True
+            )
 
         # order colors by total seats
         ordered_colors = sorted(
             color_to_crns.keys(),
-            key=lambda c: sum(int(self.G.nodes[x].get("size", 0) or 0) for x in color_to_crns[c]),
-            reverse=True
+            key=lambda c: sum(
+                int(self.G.nodes[x].get("size", 0) or 0) for x in color_to_crns[c]
+            ),
+            reverse=True,
         )
 
         # live occupancy for checks
-        student_sched = defaultdict(list)   # sid -> [(day, block)]
-        instr_sched   = defaultdict(list)   # name -> [(day, block)]
+        student_sched = defaultdict(list)  # sid -> [(day, block)]
+        instr_sched = defaultdict(list)  # name -> [(day, block)]
 
         for color in ordered_colors:
             for crn in color_to_crns[color]:
                 reasons = Counter()
                 candidates = []
 
-                for (day, block) in self.usable_blocks:  # <-- enforce allowed days/blocks
-                    ok, reason = self._hard_ok(student_sched, instr_sched, crn, day, block)
+                for day, block in self.usable_blocks:  # <-- enforce allowed days/blocks
+                    ok, reason = self._hard_ok(
+                        student_sched, instr_sched, crn, day, block
+                    )
                     if not ok:
                         reasons[reason] += 1
                         continue
-                    candidates.append((self._soft_tuple(student_sched, instr_sched, crn, day, block), day, block))
+                    candidates.append(
+                        (
+                            self._soft_tuple(
+                                student_sched, instr_sched, crn, day, block
+                            ),
+                            day,
+                            block,
+                        )
+                    )
 
                 if not candidates:
                     # No hard-legal slot. Do NOT force-place.
@@ -296,7 +330,9 @@ class DSATURExamGraph:
                 for instr in self.instructors_by_crn.get(crn, ()):
                     instr_sched[instr].append((day, block))
                 self.block_exam_count[(day, block)] += 1
-                self.block_seat_load[(day, block)]  += int(self.G.nodes[crn].get("size", 0) or 0)
+                self.block_seat_load[(day, block)] += int(
+                    self.G.nodes[crn].get("size", 0) or 0
+                )
 
         # sanity guard: all within allowed days
         self._check_allowed_slots()
@@ -311,7 +347,7 @@ class DSATURExamGraph:
         moved = 0
         # Build quick maps
         student_sched = defaultdict(set)
-        instr_sched   = defaultdict(set)
+        instr_sched = defaultdict(set)
         for crn, (d, b) in self.assignment.items():
             if crn in self.unassigned:
                 continue
@@ -328,7 +364,7 @@ class DSATURExamGraph:
                 by_day[d].append(b)
             for d, blks in by_day.items():
                 blks.sort()
-                if any(blks[i] == blks[i-1] + 1 for i in range(1, len(blks))):
+                if any(blks[i] == blks[i - 1] + 1 for i in range(1, len(blks))):
                     offenders.append((sid, d))
 
         # Use ONLY allowed blocks here
@@ -338,16 +374,22 @@ class DSATURExamGraph:
             if moved >= max_moves:
                 break
             # pick a CRN the student has on that day
-            crns_today = [crn for crn, (d, b) in self.assignment.items()
-                          if crn not in self.unassigned
-                          and (sid in self.students_by_crn.get(crn, ())) and d == day]
+            crns_today = [
+                crn
+                for crn, (d, b) in self.assignment.items()
+                if crn not in self.unassigned
+                and (sid in self.students_by_crn.get(crn, ()))
+                and d == day
+            ]
             # move the smallest (less disruptive) first
             crns_today.sort(key=lambda c: int(self.G.nodes[c].get("size", 0) or 0))
             for crn in crns_today:
                 cur_d, cur_b = self.assignment[crn]
-                current = self._soft_tuple(student_sched, instr_sched, crn, cur_d, cur_b)
+                current = self._soft_tuple(
+                    student_sched, instr_sched, crn, cur_d, cur_b
+                )
                 best = (current, cur_d, cur_b)
-                for (d, b) in allowed_blocks:  # <-- enforce allowed days/blocks
+                for d, b in allowed_blocks:  # <-- enforce allowed days/blocks
                     if (d, b) == (cur_d, cur_b):
                         continue
                     ok, _ = self._hard_ok(student_sched, instr_sched, crn, d, b)
@@ -382,7 +424,7 @@ class DSATURExamGraph:
         self._check_allowed_slots()
 
         used = defaultdict(set)
-        rooms_asc  = self.classrooms.sort_values("capacity").reset_index(drop=True)
+        rooms_asc = self.classrooms.sort_values("capacity").reset_index(drop=True)
         rooms_desc = rooms_asc.iloc[::-1].reset_index(drop=True)
 
         rows = []
@@ -392,12 +434,16 @@ class DSATURExamGraph:
 
             size = int(self.G.nodes[crn].get("size", 0) or 0)
 
-            fit = rooms_asc[(rooms_asc["capacity"] >= size) &
-                            (~rooms_asc["room_name"].isin(used[(day, block)]))].head(1)
+            fit = rooms_asc[
+                (rooms_asc["capacity"] >= size)
+                & (~rooms_asc["room_name"].isin(used[(day, block)]))
+            ].head(1)
 
             valid = True
             if fit.empty:
-                free = rooms_desc[~rooms_desc["room_name"].isin(used[(day, block)])].head(1)
+                free = rooms_desc[
+                    ~rooms_desc["room_name"].isin(used[(day, block)])
+                ].head(1)
                 if free.empty:
                     free = rooms_desc.head(1)
                 fit = free
@@ -406,16 +452,18 @@ class DSATURExamGraph:
             room = fit.iloc[0]
             used[(day, block)].add(room["room_name"])
 
-            rows.append({
-                "CRN": crn,
-                "Course": self.G.nodes[crn].get("course_ref", ""),
-                "Day": self.day_names[day],
-                "Block": f"{block} ({self.block_times[block]})",
-                "Room": room["room_name"],
-                "Capacity": int(room["capacity"]),
-                "Size": size,
-                "Valid": valid,
-            })
+            rows.append(
+                {
+                    "CRN": crn,
+                    "Course": self.G.nodes[crn].get("course_ref", ""),
+                    "Day": self.day_names[day],
+                    "Block": f"{block} ({self.block_times[block]})",
+                    "Room": room["room_name"],
+                    "Capacity": int(room["capacity"]),
+                    "Size": size,
+                    "Valid": valid,
+                }
+            )
 
         df = pd.DataFrame(rows)
         self._compute_reports(df)
@@ -423,7 +471,11 @@ class DSATURExamGraph:
 
     # ---------- reports ----------
     def _compute_reports(self, df_schedule: pd.DataFrame):
-        crn_to_dayblock = {crn: (self.day_names[d], b) for crn, (d, b) in self.assignment.items() if crn not in self.unassigned}
+        crn_to_dayblock = {
+            crn: (self.day_names[d], b)
+            for crn, (d, b) in self.assignment.items()
+            if crn not in self.unassigned
+        }
 
         # Students: (back-to-back) - note >2/day is hard, so you shouldn't see it here
         stu_rows = []
@@ -435,8 +487,15 @@ class DSATURExamGraph:
                     per_day[day].append(b)
             for day, blocks in per_day.items():
                 blocks.sort()
-                if any(blocks[i] == blocks[i-1] + 1 for i in range(1, len(blocks))):
-                    stu_rows.append({"student_id": sid, "violation": "back_to_back", "day": day, "blocks": blocks})
+                if any(blocks[i] == blocks[i - 1] + 1 for i in range(1, len(blocks))):
+                    stu_rows.append(
+                        {
+                            "student_id": sid,
+                            "violation": "back_to_back",
+                            "day": day,
+                            "blocks": blocks,
+                        }
+                    )
         self.student_soft_violations = pd.DataFrame(stu_rows)
 
         # Instructors: back-to-back
@@ -454,8 +513,15 @@ class DSATURExamGraph:
                 per_day[day].append(b)
             for day, blocks in per_day.items():
                 blocks.sort()
-                if any(blocks[i] == blocks[i-1] + 1 for i in range(1, len(blocks))):
-                    instr_rows.append({"instructor_name": instr, "violation": "back_to_back", "day": day, "blocks": blocks})
+                if any(blocks[i] == blocks[i - 1] + 1 for i in range(1, len(blocks))):
+                    instr_rows.append(
+                        {
+                            "instructor_name": instr,
+                            "violation": "back_to_back",
+                            "day": day,
+                            "blocks": blocks,
+                        }
+                    )
         self.instructor_soft_violations = pd.DataFrame(instr_rows)
 
         # Large courses not early (Thu-Sun)
@@ -465,13 +531,15 @@ class DSATURExamGraph:
                 continue
             size = int(self.G.nodes[crn].get("size", 0) or 0)
             if size >= 100 and d > 2:
-                late_rows.append({
-                    "CRN": crn,
-                    "Course": self.G.nodes[crn].get("course_ref", ""),
-                    "Size": size,
-                    "Day": self.day_names[d],
-                    "Block": f"{b} ({self.block_times[b]})",
-                })
+                late_rows.append(
+                    {
+                        "CRN": crn,
+                        "Course": self.G.nodes[crn].get("course_ref", ""),
+                        "Size": size,
+                        "Day": self.day_names[d],
+                        "Block": f"{b} ({self.block_times[b]})",
+                    }
+                )
         self.large_courses_not_early = pd.DataFrame(late_rows)
 
     def summary(self) -> dict:
@@ -481,7 +549,7 @@ class DSATURExamGraph:
 
         # Count real collisions per slot
         slot_to_students = defaultdict(list)  # (d,b) -> [student_ids...]
-        slot_to_instr    = defaultdict(list)  # (d,b) -> [instructors...]
+        slot_to_instr = defaultdict(list)  # (d,b) -> [instructors...]
 
         for crn, (d, b) in self.assignment.items():
             if crn in self.unassigned:
@@ -497,8 +565,16 @@ class DSATURExamGraph:
             counts = Counter(names)
             hard_inst += sum(c - 1 for c in counts.values() if c > 1)
 
-        students_b2b = 0 if self.student_soft_violations.empty else self.student_soft_violations["student_id"].nunique()
-        instr_b2b    = 0 if self.instructor_soft_violations.empty else self.instructor_soft_violations["instructor_name"].nunique()
+        students_b2b = (
+            0
+            if self.student_soft_violations.empty
+            else self.student_soft_violations["student_id"].nunique()
+        )
+        instr_b2b = (
+            0
+            if self.instructor_soft_violations.empty
+            else self.instructor_soft_violations["instructor_name"].nunique()
+        )
 
         return {
             "hard_student_conflicts": hard_stu,
@@ -506,7 +582,9 @@ class DSATURExamGraph:
             "students_gt2_per_day": 0,  # enforced as hard rule
             "students_back_to_back": students_b2b,
             "instructors_back_to_back": instr_b2b,
-            "large_courses_not_early": 0 if self.large_courses_not_early.empty else len(self.large_courses_not_early),
+            "large_courses_not_early": 0
+            if self.large_courses_not_early.empty
+            else len(self.large_courses_not_early),
             "num_classes": len(self.G.nodes),
             "num_students": self.enrollment["student_id"].nunique(),
             "num_rooms": len(self.classrooms),
@@ -520,18 +598,24 @@ class DSATURExamGraph:
         rows = []
         for crn in sorted(self.fallback_courses):
             nd = self.G.nodes.get(crn, {})
-            rows.append({
-                "CRN": crn,
-                "Course": nd.get("course_ref", ""),
-                "Size": int(nd.get("size", 0) or 0),
-                "reasons": self.unplaced_reason_counts.get(crn, {}),
-            })
-        return pd.DataFrame(rows).sort_values("Size", ascending=False, ignore_index=True)
+            rows.append(
+                {
+                    "CRN": crn,
+                    "Course": nd.get("course_ref", ""),
+                    "Size": int(nd.get("size", 0) or 0),
+                    "reasons": self.unplaced_reason_counts.get(crn, {}),
+                }
+            )
+        return pd.DataFrame(rows).sort_values(
+            "Size", ascending=False, ignore_index=True
+        )
 
     # ---------- helper guard ----------
     def _check_allowed_slots(self):
         """Assert that all assignments are within the allowed day range."""
-        illegal = [(crn, d, b) for crn, (d, b) in self.assignment.items() if d >= self.max_days]
+        illegal = [
+            (crn, d, b) for crn, (d, b) in self.assignment.items() if d >= self.max_days
+        ]
         if illegal:
             # If you prefer hard failure, raise. Otherwise, fix to first allowed slot.
             # raise AssertionError(f"Found assignments outside allowed days: {illegal[:10]}")
@@ -566,7 +650,8 @@ def export_student_schedule(
     # --- helpers ---
     def clean_crn(v):
         try:
-            if pd.isna(v): return None
+            if pd.isna(v):
+                return None
             return str(int(float(v))).strip()  # handles 11310.0 -> "11310"
         except Exception:
             return str(v).strip()
@@ -585,17 +670,23 @@ def export_student_schedule(
     need_cols = {"student_id", "CRN"}
     missing = need_cols - set(enroll.columns)
     if missing:
-        raise ValueError(f"enrollment_df is missing required columns after normalization: {sorted(missing)}")
+        raise ValueError(
+            f"enrollment_df is missing required columns after normalization: {sorted(missing)}"
+        )
 
     # keep minimal columns, clean types
-    keep_cols = ["student_id", "CRN"] + (["instructor_name"] if "instructor_name" in enroll.columns else [])
+    keep_cols = ["student_id", "CRN"] + (
+        ["instructor_name"] if "instructor_name" in enroll.columns else []
+    )
     enroll = enroll.loc[:, keep_cols].copy()
 
     # types & cleaning
     enroll["student_id"] = enroll["student_id"].astype(str).str.strip()
     enroll["CRN"] = enroll["CRN"].apply(clean_crn)
     if "instructor_name" in enroll.columns:
-        enroll["instructor_name"] = enroll["instructor_name"].fillna("").astype(str).str.strip()
+        enroll["instructor_name"] = (
+            enroll["instructor_name"].fillna("").astype(str).str.strip()
+        )
 
     # drop empties / dupes
     enroll = enroll.dropna(subset=["student_id", "CRN"])
@@ -605,12 +696,18 @@ def export_student_schedule(
     # --- instructor map: CRN -> semicolon-joined unique names (if requested) ---
     instr_map = {}
     if include_instructor and "instructor_name" in enroll.columns:
-        tmp = enroll.loc[enroll["instructor_name"] != "", ["CRN", "instructor_name"]].copy()
+        tmp = enroll.loc[
+            enroll["instructor_name"] != "", ["CRN", "instructor_name"]
+        ].copy()
         if not tmp.empty:
             instr_map = (
                 tmp.groupby("CRN")["instructor_name"]
-                   .apply(lambda s: "; ".join(sorted({x.strip() for x in s if x and str(x).strip()})))
-                   .to_dict()
+                .apply(
+                    lambda s: "; ".join(
+                        sorted({x.strip() for x in s if x and str(x).strip()})
+                    )
+                )
+                .to_dict()
             )
 
     # --- schedule metadata (ensure CRN cleaned) ---
@@ -644,7 +741,9 @@ def export_student_schedule(
         # emit rows
         for i, (d, b, crn, info) in enumerate(items, 1):
             block_str = str(info.get("Block", ""))
-            m = re.search(r"(\d+)", block_str)  # extract leading number if "2 (2:00-4:00)"
+            m = re.search(
+                r"(\d+)", block_str
+            )  # extract leading number if "2 (2:00-4:00)"
             block_num = int(m.group(1)) if m else b
 
             row = {
@@ -668,13 +767,17 @@ def export_student_schedule(
         if add_blank_between_students and items:
             # add a blank separator row (keeps columns consistent)
             keys = list(long_rows[-1].keys())
-            long_rows.append({k: "" for k in keys})
+            long_rows.append(dict.fromkeys(keys, ""))
 
     # --- finalize dataframe & sort (unless blanks inserted) ---
     long_df = pd.DataFrame(long_rows)
 
     if not add_blank_between_students and not long_df.empty:
-        sort_cols = [c for c in ["student_id", "Day_idx", "Block_num", "exam_num"] if c in long_df.columns]
+        sort_cols = [
+            c
+            for c in ["student_id", "Day_idx", "Block_num", "exam_num"]
+            if c in long_df.columns
+        ]
         long_df = long_df.sort_values(sort_cols, kind="mergesort")
 
     # --- save ---
@@ -684,6 +787,8 @@ def export_student_schedule(
     placed = int(long_df["CRN"].ne("").sum()) if not long_df.empty else 0
     print(f"SUCCESS: Saved {placed} exam records to {out_path}")
     if unassigned:
-        print(f"WARNING: Skipped {len(unassigned)} unassigned CRNs (hard-rule placement impossible).")
+        print(
+            f"WARNING: Skipped {len(unassigned)} unassigned CRNs (hard-rule placement impossible)."
+        )
 
     return long_df

@@ -33,7 +33,9 @@ def get_file_statistics(df, file_type, file_size, filename):
         # Calculate unique subjects from CourseID if available
         if "CourseID" in df.columns:
             # Assuming CourseID format like "MATH 101" or similar
-            stats["subjects"] = int(df["CourseID"].astype(str).str.split().str[0].nunique())
+            stats["subjects"] = int(
+                df["CourseID"].astype(str).str.split().str[0].nunique()
+            )
 
     elif file_type == "enrollments":
         # Check for both naming conventions

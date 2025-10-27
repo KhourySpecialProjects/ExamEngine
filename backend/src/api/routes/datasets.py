@@ -77,24 +77,25 @@ async def upload_dataset(
 
     # Upload all files concurrently
     try:
+
         async def upload_single_file(file_type: str, content: bytes, dataset_uuid: str):
             key = f"{dataset_uuid}/{file_type}.csv"
             error, storage_key = await storage_service.upload_file(content, key)
             if error:
                 raise Exception(f"Upload failed for {file_type}: {error}")
             return file_type, storage_key
-        
+
         upload_tasks = [
             upload_single_file(file_type, content, dataset_uuid)
             for file_type, content in file_contents.items()
         ]
-        
+
         uploaded = await asyncio.gather(*upload_tasks)
         storage_keys = dict(uploaded)
     except Exception as e:
         # Cleanup on error
         storage_service.delete_directory(dataset_uuid)
-        raise HTTPException(500, f"Upload failed: {str(e)}")
+        raise HTTPException(500, f"Upload failed: {str(e)}") from e
 
     complete_file_paths = []
     for file_type in ["courses", "enrollments", "rooms"]:

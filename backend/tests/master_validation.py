@@ -382,7 +382,7 @@ CAPACITY VIOLATIONS:
         
         # Save report
         prefix = "original_" if algorithm_type == "original" else ""
-        with open(f'../../Data/{prefix}validation_report.txt', 'w') as f:
+        with open(f'../Data/{prefix}validation_report.txt', 'w') as f:
             f.write(report_content)
         
         print(f"   SUCCESS: Comprehensive report saved to Data/{prefix}validation_report.txt")

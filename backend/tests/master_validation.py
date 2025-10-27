@@ -26,9 +26,9 @@ def load_and_validate_data():
     
     try:
         # Load cleaned data files (adjust path for backend/tests location)
-        census_df = pd.read_csv('../../Data/final_classcensus.csv')
-        enrollment_df = pd.read_csv('../../Data/final_enrollment.csv')
-        classrooms_df = pd.read_csv('../../Data/final_classrooms.csv')
+        census_df = pd.read_csv('../Data/final_classcensus.csv')
+        enrollment_df = pd.read_csv('../Data/final_enrollment.csv')
+        classrooms_df = pd.read_csv('../Data/final_classrooms.csv')
         
         print(f"   SUCCESS: Census data: {len(census_df)} courses")
         print(f"   SUCCESS: Enrollment data: {len(enrollment_df)} student enrollments")

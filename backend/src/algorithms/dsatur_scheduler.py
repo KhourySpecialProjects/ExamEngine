@@ -110,7 +110,7 @@ class DSATURExamGraph:
             raise RuntimeError("Run dsatur_color() before dsatur_schedule().")
 
         usable_blocks = [(d, b) for (d, b) in self.exam_blocks if d < max_days]
-        len(usable_blocks)
+        max_rooms = len(self.classrooms)
 
         # group CRNs by DSATUR color
         color_to_crns = defaultdict(list)
@@ -133,6 +133,7 @@ class DSATURExamGraph:
         )
 
         student_sched = defaultdict(list)
+        rooms_used = defaultdict(int)
 
         for _ci, color in enumerate(ordered_colors):
             # start attempt block for this color
@@ -164,6 +165,10 @@ class DSATURExamGraph:
 
                 candidates = []
                 for _idx, (day, block) in enumerate(usable_blocks):
+                    if rooms_used[(day, block)] >= max_rooms:
+                        reason_counter["no_rooms_available"] += 1
+                        continue
+
                     ok = True
                     for sid in self.students_by_crn.get(crn, ()):
                         ok_one, reason = self._check_student_slot(
@@ -189,6 +194,7 @@ class DSATURExamGraph:
                 if candidates:
                     _, day, block = min(candidates)  # pick the least-loaded valid slot
                     self.assignment[crn] = (day, block)
+                    rooms_used[(day, block)] += 1
                     for sid in self.students_by_crn.get(crn, ()):
                         student_sched[sid].append((day, block))
                     self.block_load[(day, block)] += 1
@@ -207,8 +213,6 @@ class DSATURExamGraph:
                     self.block_seat_load[(day, block)] += int(
                         self.G.nodes[crn].get("size", 0)
                     )
-                    self.fallback_courses.add(crn)
-                    self.unplaced_reason_counts[crn] = dict(reason_counter)
 
         return self.assignment
 

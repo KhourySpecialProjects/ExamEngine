@@ -1,4 +1,3 @@
-// frontend/src/lib/hooks/useExamTable.ts
 import {
   getCoreRowModel,
   getFilteredRowModel,

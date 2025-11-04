@@ -116,14 +116,14 @@ export default function DensityView() {
         <div className="flex gap-3 items-center flex-wrap text-sm">
           <div className="flex items-center gap-2">
             <div className="w-10 h-10 bg-white border-2 border-gray-300 rounded" />
-            <span>0</span>
+            <span>No Exams</span>
           </div>
           <div className="flex items-center gap-2">
-            <div className="w-10 h-10 bg-gray-50  border-2 border-gray-50 rounded" />
+            <div className="w-10 h-10 bg-gray-50  border-2 border-gray-200 rounded" />
             <span>1-{thresholds.t1}</span>
           </div>
           <div className="flex items-center gap-2">
-            <div className="w-10 h-10 bg-gray-100 border-2 border-gray-100 rounded" />
+            <div className="w-10 h-10 bg-gray-100 border-2 border-gray-200 rounded" />
             <span>
               {thresholds.t1 + 1}-{thresholds.t2}
             </span>

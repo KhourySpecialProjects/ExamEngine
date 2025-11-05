@@ -8,6 +8,13 @@ import { ExamListDialog } from "@/components/visualization/calendar/ExamListDial
 import ListView from "@/components/visualization/list/ListView";
 import { Button } from "@/components/ui/button";
 import { DownloadCloud } from "lucide-react";
+import {
+  Select,
+  SelectTrigger,
+  SelectContent,
+  SelectItem,
+  SelectValue,
+} from "@/components/ui/select";
 import { toast } from "sonner";
 import { useScheduleData } from "@/lib/hooks/useScheduleData";
 import { useCalendarStore } from "@/lib/store/calendarStore";
@@ -70,19 +77,20 @@ export default function DashboardPage() {
       <div className="flex items-center justify-between">
         <ViewTabSwitcher activeView={activeView} onViewChange={setActiveView} />
         <div className="flex items-center gap-3">
-          <select
-            value={theme}
-            onChange={(e) => setTheme(e.target.value)}
-            className="rounded border px-2 py-1 text-sm"
-          >
-            {THEME_KEYS.map((k) => (
-              <option key={k} value={k}>
-                {k.charAt(0).toUpperCase() + k.slice(1)}
-              </option>
-            ))}
-          </select>
+          <Select onValueChange={(val) => setTheme(val)}>
+            <SelectTrigger size="default" className="min-w-40">
+              <SelectValue placeholder={theme ? theme.charAt(0).toUpperCase() + theme.slice(1) : "Theme"} />
+            </SelectTrigger>
+            <SelectContent>
+              {THEME_KEYS.map((k) => (
+                <SelectItem key={k} value={k}>
+                  {k.charAt(0).toUpperCase() + k.slice(1)}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
 
-          <Button onClick={handleExport} variant="outline" disabled={!schedule}>
+          <Button onClick={handleExport} className="bg-black text-white hover:opacity-90" disabled={!schedule}>
             <DownloadCloud className="h-4 w-4 mr-2" />
             Export Schedule
           </Button>

@@ -124,36 +124,60 @@ export default function DensityView() {
         }}
       />
 
-      {/* Legend */}
+      {/* Legend (dynamic based on selected theme) */}
       <div className="bg-white rounded-lg shadow p-4">
         <h3 className="font-semibold mb-3 text-sm">Density Legend</h3>
         <div className="flex gap-3 items-center flex-wrap text-sm">
-          <div className="flex items-center gap-2">
-            <div className="w-10 h-10 bg-white border-2 border-gray-300 rounded" />
-            <span>No Exams</span>
-          </div>
-          <div className="flex items-center gap-2">
-            <div className="w-10 h-10 bg-gray-50  border-2 border-gray-200 rounded" />
-            <span>1-{thresholds.t1}</span>
-          </div>
-          <div className="flex items-center gap-2">
-            <div className="w-10 h-10 bg-gray-100 border-2 border-gray-200 rounded" />
-            <span>
-              {thresholds.t1 + 1}-{thresholds.t2}
-            </span>
-          </div>
-          <div className="flex items-center gap-2">
-            <div className="w-10 h-10 bg-gray-300 border-2 border-gray-300 rounded" />
-            <span>
-              {thresholds.t2 + 1}-{thresholds.t3}
-            </span>
-          </div>
-          <div className="flex items-center gap-2">
-            <div className="w-10 h-10 bg-gray-700 border-2 border-gray-300 rounded" />
-            <span className="text-white bg-gray-700 px-2 py-0.5 rounded">
-              {thresholds.t3 + 1}+
-            </span>
-          </div>
+          {(() => {
+            const themeColors = colorThemes[theme] || colorThemes.gray;
+            const levels = [0, 1, 2, 3, 4];
+
+            const textColorFromBg = (bg: string) => {
+              const rgb = bg.match(/\d+/g)?.map(Number) || [255, 255, 255];
+              const luminance = 0.299 * (rgb[0] ?? 255) + 0.587 * (rgb[1] ?? 255) + 0.114 * (rgb[2] ?? 255);
+              return luminance > 160 ? "#0f172a" : "#ffffff";
+            };
+
+            return levels.map((lvl) => {
+              const bg = themeColors[lvl] || themeColors[0];
+              const textColor = textColorFromBg(bg);
+              let label = "";
+              const safe = (n: number) => (Number.isFinite(n) ? Math.max(0, Math.floor(n)) : 0);
+              const t1 = safe(thresholds.t1);
+              const t2 = safe(thresholds.t2);
+              const t3 = safe(thresholds.t3);
+
+              if (lvl === 0) label = "No Exams";
+              else if (lvl === 1) {
+                // 1..t1 (if t1 < 1 show single "1")
+                label = t1 >= 1 ? `1-${t1}` : `1`;
+              } else if (lvl === 2) {
+                const low = t1 + 1;
+                const high = t2;
+                label = high >= low ? `${low}-${high}` : `${low}`;
+              } else if (lvl === 3) {
+                const low = t2 + 1;
+                const high = t3;
+                label = high >= low ? `${low}-${high}` : `${low}`;
+              } else {
+                const low = t3 + 1;
+                label = `${low}+`;
+              }
+
+              return (
+                <div key={lvl} className="flex items-center gap-2">
+                  <div
+                    className="w-10 h-10 border-2 rounded"
+                    style={{ backgroundColor: bg, borderColor: "rgba(0,0,0,0.08)" }}
+                  />
+                  {/* Keep label text readable on the white legend background */}
+                  <span className={lvl === 4 ? "px-2 py-0.5 rounded text-sm font-medium" : "text-sm"}>
+                    {label}
+                  </span>
+                </div>
+              );
+            });
+          })()}
         </div>
       </div>
     </div>

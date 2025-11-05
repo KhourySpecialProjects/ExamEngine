@@ -236,7 +236,7 @@ export function ScheduleRunner() {
               )}
             </Button>
             {currentSchedule && (
-              <Button onClick={handleExport} variant="outline" className="flex-1">
+              <Button onClick={handleExport} className="flex-1 bg-black text-white hover:opacity-90">
                 <DownloadCloud className="h-4 w-4" />
                 Export Schedule
               </Button>

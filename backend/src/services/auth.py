@@ -1,195 +1,190 @@
-import os
 from datetime import datetime, timedelta
+from uuid import UUID
 
-from fastapi import HTTPException, Request, status
-from fastapi.security import OAuth2PasswordBearer
+from fastapi import HTTPException, status
 from jose import JWTError, jwt
-from passlib.context import CryptContext
-from sqlalchemy import create_engine, select
-from sqlalchemy.exc import OperationalError
-from sqlalchemy.orm import sessionmaker
 
+from src.core.config import get_settings
+from src.repo.user import UserRepo
 from src.schemas.db import Users
+from src.utils.password import get_password_hash, verify_password
 
 
-# Config (use real env vars in production)
-SECRET_KEY = os.getenv("SECRET_KEY", "change-me-to-a-secure-random-string")
-ALGORITHM = "HS256"
-ACCESS_TOKEN_EXPIRE_MINUTES = 60 * 24
-
-pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
-oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/auth/login")
+settings = get_settings()
 
 
-def verify_password(plain_password, hashed_password):
-    # Return True if passwords match, raise helpful HTTP errors on failures
-    try:
-        return pwd_context.verify(plain_password, hashed_password)
-    except ValueError as e:
-        # e.g. input too long for bcrypt
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST, detail=str(e)
-        ) from e
-    except AttributeError as e:
-        # bcrypt backend issue
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=(
-                "Password verification failed due to an incompatible bcrypt backend. "
-                "Install a compatible package (pip install bcrypt or passlib[bcrypt]). "
-                f"Original error: {e}"
-            ),
-        ) from e
-
-
-def get_password_hash(password):
-    # Hash password, validate input length for bcrypt (72 bytes)
-    try:
-        pw_bytes = (
-            password.encode("utf-8") if isinstance(password, str) else bytes(password)
-        )
-    except Exception as e:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Password must be a text string",
-        ) from e
-
-    if len(pw_bytes) > 72:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=(
-                "Password too long for bcrypt (over 72 bytes). Use a shorter password or a different hash."
-            ),
-        )
-
-    try:
-        return pwd_context.hash(password)
-    except AttributeError as e:
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=(
-                "Password hashing failed due to an incompatible bcrypt backend. "
-                "Install a compatible package (pip install bcrypt or passlib[bcrypt]). "
-                f"Original error: {e}"
-            ),
-        ) from e
-    except ValueError as e:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST, detail=str(e)
-        ) from e
-
-
-# Simple DB session factory using same DB URL as db.main (adjust as needed)
-def get_session():
-    """Create and return a SQLAlchemy session.
-
-    Uses DATABASE_URL or falls back to sqlite for local dev.
-    Raises HTTP 503 if the DB can't be reached.
+class AuthService:
     """
-    db_url = os.getenv("DATABASE_URL") or "sqlite:///./dev.db"
-    connect_args = {}
-    if db_url.startswith("sqlite"):
-        connect_args = {"check_same_thread": False}
+    Authentication business logic service.
 
-    try:
-        engine = create_engine(db_url, connect_args=connect_args)
-        # quick connect to fail fast if DB is down
-        with engine.connect():
-            pass
-    except OperationalError as exc:
-        raise HTTPException(
-            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail=(
-                "Database connection failed. Check DATABASE_URL or start your Postgres server. "
-                f"Original error: {exc}"
-            ),
-        ) from exc
+    Handles all authentication operations including:
+    - User authentication with password verification
+    - User registration
+    - JWT token creation and verification
+    - Password management
+    """
 
-    SessionLocal = sessionmaker(bind=engine)
-    return SessionLocal()
+    def __init__(self, user_repo: UserRepo):
+        self.user_repo = user_repo
 
+    def authenticate_user(self, username: str, password: str) -> Users | None:
+        """
+        Authenticate user by email or username with password verification.
 
-def authenticate_user(username: str, password: str) -> Users | None:
-    # Try email first (unambiguous), then fallback to name.
-    session = get_session()
-    try:
-        # 1) email lookup
-        stmt = select(Users).where(Users.email == username)
-        user = session.execute(stmt).scalars().first()
-        if user:
-            if verify_password(password, user.password_hash):
-                return user
-            return None
+        Args:
+            username: Email or username
+            password: Plain text password
 
-        # 2) fallback to name lookup — but check for ambiguity
-        stmt2 = select(Users).where(Users.name == username)
-        users = session.execute(stmt2).scalars().all()
-        if not users:
-            return None
-        if len(users) > 1:
-            # ambiguous username — require email or unique username
+        Returns:
+            User object if authenticated, None otherwise
+
+        Raises:
+            HTTPException: If username is ambiguous
+        """
+        # Use repository to find user
+        user, is_ambiguous = self.user_repo.get_by_email_or_name(username)
+
+        if is_ambiguous:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail=(
-                    "Multiple accounts found with that name; please log in using your email address "
-                    "instead or contact admin to set a unique username."
-                ),
+                detail="Multiple accounts found - please use email address",
             )
-        # single user matched by name
-        user = users[0]
-        if verify_password(password, user.password_hash):
-            return user
-        return None
-    finally:
-        session.close()
 
+        if not user:
+            return None
 
-def create_access_token(data: dict, expires_delta: timedelta | None = None):
-    to_encode = data.copy()
-    if expires_delta:
-        expire = datetime.now() + expires_delta
-    else:
-        expire = datetime.now() + timedelta(minutes=15)
-    to_encode.update({"exp": expire})
-    encoded_jwt = jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
-    return encoded_jwt
+        if not verify_password(password, user.password_hash):
+            return None
 
-
-def get_token_from_cookie(request: Request) -> str:
-    """Extract token from HTTP-only cookie"""
-    token = request.cookies.get("auth_token")
-    if not token:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Not authenticated",
-            headers={"WWW-Authenticate": "Bearer"},
-        )
-    return token
-
-
-def get_current_user(request: Request):
-    """Get current user from HTTP-only cookie"""
-    credentials_exception = HTTPException(
-        status_code=status.HTTP_401_UNAUTHORIZED,
-        detail="Could not validate credentials",
-        headers={"WWW-Authenticate": "Bearer"},
-    )
-
-    try:
-        token = get_token_from_cookie(request)
-        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
-        user_id: str = payload.get("sub")
-        if user_id is None:
-            raise credentials_exception
-    except JWTError as e:
-        raise credentials_exception from e
-
-    session = get_session()
-    try:
-        stmt = select(Users).where(Users.user_id == user_id)
-        user = session.execute(stmt).scalars().first()
-        if user is None:
-            raise credentials_exception
         return user
-    finally:
-        session.close()
+
+    def register_user(self, name: str, email: str, password: str) -> Users:
+        """
+        Register new user with validation and password hashing.
+
+        Args:
+            name: User's display name
+            email: User's email address
+            password: Plain text password
+
+        Returns:
+            Newly created User
+
+        Raises:
+            HTTPException: If email already exists
+        """
+        # Check email availability
+        if self.user_repo.email_exists(email):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Email already registered",
+            )
+
+        # Hash password
+        password_hash = get_password_hash(password)
+
+        # Create user
+        return self.user_repo.create_user(
+            name=name, email=email, password_hash=password_hash
+        )
+
+    def create_access_token(
+        self, user_id: UUID, expires_delta: timedelta | None = None
+    ) -> str:
+        """
+        Create JWT access token.
+
+        Args:
+            user_id: User ID to encode in token
+            expires_delta: Optional custom expiration
+
+        Returns:
+            JWT token string
+        """
+        to_encode = {"sub": str(user_id)}
+
+        if expires_delta:
+            expire = datetime.now() + expires_delta
+        else:
+            expire = datetime.now() + timedelta(
+                minutes=settings.access_token_expire_minutes
+            )
+
+        to_encode.update({"exp": expire})
+
+        return jwt.encode(to_encode, settings.secret_key, algorithm=settings.algorithm)
+
+    def verify_token(self, token: str) -> UUID | None:
+        """
+        Verify JWT token and extract user ID.
+
+        Args:
+            token: JWT token string
+
+        Returns:
+            User ID if valid, None otherwise
+        """
+        try:
+            payload = jwt.decode(
+                token, settings.secret_key, algorithms=[settings.algorithm]
+            )
+            user_id_str: str = payload.get("sub")
+            if user_id_str is None:
+                return None
+            return UUID(user_id_str)
+        except JWTError:
+            return None
+
+    def get_user_from_token(self, token: str) -> Users | None:
+        """
+        Get user from JWT token.
+
+        Args:
+            token: JWT token string
+
+        Returns:
+            User if token is valid, None otherwise
+        """
+        user_id = self.verify_token(token)
+        if not user_id:
+            return None
+        return self.user_repo.get_by_id(user_id)
+
+    def change_password(
+        self, user_id: UUID, old_password: str, new_password: str
+    ) -> Users:
+        """
+        Change password with old password verification.
+
+        Args:
+            user_id: User ID
+            old_password: Current password
+            new_password: New password
+
+        Returns:
+            Updated user
+
+        Raises:
+            HTTPException: If user not found or old password wrong
+        """
+        user = self.user_repo.get_by_id(user_id)
+        if not user:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND, detail="User not found"
+            )
+
+        if not verify_password(old_password, user.password_hash):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Current password is incorrect",
+            )
+
+        new_hash = get_password_hash(new_password)
+        updated_user = self.user_repo.update_password(user_id, new_hash)
+
+        if not updated_user:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND, detail="User not found"
+            )
+
+        return updated_user

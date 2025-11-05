@@ -1,6 +1,6 @@
 "use client";
 
-import { AlertCircle, Loader2, Play, Settings } from "lucide-react";
+import { AlertCircle, Loader2, Play, Settings, DownloadCloud } from "lucide-react";
 import { toast } from "sonner";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
@@ -55,6 +55,57 @@ export function ScheduleRunner() {
       toast.error("Generation failed", {
         id: toastId,
         description: error instanceof Error ? error.message : "Unknown error",
+      });
+    }
+  };
+
+  const handleExport = async () => {
+    if (!currentSchedule) {
+      toast.error("No schedule to export", {
+        description: "Generate a schedule first",
+      });
+      return;
+    }
+
+    try {
+      // Convert schedule.complete (array of exam objects) to CSV
+      const rows = currentSchedule.schedule.complete;
+      if (!rows || rows.length === 0) {
+        toast.error("Schedule is empty", { description: "Nothing to export" });
+        return;
+      }
+
+      // Extract headers from first row (preserve order)
+      const headers = Object.keys(rows[0]);
+      const csvLines = [headers.join(",")];
+
+      for (const r of rows) {
+        const values = headers.map((h) => {
+          const v = (r as any)[h];
+          if (v === null || v === undefined) return "";
+          // escape double quotes
+          const s = String(v).replace(/"/g, '""');
+          // wrap fields containing commas or quotes in double quotes
+          return s.includes(",") || s.includes('"') ? `"${s}"` : s;
+        });
+        csvLines.push(values.join(","));
+      }
+
+      const csvContent = csvLines.join("\n");
+      const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.setAttribute("download", `schedule_exams.csv`);
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      URL.revokeObjectURL(url);
+
+      toast.success("Export started", { description: "Downloading schedule CSV" });
+    } catch (err) {
+      toast.error("Export failed", {
+        description: err instanceof Error ? err.message : "Unknown error",
       });
     }
   };
@@ -157,10 +208,10 @@ export function ScheduleRunner() {
               </div>
               <Switch
                 checked={parameters.avoid_back_to_back}
-                onCheckedChange={(checked) =>
-                  setParameters({ avoid_back_to_back: checked })
-                }
-                disabled={isGenerating}
+                onCheckedChange={(checked) => {
+                  if (isGenerating) return;
+                  setParameters({ avoid_back_to_back: checked });
+                }}
               />
             </div>
           </div>
@@ -184,6 +235,12 @@ export function ScheduleRunner() {
                 </>
               )}
             </Button>
+            {currentSchedule && (
+              <Button onClick={handleExport} variant="outline" className="flex-1">
+                <DownloadCloud className="h-4 w-4" />
+                Export Schedule
+              </Button>
+            )}
           </div>
 
           {/* Current Schedule Info */}

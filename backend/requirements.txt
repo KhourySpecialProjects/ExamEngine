@@ -30,6 +30,7 @@ passlib[bcrypt]
 bcrypt==3.2.0
 
 pydantic[email]
+pydantic-settings
 
 
 # Development Tools

@@ -3,6 +3,7 @@ import { EmptyScheduleState } from "@/components/common/EmptyScheduleState";
 import { useScheduleData } from "@/lib/hooks/useScheduleData";
 import { useCalendarStore } from "@/lib/store/calendarStore";
 import { CalendarGrid } from "./CalendarGrid";
+import { colorThemes } from "@/lib/constants/colorThemes";
 
 const DAYS = [
   "Monday",
@@ -35,12 +36,25 @@ const calculateThresholds = (counts: number[]) => {
 const getDensityColor = (
   count: number,
   thresholds: ReturnType<typeof calculateThresholds>,
-): string => {
-  if (count === 0) return "bg-gray-50 text-gray-400";
-  if (count <= thresholds.t1) return "bg-gray-100 text-gray-900";
-  if (count <= thresholds.t2) return "bg-gray-300 text-gray-900";
-  if (count <= thresholds.t3) return "bg-gray-500 text-white";
-  return "bg-gray-700 text-white";
+  themeColors: string[],
+): { bg: string; color: string } => {
+  // Map count to level 0..4 using thresholds
+  let level = 0;
+  if (count === 0) level = 0;
+  else if (count <= thresholds.t1) level = 1;
+  else if (count <= thresholds.t2) level = 2;
+  else if (count <= thresholds.t3) level = 3;
+  else level = 4;
+
+  const bg = themeColors[level] || themeColors[0];
+
+  // Determine readable text color (black or white) based on luminance
+  const rgb = bg.match(/\d+/g)?.map(Number) || [255, 255, 255];
+  const luminance =
+    0.299 * (rgb[0] ?? 255) + 0.587 * (rgb[1] ?? 255) + 0.114 * (rgb[2] ?? 255);
+  const color = luminance > 160 ? "#0f172a" : "#ffffff"; // dark text for light bg, white for dark bg
+
+  return { bg, color };
 };
 
 /**
@@ -52,6 +66,7 @@ const getDensityColor = (
 export default function DensityView() {
   const { hasData, isLoading, calendarRows } = useScheduleData();
   const selectCell = useCalendarStore((state) => state.selectCell);
+  const theme = useCalendarStore((s) => s.colorTheme || "gray");
   const thresholds = useMemo(() => {
     const counts = calendarRows.flatMap((row) =>
       row.days.map((d) => d.examCount),
@@ -72,23 +87,22 @@ export default function DensityView() {
         defaultCellWidth={140}
         timeSlotWidth={140}
         renderCell={(cell) => {
-          const colorClass = getDensityColor(
-            cell ? cell.examCount : 0,
-            thresholds,
-          );
           const examCount = cell ? cell.examCount : 0;
           const conflicts = cell ? cell.conflicts : 0;
+          const themeColors = colorThemes[theme] || colorThemes.gray;
+          const { bg, color } = getDensityColor(cell ? cell.examCount : 0, thresholds, themeColors);
 
           return (
             <div
               onClick={() => examCount > 0 && cell && selectCell(cell)}
-              className={`
-                ${colorClass}
-                w-full h-full
-                flex items-center
-                border border-gray-200
-                ${examCount > 0 ? "cursor-pointer hover:shadow-lg hover:z-10 relative transition-all duration-200" : "cursor-default"}
-              `}
+              style={{ backgroundColor: bg, color }}
+              className={
+                `w-full h-full flex items-center border border-gray-200 ${
+                  examCount > 0
+                    ? "cursor-pointer hover:shadow-lg hover:z-10 relative transition-all duration-200"
+                    : "cursor-default"
+                }`
+              }
             >
               <div className="flex flex-col items-start justify-start p-3 w-full h-full">
                 {/* Exam Count */}

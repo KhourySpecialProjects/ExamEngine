@@ -10,12 +10,17 @@ import { Button } from "@/components/ui/button";
 import { DownloadCloud } from "lucide-react";
 import { toast } from "sonner";
 import { useScheduleData } from "@/lib/hooks/useScheduleData";
+import { useCalendarStore } from "@/lib/store/calendarStore";
+import { THEME_KEYS } from "@/lib/constants/colorThemes";
 
 type ViewType = "density" | "compact" | "list";
 
 export default function DashboardPage() {
   const [activeView, setActiveView] = useState<ViewType>("density");
   const { schedule } = useScheduleData();
+  const theme = useCalendarStore((s) => s.colorTheme);
+  const setTheme = useCalendarStore((s) => s.setColorTheme);
+
   const handleExport = async () => {
     if (!schedule) {
       toast.error("No schedule to export", {
@@ -64,7 +69,19 @@ export default function DashboardPage() {
     <div className="space-y-6 m-5">
       <div className="flex items-center justify-between">
         <ViewTabSwitcher activeView={activeView} onViewChange={setActiveView} />
-        <div>
+        <div className="flex items-center gap-3">
+          <select
+            value={theme}
+            onChange={(e) => setTheme(e.target.value)}
+            className="rounded border px-2 py-1 text-sm"
+          >
+            {THEME_KEYS.map((k) => (
+              <option key={k} value={k}>
+                {k.charAt(0).toUpperCase() + k.slice(1)}
+              </option>
+            ))}
+          </select>
+
           <Button onClick={handleExport} variant="outline" disabled={!schedule}>
             <DownloadCloud className="h-4 w-4 mr-2" />
             Export Schedule

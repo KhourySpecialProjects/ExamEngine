@@ -25,6 +25,7 @@ export default function CompactView() {
   const { hasData, isLoading, calendarRows } = useScheduleData();
   const selectCell = useCalendarStore((state) => state.selectCell);
   if (!hasData) return <EmptyScheduleState isLoading={isLoading} />;
+
   return (
     <CalendarGrid
       data={calendarRows}
@@ -34,11 +35,7 @@ export default function CompactView() {
         const maxVisible = 6;
         const visibleExams = cell.exams.slice(0, maxVisible);
         const hasMore = cell.exams.length > maxVisible;
-
-        if (cell.examCount === 0) {
-          return <div className="p-2" />;
-        }
-
+        // Compact view uses neutral styling — coloring is applied only in DensityView
         return (
           <div className="p-2 space-y-1 max-h-[150px] overflow-auto no-scrollbar">
             {visibleExams.map((exam) => (
@@ -55,7 +52,7 @@ export default function CompactView() {
                 onClick={() => selectCell(cell)}
                 className="text-xs text-blue-600 hover:text-blue-800 w-full text-left pl-2 py-1 bg-transparent hover:bg-transparent"
               >
-                +{cell.exams.length - maxVisible} more
+                {'+'}{cell.exams.length - maxVisible} more
               </Button>
             )}
           </div>

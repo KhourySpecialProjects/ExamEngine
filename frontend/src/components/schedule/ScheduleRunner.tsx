@@ -59,6 +59,9 @@ export function ScheduleRunner() {
     }
   };
 
+
+  // Export removed from Optimize dialog — exporting is available from the Dashboard header
+
   return (
     <Dialog>
       <DialogTrigger asChild>
@@ -157,10 +160,10 @@ export function ScheduleRunner() {
               </div>
               <Switch
                 checked={parameters.avoid_back_to_back}
-                onCheckedChange={(checked) =>
-                  setParameters({ avoid_back_to_back: checked })
-                }
-                disabled={isGenerating}
+                onCheckedChange={(checked) => {
+                  if (isGenerating) return;
+                  setParameters({ avoid_back_to_back: checked });
+                }}
               />
             </div>
           </div>
@@ -184,6 +187,7 @@ export function ScheduleRunner() {
                 </>
               )}
             </Button>
+            {/* Export removed from Optimize dialog; exporting is available from the Dashboard header */}
           </div>
 
           {/* Current Schedule Info */}

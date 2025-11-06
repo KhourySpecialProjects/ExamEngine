@@ -35,7 +35,7 @@ class StudentRepo(BaseRepo[Students]):
             Set of created student IDs
         """
         # Get unique student IDs from enrollment data
-        unique_student_ids = enrollment_df["student_id"].unique()
+        unique_student_ids = enrollment_df["Student_PIDM"].unique()
 
         # Create Student records
         student_objs = [

@@ -16,12 +16,13 @@ import CompactView from "@/components/visualization/calendar/CompactView";
 import DensityView from "@/components/visualization/calendar/DensityView";
 import { ExamListDialog } from "@/components/visualization/calendar/ExamListDialog";
 import ListView from "@/components/visualization/list/ListView";
+import { StatisticsView } from "@/components/statistics/StatisticsView";
 import { THEME_KEYS } from "@/lib/constants/colorThemes";
 import { useScheduleData } from "@/lib/hooks/useScheduleData";
 import { useCalendarStore } from "@/lib/store/calendarStore";
 import { exportScheduleRowsAsCsv } from "@/lib/utils";
 
-type ViewType = "density" | "compact" | "list";
+type ViewType = "density" | "compact" | "list" | "statistics";
 
 export default function DashboardPage() {
   const [activeView, setActiveView] = useState<ViewType>("density");
@@ -94,6 +95,7 @@ export default function DashboardPage() {
       {activeView === "density" && <DensityView />}
       {activeView === "compact" && <CompactView />}
       {activeView === "list" && <ListView />}
+      {activeView === "statistics" && <StatisticsView />}
 
       <ExamListDialog />
     </div>

@@ -19,6 +19,7 @@ pytest-asyncio
 pytest-cov
 factory-boy
 faker
+psutil
 fastapi
 uvicorn
 pandas

@@ -1,5 +1,3 @@
-import io
-
 import boto3
 from botocore.exceptions import ClientError
 
@@ -27,11 +25,13 @@ class S3(IStorage):
     ) -> tuple[str | None, str | None]:
         """Upload file to S3"""
         try:
-            self.client.upload_fileobj(
-                io.BytesIO(file_content),
-                self.bucket_name,
-                key,
-                ExtraArgs={"ContentType": content_type},
+            # Use put_object instead of upload_fileobj for better async compatibility
+            # The boto3 client operations are synchronous but the await gives other tasks a chance to run
+            self.client.put_object(
+                Bucket=self.bucket_name,
+                Key=key,
+                Body=file_content,
+                ContentType=content_type,
             )
             return None, key
         except ClientError as e:

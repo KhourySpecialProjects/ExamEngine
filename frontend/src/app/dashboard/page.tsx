@@ -1,24 +1,24 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { Save } from "lucide-react";
+import { useState } from "react";
+import { toast } from "sonner";
 import { ViewTabSwitcher } from "@/components/common/ViewTabSwitcher";
+import { Button } from "@/components/ui/button";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import CompactView from "@/components/visualization/calendar/CompactView";
 import DensityView from "@/components/visualization/calendar/DensityView";
 import { ExamListDialog } from "@/components/visualization/calendar/ExamListDialog";
 import ListView from "@/components/visualization/list/ListView";
-import { Button } from "@/components/ui/button";
-import { DownloadCloud } from "lucide-react";
-import {
-  Select,
-  SelectTrigger,
-  SelectContent,
-  SelectItem,
-  SelectValue,
-} from "@/components/ui/select";
-import { toast } from "sonner";
+import { THEME_KEYS } from "@/lib/constants/colorThemes";
 import { useScheduleData } from "@/lib/hooks/useScheduleData";
 import { useCalendarStore } from "@/lib/store/calendarStore";
-import { THEME_KEYS } from "@/lib/constants/colorThemes";
 import { exportScheduleRowsAsCsv } from "@/lib/utils";
 
 type ViewType = "density" | "compact" | "list";
@@ -46,9 +46,13 @@ export default function DashboardPage() {
 
       exportScheduleRowsAsCsv(rows, "schedule_exams.csv");
 
-      toast.success("Export started", { description: "Downloading schedule CSV" });
+      toast.success("Export started", {
+        description: "Downloading schedule CSV",
+      });
     } catch (err) {
-      toast.error("Export failed", { description: err instanceof Error ? err.message : "Unknown error" });
+      toast.error("Export failed", {
+        description: err instanceof Error ? err.message : "Unknown error",
+      });
     }
   };
 
@@ -58,8 +62,14 @@ export default function DashboardPage() {
         <ViewTabSwitcher activeView={activeView} onViewChange={setActiveView} />
         <div className="flex items-center gap-3">
           <Select onValueChange={(val) => setTheme(val)}>
-            <SelectTrigger size="default" className="min-w-40">
-              <SelectValue placeholder={theme ? theme.charAt(0).toUpperCase() + theme.slice(1) : "Theme"} />
+            <SelectTrigger size="default" className="min-w-30">
+              <SelectValue
+                placeholder={
+                  theme
+                    ? theme.charAt(0).toUpperCase() + theme.slice(1)
+                    : "Theme"
+                }
+              />
             </SelectTrigger>
             <SelectContent>
               {THEME_KEYS.map((k) => (
@@ -70,9 +80,13 @@ export default function DashboardPage() {
             </SelectContent>
           </Select>
 
-          <Button onClick={handleExport} className="bg-black text-white hover:opacity-90" disabled={!schedule}>
-            <DownloadCloud className="h-4 w-4 mr-2" />
-            Export Schedule
+          <Button
+            onClick={handleExport}
+            className="bg-black text-white hover:opacity-90 min-w-50"
+            disabled={!schedule}
+          >
+            <Save />
+            <span>Export Schedule</span>
           </Button>
         </div>
       </div>

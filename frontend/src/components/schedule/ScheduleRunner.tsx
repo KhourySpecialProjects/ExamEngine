@@ -59,9 +59,6 @@ export function ScheduleRunner() {
     }
   };
 
-
-  // Export removed from Optimize dialog — exporting is available from the Dashboard header
-
   return (
     <Dialog>
       <DialogTrigger asChild>

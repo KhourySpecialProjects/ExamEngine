@@ -3,7 +3,7 @@ from uuid import UUID
 
 import pandas as pd
 
-from src.algorithms.dsatur_scheduler import DSATURExamGraph
+from src.algorithms.enhanced_dsatur_scheduler import DSATURExamGraph
 from src.core.exceptions import (
     DatasetNotFoundError,
     ScheduleGenerationError,
@@ -123,8 +123,6 @@ class ScheduleService:
             graph.build_graph()
             graph.dsatur_color()
             graph.dsatur_schedule(
-                max_per_day=max_per_day,
-                avoid_back_to_back=avoid_back_to_back,
                 max_days=max_days,
             )
             results_df = graph.assign_rooms()
@@ -144,25 +142,25 @@ class ScheduleService:
                     f"Failed to save exam assignments: {str(db_error)}"
                 ) from db_error
 
-            total_conflicts, conflict_details, breakdown_df = (
-                graph.count_schedule_conflicts()
-            )
-
-            if not breakdown_df.empty:
-                try:
-                    await self._save_conflicts(
-                        schedule_id=schedule.schedule_id, breakdown_df=breakdown_df
-                    )
-                except Exception as db_error:
-                    self.schedule_repo.db.rollback()
-                    raise ScheduleGenerationError(
-                        f"Failed to save exam assignments: {str(db_error)}"
-                    ) from db_error
+            # total_conflicts, conflict_details, breakdown_df = (
+            #     graph.count_schedule_conflicts()
+            # )
+            #
+            # if not breakdown_df.empty:
+            #     try:
+            #         await self._save_conflicts(
+            #             schedule_id=schedule.schedule_id, breakdown_df=breakdown_df
+            #         )
+            #     except Exception as db_error:
+            #         self.schedule_repo.db.rollback()
+            #         raise ScheduleGenerationError(
+            #             f"Failed to save exam assignments: {str(db_error)}"
+            #         ) from db_error
 
             self.run_repo.update_status(run.run_id, StatusEnum.Completed)
 
             summary = graph.summary()
-            fail_report = graph.fail_report()
+            # fail_report = graph.fail_report()
 
             # Get dataset info for response
             dataset_info = self.dataset_service.get_dataset_info(dataset_id, user_id)
@@ -173,18 +171,21 @@ class ScheduleService:
                 "dataset_id": str(dataset_id),
                 "dataset_name": dataset_info["dataset_name"],
                 "summary": summary,
+                # "conflicts": {
+                #     "total": total_conflicts,
+                #     "breakdown": breakdown_df.to_dict(orient="records")
+                #     if not breakdown_df.empty
+                #     else [],
+                #     "details": {str(k): v for k, v in conflict_details.items()}
+                #     if conflict_details
+                #     else {},
+                # },
                 "conflicts": {
-                    "total": total_conflicts,
-                    "breakdown": breakdown_df.to_dict(orient="records")
-                    if not breakdown_df.empty
-                    else [],
-                    "details": {str(k): v for k, v in conflict_details.items()}
-                    if conflict_details
-                    else {},
+                    "total": 0,
+                    "breakdown": [],
+                    "details": {},
                 },
-                "failures": fail_report.to_dict(orient="records")
-                if not fail_report.empty
-                else [],
+                "failures": [],
                 "schedule": {
                     "complete": results_df.to_dict(orient="records"),
                     "calendar": self._build_calendar_structure(results_df),
@@ -315,7 +316,7 @@ class ScheduleService:
         for _, row in breakdown_df.iterrows():
             conflicts.append(
                 {
-                    "student_id": str(row["student_id"]),
+                    "student_id": str(row["Student_PIDM"]),
                     "exam_assignment_ids": [],
                     "conflict_type": row["conflict_type"],
                 }
@@ -413,6 +414,7 @@ class ScheduleService:
                     "Capacity": int(row["Capacity"]),
                     "Size": int(row["Size"]),
                     "Valid": bool(row["Valid"]),
+                    "Instructor": row["Instructor"],
                 }
             )
 

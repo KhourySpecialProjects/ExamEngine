@@ -16,17 +16,17 @@ import CompactView from "@/components/visualization/calendar/CompactView";
 import DensityView from "@/components/visualization/calendar/DensityView";
 import { ExamListDialog } from "@/components/visualization/calendar/ExamListDialog";
 import ListView from "@/components/visualization/list/ListView";
+import { StatisticsView } from "@/components/statistics/StatisticsView";
 import { THEME_KEYS } from "@/lib/constants/colorThemes";
 import { useScheduleData } from "@/lib/hooks/useScheduleData";
 import { useCalendarStore } from "@/lib/store/calendarStore";
 import { exportScheduleRowsAsCsv } from "@/lib/utils";
 
-type ViewType = "density" | "compact" | "list";
+type ViewType = "density" | "compact" | "list" | "statistics";
 
 export default function DashboardPage() {
   const [activeView, setActiveView] = useState<ViewType>("density");
   const { schedule } = useScheduleData();
-  const theme = useCalendarStore((s) => s.colorTheme);
   const setTheme = useCalendarStore((s) => s.setColorTheme);
 
   const handleExport = async () => {
@@ -63,18 +63,12 @@ export default function DashboardPage() {
         <div className="flex items-center gap-3">
           <Select onValueChange={(val) => setTheme(val)}>
             <SelectTrigger size="default" className="min-w-30">
-              <SelectValue
-                placeholder={
-                  theme
-                    ? theme.charAt(0).toUpperCase() + theme.slice(1)
-                    : "Theme"
-                }
-              />
+              <SelectValue placeholder={"Choose a Theme"} />
             </SelectTrigger>
             <SelectContent>
               {THEME_KEYS.map((k) => (
                 <SelectItem key={k} value={k}>
-                  {k.charAt(0).toUpperCase() + k.slice(1)}
+                  Theme: {k.charAt(0).toUpperCase() + k.slice(1)}
                 </SelectItem>
               ))}
             </SelectContent>
@@ -94,6 +88,7 @@ export default function DashboardPage() {
       {activeView === "density" && <DensityView />}
       {activeView === "compact" && <CompactView />}
       {activeView === "list" && <ListView />}
+      {activeView === "statistics" && <StatisticsView />}
 
       <ExamListDialog />
     </div>

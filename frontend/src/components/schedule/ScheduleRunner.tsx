@@ -146,6 +146,31 @@ export function ScheduleRunner() {
 
             <Separator />
 
+            {/* Max Exams Per Instructor Per Day */}
+            <div className="space-y-3">
+              <div className="flex items-center justify-between">
+                <Label>Maximum Exams Per Instructor Per Day</Label>
+                <span className="text-sm font-medium">
+                  {parameters.instructor_per_day || 2}
+                </span>
+              </div>
+              <Slider
+                value={[parameters.instructor_per_day || 2]}
+                onValueChange={([value]) =>
+                  setParameters({ instructor_per_day: value })
+                }
+                min={1}
+                max={5}
+                step={1}
+                disabled={isGenerating}
+              />
+              <p className="text-xs text-muted-foreground">
+                Limit how many exams an instructor can teach in one day
+              </p>
+            </div>
+
+            <Separator />
+
             {/* Max Days */}
             <div className="space-y-3">
               <div className="flex items-center justify-between">
@@ -174,7 +199,8 @@ export function ScheduleRunner() {
               <div className="space-y-1">
                 <Label>Avoid Back-to-Back Exams</Label>
                 <p className="text-xs text-muted-foreground">
-                  Prevent consecutive exam blocks for students when possible
+                  Prevent consecutive exam blocks for students and instructors
+                  when possible
                 </p>
               </div>
               <Switch
@@ -217,8 +243,14 @@ export function ScheduleRunner() {
                 <div className="font-medium">Current Schedule</div>
                 <div className="text-xs text-muted-foreground mt-1">
                   {currentSchedule.schedule.total_exams} exams scheduled •{" "}
-                  {currentSchedule.conflicts.total} conflicts •{" "}
+                  {currentSchedule.summary.real_conflicts} conflicts •{" "}
                   {currentSchedule.failures.length} failures
+                  {currentSchedule.conflicts.total > 0 && (
+                    <>
+                      {" "}
+                      • {currentSchedule.conflicts.total} back-to-back warnings
+                    </>
+                  )}
                 </div>
               </AlertDescription>
             </Alert>

@@ -1,6 +1,7 @@
 "use client";
 
 import { Bell, Settings } from "lucide-react";
+import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
@@ -13,7 +14,6 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { useAuthStore } from "@/lib/store/authStore";
-import Image from "next/image";
 
 export function DashboardHeader() {
   const { user, logout } = useAuthStore();

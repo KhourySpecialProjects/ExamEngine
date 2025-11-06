@@ -14,6 +14,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { useAuthStore } from "@/lib/store/authStore";
+import Image from "next/image";
 
 export function DashboardHeader() {
   const { user, logout } = useAuthStore();

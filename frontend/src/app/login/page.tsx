@@ -132,7 +132,7 @@ export default function Login() {
               <TabsContent value="signup">
                 <Card>
                   <CardHeader>
-                    <CardTitle>Sign up</CardTitle>
+                    <CardTitle className="text-2xl">Sign up</CardTitle>
                     <CardDescription>Create an account</CardDescription>
                   </CardHeader>
                   <CardContent className="grid gap-6">
@@ -173,7 +173,7 @@ export default function Login() {
       </main>
 
       {/* Footer */}
-      <footer className="py-8 px-8">
+      <footer className="fixed bottom-0 left-0 w-full py-8 bg-white border-t">
         <div className="max-w-6xl mx-auto flex items-center justify-between">
           <div className="text-sm text-slate-600">Powered by ExamEngine</div>
           <div className="flex items-center gap-3">

@@ -92,9 +92,14 @@ export interface ScheduleResult {
 export class SchedulesAPI extends BaseAPI {
   async generate(
     dataset_id: string,
+    schedule_name: string,
     parameters: ScheduleParameters = {},
   ): Promise<ScheduleResult> {
     const queryParams = new URLSearchParams();
+
+    if (schedule_name) {
+      queryParams.append("schedule_name", schedule_name);
+    }
 
     if (parameters.max_per_day !== undefined) {
       queryParams.append("max_per_day", parameters.max_per_day.toString());

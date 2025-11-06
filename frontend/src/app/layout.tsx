@@ -14,8 +14,11 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "ExamEngine - Exam Schedule Generator",
+  title: "ExamEngine - Schedule Smarter",
   description: "Automated exam scheduling for Northeastern University",
+  icons: {
+    icon: "/icon.svg",
+  },
 };
 
 export const viewport = {

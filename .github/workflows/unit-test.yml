@@ -31,3 +31,10 @@ jobs:
       
       - name: Run all tests
         run: npm run test
+        env:
+            DATABASE_URL: your_db_url
+            SECRET_KEY: your_secret_key
+            AWS_ACCESS_KEY_ID:  some_key_id
+            AWS_SECRET_ACCESS_KEY: some_access_key
+            AWS_REGION: us
+            AWS_S3_BUCKET: exam-engine-csvs

@@ -35,6 +35,8 @@ interface CalendarState {
   // Initial state
   filters: CalendarFilters;
   selectedCell: CalendarCell | null;
+  // UI
+  colorTheme: string;
 
   // Actions
   setSearchQuery: (query: string) => void;
@@ -42,6 +44,7 @@ interface CalendarState {
   setShowConflictsOnly: (show: boolean) => void;
   clearFilters: () => void;
   selectCell: (cell: CalendarCell | null) => void;
+  setColorTheme: (theme: string) => void;
 }
 
 export const useCalendarStore = create<CalendarState>((set) => ({
@@ -50,6 +53,7 @@ export const useCalendarStore = create<CalendarState>((set) => ({
     searchQuery: "",
   },
   selectedCell: null,
+  colorTheme: "gray",
 
   // Filter actions
   setSearchQuery: (query) => {
@@ -81,5 +85,8 @@ export const useCalendarStore = create<CalendarState>((set) => ({
   // Selection
   selectCell: (cell) => {
     set({ selectedCell: cell });
+  },
+  setColorTheme: (theme) => {
+    set({ colorTheme: theme });
   },
 }));

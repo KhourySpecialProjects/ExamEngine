@@ -18,6 +18,7 @@ import { Slider } from "@/components/ui/slider";
 import { Switch } from "@/components/ui/switch";
 import { useDatasetStore } from "@/lib/store/datasetStore";
 import { useScheduleStore } from "@/lib/store/scheduleStore";
+import { Input } from "../ui/input";
 
 export function ScheduleRunner() {
   const selectedDatasetId = useDatasetStore((state) => state.selectedDatasetId);
@@ -28,9 +29,11 @@ export function ScheduleRunner() {
   const {
     currentSchedule,
     isGenerating,
+    scheduleName,
     parameters,
     generateSchedule,
     setParameters,
+    setScheduleName,
   } = useScheduleStore();
 
   const handleGenerate = async () => {
@@ -40,16 +43,22 @@ export function ScheduleRunner() {
       });
       return;
     }
+    if (!scheduleName || scheduleName.trim() === "") {
+      toast.error("Schedule name required", {
+        description: "Please enter a name for your schedule",
+      });
+      return;
+    }
 
     const toastId = toast.loading("Generating schedule...", {
       description: "Running DSATUR algorithm",
     });
 
     try {
-      await generateSchedule(selectedDatasetId);
+      const result = await generateSchedule(selectedDatasetId);
       toast.success("Schedule generated!", {
         id: toastId,
-        description: `${currentSchedule?.schedule.total_exams} exams scheduled`,
+        description: `${result.schedule.total_exams} exams scheduled`,
       });
     } catch (error) {
       toast.error("Generation failed", {
@@ -58,6 +67,8 @@ export function ScheduleRunner() {
       });
     }
   };
+  const isGenerateDisabled =
+    !selectedDatasetId || isGenerating || !scheduleName?.trim();
 
   return (
     <Dialog>
@@ -94,6 +105,17 @@ export function ScheduleRunner() {
               </AlertDescription>
             </Alert>
           )}
+
+          <div className="space-y-2">
+            <Label htmlFor="schedule-name">Schedule Name</Label>
+            <Input
+              id="schedule-name"
+              type="text"
+              placeholder="e.g., Fall 2024 Final Exams"
+              value={scheduleName || ""}
+              onChange={(e) => setScheduleName(e.target.value)}
+            />
+          </div>
 
           {/* Parameters */}
           <div className="space-y-4">
@@ -182,10 +204,10 @@ export function ScheduleRunner() {
               </div>
               <Switch
                 checked={parameters.avoid_back_to_back}
-                onCheckedChange={(checked) =>
-                  setParameters({ avoid_back_to_back: checked })
-                }
-                disabled={isGenerating}
+                onCheckedChange={(checked) => {
+                  if (isGenerating) return;
+                  setParameters({ avoid_back_to_back: checked });
+                }}
               />
             </div>
           </div>
@@ -194,7 +216,7 @@ export function ScheduleRunner() {
           <div className="flex gap-3 pt-4 border-t">
             <Button
               onClick={handleGenerate}
-              disabled={!selectedDatasetId || isGenerating}
+              disabled={isGenerateDisabled}
               className="flex-1"
             >
               {isGenerating ? (
@@ -209,6 +231,7 @@ export function ScheduleRunner() {
                 </>
               )}
             </Button>
+            {/* Export removed from Optimize dialog; exporting is available from the Dashboard header */}
           </div>
 
           {/* Current Schedule Info */}

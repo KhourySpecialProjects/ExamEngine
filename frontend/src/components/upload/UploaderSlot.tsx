@@ -123,12 +123,12 @@ export function UploaderSlot({
               e.stopPropagation();
               onRemove();
             }}
-            className="flex-shrink-0"
+            className="shrink-0"
           >
             <X className="h-4 w-4" />
           </Button>
         ) : !slot.file && !disabled ? (
-          <div className="flex-shrink-0">
+          <div className="shrink-0">
             <Upload className="h-5 w-5 text-muted-foreground" />
           </div>
         ) : null}

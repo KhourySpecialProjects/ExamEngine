@@ -2,14 +2,17 @@ FROM node:20-bookworm-slim
 
 WORKDIR /app
 
-# Copy package files
-COPY package.json package-lock.json* ./
+# Install system dependencies
+RUN apt-get update && apt-get install -y curl && rm -rf /var/lib/apt/lists/*
 
-# Install dependencies
-RUN npm ci
+# Copy frontend package.json
+COPY frontend/package.json ./package.json
 
-# Copy application code
-COPY . .
+# Install dependencies directly (this will create package-lock.json automatically)
+RUN npm install
+
+# Copy the rest of the frontend code
+COPY frontend/ .
 
 EXPOSE 3000
 

@@ -135,11 +135,11 @@ class TestDSATURAlgorithm:
     def test_hard_constraints(
         self, sample_census, sample_enrollment, sample_classrooms
     ):
-        """Test hard constraint enforcement."""
+        """Test conflict detection (conflicts are tracked but don't block placement)."""
         graph = DSATURExamGraph(sample_census, sample_enrollment, sample_classrooms)
         graph.build_graph()
 
-        # Test student double-booking constraint
+        # Test student double-booking conflict detection
         # Initialize student schedules for all students in the course
         student_sched = {
             "S001": [(0, 0)],
@@ -147,12 +147,13 @@ class TestDSATURAlgorithm:
         }  # S001 already has exam at (Mon, 9:00)
         instr_sched = {}
 
-        # Try to schedule another exam for S001 at same time
-        ok, reason = graph._hard_ok(student_sched, instr_sched, "1001", 0, 0)
-        assert not ok
-        assert reason == "student_double_book"
+        # Check for conflicts - should detect student double-booking
+        conflicts = graph._check_conflicts(student_sched, instr_sched, "1001", 0, 0)
+        assert len(conflicts) > 0
+        conflict_types = [c[0] for c in conflicts]
+        assert "student_double_book" in conflict_types
 
-        # Test instructor double-booking constraint
+        # Test instructor double-booking conflict detection
         student_sched = {"S001": [], "S002": []}  # Initialize all students
         # Initialize all instructors that teach course 1001
         instr_sched = {
@@ -160,20 +161,22 @@ class TestDSATURAlgorithm:
             "Dr. Jones": [],
         }  # Dr. Smith already teaching at (Mon, 9:00)
 
-        ok, reason = graph._hard_ok(student_sched, instr_sched, "1001", 0, 0)
-        assert not ok
-        assert reason == "instructor_double_book"
+        conflicts = graph._check_conflicts(student_sched, instr_sched, "1001", 0, 0)
+        assert len(conflicts) > 0
+        conflict_types = [c[0] for c in conflicts]
+        assert "instructor_double_book" in conflict_types
 
-        # Test student max 2 exams per day constraint
+        # Test student max exams per day conflict detection
         student_sched = {
             "S001": [(0, 0), (0, 1)],
             "S002": [],
         }  # S001 already has 2 exams on Monday
         instr_sched = {}
 
-        ok, reason = graph._hard_ok(student_sched, instr_sched, "1001", 0, 2)
-        assert not ok
-        assert reason == "student_gt2_per_day"
+        conflicts = graph._check_conflicts(student_sched, instr_sched, "1001", 0, 2)
+        assert len(conflicts) > 0
+        conflict_types = [c[0] for c in conflicts]
+        assert "student_gt_max_per_day" in conflict_types
 
     def test_soft_penalty_calculation(
         self, sample_census, sample_enrollment, sample_classrooms
@@ -260,7 +263,10 @@ class TestDSATURAlgorithm:
         expected_keys = [
             "hard_student_conflicts",
             "hard_instructor_conflicts",
-            "students_gt2_per_day",
+            "student_double_book",
+            "student_gt_max_per_day",
+            "instructor_double_book",
+            "instructor_gt_max_per_day",
             "students_back_to_back",
             "instructors_back_to_back",
             "large_courses_not_early",
@@ -268,15 +274,15 @@ class TestDSATURAlgorithm:
             "num_students",
             "num_rooms",
             "slots_used",
+            "unplaced_exams",
         ]
 
         for key in expected_keys:
             assert key in summary
 
-        # Check that hard conflicts should be 0 with proper scheduling
-        assert summary["hard_student_conflicts"] == 0
-        assert summary["hard_instructor_conflicts"] == 0
-        assert summary["students_gt2_per_day"] == 0  # Enforced as hard rule
+        # All exams should be placed (unplaced_exams should be 0)
+        # Conflicts may exist but are tracked, not blocked
+        assert summary["unplaced_exams"] == 0
 
     def test_data_normalization(self):
         """Test data normalization with different column names."""
@@ -386,10 +392,13 @@ class TestAlgorithmIntegration:
             summary = graph.summary()
             print(f"Summary: {summary}")
 
-            # Verify no hard conflicts
-            assert summary["hard_student_conflicts"] == 0
-            assert summary["hard_instructor_conflicts"] == 0
-            assert summary["students_gt2_per_day"] == 0
+            # Verify all exams are placed (conflicts are tracked but don't block)
+            assert summary["unplaced_exams"] == 0
+            # Conflicts are tracked in summary
+            assert "hard_student_conflicts" in summary
+            assert "hard_instructor_conflicts" in summary
+            # Per-day violations are tracked separately
+            assert "student_gt_max_per_day" in summary
 
             print("SUCCESS: Full workflow test passed!")
 
@@ -680,30 +689,18 @@ class TestAdvancedConstraints:
         graph.dsatur_schedule()
         schedule_df = graph.assign_rooms()
 
-        # Verify no hard conflicts
+        # Verify all courses are scheduled (conflicts are tracked but don't block)
         summary = graph.summary()
-        assert summary["hard_student_conflicts"] == 0
-        assert summary["hard_instructor_conflicts"] == 0
+        assert summary["unplaced_exams"] == 0  # All exams should be placed
+        assert len(schedule_df) == len(census)  # All courses scheduled
 
-        # Verify all courses are scheduled
-        assert len(schedule_df) == len(census)
-
-        # Check that conflicting courses are scheduled at different times
-        student_schedules = {}
-        for _, exam in schedule_df.iterrows():
-            crn = exam["CRN"]
-            students = enrollment[enrollment["CRN"] == crn]["student_id"].tolist()
-            for student in students:
-                if student not in student_schedules:
-                    student_schedules[student] = []
-                student_schedules[student].append((exam["Day"], exam["Block"]))
-
-        # Verify no student has multiple exams at same time
-        for student, times in student_schedules.items():
-            unique_times = set(times)
-            assert len(unique_times) == len(times), (
-                f"Student {student} has conflicts: {times}"
-            )
+        # Conflicts may exist but are tracked in summary
+        # The algorithm now always places exams, even with conflicts
+        assert "hard_student_conflicts" in summary
+        assert "hard_instructor_conflicts" in summary
+        # Conflicts are tracked separately
+        assert "student_double_book" in summary
+        assert "student_gt_max_per_day" in summary
 
     def test_instructor_scheduling_conflicts(self):
         """Test instructor availability constraints."""
@@ -740,9 +737,12 @@ class TestAdvancedConstraints:
         graph.dsatur_schedule()
         schedule_df = graph.assign_rooms()
 
-        # Verify no instructor conflicts
+        # Verify all exams are placed (conflicts may exist but are tracked)
         summary = graph.summary()
-        assert summary["hard_instructor_conflicts"] == 0
+        assert summary["unplaced_exams"] == 0  # All exams should be placed
+        # Instructor conflicts are tracked but don't block placement
+        assert "hard_instructor_conflicts" in summary
+        assert "instructor_double_book" in summary
 
         # Verify instructor's courses are scheduled at different times
         instructor_schedule = {}
@@ -1188,12 +1188,13 @@ class TestAlgorithmComparison:
 
         # Verify DSATUR produces valid schedule
         assert len(dsatur_schedule) > 0, "DSATUR should produce a schedule"
-        assert dsatur_summary["hard_student_conflicts"] == 0, (
-            "DSATUR should have no hard conflicts"
+        # All exams should be placed (conflicts are tracked but don't block)
+        assert dsatur_summary["unplaced_exams"] == 0, (
+            "DSATUR should place all exams"
         )
-        assert dsatur_summary["hard_instructor_conflicts"] == 0, (
-            "DSATUR should have no instructor conflicts"
-        )
+        # Conflicts are tracked in summary
+        assert "hard_student_conflicts" in dsatur_summary
+        assert "hard_instructor_conflicts" in dsatur_summary
 
         # DSATUR should be efficient (use reasonable number of time slots)
         unique_slots = dsatur_schedule[["Day", "Block"]].drop_duplicates()
@@ -1251,7 +1252,8 @@ class TestAlgorithmComparison:
         # All runs should produce valid results
         for result in results:
             assert result["scheduled"] > 0, "Should schedule some courses"
-            assert result["conflicts"] == 0, "Should have no hard conflicts"
+            # Conflicts may exist but are tracked (not blocking)
+            assert result["conflicts"] >= 0, "Conflicts should be tracked (non-negative)"
             assert result["time_slots"] > 0, "Should use some time slots"
 
         # Results should be consistent (same number of scheduled courses)
@@ -1259,6 +1261,213 @@ class TestAlgorithmComparison:
         assert len(set(scheduled_counts)) == 1, (
             f"Inconsistent scheduling results: {scheduled_counts}"
         )
+
+    def test_max_student_per_day_toggle(self):
+        """Test that max_student_per_day parameter works correctly."""
+        # Create data where a student has 5 courses
+        census = pd.DataFrame(
+            {
+                "CRN": ["1001", "1002", "1003", "1004", "1005"],
+                "course_ref": ["CS101", "CS102", "MATH201", "PHYS301", "CHEM401"],
+                "num_students": [30, 30, 25, 20, 15],
+            }
+        )
+
+        # Student S001 is enrolled in all 5 courses
+        enrollment = pd.DataFrame(
+            {
+                "student_id": ["S001"] * 5 + ["S002", "S003"],
+                "CRN": ["1001", "1002", "1003", "1004", "1005", "1001", "1002"],
+                "instructor_name": ["Dr. Smith"] * 5 + ["Dr. Jones", "Dr. Brown"],
+            }
+        )
+
+        classrooms = pd.DataFrame(
+            {"room_name": ["Room A", "Room B", "Room C"], "capacity": [50, 40, 30]}
+        )
+
+        # Test with max_student_per_day=2 (default)
+        graph_default = DSATURExamGraph(
+            census, enrollment, classrooms, max_student_per_day=2
+        )
+        graph_default.build_graph()
+        graph_default.dsatur_color()
+        graph_default.dsatur_schedule()
+        graph_default.assign_rooms()
+        summary_default = graph_default.summary()
+
+        # Test with max_student_per_day=3 (more permissive)
+        graph_permissive = DSATURExamGraph(
+            census, enrollment, classrooms, max_student_per_day=3
+        )
+        graph_permissive.build_graph()
+        graph_permissive.dsatur_color()
+        graph_permissive.dsatur_schedule()
+        graph_permissive.assign_rooms()
+        summary_permissive = graph_permissive.summary()
+
+        # Test with max_student_per_day=1 (very restrictive)
+        graph_restrictive = DSATURExamGraph(
+            census, enrollment, classrooms, max_student_per_day=1
+        )
+        graph_restrictive.build_graph()
+        graph_restrictive.dsatur_color()
+        graph_restrictive.dsatur_schedule()
+        graph_restrictive.assign_rooms()
+        summary_restrictive = graph_restrictive.summary()
+
+        # All should place all exams (conflicts are tracked, not blocked)
+        assert summary_default["unplaced_exams"] == 0
+        assert summary_permissive["unplaced_exams"] == 0
+        assert summary_restrictive["unplaced_exams"] == 0
+
+        # More restrictive should have more conflicts (or equal)
+        # Note: This is a soft constraint, so conflicts are tracked but don't block
+        assert (
+            summary_restrictive["student_gt_max_per_day"]
+            >= summary_default["student_gt_max_per_day"]
+        )
+        assert (
+            summary_default["student_gt_max_per_day"]
+            >= summary_permissive["student_gt_max_per_day"]
+        )
+
+        # Verify the parameter is stored correctly
+        assert graph_default.max_student_per_day == 2
+        assert graph_permissive.max_student_per_day == 3
+        assert graph_restrictive.max_student_per_day == 1
+
+    def test_max_instructor_per_day_toggle(self):
+        """Test that max_instructor_per_day parameter works correctly."""
+        # Create data where an instructor teaches 5 courses
+        census = pd.DataFrame(
+            {
+                "CRN": ["1001", "1002", "1003", "1004", "1005"],
+                "course_ref": ["CS101", "CS102", "MATH201", "PHYS301", "CHEM401"],
+                "num_students": [30, 30, 25, 20, 15],
+            }
+        )
+
+        # Dr. Smith teaches all 5 courses
+        enrollment = pd.DataFrame(
+            {
+                "student_id": ["S001", "S002", "S003", "S004", "S005"],
+                "CRN": ["1001", "1002", "1003", "1004", "1005"],
+                "instructor_name": ["Dr. Smith"] * 5,
+            }
+        )
+
+        classrooms = pd.DataFrame(
+            {"room_name": ["Room A", "Room B", "Room C"], "capacity": [50, 40, 30]}
+        )
+
+        # Test with max_instructor_per_day=2 (default)
+        graph_default = DSATURExamGraph(
+            census, enrollment, classrooms, max_instructor_per_day=2
+        )
+        graph_default.build_graph()
+        graph_default.dsatur_color()
+        graph_default.dsatur_schedule()
+        graph_default.assign_rooms()
+        summary_default = graph_default.summary()
+
+        # Test with max_instructor_per_day=3 (more permissive)
+        graph_permissive = DSATURExamGraph(
+            census, enrollment, classrooms, max_instructor_per_day=3
+        )
+        graph_permissive.build_graph()
+        graph_permissive.dsatur_color()
+        graph_permissive.dsatur_schedule()
+        graph_permissive.assign_rooms()
+        summary_permissive = graph_permissive.summary()
+
+        # Test with max_instructor_per_day=1 (very restrictive)
+        graph_restrictive = DSATURExamGraph(
+            census, enrollment, classrooms, max_instructor_per_day=1
+        )
+        graph_restrictive.build_graph()
+        graph_restrictive.dsatur_color()
+        graph_restrictive.dsatur_schedule()
+        graph_restrictive.assign_rooms()
+        summary_restrictive = graph_restrictive.summary()
+
+        # All should place all exams (conflicts are tracked, not blocked)
+        assert summary_default["unplaced_exams"] == 0
+        assert summary_permissive["unplaced_exams"] == 0
+        assert summary_restrictive["unplaced_exams"] == 0
+
+        # More restrictive should have more conflicts (or equal)
+        # Note: This is a soft constraint, so conflicts are tracked but don't block
+        assert (
+            summary_restrictive["instructor_gt_max_per_day"]
+            >= summary_default["instructor_gt_max_per_day"]
+        )
+        assert (
+            summary_default["instructor_gt_max_per_day"]
+            >= summary_permissive["instructor_gt_max_per_day"]
+        )
+
+        # Verify the parameter is stored correctly
+        assert graph_default.max_instructor_per_day == 2
+        assert graph_permissive.max_instructor_per_day == 3
+        assert graph_restrictive.max_instructor_per_day == 1
+
+    def test_toggle_parameters_combined(self):
+        """Test that both toggle parameters work together."""
+        census = pd.DataFrame(
+            {
+                "CRN": ["1001", "1002", "1003", "1004", "1005", "1006"],
+                "course_ref": [
+                    "CS101",
+                    "CS102",
+                    "MATH201",
+                    "PHYS301",
+                    "CHEM401",
+                    "BIO501",
+                ],
+                "num_students": [30, 30, 25, 20, 15, 10],
+            }
+        )
+
+        # Student S001 has 4 courses, Dr. Smith teaches 4 courses
+        enrollment = pd.DataFrame(
+            {
+                "student_id": ["S001"] * 4 + ["S002", "S003"],
+                "CRN": ["1001", "1002", "1003", "1004", "1005", "1006"],
+                "instructor_name": ["Dr. Smith"] * 4 + ["Dr. Jones", "Dr. Brown"],
+            }
+        )
+
+        classrooms = pd.DataFrame(
+            {"room_name": ["Room A", "Room B", "Room C"], "capacity": [50, 40, 30]}
+        )
+
+        # Test with both parameters set to different values
+        graph = DSATURExamGraph(
+            census,
+            enrollment,
+            classrooms,
+            max_student_per_day=3,
+            max_instructor_per_day=2,
+        )
+        graph.build_graph()
+        graph.dsatur_color()
+        graph.dsatur_schedule()
+        graph.assign_rooms()
+        summary = graph.summary()
+
+        # Should place all exams
+        assert summary["unplaced_exams"] == 0
+
+        # Verify both parameters are stored correctly
+        assert graph.max_student_per_day == 3
+        assert graph.max_instructor_per_day == 2
+
+        # Verify conflicts are tracked (may be > 0 due to constraints)
+        assert "student_gt_max_per_day" in summary
+        assert "instructor_gt_max_per_day" in summary
+        assert summary["student_gt_max_per_day"] >= 0
+        assert summary["instructor_gt_max_per_day"] >= 0
 
 
 if __name__ == "__main__":

@@ -6,13 +6,14 @@ import CompactView from "@/components/visualization/calendar/CompactView";
 import DensityView from "@/components/visualization/calendar/DensityView";
 import { ExamListDialog } from "@/components/visualization/calendar/ExamListDialog";
 import ListView from "@/components/visualization/list/ListView";
+import { StatisticsDashboard } from "@/components/statistics/StatisticsDashboard";
 import { useScheduleStore } from "@/lib/store/scheduleStore";
 import {
   generateSampleData,
   wrapSampleDataAsScheduleResult,
 } from "@/lib/utils";
 
-type ViewType = "density" | "compact" | "list";
+type ViewType = "density" | "compact" | "list" | "statistics";
 
 export default function DashboardPage() {
   const [activeView, setActiveView] = useState<ViewType>("density");
@@ -33,6 +34,7 @@ export default function DashboardPage() {
       {activeView === "density" && <DensityView />}
       {activeView === "compact" && <CompactView />}
       {activeView === "list" && <ListView />}
+      {activeView === "statistics" && <StatisticsDashboard />}
 
       <ExamListDialog />
     </div>

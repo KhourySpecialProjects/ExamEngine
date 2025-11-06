@@ -1,3 +1,22 @@
 .DS_Store
 node_modules/
 /data
+/Data/*.csv
+
+# Test output files
+backend/test_*.csv
+backend/tests/test_*.csv
+backend/*_by_student_*.csv
+backend/tests/*_by_student_*.csv
+
+# Python cache
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+
+# Virtual environments
+venv/
+env/
+ENV/

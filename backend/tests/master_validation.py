@@ -14,6 +14,7 @@ Usage: python master_validation.py
 """
 
 import os
+import re
 import sys
 from datetime import datetime
 
@@ -24,15 +25,50 @@ import pandas as pd
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "src"))
 
 
+def clean_course_value(course_value):
+    """Clean course value to ensure it's a proper string, not a pandas Series representation."""
+    if isinstance(course_value, pd.Series):
+        # If it's a Series, get the first value
+        course_str = str(course_value.iloc[0]) if len(course_value) > 0 else ""
+    elif isinstance(course_value, str):
+        # If it's already a string, check if it looks like a Series string representation
+        # Pattern: "course_ref COMM1101 course_ref COMM1101 Name: 580, dtype: object"
+        if "dtype:" in course_value and "Name:" in course_value:
+            # Extract the actual course code (e.g., "COMM1101")
+            # Look for patterns like "COMM1101", "SOCL1102", etc. (4 letters + 4 digits)
+            match = re.search(r'([A-Z]{4}\d{4})', course_value)
+            if match:
+                course_str = match.group(1)
+            else:
+                # Fallback: try to get the value after "course_ref"
+                parts = course_value.split()
+                if "course_ref" in parts:
+                    idx = parts.index("course_ref")
+                    if idx + 1 < len(parts):
+                        course_str = parts[idx + 1]
+                    else:
+                        course_str = course_value
+                else:
+                    course_str = course_value
+        else:
+            course_str = course_value
+    else:
+        # Normal case: scalar value (int, float, etc.)
+        course_str = str(course_value) if course_value is not None and not pd.isna(course_value) else ""
+    return course_str
+
+
 def load_and_validate_data():
     """Load and validate the cleaned data files."""
     print("Loading and validating data files...")
 
     try:
         # Load cleaned data files (adjust path for backend/tests location)
-        census_df = pd.read_csv("../Data/final_classcensus.csv")
-        enrollment_df = pd.read_csv("../Data/final_enrollment.csv")
-        classrooms_df = pd.read_csv("../Data/final_classrooms.csv")
+        # From backend/tests/, go up to backend/, then up to root, then into Data/
+        data_dir = os.path.join(os.path.dirname(__file__), "..", "..", "Data")
+        census_df = pd.read_csv(os.path.join(data_dir, "final_classcensus.csv"))
+        enrollment_df = pd.read_csv(os.path.join(data_dir, "final_enrollment.csv"))
+        classrooms_df = pd.read_csv(os.path.join(data_dir, "final_classrooms.csv"))
 
         print(f"   SUCCESS: Census data: {len(census_df)} courses")
         print(f"   SUCCESS: Enrollment data: {len(enrollment_df)} student enrollments")
@@ -154,9 +190,16 @@ def run_scheduling_algorithm(
                 weight_b2b_instructor=2,
             )
         else:
-            # Enhanced algorithm
+            # Enhanced algorithm with default parameters
             graph = DSATURExamGraph(
-                census_processed, enrollment_processed, classrooms_processed
+                census_processed,
+                enrollment_processed,
+                classrooms_processed,
+                weight_large_late=1,
+                weight_b2b_student=6,
+                weight_b2b_instructor=2,
+                max_student_per_day=2,
+                max_instructor_per_day=2,
             )
 
         print("   - Building conflict graph...")
@@ -202,7 +245,7 @@ def run_scheduling_algorithm(
             f"   - Hard instructor conflicts: {summary.get('hard_instructor_conflicts', 0)}"
         )
         print(
-            f"   - Students with >2 exams/day: {summary.get('students_gt2_per_day', 0)}"
+            f"   - Students with >2 exams/day: {summary.get('student_gt_max_per_day', 0)}"
         )
         print(
             f"   - Students with back-to-back: {summary.get('students_back_to_back', 0)}"
@@ -252,7 +295,7 @@ def analyze_student_conflicts(schedule_df, enrollment_df, census_df):
                     {
                         "Student_ID": student_id,
                         "CRN": crn,
-                        "Course": exam["Course"],
+                        "Course": clean_course_value(exam["Course"]),
                         "Day": exam["Day"],
                         "Block": exam["Block"],
                         "Room": exam["Room"],
@@ -319,7 +362,7 @@ def analyze_capacity_violations(schedule_df):
                 violations.append(
                     {
                         "CRN": exam["CRN"],
-                        "Course": exam["Course"],
+                        "Course": clean_course_value(exam["Course"]),
                         "Room": exam["Room"],
                         "Size": exam["Size"],
                         "Capacity": exam["Capacity"],
@@ -358,8 +401,8 @@ def generate_comprehensive_report(
     try:
         # Basic statistics
         total_exams = len(schedule_df)
-        placed_exams = len(schedule_df[schedule_df["Valid"]])
-        invalid_exams = len(schedule_df[not schedule_df["Valid"]])
+        placed_exams = len(schedule_df[schedule_df["Valid"] == True])
+        invalid_exams = len(schedule_df[schedule_df["Valid"] == False])
 
         # Enhanced algorithm metrics
         hard_student_conflicts = (
@@ -368,7 +411,7 @@ def generate_comprehensive_report(
         hard_instructor_conflicts = (
             summary.get("hard_instructor_conflicts", 0) if summary else 0
         )
-        students_gt2_per_day = summary.get("students_gt2_per_day", 0) if summary else 0
+        students_gt2_per_day = summary.get("student_gt_max_per_day", 0) if summary else 0
         students_back_to_back = (
             summary.get("students_back_to_back", 0) if summary else 0
         )
@@ -486,7 +529,9 @@ CAPACITY VIOLATIONS:
 
         # Save report
         prefix = "original_" if algorithm_type == "original" else ""
-        with open(f"../Data/{prefix}validation_report.txt", "w") as f:
+        data_dir = os.path.join(os.path.dirname(__file__), "..", "..", "Data")
+        report_path = os.path.join(data_dir, f"{prefix}validation_report.txt")
+        with open(report_path, "w") as f:
             f.write(report_content)
 
         print(
@@ -524,8 +569,8 @@ def generate_algorithm_summary(
     try:
         # Basic statistics
         total_exams = len(schedule_df)
-        placed_exams = len(schedule_df[schedule_df["Valid"]])
-        invalid_exams = len(schedule_df[not schedule_df["Valid"]])
+        placed_exams = len(schedule_df[schedule_df["Valid"] == True])
+        invalid_exams = len(schedule_df[schedule_df["Valid"] == False])
 
         # Enhanced algorithm metrics
         hard_student_conflicts = (
@@ -534,7 +579,7 @@ def generate_algorithm_summary(
         hard_instructor_conflicts = (
             summary.get("hard_instructor_conflicts", 0) if summary else 0
         )
-        students_gt2_per_day = summary.get("students_gt2_per_day", 0) if summary else 0
+        students_gt2_per_day = summary.get("student_gt_max_per_day", 0) if summary else 0
         students_back_to_back = (
             summary.get("students_back_to_back", 0) if summary else 0
         )
@@ -710,7 +755,9 @@ The enhanced algorithm includes:
 """
 
         # Save the updated summary
-        with open("../Data/ALGORITHM_VALIDATION_SUMMARY.md", "w") as f:
+        data_dir = os.path.join(os.path.dirname(__file__), "..", "..", "Data")
+        summary_path = os.path.join(data_dir, "ALGORITHM_VALIDATION_SUMMARY.md")
+        with open(summary_path, "w") as f:
             f.write(summary_content)
 
         print(
@@ -749,8 +796,9 @@ def main(algorithm_type="enhanced"):
 
         # Step 3: Save detailed schedule
         prefix = "original_" if algorithm_type == "original" else ""
+        data_dir = os.path.join(os.path.dirname(__file__), "..", "..", "Data")
         schedule_df.to_csv(
-            f"../../Data/{prefix}detailed_exam_schedule.csv", index=False
+            os.path.join(data_dir, f"{prefix}detailed_exam_schedule.csv"), index=False
         )
         print(
             f"   SUCCESS: Detailed schedule saved to Data/{prefix}detailed_exam_schedule.csv"
@@ -760,7 +808,7 @@ def main(algorithm_type="enhanced"):
         conflicts_df = analyze_student_conflicts(schedule_df, enrollment_df, census_df)
         if conflicts_df is not None and not conflicts_df.empty:
             conflicts_df.to_csv(
-                f"../../Data/{prefix}student_conflicts_detailed.csv", index=False
+                os.path.join(data_dir, f"{prefix}student_conflicts_detailed.csv"), index=False
             )
             print(
                 f"   SUCCESS: Student conflicts saved to Data/{prefix}student_conflicts_detailed.csv"
@@ -770,7 +818,7 @@ def main(algorithm_type="enhanced"):
         capacity_violations = analyze_capacity_violations(schedule_df)
         if capacity_violations is not None and not capacity_violations.empty:
             capacity_violations.to_csv(
-                f"../../Data/{prefix}capacity_violations.csv", index=False
+                os.path.join(data_dir, f"{prefix}capacity_violations.csv"), index=False
             )
             print(
                 f"   SUCCESS: Capacity violations saved to Data/{prefix}capacity_violations.csv"

@@ -2,6 +2,7 @@
 
 import { Bell, Settings } from "lucide-react";
 import { useRouter } from "next/navigation";
+import Image from "next/image";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import {
@@ -23,15 +24,10 @@ export function DashboardHeader() {
   };
 
   return (
-    <header className="h-16 border-b bg-white flex items-center justify-between px-6">
+    <header className="h-16 border-b bg-white flex items-center justify-between px-6 py-10">
       {/* Logo */}
       <div className="flex items-center gap-3">
-        <div className="flex items-center gap-3">
-          <div className="w-10 h-10 bg-black text-white rounded flex items-center justify-center font-semibold">
-            EE
-          </div>
-          <span className="font-semibold">ExamEngine</span>
-        </div>
+        <Image src="/logo.svg" alt="icon" width={190} height={20} />
       </div>
 
       {/* Right Side - Notifications, Settings, User */}

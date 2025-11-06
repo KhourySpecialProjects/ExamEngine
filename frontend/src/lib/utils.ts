@@ -22,6 +22,17 @@ export const generateSampleData = (): CalendarRow[] => {
 
   const data: CalendarRow[] = [];
 
+  // Use a simple deterministic "random" function based on timeSlot and day
+  const deterministicRandom = (seed: string, max: number) => {
+    let hash = 0;
+    for (let i = 0; i < seed.length; i++) {
+      const char = seed.charCodeAt(i);
+      hash = ((hash << 5) - hash) + char;
+      hash = hash & hash; // Convert to 32-bit integer
+    }
+    return Math.abs(hash) % max;
+  };
+
   for (const timeSlot of timeSlots) {
     const row: CalendarRow = {
       timeSlot,
@@ -29,30 +40,30 @@ export const generateSampleData = (): CalendarRow[] => {
     };
 
     for (const day of days) {
-      const examCount = Math.floor(Math.random() * 80);
-      const conflicts = examCount > 15 ? Math.floor(Math.random() * 120) : 0;
+      const seed = `${timeSlot}-${day}`;
+      const examCount = deterministicRandom(seed, 80);
+      const conflicts = examCount > 15 ? deterministicRandom(`${seed}-conflicts`, 120) : 0;
 
       const exams = [];
       for (let i = 0; i < examCount; i++) {
-        const dept =
-          departments[Math.floor(Math.random() * departments.length)];
-        const building =
-          buildings[Math.floor(Math.random() * buildings.length)];
+        const examSeed = `${seed}-${i}`;
+        const dept = departments[deterministicRandom(examSeed, departments.length)];
+        const building = buildings[deterministicRandom(`${examSeed}-building`, buildings.length)];
         exams.push({
-          id: `exam-${day}-${timeSlot}-${i}-${Math.random() * 4000}`,
-          courseCode: `${dept} ${1000 + Math.floor(Math.random() * 4000)}`,
-          section: `0${Math.floor(Math.random() * 5) + 1}`,
+          id: `exam-${day}-${timeSlot}-${i}-${deterministicRandom(`${examSeed}-id`, 4000)}`,
+          courseCode: `${dept} ${1000 + deterministicRandom(`${examSeed}-course`, 4000)}`,
+          section: `0${deterministicRandom(`${examSeed}-section`, 5) + 1}`,
           department: dept,
           instructor: [
             "Dr. Smith",
             "Prof. Johnson",
             "Dr. Williams",
             "Prof. Davis",
-          ][Math.floor(Math.random() * 4)],
-          studentCount: 50 + Math.floor(Math.random() * 150),
-          room: `${building} ${100 + Math.floor(Math.random() * 300)}`,
+          ][deterministicRandom(`${examSeed}-instructor`, 4)],
+          studentCount: 50 + deterministicRandom(`${examSeed}-students`, 150),
+          room: `${building} ${100 + deterministicRandom(`${examSeed}-room`, 300)}`,
           building: building,
-          conflicts: i < conflicts ? Math.floor(Math.random() * 3) + 1 : 0,
+          conflicts: i < conflicts ? deterministicRandom(`${examSeed}-conflict`, 3) + 1 : 0,
           day,
           timeSlot,
         });
@@ -98,8 +109,9 @@ export function wrapSampleDataAsScheduleResult(
     0,
   );
 
+  // Use a deterministic ID instead of Date.now() to avoid hydration mismatch
   return {
-    dataset_id: `sample- + ${Date.now()}`,
+    dataset_id: "sample-data",
     dataset_name: "Sample Data",
     summary: {
       num_classes: totalExams,

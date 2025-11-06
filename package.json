@@ -6,7 +6,7 @@
 		"frontend"
 	],
 	"scripts": {
-		"prepare": "husky",
+		"prepare": "node -e \"try { require('fs').accessSync('node_modules/husky/bin.js'); } catch(e) { process.exit(0) }\" && husky || exit 0",
 		"install:backend": "cd backend && pip install -r requirements.txt",
 		"install:all": "npm install && npm run install:backend",
 		"dev": "concurrently -n \"backend,frontend\" -c \"blue,green\" \"npm run dev:backend\" \"npm run dev:frontend\"",

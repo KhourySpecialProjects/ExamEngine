@@ -2,15 +2,25 @@ import { BaseAPI } from "./base";
 
 export interface ScheduleParameters {
   max_per_day?: number;
+  instructor_per_day?: number;
   avoid_back_to_back?: boolean;
   max_days?: number;
 }
 
 export interface ConflictBreakdown {
-  student_id: string;
+  student_id?: string;
+  entity_id?: string;
   day: string;
+  block?: number;
+  block_time?: string;
   conflict_type: string;
-  blocks: number[];
+  blocks?: number[];
+  crn?: string;
+  course?: string;
+  conflicting_crn?: string;
+  conflicting_course?: string;
+  conflicting_crns?: string[];
+  conflicting_courses?: string[];
 }
 
 export interface ScheduleFailure {
@@ -29,6 +39,7 @@ export interface ScheduleExam {
   Capacity: number;
   Size: number;
   Valid: boolean;
+  Instructor?: string;
 }
 
 export interface CalendarExam {
@@ -38,6 +49,7 @@ export interface CalendarExam {
   Capacity: number;
   Size: number;
   Valid: boolean;
+  Instructor?: string;
 }
 
 export interface CalendarData {
@@ -86,6 +98,12 @@ export class SchedulesAPI extends BaseAPI {
 
     if (parameters.max_per_day !== undefined) {
       queryParams.append("max_per_day", parameters.max_per_day.toString());
+    }
+    if (parameters.instructor_per_day !== undefined) {
+      queryParams.append(
+        "instructor_per_day",
+        parameters.instructor_per_day.toString(),
+      );
     }
     if (parameters.avoid_back_to_back !== undefined) {
       queryParams.append(

@@ -16,6 +16,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useAuthStore } from "@/lib/store/authStore";
+import Image from "next/image";
 
 export default function Login() {
   const login = useAuthStore((state) => state.login);
@@ -70,10 +71,13 @@ export default function Login() {
       {/* Header */}
       <header className="flex items-center justify-between px-8 py-6">
         <div className="flex items-center gap-3">
-          <div className="w-10 h-10 bg-black text-white rounded flex items-center justify-center font-semibold">
-            EE
-          </div>
-          <span className="font-semibold">ExamEngine</span>
+          <Image
+            src="/logo.svg"
+            alt="icon"
+            width={300}
+            height={300}
+            className="py-8 px-10"
+          />
         </div>
       </header>
 

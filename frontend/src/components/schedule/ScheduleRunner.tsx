@@ -146,29 +146,6 @@ export function ScheduleRunner() {
 
             <Separator />
 
-            {/* Max Days */}
-            <div className="space-y-3">
-              <div className="flex items-center justify-between">
-                <Label>Maximum Days for Exam Period</Label>
-                <span className="text-sm font-medium">
-                  {parameters.max_days}
-                </span>
-              </div>
-              <Slider
-                value={[parameters.max_days || 7]}
-                onValueChange={([value]) => setParameters({ max_days: value })}
-                min={1}
-                max={7}
-                step={1}
-                disabled={isGenerating}
-              />
-              <p className="text-xs text-muted-foreground">
-                Spread exams across this many days (7 days = 1 week)
-              </p>
-            </div>
-
-            <Separator />
-
             {/* Max Exams Per Instructor Per Day */}
             <div className="space-y-3">
               <div className="flex items-center justify-between">
@@ -189,6 +166,29 @@ export function ScheduleRunner() {
               />
               <p className="text-xs text-muted-foreground">
                 Limit how many exams an instructor can teach in one day
+              </p>
+            </div>
+
+            <Separator />
+
+            {/* Max Days */}
+            <div className="space-y-3">
+              <div className="flex items-center justify-between">
+                <Label>Maximum Days for Exam Period</Label>
+                <span className="text-sm font-medium">
+                  {parameters.max_days}
+                </span>
+              </div>
+              <Slider
+                value={[parameters.max_days || 7]}
+                onValueChange={([value]) => setParameters({ max_days: value })}
+                min={1}
+                max={7}
+                step={1}
+                disabled={isGenerating}
+              />
+              <p className="text-xs text-muted-foreground">
+                Spread exams across this many days (7 days = 1 week)
               </p>
             </div>
 

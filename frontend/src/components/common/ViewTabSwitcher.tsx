@@ -1,10 +1,10 @@
 "use client";
 
 // biome-ignore lint/suspicious/noShadowRestrictedNames: false postive
-import { LayoutGrid, List, Map } from "lucide-react";
+import { LayoutGrid, List, Map, BarChart3 } from "lucide-react";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
-type ViewType = "density" | "compact" | "list";
+type ViewType = "density" | "compact" | "list" | "statistics";
 
 interface ViewTabSwitcherProps {
   activeView: ViewType;
@@ -38,6 +38,13 @@ export function ViewTabSwitcher({
         >
           <List className="h-4 w-4" />
           List
+        </TabsTrigger>
+        <TabsTrigger
+          value="statistics"
+          className="gap-2 data-[state=active]:bg-black data-[state=active]:text-white transition-all duration-300"
+        >
+          <BarChart3 className="h-4 w-4" />
+          Statistics
         </TabsTrigger>
       </TabsList>
     </Tabs>

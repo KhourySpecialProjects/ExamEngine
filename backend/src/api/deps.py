@@ -3,8 +3,14 @@ from sqlalchemy.orm import Session
 
 from src.core.config import get_settings
 from src.core.database import get_db
+from src.repo.conflict import ConflictRepo
+from src.repo.course import CourseRepo
 from src.repo.dataset import DatasetRepo
+from src.repo.exam_assignment import ExamAssignmentRepo
+from src.repo.room import RoomRepo
+from src.repo.run import RunRepo
 from src.repo.schedule import ScheduleRepo
+from src.repo.time_slot import TimeSlotRepo
 from src.repo.user import UserRepo
 from src.schemas.db import Users
 from src.services.auth import AuthService
@@ -79,7 +85,26 @@ def get_dataset_service(db: Session = Depends(get_db)) -> DatasetService:
 def get_schedule_service(db: Session = Depends(get_db)) -> ScheduleService:
     """Dependency injection for ScheduleService."""
     schedule_repo = ScheduleRepo(db)
-    return ScheduleService(schedule_repo)
+    run_repo = RunRepo(db)
+    exam_assignment_repo = ExamAssignmentRepo(db)
+    conflict_repo = ConflictRepo(db)
+    course_repo = CourseRepo(db)
+    time_slot_repo = TimeSlotRepo(db)
+    room_repo = RoomRepo(db)
+
+    dataset_repo = DatasetRepo(db)
+    dataset_service = DatasetService(dataset_repo)
+
+    return ScheduleService(
+        schedule_repo,
+        run_repo,
+        exam_assignment_repo,
+        conflict_repo,
+        course_repo,
+        time_slot_repo,
+        room_repo,
+        dataset_service,
+    )
 
 
 def get_user_repo(db: Session = Depends(get_db)) -> UserRepo:

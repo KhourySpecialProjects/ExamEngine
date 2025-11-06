@@ -2,12 +2,14 @@ import io
 import uuid
 from datetime import datetime
 from typing import Any
+from uuid import UUID
 
 import pandas as pd
 from fastapi import UploadFile
 
 from src.core.exceptions import DatasetNotFoundError, StorageError, ValidationError
 from src.repo.dataset import DatasetRepo
+from src.repo.student import StudentRepo
 from src.schemas.db import Datasets
 from src.services.storage import storage
 from src.services.validation import get_file_statistics, validate_csv_schema
@@ -25,7 +27,7 @@ class DatasetService:
         courses_file: UploadFile,
         enrollments_file: UploadFile,
         rooms_file: UploadFile,
-        user_id: uuid.UUID,
+        user_id: UUID,
     ) -> dict[str, Any]:
         """
         Upload and validate complete dataset.
@@ -34,7 +36,6 @@ class DatasetService:
         """
         dataset_uuid = uuid.uuid4()
 
-        # Step 1: Validate files
         uploaded_files = {
             "courses": courses_file,
             "enrollments": enrollments_file,
@@ -43,7 +44,6 @@ class DatasetService:
 
         validated_files = await self._validate_and_parse_files(uploaded_files)
 
-        # Step 2: Upload to S3
         try:
             storage_keys = await self._upload_files_to_storage(
                 validated_files["contents"], dataset_uuid
@@ -51,8 +51,8 @@ class DatasetService:
         except Exception as e:
             raise StorageError(f"Failed to upload files: {str(e)}") from e
 
-        # Step 3: Create database record
         try:
+            # Create dataset record
             dataset = await self._create_dataset_record(
                 dataset_uuid=dataset_uuid,
                 dataset_name=dataset_name,
@@ -60,6 +60,17 @@ class DatasetService:
                 file_metadata=validated_files["metadata"],
                 storage_keys=storage_keys,
             )
+            student_repo = StudentRepo(self.dataset_repo.db)
+
+            enrollment_content = validated_files["contents"]["enrollments"]
+            enrollment_df = pd.read_csv(io.BytesIO(enrollment_content))
+
+            # Create student records
+            student_repo.bulk_create_from_dataframe(
+                dataset_id=dataset.dataset_id,
+                enrollment_df=enrollment_df,
+            )
+
         except Exception as e:
             # Cleanup uploaded files
             storage.delete_directory(str(dataset_uuid))
@@ -71,6 +82,36 @@ class DatasetService:
             "created_at": dataset.upload_date.isoformat(),
             "files": validated_files["metadata"],
             "user_id": str(user_id),
+        }
+
+    def get_dataset_info(self, dataset_id: UUID, user_id: UUID) -> dict[str, Any]:
+        """
+        Get dataset metadata without downloading files.
+
+        Useful for displaying dataset information in the UI
+        without the overhead of downloading CSV files from S3.
+
+        Args:
+            dataset_id: UUID of dataset
+            user_id: ID of user (for authorization)
+
+        Returns:
+            Dataset metadata including file statistics
+
+        Raises:
+            DatasetNotFoundError: If dataset doesn't exist or user lacks access
+        """
+        dataset = self.dataset_repo.get_by_id_for_user(dataset_id, user_id)
+        if not dataset:
+            raise DatasetNotFoundError(
+                f"Dataset {dataset_id} not found or access denied"
+            )
+
+        return {
+            "dataset_id": str(dataset.dataset_id),
+            "dataset_name": dataset.dataset_name,
+            "created_at": dataset.upload_date.isoformat(),
+            "files": {entry["type"]: entry["metadata"] for entry in dataset.file_paths},
         }
 
     async def _validate_and_parse_files(
@@ -117,7 +158,7 @@ class DatasetService:
         return {"contents": file_contents, "metadata": file_metadata}
 
     async def _upload_files_to_storage(
-        self, file_contents: dict[str, bytes], dataset_uuid: uuid.UUID
+        self, file_contents: dict[str, bytes], dataset_uuid: UUID
     ) -> dict[str, str]:
         """Upload all files to S3."""
         storage_keys = {}
@@ -145,9 +186,9 @@ class DatasetService:
 
     async def _create_dataset_record(
         self,
-        dataset_uuid: uuid.UUID,
+        dataset_uuid: UUID,
         dataset_name: str,
-        user_id: uuid.UUID,
+        user_id: UUID,
         file_metadata: dict[str, Any],
         storage_keys: dict[str, str],
     ) -> Datasets:
@@ -172,7 +213,7 @@ class DatasetService:
         return self.dataset_repo.create(dataset)
 
     def list_datasets_for_user(
-        self, user_id: uuid.UUID, skip: int = 0, limit: int = 100
+        self, user_id: UUID, skip: int = 0, limit: int = 100
     ) -> list[dict[str, Any]]:
         """List all datasets for user with formatted metadata."""
         datasets = self.dataset_repo.get_all_for_user(user_id, skip, limit)
@@ -187,9 +228,7 @@ class DatasetService:
             for d in datasets
         ]
 
-    async def delete_dataset(
-        self, dataset_id: uuid.UUID, user_id: uuid.UUID
-    ) -> dict[str, Any]:
+    async def delete_dataset(self, dataset_id: UUID, user_id: UUID) -> dict[str, Any]:
         """Delete dataset from storage and database."""
         dataset = self.dataset_repo.get_by_id_for_user(dataset_id, user_id)
         if not dataset:
@@ -210,7 +249,7 @@ class DatasetService:
         }
 
     async def get_dataset_files(
-        self, dataset_id: uuid.UUID, user_id: uuid.UUID
+        self, dataset_id: UUID, user_id: UUID
     ) -> dict[str, pd.DataFrame]:
         """Download and parse dataset CSV files."""
         dataset = self.dataset_repo.get_by_id_for_user(dataset_id, user_id)

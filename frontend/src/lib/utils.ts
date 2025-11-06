@@ -22,6 +22,17 @@ export const generateSampleData = (): CalendarRow[] => {
 
   const data: CalendarRow[] = [];
 
+  // Use a simple deterministic "random" function based on timeSlot and day
+  const deterministicRandom = (seed: string, max: number) => {
+    let hash = 0;
+    for (let i = 0; i < seed.length; i++) {
+      const char = seed.charCodeAt(i);
+      hash = (hash << 5) - hash + char;
+      hash = hash & hash; // Convert to 32-bit integer
+    }
+    return Math.abs(hash) % max;
+  };
+
   for (const timeSlot of timeSlots) {
     const row: CalendarRow = {
       timeSlot,
@@ -29,30 +40,38 @@ export const generateSampleData = (): CalendarRow[] => {
     };
 
     for (const day of days) {
-      const examCount = Math.floor(Math.random() * 80);
-      const conflicts = examCount > 15 ? Math.floor(Math.random() * 120) : 0;
+      const seed = `${timeSlot}-${day}`;
+      const examCount = deterministicRandom(seed, 80);
+      const conflicts =
+        examCount > 15 ? deterministicRandom(`${seed}-conflicts`, 120) : 0;
 
       const exams = [];
       for (let i = 0; i < examCount; i++) {
+        const examSeed = `${seed}-${i}`;
         const dept =
-          departments[Math.floor(Math.random() * departments.length)];
+          departments[deterministicRandom(examSeed, departments.length)];
         const building =
-          buildings[Math.floor(Math.random() * buildings.length)];
+          buildings[
+            deterministicRandom(`${examSeed}-building`, buildings.length)
+          ];
         exams.push({
-          id: `exam-${day}-${timeSlot}-${i}-${Math.random() * 4000}`,
-          courseCode: `${dept} ${1000 + Math.floor(Math.random() * 4000)}`,
-          section: `0${Math.floor(Math.random() * 5) + 1}`,
+          id: `exam-${day}-${timeSlot}-${i}-${deterministicRandom(`${examSeed}-id`, 4000)}`,
+          courseCode: `${dept} ${1000 + deterministicRandom(`${examSeed}-course`, 4000)}`,
+          section: `0${deterministicRandom(`${examSeed}-section`, 5) + 1}`,
           department: dept,
           instructor: [
             "Dr. Smith",
             "Prof. Johnson",
             "Dr. Williams",
             "Prof. Davis",
-          ][Math.floor(Math.random() * 4)],
-          studentCount: 50 + Math.floor(Math.random() * 150),
-          room: `${building} ${100 + Math.floor(Math.random() * 300)}`,
+          ][deterministicRandom(`${examSeed}-instructor`, 4)],
+          studentCount: 50 + deterministicRandom(`${examSeed}-students`, 150),
+          room: `${building} ${100 + deterministicRandom(`${examSeed}-room`, 300)}`,
           building: building,
-          conflicts: i < conflicts ? Math.floor(Math.random() * 3) + 1 : 0,
+          conflicts:
+            i < conflicts
+              ? deterministicRandom(`${examSeed}-conflict`, 3) + 1
+              : 0,
           day,
           timeSlot,
         });
@@ -98,8 +117,9 @@ export function wrapSampleDataAsScheduleResult(
     0,
   );
 
+  // Use a deterministic ID instead of Date.now() to avoid hydration mismatch
   return {
-    dataset_id: `sample- + ${Date.now()}`,
+    dataset_id: "sample-data",
     dataset_name: "Sample Data",
     summary: {
       num_classes: totalExams,
@@ -148,3 +168,87 @@ export const getTimeAgo = (dateString: string) => {
   if (diffDays < 7) return `${diffDays}d ago`;
   return date.toLocaleDateString();
 };
+
+/* ---------- CSV Export Utilities ---------- */
+
+/**
+ * Convert an array of record objects to a CSV Blob.
+ * Keeps header order from the first object.
+ */
+export function scheduleRowsToCsvBlob(rows: Record<string, any>[]) {
+  if (!rows || rows.length === 0) {
+    return new Blob([""], { type: "text/csv;charset=utf-8;" });
+  }
+
+  const headers = Object.keys(rows[0]);
+  const csvLines = [headers.join(",")];
+
+  for (const r of rows) {
+    const values = headers.map((h) => {
+      const v = (r as any)[h];
+      if (v === null || v === undefined) return "";
+      const s = String(v).replace(/"/g, '""');
+      return s.includes(",") || s.includes('"') ? `"${s}"` : s;
+    });
+    csvLines.push(values.join(","));
+  }
+
+  const csvContent = csvLines.join("\n");
+  return new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+}
+
+export function downloadBlob(blob: Blob, filename: string) {
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.setAttribute("download", filename);
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  URL.revokeObjectURL(url);
+}
+
+export function exportScheduleRowsAsCsv(
+  rows: Record<string, any>[],
+  filename = "schedule_exams.csv",
+) {
+  const blob = scheduleRowsToCsvBlob(rows);
+  downloadBlob(blob, filename);
+}
+
+/* ---------- Color / Luminance Utilities ---------- */
+
+export function parseRgbString(bg: string): [number, number, number] {
+  if (!bg) return [255, 255, 255];
+  // handle rgb() or rgba()
+  const rgbMatch = bg.match(/rgba?\(([^)]+)\)/i);
+  if (rgbMatch) {
+    const parts = rgbMatch[1].split(",").map((p) => Number(p.trim()));
+    return [parts[0] || 0, parts[1] || 0, parts[2] || 0];
+  }
+
+  // handle hex #rrggbb
+  const hexMatch = bg.match(/^#?([a-f0-9]{6})$/i);
+  if (hexMatch) {
+    const hex = hexMatch[1];
+    const r = parseInt(hex.slice(0, 2), 16);
+    const g = parseInt(hex.slice(2, 4), 16);
+    const b = parseInt(hex.slice(4, 6), 16);
+    return [r, g, b];
+  }
+
+  // fallback: try to extract digits
+  const nums = bg.match(/\d+/g)?.map(Number) || [255, 255, 255];
+  return [nums[0] || 255, nums[1] || 255, nums[2] || 255];
+}
+
+export function getLuminanceFromRgb(rgb: [number, number, number]) {
+  const [r, g, b] = rgb;
+  return 0.299 * r + 0.587 * g + 0.114 * b;
+}
+
+export function getReadableTextColorFromBg(bg: string) {
+  const rgb = parseRgbString(bg);
+  const lum = getLuminanceFromRgb(rgb);
+  return lum > 160 ? "#0f172a" : "#ffffff";
+}

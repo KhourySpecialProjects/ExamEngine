@@ -2,12 +2,10 @@
 EXPECTED_SCHEMAS = {
     "courses": [
         "CRN",
-        "course_ref",
-        "Course_Subject_Code",
-        "Course_Number",
+        "CourseID",
         "num_students",
     ],
-    "enrollments": ["student_id", "CRN"],
+    "enrollments": ["Student_PIDM", "CRN", "Instructor Name"],
     "rooms": ["room_name", "capacity"],
 }
 
@@ -32,10 +30,17 @@ def get_file_statistics(df, file_type, file_size, filename):
         stats["unique_crns"] = int(df["CRN"].nunique())
         stats["total_students"] = int(df["num_students"].sum())
         stats["avg_class_size"] = float(df["num_students"].mean())
-        stats["subjects"] = int(df["Course_Subject_Code"].nunique())
+        # Calculate unique subjects from CourseID if available
+        if "CourseID" in df.columns:
+            # Assuming CourseID format like "MATH 101" or similar
+            stats["subjects"] = int(
+                df["CourseID"].astype(str).str.split().str[0].nunique()
+            )
 
     elif file_type == "enrollments":
-        stats["unique_students"] = int(df["student_id"].nunique())
+        # Check for both naming conventions
+        student_col = "Student_PIDM" if "Student_PIDM" in df.columns else "student_id"
+        stats["unique_students"] = int(df[student_col].nunique())
         stats["unique_crns"] = int(df["CRN"].nunique())
         stats["total_enrollments"] = len(df)
 

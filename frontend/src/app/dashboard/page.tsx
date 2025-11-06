@@ -6,6 +6,7 @@ import CompactView from "@/components/visualization/calendar/CompactView";
 import DensityView from "@/components/visualization/calendar/DensityView";
 import { ExamListDialog } from "@/components/visualization/calendar/ExamListDialog";
 import ListView from "@/components/visualization/list/ListView";
+import ConflictView from "@/components/visualization/list/ConflictView";
 import { Button } from "@/components/ui/button";
 import { DownloadCloud } from "lucide-react";
 import {
@@ -21,7 +22,7 @@ import { useCalendarStore } from "@/lib/store/calendarStore";
 import { THEME_KEYS } from "@/lib/constants/colorThemes";
 import { exportScheduleRowsAsCsv } from "@/lib/utils";
 
-type ViewType = "density" | "compact" | "list";
+type ViewType = "density" | "compact" | "list" | "conflicts";
 
 export default function DashboardPage() {
   const [activeView, setActiveView] = useState<ViewType>("density");
@@ -77,9 +78,10 @@ export default function DashboardPage() {
         </div>
       </div>
 
-      {activeView === "density" && <DensityView />}
-      {activeView === "compact" && <CompactView />}
-      {activeView === "list" && <ListView />}
+  {activeView === "density" && <DensityView />}
+  {activeView === "compact" && <CompactView />}
+  {activeView === "list" && <ListView />}
+  {activeView === "conflicts" && <ConflictView />}
 
       <ExamListDialog />
     </div>

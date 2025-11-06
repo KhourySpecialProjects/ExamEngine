@@ -199,7 +199,8 @@ export function ScheduleRunner() {
               <div className="space-y-1">
                 <Label>Avoid Back-to-Back Exams</Label>
                 <p className="text-xs text-muted-foreground">
-                  Prevent consecutive exam blocks for students and instructors when possible
+                  Prevent consecutive exam blocks for students and instructors
+                  when possible
                 </p>
               </div>
               <Switch
@@ -245,7 +246,10 @@ export function ScheduleRunner() {
                   {currentSchedule.summary.real_conflicts} conflicts •{" "}
                   {currentSchedule.failures.length} failures
                   {currentSchedule.conflicts.total > 0 && (
-                    <> • {currentSchedule.conflicts.total} back-to-back warnings</>
+                    <>
+                      {" "}
+                      • {currentSchedule.conflicts.total} back-to-back warnings
+                    </>
                   )}
                 </div>
               </AlertDescription>

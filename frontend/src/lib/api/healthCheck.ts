@@ -2,7 +2,9 @@
  * Health check utility to verify backend connectivity
  */
 
-export async function checkBackendHealth(baseUrl: string = "http://localhost:8000"): Promise<{
+export async function checkBackendHealth(
+  baseUrl: string = "http://localhost:8000",
+): Promise<{
   reachable: boolean;
   error?: string;
   status?: number;
@@ -22,10 +24,7 @@ export async function checkBackendHealth(baseUrl: string = "http://localhost:800
   } catch (error) {
     return {
       reachable: false,
-      error:
-        error instanceof Error
-          ? error.message
-          : "Unknown error occurred",
+      error: error instanceof Error ? error.message : "Unknown error occurred",
     };
   }
 }
@@ -44,8 +43,10 @@ export async function debugBackendConnection(): Promise<void> {
   for (const url of urls) {
     if (url === "not set") continue;
     const result = await checkBackendHealth(url);
-    console.log(`${url}: ${result.reachable ? "✓ Reachable" : "✗ Unreachable"}`, result);
+    console.log(
+      `${url}: ${result.reachable ? "✓ Reachable" : "✗ Unreachable"}`,
+      result,
+    );
   }
   console.log("===============================");
 }
-

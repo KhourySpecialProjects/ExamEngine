@@ -36,7 +36,7 @@ def clean_course_value(course_value):
         if "dtype:" in course_value and "Name:" in course_value:
             # Extract the actual course code (e.g., "COMM1101")
             # Look for patterns like "COMM1101", "SOCL1102", etc. (4 letters + 4 digits)
-            match = re.search(r'([A-Z]{4}\d{4})', course_value)
+            match = re.search(r"([A-Z]{4}\d{4})", course_value)
             if match:
                 course_str = match.group(1)
             else:
@@ -54,7 +54,11 @@ def clean_course_value(course_value):
             course_str = course_value
     else:
         # Normal case: scalar value (int, float, etc.)
-        course_str = str(course_value) if course_value is not None and not pd.isna(course_value) else ""
+        course_str = (
+            str(course_value)
+            if course_value is not None and not pd.isna(course_value)
+            else ""
+        )
     return course_str
 
 
@@ -401,8 +405,8 @@ def generate_comprehensive_report(
     try:
         # Basic statistics
         total_exams = len(schedule_df)
-        placed_exams = len(schedule_df[schedule_df["Valid"] == True])
-        invalid_exams = len(schedule_df[schedule_df["Valid"] == False])
+        placed_exams = len(schedule_df[schedule_df["Valid"]])
+        invalid_exams = len(schedule_df[not schedule_df["Valid"]])
 
         # Enhanced algorithm metrics
         hard_student_conflicts = (
@@ -411,7 +415,9 @@ def generate_comprehensive_report(
         hard_instructor_conflicts = (
             summary.get("hard_instructor_conflicts", 0) if summary else 0
         )
-        students_gt2_per_day = summary.get("student_gt_max_per_day", 0) if summary else 0
+        students_gt2_per_day = (
+            summary.get("student_gt_max_per_day", 0) if summary else 0
+        )
         students_back_to_back = (
             summary.get("students_back_to_back", 0) if summary else 0
         )
@@ -569,8 +575,8 @@ def generate_algorithm_summary(
     try:
         # Basic statistics
         total_exams = len(schedule_df)
-        placed_exams = len(schedule_df[schedule_df["Valid"] == True])
-        invalid_exams = len(schedule_df[schedule_df["Valid"] == False])
+        placed_exams = len(schedule_df[schedule_df["Valid"]])
+        invalid_exams = len(schedule_df[not schedule_df["Valid"]])
 
         # Enhanced algorithm metrics
         hard_student_conflicts = (
@@ -579,7 +585,9 @@ def generate_algorithm_summary(
         hard_instructor_conflicts = (
             summary.get("hard_instructor_conflicts", 0) if summary else 0
         )
-        students_gt2_per_day = summary.get("student_gt_max_per_day", 0) if summary else 0
+        students_gt2_per_day = (
+            summary.get("student_gt_max_per_day", 0) if summary else 0
+        )
         students_back_to_back = (
             summary.get("students_back_to_back", 0) if summary else 0
         )
@@ -808,7 +816,8 @@ def main(algorithm_type="enhanced"):
         conflicts_df = analyze_student_conflicts(schedule_df, enrollment_df, census_df)
         if conflicts_df is not None and not conflicts_df.empty:
             conflicts_df.to_csv(
-                os.path.join(data_dir, f"{prefix}student_conflicts_detailed.csv"), index=False
+                os.path.join(data_dir, f"{prefix}student_conflicts_detailed.csv"),
+                index=False,
             )
             print(
                 f"   SUCCESS: Student conflicts saved to Data/{prefix}student_conflicts_detailed.csv"

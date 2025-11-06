@@ -1,17 +1,35 @@
 "use client";
 
 import { useMemo } from "react";
-import { BarChart, Bar, PieChart, Pie, Cell, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from "recharts";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  BarChart,
+  Bar,
+  PieChart,
+  Pie,
+  Cell,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  Legend,
+  ResponsiveContainer,
+} from "recharts";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
 import { useScheduleStore } from "@/lib/store/scheduleStore";
-import { 
-  BookOpen, 
-  Users, 
-  AlertTriangle, 
-  Building2, 
+import {
+  BookOpen,
+  Users,
+  AlertTriangle,
+  Building2,
   Calendar,
   TrendingUp,
-  Clock
+  Clock,
 } from "lucide-react";
 
 const COLORS = {
@@ -34,7 +52,7 @@ interface ConflictData {
   value: number;
 }
 
-export function StatisticsDashboard() {
+export function StatisticsView() {
   const currentSchedule = useScheduleStore((state) => state.currentSchedule);
 
   const stats = useMemo(() => {
@@ -48,10 +66,11 @@ export function StatisticsDashboard() {
     const examsPerDay: Record<string, number> = {};
     const studentsPerDay: Record<string, number> = {};
     const timeBlocks: Record<string, number> = {};
-    
+
     schedule.complete.forEach((exam) => {
       examsPerDay[exam.Day] = (examsPerDay[exam.Day] || 0) + 1;
-      studentsPerDay[exam.Day] = (studentsPerDay[exam.Day] || 0) + (exam.Size || 0);
+      studentsPerDay[exam.Day] =
+        (studentsPerDay[exam.Day] || 0) + (exam.Size || 0);
       timeBlocks[exam.Block] = (timeBlocks[exam.Block] || 0) + 1;
     });
 
@@ -59,38 +78,40 @@ export function StatisticsDashboard() {
     // This calculates utilization per exam (students/capacity) and averages them
     let totalUtilization = 0;
     let examCount = 0;
-    
+
     schedule.complete.forEach((exam) => {
       // Ensure Capacity and Size are numbers
       const capacity = Number(exam.Capacity) || 0;
       const size = Number(exam.Size) || 0;
-      
+
       if (capacity > 0) {
         const utilization = Math.min((size / capacity) * 100, 100); // Cap at 100%
         totalUtilization += utilization;
         examCount += 1;
       }
     });
-    
-    const roomUtilization = examCount > 0 
-      ? totalUtilization / examCount 
-      : 0;
+
+    const roomUtilization = examCount > 0 ? totalUtilization / examCount : 0;
 
     // Calculate conflict breakdown - only include hard conflicts (not back-to-back warnings)
     const conflictBreakdown: ConflictData[] = [];
     const conflictTypes: Record<string, number> = {};
-    
+
     // Process conflicts from breakdown - filter out back-to-back warnings for pie chart
     if (conflicts.breakdown && Array.isArray(conflicts.breakdown)) {
       conflicts.breakdown.forEach((conflict: any) => {
         const type = conflict.conflict_type || conflict.violation || "unknown";
         // Only count hard conflicts (exclude back-to-back which are soft warnings)
-        if (type !== "back_to_back" && type !== "back_to_back_student" && type !== "back_to_back_instructor") {
+        if (
+          type !== "back_to_back" &&
+          type !== "back_to_back_student" &&
+          type !== "back_to_back_instructor"
+        ) {
           conflictTypes[type] = (conflictTypes[type] || 0) + 1;
         }
       });
     }
-    
+
     // If no conflicts found in breakdown but real_conflicts > 0, create a placeholder
     // This handles the case where conflicts exist but aren't in the breakdown array
     if (Object.keys(conflictTypes).length === 0 && summary.real_conflicts > 0) {
@@ -99,7 +120,7 @@ export function StatisticsDashboard() {
       console.warn(
         `Conflict mismatch: ${summary.real_conflicts} conflicts reported but ${conflicts.breakdown.length} items in breakdown.`,
         "Breakdown items:",
-        conflicts.breakdown
+        conflicts.breakdown,
       );
     }
 
@@ -131,7 +152,15 @@ export function StatisticsDashboard() {
         exams: count,
       }))
       .sort((a, b) => {
-        const dayOrder = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];
+        const dayOrder = [
+          "Monday",
+          "Tuesday",
+          "Wednesday",
+          "Thursday",
+          "Friday",
+          "Saturday",
+          "Sunday",
+        ];
         return dayOrder.indexOf(a.name) - dayOrder.indexOf(b.name);
       });
 
@@ -142,7 +171,15 @@ export function StatisticsDashboard() {
         value: count,
       }))
       .sort((a, b) => {
-        const dayOrder = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];
+        const dayOrder = [
+          "Monday",
+          "Tuesday",
+          "Wednesday",
+          "Thursday",
+          "Friday",
+          "Saturday",
+          "Sunday",
+        ];
         return dayOrder.indexOf(a.name) - dayOrder.indexOf(b.name);
       });
 
@@ -161,9 +198,10 @@ export function StatisticsDashboard() {
       });
 
     // Calculate schedule efficiency (percentage of exams placed successfully)
-    const scheduleEfficiency = summary.num_classes > 0
-      ? ((schedule.total_exams / summary.num_classes) * 100)
-      : 0;
+    const scheduleEfficiency =
+      summary.num_classes > 0
+        ? (schedule.total_exams / summary.num_classes) * 100
+        : 0;
 
     return {
       overview: {
@@ -206,7 +244,9 @@ export function StatisticsDashboard() {
             <BookOpen className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{stats.overview.totalExams}</div>
+            <div className="text-2xl font-bold">
+              {stats.overview.totalExams}
+            </div>
             <p className="text-xs text-muted-foreground">
               {stats.overview.totalStudents} students enrolled
             </p>
@@ -232,11 +272,15 @@ export function StatisticsDashboard() {
 
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Room Utilization</CardTitle>
+            <CardTitle className="text-sm font-medium">
+              Room Utilization
+            </CardTitle>
             <Building2 className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{stats.overview.roomUtilization}%</div>
+            <div className="text-2xl font-bold">
+              {stats.overview.roomUtilization}%
+            </div>
             <p className="text-xs text-muted-foreground">
               {stats.overview.totalRooms} rooms available
             </p>
@@ -245,11 +289,15 @@ export function StatisticsDashboard() {
 
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Schedule Efficiency</CardTitle>
+            <CardTitle className="text-sm font-medium">
+              Schedule Efficiency
+            </CardTitle>
             <TrendingUp className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{stats.overview.scheduleEfficiency}%</div>
+            <div className="text-2xl font-bold">
+              {stats.overview.scheduleEfficiency}%
+            </div>
             <p className="text-xs text-muted-foreground">
               {stats.overview.slotsUsed} time slots used
             </p>
@@ -271,8 +319,8 @@ export function StatisticsDashboard() {
             <ResponsiveContainer width="100%" height={300}>
               <BarChart data={stats.dayData}>
                 <CartesianGrid strokeDasharray="3 3" />
-                <XAxis 
-                  dataKey="name" 
+                <XAxis
+                  dataKey="name"
                   angle={-45}
                   textAnchor="end"
                   height={80}
@@ -304,7 +352,10 @@ export function StatisticsDashboard() {
                     labelLine={false}
                     label={({ percent, value, name }) => {
                       // Show percentage and day name for larger segments
-                      if (percent > 0.05 || stats.studentsPerDayData.length === 1) {
+                      if (
+                        percent > 0.05 ||
+                        stats.studentsPerDayData.length === 1
+                      ) {
                         return `${name}: ${(percent * 100).toFixed(0)}%`;
                       }
                       return "";
@@ -314,35 +365,37 @@ export function StatisticsDashboard() {
                     dataKey="value"
                   >
                     {stats.studentsPerDayData.map((entry, index) => (
-                      <Cell 
-                        key={`cell-${index}`} 
-                        fill={[
-                          COLORS.primary,
-                          COLORS.success,
-                          COLORS.warning,
-                          COLORS.info,
-                          COLORS.danger,
-                          "#8b5cf6",
-                          "#ec4899",
-                        ][index % 7]} 
+                      <Cell
+                        key={`cell-${index}`}
+                        fill={
+                          [
+                            COLORS.primary,
+                            COLORS.success,
+                            COLORS.warning,
+                            COLORS.info,
+                            COLORS.danger,
+                            "#8b5cf6",
+                            "#ec4899",
+                          ][index % 7]
+                        }
                       />
                     ))}
                   </Pie>
-                  <Tooltip 
+                  <Tooltip
                     formatter={(value: number, name: string, props: any) => {
                       // Show full name in tooltip
                       const fullName = props.payload?.name || name;
                       return [
-                        `${value.toLocaleString()} student${value !== 1 ? 's' : ''}`,
-                        fullName
+                        `${value.toLocaleString()} student${value !== 1 ? "s" : ""}`,
+                        fullName,
                       ];
                     }}
                   />
-                  <Legend 
+                  <Legend
                     formatter={(value: string) => {
                       return value;
                     }}
-                    wrapperStyle={{ paddingTop: '20px' }}
+                    wrapperStyle={{ paddingTop: "20px" }}
                   />
                 </PieChart>
               </ResponsiveContainer>
@@ -368,8 +421,8 @@ export function StatisticsDashboard() {
             <ResponsiveContainer width="100%" height={300}>
               <BarChart data={stats.blockData}>
                 <CartesianGrid strokeDasharray="3 3" />
-                <XAxis 
-                  dataKey="name" 
+                <XAxis
+                  dataKey="name"
                   angle={-45}
                   textAnchor="end"
                   height={100}
@@ -384,22 +437,31 @@ export function StatisticsDashboard() {
       )}
 
       {/* Detailed Conflicts Table */}
-      {(currentSchedule.conflicts.breakdown.length > 0 || currentSchedule.summary.real_conflicts > 0) && (
+      {(currentSchedule.conflicts.breakdown.length > 0 ||
+        currentSchedule.summary.real_conflicts > 0) && (
         <Card>
           <CardHeader>
             <CardTitle>Detailed Conflict Information</CardTitle>
             <CardDescription>
-              Complete list of all conflicts with day, time slot, student/instructor, and courses
-              {currentSchedule.summary.real_conflicts > 0 && currentSchedule.conflicts.breakdown.filter((c) => c.conflict_type !== "back_to_back").length === 0 && (
-                <span className="block mt-2 text-xs text-muted-foreground">
-                  Note: {currentSchedule.summary.real_conflicts} conflict(s) detected but detailed information not available. Check backend logs for more details.
-                </span>
-              )}
+              Complete list of all conflicts with day, time slot,
+              student/instructor, and courses
+              {currentSchedule.summary.real_conflicts > 0 &&
+                currentSchedule.conflicts.breakdown.filter(
+                  (c) => c.conflict_type !== "back_to_back",
+                ).length === 0 && (
+                  <span className="block mt-2 text-xs text-muted-foreground">
+                    Note: {currentSchedule.summary.real_conflicts} conflict(s)
+                    detected but detailed information not available. Check
+                    backend logs for more details.
+                  </span>
+                )}
             </CardDescription>
           </CardHeader>
           <CardContent>
             <div className="overflow-x-auto">
-              {currentSchedule.conflicts.breakdown.filter((c) => c.conflict_type !== "back_to_back").length > 0 ? (
+              {currentSchedule.conflicts.breakdown.filter(
+                (c) => c.conflict_type !== "back_to_back",
+              ).length > 0 ? (
                 <table className="w-full text-sm">
                   <thead>
                     <tr className="border-b">
@@ -413,122 +475,169 @@ export function StatisticsDashboard() {
                   </thead>
                   <tbody>
                     {currentSchedule.conflicts.breakdown
-                      .filter((conflict) => conflict.conflict_type !== "back_to_back")
+                      .filter(
+                        (conflict) => conflict.conflict_type !== "back_to_back",
+                      )
                       .map((conflict, index) => {
-                      const entityId = conflict.entity_id || conflict.student_id || "Unknown";
-                      const conflictTypeName = conflict.conflict_type
-                        ?.replace("_", " ")
-                        .replace(/\b\w/g, (l) => l.toUpperCase()) || "Unknown";
-                      const day = conflict.day || "Unknown";
-                      const blockTime = conflict.block_time || 
-                        (conflict.blocks && conflict.blocks.length > 0 
-                          ? `Blocks: ${conflict.blocks.join(", ")}` 
-                          : "Unknown");
-                      
-                      // Extract Course ID and CRN - handle stringified pandas Series
-                      let courseId = conflict.course || "Unknown";
-                      let crn = conflict.crn || "Unknown";
-                      
-                      // Clean up courseId if it looks like a pandas Series string
-                      if (typeof courseId === "string") {
-                        // Remove pandas Series artifacts like "course_ref CS3000 course_ref CS3000"
-                        const match = courseId.match(/course_ref\s+(\S+)/);
-                        if (match) {
-                          courseId = match[1];
+                        const entityId =
+                          conflict.entity_id ||
+                          conflict.student_id ||
+                          "Unknown";
+                        const conflictTypeName =
+                          conflict.conflict_type
+                            ?.replace("_", " ")
+                            .replace(/\b\w/g, (l) => l.toUpperCase()) ||
+                          "Unknown";
+                        const day = conflict.day || "Unknown";
+                        const blockTime =
+                          conflict.block_time ||
+                          (conflict.blocks && conflict.blocks.length > 0
+                            ? `Blocks: ${conflict.blocks.join(", ")}`
+                            : "Unknown");
+
+                        // Extract Course ID and CRN - handle stringified pandas Series
+                        let courseId = conflict.course || "Unknown";
+                        let crn = conflict.crn || "Unknown";
+
+                        // Clean up courseId if it looks like a pandas Series string
+                        if (typeof courseId === "string") {
+                          // Remove pandas Series artifacts like "course_ref CS3000 course_ref CS3000"
+                          const match = courseId.match(/course_ref\s+(\S+)/);
+                          if (match) {
+                            courseId = match[1];
+                          }
+                          // Remove other artifacts
+                          courseId = courseId
+                            .replace(/Name:\s*\d+,\s*dtype:\s*\w+.*$/, "")
+                            .trim();
                         }
-                        // Remove other artifacts
-                        courseId = courseId.replace(/Name:\s*\d+,\s*dtype:\s*\w+.*$/, "").trim();
-                      }
-                      
-                      // Get conflicting courses data - handle both array and single value formats
-                      let conflictingCoursesList: string[] = [];
-                      let conflictingCrnsList: string[] = [];
-                      
-                      // Check for array format first
-                      if (Array.isArray(conflict.conflicting_courses) && conflict.conflicting_courses.length > 0) {
-                        conflictingCoursesList = conflict.conflicting_courses;
-                      } else if (conflict.conflicting_course) {
-                        // Single conflicting course
-                        conflictingCoursesList = [conflict.conflicting_course];
-                      }
-                      
-                      // Check for array format for CRNs
-                      if (Array.isArray(conflict.conflicting_crns) && conflict.conflicting_crns.length > 0) {
-                        conflictingCrnsList = conflict.conflicting_crns;
-                      } else if (conflict.conflicting_crn) {
-                        // Single conflicting CRN
-                        conflictingCrnsList = [conflict.conflicting_crn];
-                      }
-                      
-                      // Ensure both lists have the same length by padding with empty strings if needed
-                      while (conflictingCrnsList.length < conflictingCoursesList.length) {
-                        conflictingCrnsList.push("—");
-                      }
-                      
-                      return (
-                        <tr key={index} className="border-b hover:bg-muted/50">
-                          <td className="p-2">
-                            <span className="inline-flex items-center px-2 py-1 rounded-md text-xs font-medium bg-destructive/10 text-destructive">
-                              {conflictTypeName}
-                            </span>
-                          </td>
-                          <td className="p-2 font-mono text-xs">{entityId}</td>
-                          <td className="p-2">{day}</td>
-                          <td className="p-2">{blockTime}</td>
-                          <td className="p-2">
-                            <div className="font-medium">{courseId}</div>
-                            <div className="text-xs text-muted-foreground">CRN: {crn}</div>
-                          </td>
-                          <td className="p-2">
-                            {conflictingCoursesList.length > 0 ? (
-                              <div className="space-y-1">
-                                {conflictingCoursesList.map((confCourse, idx) => {
-                                  // Clean up course ID similar to above
-                                  let cleanCourseId = confCourse;
-                                  if (typeof cleanCourseId === "string") {
-                                    // Remove pandas Series artifacts like "course_ref CS3000 course_ref CS3000"
-                                    const match = cleanCourseId.match(/course_ref\s+(\S+)/);
-                                    if (match) {
-                                      cleanCourseId = match[1];
-                                    }
-                                    // Remove other artifacts
-                                    cleanCourseId = cleanCourseId.replace(/Name:\s*\d+,\s*dtype:\s*\w+.*$/, "").trim();
-                                  }
-                                  // Get corresponding CRN, fallback to empty string if not available
-                                  const confCrn = conflictingCrnsList[idx] || "—";
-                                  return (
-                                    <div key={idx} className="text-destructive">
-                                      <div className="font-medium">{cleanCourseId || "Unknown"}</div>
-                                      <div className="text-xs text-muted-foreground">CRN: {confCrn}</div>
-                                    </div>
-                                  );
-                                })}
+
+                        // Get conflicting courses data - handle both array and single value formats
+                        let conflictingCoursesList: string[] = [];
+                        let conflictingCrnsList: string[] = [];
+
+                        // Check for array format first
+                        if (
+                          Array.isArray(conflict.conflicting_courses) &&
+                          conflict.conflicting_courses.length > 0
+                        ) {
+                          conflictingCoursesList = conflict.conflicting_courses;
+                        } else if (conflict.conflicting_course) {
+                          // Single conflicting course
+                          conflictingCoursesList = [
+                            conflict.conflicting_course,
+                          ];
+                        }
+
+                        // Check for array format for CRNs
+                        if (
+                          Array.isArray(conflict.conflicting_crns) &&
+                          conflict.conflicting_crns.length > 0
+                        ) {
+                          conflictingCrnsList = conflict.conflicting_crns;
+                        } else if (conflict.conflicting_crn) {
+                          // Single conflicting CRN
+                          conflictingCrnsList = [conflict.conflicting_crn];
+                        }
+
+                        // Ensure both lists have the same length by padding with empty strings if needed
+                        while (
+                          conflictingCrnsList.length <
+                          conflictingCoursesList.length
+                        ) {
+                          conflictingCrnsList.push("—");
+                        }
+
+                        return (
+                          <tr
+                            key={index}
+                            className="border-b hover:bg-muted/50"
+                          >
+                            <td className="p-2">
+                              <span className="inline-flex items-center px-2 py-1 rounded-md text-xs font-medium bg-destructive/10 text-destructive">
+                                {conflictTypeName}
+                              </span>
+                            </td>
+                            <td className="p-2 font-mono text-xs">
+                              {entityId}
+                            </td>
+                            <td className="p-2">{day}</td>
+                            <td className="p-2">{blockTime}</td>
+                            <td className="p-2">
+                              <div className="font-medium">{courseId}</div>
+                              <div className="text-xs text-muted-foreground">
+                                CRN: {crn}
                               </div>
-                            ) : (
-                              <span className="text-muted-foreground">—</span>
-                            )}
-                          </td>
-                        </tr>
-                      );
-                        })}
-                    </tbody>
-                  </table>
-                ) : (
-                  <div className="text-center py-8">
-                    <p className="text-muted-foreground mb-2">
-                      No detailed conflict information available
-                    </p>
-                    <p className="text-xs text-muted-foreground">
-                      {currentSchedule.summary.real_conflicts} conflict(s) detected but breakdown data is missing.
-                      This may indicate a backend processing issue. Check the backend logs for details.
-                    </p>
-                  </div>
-                )}
-              </div>
-            </CardContent>
-          </Card>
-        )}
+                            </td>
+                            <td className="p-2">
+                              {conflictingCoursesList.length > 0 ? (
+                                <div className="space-y-1">
+                                  {conflictingCoursesList.map(
+                                    (confCourse, idx) => {
+                                      // Clean up course ID similar to above
+                                      let cleanCourseId = confCourse;
+                                      if (typeof cleanCourseId === "string") {
+                                        // Remove pandas Series artifacts like "course_ref CS3000 course_ref CS3000"
+                                        const match =
+                                          cleanCourseId.match(
+                                            /course_ref\s+(\S+)/,
+                                          );
+                                        if (match) {
+                                          cleanCourseId = match[1];
+                                        }
+                                        // Remove other artifacts
+                                        cleanCourseId = cleanCourseId
+                                          .replace(
+                                            /Name:\s*\d+,\s*dtype:\s*\w+.*$/,
+                                            "",
+                                          )
+                                          .trim();
+                                      }
+                                      // Get corresponding CRN, fallback to empty string if not available
+                                      const confCrn =
+                                        conflictingCrnsList[idx] || "—";
+                                      return (
+                                        <div
+                                          key={idx}
+                                          className="text-destructive"
+                                        >
+                                          <div className="font-medium">
+                                            {cleanCourseId || "Unknown"}
+                                          </div>
+                                          <div className="text-xs text-muted-foreground">
+                                            CRN: {confCrn}
+                                          </div>
+                                        </div>
+                                      );
+                                    },
+                                  )}
+                                </div>
+                              ) : (
+                                <span className="text-muted-foreground">—</span>
+                              )}
+                            </td>
+                          </tr>
+                        );
+                      })}
+                  </tbody>
+                </table>
+              ) : (
+                <div className="text-center py-8">
+                  <p className="text-muted-foreground mb-2">
+                    No detailed conflict information available
+                  </p>
+                  <p className="text-xs text-muted-foreground">
+                    {currentSchedule.summary.real_conflicts} conflict(s)
+                    detected but breakdown data is missing. This may indicate a
+                    backend processing issue. Check the backend logs for
+                    details.
+                  </p>
+                </div>
+              )}
+            </div>
+          </CardContent>
+        </Card>
+      )}
     </div>
   );
 }
-

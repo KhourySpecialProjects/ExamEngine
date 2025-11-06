@@ -1,10 +1,10 @@
 import { useMemo } from "react";
 import { EmptyScheduleState } from "@/components/common/EmptyScheduleState";
+import { colorThemes } from "@/lib/constants/colorThemes";
 import { useScheduleData } from "@/lib/hooks/useScheduleData";
 import { useCalendarStore } from "@/lib/store/calendarStore";
-import { CalendarGrid } from "./CalendarGrid";
-import { colorThemes } from "@/lib/constants/colorThemes";
 import { getReadableTextColorFromBg } from "@/lib/utils";
+import { CalendarGrid } from "./CalendarGrid";
 
 const DAYS = [
   "Monday",

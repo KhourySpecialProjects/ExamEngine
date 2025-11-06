@@ -30,7 +30,7 @@ class TestOriginalAlgorithm:
     def test_load_cleaned_data(self):
         """Test loading of cleaned data files."""
         census_df, enrollment_df, classrooms_df = load_cleaned_data()
-        
+
         # Skip test if data files are not available
         if census_df is None or enrollment_df is None or classrooms_df is None:
             pytest.skip("Data files not available - skipping integration test")
@@ -61,7 +61,7 @@ class TestOriginalAlgorithm:
     def test_scheduling_algorithm(self):
         """Test the original scheduling algorithm with real data."""
         census_df, enrollment_df, classrooms_df = load_cleaned_data()
-        
+
         # Skip test if data files are not available
         if census_df is None or enrollment_df is None or classrooms_df is None:
             pytest.skip("Data files not available - skipping integration test")
@@ -117,18 +117,16 @@ class TestOriginalAlgorithm:
     def test_conflict_analysis(self):
         """Test student conflict analysis with friend's algorithm."""
         census_df, enrollment_df, classrooms_df = load_cleaned_data()
-        
+
         # Skip test if data files are not available
         if census_df is None or enrollment_df is None or classrooms_df is None:
             pytest.skip("Data files not available - skipping integration test")
-        
+
         graph, schedule_df, summary = run_scheduling_algorithm(
             census_df, enrollment_df, classrooms_df, "original"
         )
 
-        conflicts_df = analyze_student_conflicts(
-            schedule_df, enrollment_df, census_df
-        )
+        conflicts_df = analyze_student_conflicts(schedule_df, enrollment_df, census_df)
 
         if conflicts_df is not None and not conflicts_df.empty:
             # Check conflict analysis structure
@@ -147,11 +145,11 @@ class TestOriginalAlgorithm:
     def test_capacity_violation_analysis(self):
         """Test capacity violation analysis with friend's algorithm."""
         census_df, enrollment_df, classrooms_df = load_cleaned_data()
-        
+
         # Skip test if data files are not available
         if census_df is None or enrollment_df is None or classrooms_df is None:
             pytest.skip("Data files not available - skipping integration test")
-        
+
         graph, schedule_df, summary = run_scheduling_algorithm(
             census_df, enrollment_df, classrooms_df, "original"
         )
@@ -178,19 +176,17 @@ class TestOriginalAlgorithm:
     def test_report_generation(self):
         """Test report generation for friend's algorithm."""
         census_df, enrollment_df, classrooms_df = load_cleaned_data()
-        
+
         # Skip test if data files are not available
         if census_df is None or enrollment_df is None or classrooms_df is None:
             pytest.skip("Data files not available - skipping integration test")
-        
+
         graph, schedule_df, summary = run_scheduling_algorithm(
             census_df, enrollment_df, classrooms_df, "original"
         )
 
         # Test comprehensive report generation
-        conflicts_df = analyze_student_conflicts(
-            schedule_df, enrollment_df, census_df
-        )
+        conflicts_df = analyze_student_conflicts(schedule_df, enrollment_df, census_df)
         capacity_violations = analyze_capacity_violations(schedule_df)
 
         success = generate_comprehensive_report(

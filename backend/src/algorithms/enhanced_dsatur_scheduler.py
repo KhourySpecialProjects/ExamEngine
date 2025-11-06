@@ -1,4 +1,4 @@
-from collections import Counter, defaultdict
+from collections import defaultdict
 from itertools import combinations
 
 import networkx as nx
@@ -8,7 +8,7 @@ import pandas as pd
 class DSATURExamGraph:
     """
     DSATUR-based exam scheduler
-    
+
     All exams are ALWAYS placed, even if conflicts occur. Conflicts are tracked and reported
     but do not prevent scheduling.
 
@@ -221,7 +221,7 @@ class DSATURExamGraph:
         Types: 'student_double_book', 'student_gt_max_per_day', 'instructor_double_book', 'instructor_gt_max_per_day'
         """
         conflicts = []
-        
+
         # Check student conflicts
         for sid in self.students_by_crn.get(crn, ()):
             # Use .get() to handle case where student not in schedule yet
@@ -230,23 +230,36 @@ class DSATURExamGraph:
                 # Find which CRN is already scheduled at this slot for this student
                 conflicting_crns = []
                 for existing_crn, (d, b) in self.assignment.items():
-                    if (d, b) == (day, block) and sid in self.students_by_crn.get(existing_crn, ()):
+                    if (d, b) == (day, block) and sid in self.students_by_crn.get(
+                        existing_crn, ()
+                    ):
                         conflicting_crns.append(existing_crn)
                 # If no conflicting CRN found in assignment, check slot_to_crns
                 if not conflicting_crns:
                     for existing_crn in self.slot_to_crns.get((day, block), []):
                         if sid in self.students_by_crn.get(existing_crn, ()):
                             conflicting_crns.append(existing_crn)
-                conflicts.append(("student_double_book", sid, day, block, crn, conflicting_crns[0] if conflicting_crns else None))
-            
+                conflicts.append(
+                    (
+                        "student_double_book",
+                        sid,
+                        day,
+                        block,
+                        crn,
+                        conflicting_crns[0] if conflicting_crns else None,
+                    )
+                )
+
             todays = [b for d, b in student_slots if d == day]
             if len(todays) >= self.max_student_per_day:
                 # Find all CRNs this student has on this day
                 day_crns = []
-                for existing_crn, (d, b) in self.assignment.items():
+                for existing_crn, (d, _b) in self.assignment.items():
                     if d == day and sid in self.students_by_crn.get(existing_crn, ()):
                         day_crns.append(existing_crn)
-                conflicts.append(("student_gt_max_per_day", sid, day, block, crn, day_crns))
+                conflicts.append(
+                    ("student_gt_max_per_day", sid, day, block, crn, day_crns)
+                )
 
         # Check instructor conflicts
         for instr in self.instructors_by_crn.get(crn, ()):
@@ -256,23 +269,38 @@ class DSATURExamGraph:
                 # Find which CRN is already scheduled at this slot for this instructor
                 conflicting_crns = []
                 for existing_crn, (d, b) in self.assignment.items():
-                    if (d, b) == (day, block) and instr in self.instructors_by_crn.get(existing_crn, ()):
+                    if (d, b) == (day, block) and instr in self.instructors_by_crn.get(
+                        existing_crn, ()
+                    ):
                         conflicting_crns.append(existing_crn)
                 # If no conflicting CRN found in assignment, check slot_to_crns
                 if not conflicting_crns:
                     for existing_crn in self.slot_to_crns.get((day, block), []):
                         if instr in self.instructors_by_crn.get(existing_crn, ()):
                             conflicting_crns.append(existing_crn)
-                conflicts.append(("instructor_double_book", instr, day, block, crn, conflicting_crns[0] if conflicting_crns else None))
-            
+                conflicts.append(
+                    (
+                        "instructor_double_book",
+                        instr,
+                        day,
+                        block,
+                        crn,
+                        conflicting_crns[0] if conflicting_crns else None,
+                    )
+                )
+
             todays_i = [b for d, b in instr_slots if d == day]
             if len(todays_i) >= self.max_instructor_per_day:
                 # Find all CRNs this instructor has on this day
                 day_crns = []
-                for existing_crn, (d, b) in self.assignment.items():
-                    if d == day and instr in self.instructors_by_crn.get(existing_crn, ()):
+                for existing_crn, (d, _b) in self.assignment.items():
+                    if d == day and instr in self.instructors_by_crn.get(
+                        existing_crn, ()
+                    ):
                         day_crns.append(existing_crn)
-                conflicts.append(("instructor_gt_max_per_day", instr, day, block, crn, day_crns))
+                conflicts.append(
+                    ("instructor_gt_max_per_day", instr, day, block, crn, day_crns)
+                )
 
         return conflicts
 
@@ -365,22 +393,23 @@ class DSATURExamGraph:
                     conflicts = self._check_conflicts(
                         student_sched, instr_sched, crn, day, block
                     )
-                    
+
                     # Calculate soft penalty tuple
                     soft_tuple = self._soft_tuple(
                         student_sched, instr_sched, crn, day, block
                     )
-                    
+
                     # Add to candidates - prioritize conflict avoidance heavily
                     # Conflicts should be the PRIMARY concern, not just a tie-breaker
                     conflict_count = len(conflicts)
-                    
+
                     # Create tuple with conflict_count as HIGH PRIORITY (first element)
                     # This ensures slots with fewer conflicts are always preferred
                     # Format: (conflict_count, large_late*wL, b2b_students*wS, b2b_instr*wI, instr_load, seat_load, exam_ct, day, block)
                     candidates.append(
                         (
-                            (conflict_count,) + soft_tuple,  # Conflicts first for high priority
+                            (conflict_count,)
+                            + soft_tuple,  # Conflicts first for high priority
                             day,
                             block,
                             conflicts,  # Store conflicts for this slot
@@ -452,7 +481,7 @@ class DSATURExamGraph:
             # pick a CRN the student has on that day
             crns_today = [
                 crn
-                for crn, (d, b) in self.assignment.items()
+                for crn, (d, _b) in self.assignment.items()
                 if crn not in self.unassigned
                 and (sid in self.students_by_crn.get(crn, ()))
                 and d == day
@@ -464,22 +493,26 @@ class DSATURExamGraph:
                 current = self._soft_tuple(
                     student_sched, instr_sched, crn, cur_d, cur_b
                 )
-                current_conflicts = self._check_conflicts(student_sched, instr_sched, crn, cur_d, cur_b)
+                current_conflicts = self._check_conflicts(
+                    student_sched, instr_sched, crn, cur_d, cur_b
+                )
                 current_conflict_count = len(current_conflicts)
                 best = ((current_conflict_count,) + current, cur_d, cur_b)
-                
+
                 for d, b in allowed_blocks:  # <-- enforce allowed days/blocks
                     if (d, b) == (cur_d, cur_b):
                         continue
                     # Check conflicts but prefer moves with fewer conflicts
-                    conflicts = self._check_conflicts(student_sched, instr_sched, crn, d, b)
+                    conflicts = self._check_conflicts(
+                        student_sched, instr_sched, crn, d, b
+                    )
                     conflict_count = len(conflicts)
                     cand = self._soft_tuple(student_sched, instr_sched, crn, d, b)
                     # Conflicts first for high priority
                     cand_with_conflicts = (conflict_count,) + cand
                     if cand_with_conflicts < best[0]:
                         best = (cand_with_conflicts, d, b)
-                best_tuple, new_d, new_b = best
+                _best_tuple, new_d, new_b = best
                 if (new_d, new_b) != (cur_d, cur_b):
                     # apply move
                     for s in self.students_by_crn.get(crn, ()):
@@ -545,7 +578,7 @@ class DSATURExamGraph:
                 course_str = str(course_ref.iloc[0]) if len(course_ref) > 0 else ""
             else:
                 course_str = str(course_ref) if course_ref is not None else ""
-            
+
             rows.append(
                 {
                     "CRN": crn,
@@ -649,8 +682,10 @@ class DSATURExamGraph:
                 conflict_type, entity_id, day, block, crn = conflict_tuple
                 conflicting_info = None
             else:
-                conflict_type, entity_id, day, block, crn, conflicting_info = conflict_tuple
-            
+                conflict_type, entity_id, day, block, crn, conflicting_info = (
+                    conflict_tuple
+                )
+
             if conflict_type == "student_double_book":
                 student_double_book += 1
             elif conflict_type == "student_gt_max_per_day":

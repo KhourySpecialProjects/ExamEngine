@@ -27,7 +27,7 @@ export const generateSampleData = (): CalendarRow[] => {
     let hash = 0;
     for (let i = 0; i < seed.length; i++) {
       const char = seed.charCodeAt(i);
-      hash = ((hash << 5) - hash) + char;
+      hash = (hash << 5) - hash + char;
       hash = hash & hash; // Convert to 32-bit integer
     }
     return Math.abs(hash) % max;
@@ -42,13 +42,18 @@ export const generateSampleData = (): CalendarRow[] => {
     for (const day of days) {
       const seed = `${timeSlot}-${day}`;
       const examCount = deterministicRandom(seed, 80);
-      const conflicts = examCount > 15 ? deterministicRandom(`${seed}-conflicts`, 120) : 0;
+      const conflicts =
+        examCount > 15 ? deterministicRandom(`${seed}-conflicts`, 120) : 0;
 
       const exams = [];
       for (let i = 0; i < examCount; i++) {
         const examSeed = `${seed}-${i}`;
-        const dept = departments[deterministicRandom(examSeed, departments.length)];
-        const building = buildings[deterministicRandom(`${examSeed}-building`, buildings.length)];
+        const dept =
+          departments[deterministicRandom(examSeed, departments.length)];
+        const building =
+          buildings[
+            deterministicRandom(`${examSeed}-building`, buildings.length)
+          ];
         exams.push({
           id: `exam-${day}-${timeSlot}-${i}-${deterministicRandom(`${examSeed}-id`, 4000)}`,
           courseCode: `${dept} ${1000 + deterministicRandom(`${examSeed}-course`, 4000)}`,
@@ -63,7 +68,10 @@ export const generateSampleData = (): CalendarRow[] => {
           studentCount: 50 + deterministicRandom(`${examSeed}-students`, 150),
           room: `${building} ${100 + deterministicRandom(`${examSeed}-room`, 300)}`,
           building: building,
-          conflicts: i < conflicts ? deterministicRandom(`${examSeed}-conflict`, 3) + 1 : 0,
+          conflicts:
+            i < conflicts
+              ? deterministicRandom(`${examSeed}-conflict`, 3) + 1
+              : 0,
           day,
           timeSlot,
         });
@@ -200,7 +208,10 @@ export function downloadBlob(blob: Blob, filename: string) {
   URL.revokeObjectURL(url);
 }
 
-export function exportScheduleRowsAsCsv(rows: Record<string, any>[], filename = "schedule_exams.csv") {
+export function exportScheduleRowsAsCsv(
+  rows: Record<string, any>[],
+  filename = "schedule_exams.csv",
+) {
   const blob = scheduleRowsToCsvBlob(rows);
   downloadBlob(blob, filename);
 }

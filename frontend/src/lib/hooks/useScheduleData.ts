@@ -16,7 +16,7 @@ export function useScheduleData() {
     if (!currentSchedule) return [];
     return convertToCalendarRows(
       currentSchedule.schedule.calendar,
-      currentSchedule.conflicts.breakdown
+      currentSchedule.conflicts.breakdown,
     );
   }, [currentSchedule]);
 
@@ -72,18 +72,18 @@ function convertToCalendarRows(
     "Saturday",
     "Sunday",
   ];
-  
+
   // Create a day name mapping (backend -> frontend)
   const dayNameMap: Record<string, string> = {
-    "Mon": "Monday",
-    "Tue": "Tuesday", 
-    "Wed": "Wednesday",
-    "Thu": "Thursday",
-    "Fri": "Friday",
-    "Sat": "Saturday",
-    "Sun": "Sunday",
+    Mon: "Monday",
+    Tue: "Tuesday",
+    Wed: "Wednesday",
+    Thu: "Thursday",
+    Fri: "Friday",
+    Sat: "Saturday",
+    Sun: "Sunday",
   };
-  
+
   // Helper function to extract time from Block format "0 (9:00-11:00)" -> "9:00-11:00"
   const extractTimeFromBlock = (blockStr: string): string => {
     // If it's already just a time (like "9:00-11:00"), return it
@@ -150,7 +150,7 @@ function convertToCalendarRows(
       const cellConflictKey = `${frontendDay}-${normalizedTimeSlot}`;
       const actualConflicts = conflictMap.get(cellConflictKey) || 0;
       const invalidExams = exams.filter((e) => e.conflicts > 0).length;
-      
+
       return {
         day: frontendDay,
         timeSlot,

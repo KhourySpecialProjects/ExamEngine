@@ -1189,9 +1189,7 @@ class TestAlgorithmComparison:
         # Verify DSATUR produces valid schedule
         assert len(dsatur_schedule) > 0, "DSATUR should produce a schedule"
         # All exams should be placed (conflicts are tracked but don't block)
-        assert dsatur_summary["unplaced_exams"] == 0, (
-            "DSATUR should place all exams"
-        )
+        assert dsatur_summary["unplaced_exams"] == 0, "DSATUR should place all exams"
         # Conflicts are tracked in summary
         assert "hard_student_conflicts" in dsatur_summary
         assert "hard_instructor_conflicts" in dsatur_summary
@@ -1253,7 +1251,9 @@ class TestAlgorithmComparison:
         for result in results:
             assert result["scheduled"] > 0, "Should schedule some courses"
             # Conflicts may exist but are tracked (not blocking)
-            assert result["conflicts"] >= 0, "Conflicts should be tracked (non-negative)"
+            assert result["conflicts"] >= 0, (
+                "Conflicts should be tracked (non-negative)"
+            )
             assert result["time_slots"] > 0, "Should use some time slots"
 
         # Results should be consistent (same number of scheduled courses)

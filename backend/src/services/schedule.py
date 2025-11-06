@@ -414,6 +414,7 @@ class ScheduleService:
                     "Capacity": int(row["Capacity"]),
                     "Size": int(row["Size"]),
                     "Valid": bool(row["Valid"]),
+                    "Instructor": row["Instructor"],
                 }
             )
 

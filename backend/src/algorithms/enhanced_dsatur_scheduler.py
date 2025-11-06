@@ -589,6 +589,7 @@ class DSATURExamGraph:
                     "Capacity": int(room["capacity"]),
                     "Size": size,
                     "Valid": valid,
+                    "Instructor": self.instructors_by_crn.get(crn, set()),
                 }
             )
 

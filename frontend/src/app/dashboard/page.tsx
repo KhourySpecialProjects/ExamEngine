@@ -19,6 +19,7 @@ import { toast } from "sonner";
 import { useScheduleData } from "@/lib/hooks/useScheduleData";
 import { useCalendarStore } from "@/lib/store/calendarStore";
 import { THEME_KEYS } from "@/lib/constants/colorThemes";
+import { exportScheduleRowsAsCsv } from "@/lib/utils";
 
 type ViewType = "density" | "compact" | "list";
 
@@ -43,28 +44,7 @@ export default function DashboardPage() {
         return;
       }
 
-      const headers = Object.keys(rows[0]);
-      const csvLines = [headers.join(",")];
-      for (const r of rows) {
-        const values = headers.map((h) => {
-          const v = (r as any)[h];
-          if (v === null || v === undefined) return "";
-          const s = String(v).replace(/"/g, '""');
-          return s.includes(",") || s.includes('"') ? `"${s}"` : s;
-        });
-        csvLines.push(values.join(","));
-      }
-
-      const csvContent = csvLines.join("\n");
-      const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
-      const url = URL.createObjectURL(blob);
-      const link = document.createElement("a");
-      link.href = url;
-      link.setAttribute("download", `schedule_exams.csv`);
-      document.body.appendChild(link);
-      link.click();
-      link.remove();
-      URL.revokeObjectURL(url);
+      exportScheduleRowsAsCsv(rows, "schedule_exams.csv");
 
       toast.success("Export started", { description: "Downloading schedule CSV" });
     } catch (err) {

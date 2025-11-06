@@ -2,7 +2,6 @@ import { EmptyScheduleState } from "@/components/common/EmptyScheduleState";
 import { Button } from "@/components/ui/button";
 import { useScheduleData } from "@/lib/hooks/useScheduleData";
 import { useCalendarStore } from "@/lib/store/calendarStore";
-import { colorThemes } from "@/lib/constants/colorThemes";
 import { Course } from "../Course";
 import { CalendarGrid } from "./CalendarGrid";
 
@@ -25,7 +24,6 @@ const DAYS = [
 export default function CompactView() {
   const { hasData, isLoading, calendarRows } = useScheduleData();
   const selectCell = useCalendarStore((state) => state.selectCell);
-  const theme = useCalendarStore((s) => s.colorTheme || "gray");
   if (!hasData) return <EmptyScheduleState isLoading={isLoading} />;
 
   return (
@@ -37,27 +35,9 @@ export default function CompactView() {
         const maxVisible = 6;
         const visibleExams = cell.exams.slice(0, maxVisible);
         const hasMore = cell.exams.length > maxVisible;
-        const themeColors = colorThemes[theme] || colorThemes.gray;
-
-        // simple mapping by count -> level
-        const level =
-          cell.examCount === 0
-            ? 0
-            : cell.examCount === 1
-            ? 1
-            : cell.examCount <= 3
-            ? 2
-            : cell.examCount <= 6
-            ? 3
-            : 4;
-
-        const bg = themeColors[level];
-        const rgb = bg.match(/\d+/g)?.map(Number) || [255, 255, 255];
-        const luminance = 0.299 * (rgb[0] ?? 255) + 0.587 * (rgb[1] ?? 255) + 0.114 * (rgb[2] ?? 255);
-        const textColor = luminance > 160 ? "#0f172a" : "#ffffff";
-
+        // Compact view uses neutral styling — coloring is applied only in DensityView
         return (
-          <div style={{ backgroundColor: bg, color: textColor }} className="p-2 space-y-1 max-h-[150px] overflow-auto no-scrollbar">
+          <div className="p-2 space-y-1 max-h-[150px] overflow-auto no-scrollbar">
             {visibleExams.map((exam) => (
               <Course
                 key={exam.id}

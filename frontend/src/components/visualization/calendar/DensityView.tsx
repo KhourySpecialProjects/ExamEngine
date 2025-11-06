@@ -4,6 +4,7 @@ import { useScheduleData } from "@/lib/hooks/useScheduleData";
 import { useCalendarStore } from "@/lib/store/calendarStore";
 import { CalendarGrid } from "./CalendarGrid";
 import { colorThemes } from "@/lib/constants/colorThemes";
+import { getReadableTextColorFromBg } from "@/lib/utils";
 
 const DAYS = [
   "Monday",
@@ -49,10 +50,7 @@ const getDensityColor = (
   const bg = themeColors[level] || themeColors[0];
 
   // Determine readable text color (black or white) based on luminance
-  const rgb = bg.match(/\d+/g)?.map(Number) || [255, 255, 255];
-  const luminance =
-    0.299 * (rgb[0] ?? 255) + 0.587 * (rgb[1] ?? 255) + 0.114 * (rgb[2] ?? 255);
-  const color = luminance > 160 ? "#0f172a" : "#ffffff"; // dark text for light bg, white for dark bg
+  const color = getReadableTextColorFromBg(bg);
 
   return { bg, color };
 };
@@ -132,11 +130,7 @@ export default function DensityView() {
             const themeColors = colorThemes[theme] || colorThemes.gray;
             const levels = [0, 1, 2, 3, 4];
 
-            const textColorFromBg = (bg: string) => {
-              const rgb = bg.match(/\d+/g)?.map(Number) || [255, 255, 255];
-              const luminance = 0.299 * (rgb[0] ?? 255) + 0.587 * (rgb[1] ?? 255) + 0.114 * (rgb[2] ?? 255);
-              return luminance > 160 ? "#0f172a" : "#ffffff";
-            };
+            const textColorFromBg = (bg: string) => getReadableTextColorFromBg(bg);
 
             return levels.map((lvl) => {
               const bg = themeColors[lvl] || themeColors[0];

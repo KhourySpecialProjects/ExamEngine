@@ -1,14 +1,14 @@
-import os
-
 from dotenv import load_dotenv
+
+from src.core.config import get_settings
 
 from .s3 import S3
 
 
 load_dotenv()
+setting = get_settings()
 
-
-storage_service = S3(
-    bucket_name=os.getenv("AWS_S3_BUCKET", "exam-engine-csvs"),
-    region=os.getenv("AWS_REGION", "us-east-1"),
+storage = S3(
+    bucket_name=setting.aws_s3_bucket,
+    region=setting.aws_region,
 )

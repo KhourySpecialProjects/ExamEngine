@@ -9,21 +9,13 @@ from sqlalchemy.orm import Session
 
 from src.algorithms.create_schedule import export_student_schedule
 from src.algorithms.dsatur_scheduler import DSATURExamGraph
+from src.api.deps import get_current_user
+from src.core.database import get_db
 from src.schemas.db import Datasets, Users
-from src.services.auth import get_current_user, get_session
-from src.services.storage import storage_service
+from src.services.storage import storage
 
 
 router = APIRouter(prefix="/schedule", tags=["schedules"])
-
-
-def get_db():
-    """Database session dependency"""
-    db = get_session()
-    try:
-        yield db
-    finally:
-        db.close()
 
 
 # This endpoint runs the scheduling algorithm and returns a summary and preview of results
@@ -130,7 +122,7 @@ async def generate_schedule_from_dataset(
             file_type = file_entry["type"]
             storage_key = file_entry["storage_key"]
 
-            content = storage_service.download_file(storage_key)
+            content = storage.download_file(storage_key)
             if not content:
                 raise HTTPException(404, f"File not found in S3: {file_type}")
 

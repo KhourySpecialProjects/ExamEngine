@@ -18,6 +18,7 @@ import { Slider } from "@/components/ui/slider";
 import { Switch } from "@/components/ui/switch";
 import { useDatasetStore } from "@/lib/store/datasetStore";
 import { useScheduleStore } from "@/lib/store/scheduleStore";
+import { Input } from "../ui/input";
 
 export function ScheduleRunner() {
   const selectedDatasetId = useDatasetStore((state) => state.selectedDatasetId);
@@ -28,15 +29,23 @@ export function ScheduleRunner() {
   const {
     currentSchedule,
     isGenerating,
+    scheduleName,
     parameters,
     generateSchedule,
     setParameters,
+    setScheduleName,
   } = useScheduleStore();
 
   const handleGenerate = async () => {
     if (!selectedDatasetId) {
       toast.error("No dataset selected", {
         description: "Please select a dataset first",
+      });
+      return;
+    }
+    if (!scheduleName || scheduleName.trim() === "") {
+      toast.error("Schedule name required", {
+        description: "Please enter a name for your schedule",
       });
       return;
     }
@@ -58,6 +67,8 @@ export function ScheduleRunner() {
       });
     }
   };
+  const isGenerateDisabled =
+    !selectedDatasetId || isGenerating || !scheduleName?.trim();
 
   return (
     <Dialog>
@@ -94,6 +105,17 @@ export function ScheduleRunner() {
               </AlertDescription>
             </Alert>
           )}
+
+          <div className="space-y-2">
+            <Label htmlFor="schedule-name">Schedule Name</Label>
+            <Input
+              id="schedule-name"
+              type="text"
+              placeholder="e.g., Fall 2024 Final Exams"
+              value={scheduleName || ""}
+              onChange={(e) => setScheduleName(e.target.value)}
+            />
+          </div>
 
           {/* Parameters */}
           <div className="space-y-4">
@@ -169,7 +191,7 @@ export function ScheduleRunner() {
           <div className="flex gap-3 pt-4 border-t">
             <Button
               onClick={handleGenerate}
-              disabled={!selectedDatasetId || isGenerating}
+              disabled={isGenerateDisabled}
               className="flex-1"
             >
               {isGenerating ? (

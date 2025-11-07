@@ -11,6 +11,10 @@ interface ViewTabSwitcherProps {
   onViewChange: (view: ViewType) => void;
 }
 
+
+
+
+
 export function ViewTabSwitcher({
   activeView,
   onViewChange,

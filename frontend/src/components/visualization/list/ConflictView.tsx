@@ -20,6 +20,13 @@ function formatNumber(n: number | null | undefined) {
   return n.toLocaleString();
 }
 
+/* Using Fake data for now
+For back to backs : student_id, day, blocks, 
+Large courses : CRN, Course, Size, Day, Blocks
+*/
+
+
+
 function ConflictStat({
   label,
   value,

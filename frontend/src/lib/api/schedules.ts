@@ -1,8 +1,8 @@
 import { BaseAPI } from "./base";
 
 export interface ScheduleParameters {
-  max_per_day?: number;
-  instructor_per_day?: number;
+  student_max_per_day?: number;
+  instructor_max_per_day?: number;
   avoid_back_to_back?: boolean;
   max_days?: number;
 }
@@ -101,13 +101,16 @@ export class SchedulesAPI extends BaseAPI {
       queryParams.append("schedule_name", schedule_name);
     }
 
-    if (parameters.max_per_day !== undefined) {
-      queryParams.append("max_per_day", parameters.max_per_day.toString());
-    }
-    if (parameters.instructor_per_day !== undefined) {
+    if (parameters.student_max_per_day !== undefined) {
       queryParams.append(
-        "instructor_per_day",
-        parameters.instructor_per_day.toString(),
+        "student_max_per_day",
+        parameters.student_max_per_day.toString(),
+      );
+    }
+    if (parameters.instructor_max_per_day !== undefined) {
+      queryParams.append(
+        "instructor_max_per_day",
+        parameters.instructor_max_per_day.toString(),
       );
     }
     if (parameters.avoid_back_to_back !== undefined) {

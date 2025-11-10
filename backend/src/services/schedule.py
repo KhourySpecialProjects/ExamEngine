@@ -9,7 +9,7 @@ from src.core.exceptions import (
     ScheduleGenerationError,
     ValidationError,
 )
-from src.repo.conflict import ConflictRepo
+from src.repo.conflict_analyses import ConflictAnalysesRepo
 from src.repo.course import CourseRepo
 from src.repo.exam_assignment import ExamAssignmentRepo
 from src.repo.room import RoomRepo
@@ -39,7 +39,7 @@ class ScheduleService:
         schedule_repo: ScheduleRepo,
         run_repo: RunRepo,
         exam_assignment_repo: ExamAssignmentRepo,
-        conflict_repo: ConflictRepo,
+        conflict_analyses_repo: ConflictAnalysesRepo,
         course_repo: CourseRepo,
         time_slot_repo: TimeSlotRepo,
         room_repo: RoomRepo,
@@ -48,7 +48,7 @@ class ScheduleService:
         self.schedule_repo = schedule_repo
         self.run_repo = run_repo
         self.exam_assignment_repo = exam_assignment_repo
-        self.conflict_repo = conflict_repo
+        self.conflict_analyses_repo = conflict_analyses_repo
         self.course_repo = course_repo
         self.time_slot_repo = time_slot_repo
         self.room_repo = room_repo
@@ -59,7 +59,8 @@ class ScheduleService:
         dataset_id: UUID,
         user_id: UUID,
         schedule_name: str,
-        max_per_day: int = 3,
+        student_max_per_day: int = 3,
+        instructor_max_per_day: int = 3,
         avoid_back_to_back: bool = True,
         max_days: int = 7,
     ) -> dict[str, Any]:
@@ -76,7 +77,8 @@ class ScheduleService:
             dataset_id: Dataset to schedule
             user_id: User generating schedule
             schedule_name: Unique name for this schedule
-            max_per_day: Max exams per student per day
+            student_max_per_day: Max exams per student per day
+            instructor_max_per_day: Max exams per instructor per day
             avoid_back_to_back: Avoid consecutive exam blocks
             max_days: Days to spread exams across
 
@@ -96,7 +98,8 @@ class ScheduleService:
 
         # Create Run and Schedule records (status: Running)
         parameters = {
-            "max_per_day": max_per_day,
+            "student_max_per_day": student_max_per_day,
+            "instructor_max_per_day": instructor_max_per_day,
             "avoid_back_to_back": avoid_back_to_back,
             "max_days": max_days,
         }
@@ -118,7 +121,11 @@ class ScheduleService:
             room_mapping = await self._ensure_rooms_exist(dataset_id, files["rooms"])
 
             graph = DSATURExamGraph(
-                files["courses"], files["enrollments"], files["rooms"]
+                files["courses"],
+                files["enrollments"],
+                files["rooms"],
+                student_max_per_day=student_max_per_day,
+                instructor_max_per_day=instructor_max_per_day,
             )
             graph.build_graph()
             graph.dsatur_color()
@@ -142,25 +149,20 @@ class ScheduleService:
                     f"Failed to save exam assignments: {str(db_error)}"
                 ) from db_error
 
-            # total_conflicts, conflict_details, breakdown_df = (
-            #     graph.count_schedule_conflicts()
-            # )
-            #
-            # if not breakdown_df.empty:
-            #     try:
-            #         await self._save_conflicts(
-            #             schedule_id=schedule.schedule_id, breakdown_df=breakdown_df
-            #         )
-            #     except Exception as db_error:
-            #         self.schedule_repo.db.rollback()
-            #         raise ScheduleGenerationError(
-            #             f"Failed to save exam assignments: {str(db_error)}"
-            #         ) from db_error
+            try:
+                conflicts_response = await self._save_and_format_conflicts(
+                    schedule_id=schedule.schedule_id,
+                    graph=graph,
+                )
+            except Exception as db_error:
+                self.schedule_repo.db.rollback()
+                raise ScheduleGenerationError(
+                    f"Failed to save conflicts: {str(db_error)}"
+                ) from db_error
 
             self.run_repo.update_status(run.run_id, StatusEnum.Completed)
 
             summary = graph.summary()
-            # fail_report = graph.fail_report()
 
             # Get dataset info for response
             dataset_info = self.dataset_service.get_dataset_info(dataset_id, user_id)
@@ -170,32 +172,31 @@ class ScheduleService:
                 "schedule_name": schedule.schedule_name,
                 "dataset_id": str(dataset_id),
                 "dataset_name": dataset_info["dataset_name"],
-                "summary": summary,
-                # "conflicts": {
-                #     "total": total_conflicts,
-                #     "breakdown": breakdown_df.to_dict(orient="records")
-                #     if not breakdown_df.empty
-                #     else [],
-                #     "details": {str(k): v for k, v in conflict_details.items()}
-                #     if conflict_details
-                #     else {},
-                # },
-                "conflicts": {
-                    "total": 0,
-                    "breakdown": [],
-                    "details": {},
+                "summary": {
+                    "num_classes": summary["num_classes"],
+                    "num_students": summary["num_students"],
+                    "potential_overlaps": 0,
+                    "real_conflicts": conflicts_response["total_hard"],
+                    "num_rooms": summary["num_rooms"],
+                    "slots_used": summary["slots_used"],
+                    "unplaced_exams": summary.get("unplaced_exams", 0),
                 },
+                "conflicts": conflicts_response["conflicts"],
                 "failures": [],
                 "schedule": {
                     "complete": results_df.to_dict(orient="records"),
                     "calendar": self._build_calendar_structure(results_df),
                     "total_exams": len(results_df),
                 },
-                "parameters": parameters,
+                "parameters": {
+                    "student_max_per_day": student_max_per_day,
+                    "instructor_max_per_day": instructor_max_per_day,
+                    "avoid_back_to_back": avoid_back_to_back,
+                    "max_days": max_days,
+                },
             }
 
         except DatasetNotFoundError:
-            # Re-raise dataset errors
             self.run_repo.update_status(run.run_id, StatusEnum.Failed)
             raise
         except Exception as e:
@@ -302,28 +303,217 @@ class ScheduleService:
         if assignments:
             self.exam_assignment_repo.bulk_create(schedule_id, assignments)
 
-    async def _save_conflicts(
-        self, schedule_id: UUID, breakdown_df: pd.DataFrame
-    ) -> None:
+    async def _save_and_format_conflicts(
+        self,
+        schedule_id: UUID,
+        graph: DSATURExamGraph,
+    ) -> dict:
         """
-        Save conflicts to database.
+        Save conflicts to database and return formatted response.
 
-        Converts conflict breakdown DataFrame to Conflict records.
-        Note: This requires student_id to be UUID in your database.
+        Returns dict with structure:
+        {
+            "total_hard": int,
+            "total_soft": int,
+            "conflicts": {
+                "total": int,
+                "breakdown": [...],
+                "details": {}
+            }
+        }
         """
-        conflicts = []
+        # Build hard conflicts structure
+        hard_conflicts = {
+            "student_double_book": [],
+            "student_gt_max_per_day": [],
+            "instructor_double_book": [],
+            "instructor_gt_max_per_day": [],
+        }
 
-        for _, row in breakdown_df.iterrows():
-            conflicts.append(
+        # Process graph.conflicts list
+        for conflict_tuple in graph.conflicts:
+            if len(conflict_tuple) == 5:
+                conflict_type, entity_id, day, block, crn = conflict_tuple
+                conflicting_info = None
+            else:
+                conflict_type, entity_id, day, block, crn, conflicting_info = (
+                    conflict_tuple
+                )
+
+            conflict_record = {
+                "entity_id": entity_id,
+                "day": graph.day_names[day] if day < len(graph.day_names) else str(day),
+                "block": block,
+                "crn": crn,
+            }
+
+            if conflicting_info:
+                if isinstance(conflicting_info, list):
+                    conflict_record["conflicting_crns"] = conflicting_info
+                else:
+                    conflict_record["conflicting_crn"] = str(conflicting_info)
+
+            if conflict_type in hard_conflicts:
+                hard_conflicts[conflict_type].append(conflict_record)
+
+        # Build soft conflicts structure
+        soft_conflicts = {
+            "back_to_back_students": [],
+            "back_to_back_instructors": [],
+            "large_courses_not_early": [],
+        }
+
+        # Process student back-to-back
+        if not graph.student_soft_violations.empty:
+            for _, row in graph.student_soft_violations.iterrows():
+                soft_conflicts["back_to_back_students"].append(
+                    {
+                        "student_id": str(row["student_id"]),
+                        "day": row["day"],
+                        "blocks": row["blocks"].tolist()
+                        if hasattr(row["blocks"], "tolist")
+                        else row["blocks"],
+                    }
+                )
+
+        # Process instructor back-to-back
+        if not graph.instructor_soft_violations.empty:
+            for _, row in graph.instructor_soft_violations.iterrows():
+                soft_conflicts["back_to_back_instructors"].append(
+                    {
+                        "instructor_name": row["instructor_name"],
+                        "day": row["day"],
+                        "blocks": row["blocks"].tolist()
+                        if hasattr(row["blocks"], "tolist")
+                        else row["blocks"],
+                    }
+                )
+
+        # Process large courses not early
+        if not graph.large_courses_not_early.empty:
+            for _, row in graph.large_courses_not_early.iterrows():
+                soft_conflicts["large_courses_not_early"].append(
+                    {
+                        "crn": row["CRN"],
+                        "course": row["Course"],
+                        "size": int(row["Size"]),
+                        "day": row["Day"],
+                    }
+                )
+
+        # Get statistics from algorithm
+        summary = graph.summary()
+        total_hard = (
+            summary.get("student_double_book", 0)
+            + summary.get("student_gt_max_per_day", 0)
+            + summary.get("instructor_double_book", 0)
+            + summary.get("instructor_gt_max_per_day", 0)
+        )
+        total_soft = (
+            summary.get("students_back_to_back", 0)
+            + summary.get("instructors_back_to_back", 0)
+            + summary.get("large_courses_not_early", 0)
+        )
+
+        # Build complete data structure
+        conflicts_data = {
+            "hard_conflicts": hard_conflicts,
+            "soft_conflicts": soft_conflicts,
+            "statistics": {
+                "student_double_book_count": summary.get("student_double_book", 0),
+                "student_gt_max_per_day_count": summary.get(
+                    "student_gt_max_per_day", 0
+                ),
+                "instructor_double_book_count": summary.get(
+                    "instructor_double_book", 0
+                ),
+                "instructor_gt_max_per_day_count": summary.get(
+                    "instructor_gt_max_per_day", 0
+                ),
+                "back_to_back_students_count": summary.get("students_back_to_back", 0),
+                "back_to_back_instructors_count": summary.get(
+                    "instructors_back_to_back", 0
+                ),
+                "large_courses_not_early_count": summary.get(
+                    "large_courses_not_early", 0
+                ),
+                "total_hard_conflicts": total_hard,
+                "total_soft_conflicts": total_soft,
+            },
+        }
+
+        # Save to database
+        self.conflict_analyses_repo.create_analysis(
+            schedule_id=schedule_id,
+            conflicts_data=conflicts_data,
+        )
+
+        # Format breakdown for frontend
+        breakdown = []
+
+        # Add hard conflicts
+        for conflict_type in [
+            "student_double_book",
+            "instructor_double_book",
+            "student_gt_max_per_day",
+            "instructor_gt_max_per_day",
+        ]:
+            for conflict in hard_conflicts[conflict_type]:
+                breakdown.append(
+                    {
+                        "conflict_type": conflict_type,
+                        "entity_id": conflict["entity_id"],
+                        "day": conflict["day"],
+                        "block": conflict.get("block"),
+                        "crn": conflict.get("crn"),
+                        "conflicting_crn": conflict.get("conflicting_crn"),
+                        "conflicting_crns": conflict.get("conflicting_crns", []),
+                    }
+                )
+
+        # Add soft conflicts
+        for student_c in soft_conflicts["back_to_back_students"]:
+            breakdown.append(
                 {
-                    "student_id": str(row["Student_PIDM"]),
-                    "exam_assignment_ids": [],
-                    "conflict_type": row["conflict_type"],
+                    "conflict_type": "back_to_back_student",
+                    "student_id": student_c["student_id"],
+                    "entity_id": student_c["student_id"],
+                    "day": student_c["day"],
+                    "blocks": student_c["blocks"],
                 }
             )
 
-        if conflicts:
-            self.conflict_repo.bulk_create(schedule_id, conflicts)
+        for instr_c in soft_conflicts["back_to_back_instructors"]:
+            breakdown.append(
+                {
+                    "conflict_type": "back_to_back_instructor",
+                    "entity_id": instr_c["instructor_name"],
+                    "day": instr_c["day"],
+                    "blocks": instr_c["blocks"],
+                }
+            )
+
+        for course_c in soft_conflicts["large_courses_not_early"]:
+            breakdown.append(
+                {
+                    "conflict_type": "large_course_not_early",
+                    "entity_id": course_c["crn"],
+                    "crn": course_c["crn"],
+                    "course": course_c["course"],
+                    "size": course_c["size"],
+                    "day": course_c["day"],
+                }
+            )
+
+        return {
+            "total_hard": total_hard,
+            "total_soft": total_soft,
+            "conflicts": {
+                "total": total_hard + total_soft,
+                "breakdown": breakdown,
+                "details": {},
+            },
+        }
 
     def list_schedules_for_user(
         self, user_id: UUID, skip: int = 0, limit: int = 100
@@ -339,7 +529,6 @@ class ScheduleService:
         for s in schedules:
             # Get counts
             exam_count = self.schedule_repo.get_exam_assignments_count(s.schedule_id)
-            conflict_count = self.schedule_repo.get_conflicts_count(s.schedule_id)
 
             result.append(
                 {
@@ -351,7 +540,6 @@ class ScheduleService:
                     "status": s.run.status.value,
                     "dataset_id": str(s.run.dataset_id),
                     "total_exams": exam_count,
-                    "total_conflicts": conflict_count,
                 }
             )
 

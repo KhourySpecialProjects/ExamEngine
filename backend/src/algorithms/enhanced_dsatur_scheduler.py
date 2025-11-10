@@ -98,8 +98,8 @@ class DSATURExamGraph:
         weight_large_late: int = 1,
         weight_b2b_student: int = 6,
         weight_b2b_instructor: int = 2,
-        max_student_per_day: int = 2,
-        max_instructor_per_day: int = 2,
+        student_max_per_day: int = 2,
+        instructor_max_per_day: int = 2,
     ):
         self.census, self.enrollment, self.classrooms = self._normalize_inputs(
             census, enrollment, classrooms
@@ -115,8 +115,8 @@ class DSATURExamGraph:
         self.weight_large_late = int(weight_large_late)
         self.weight_b2b_student = int(weight_b2b_student)
         self.weight_b2b_instructor = int(weight_b2b_instructor)
-        self.max_student_per_day = int(max_student_per_day)
-        self.max_instructor_per_day = int(max_instructor_per_day)
+        self.max_student_per_day = int(student_max_per_day)
+        self.max_instructor_per_day = int(instructor_max_per_day)
 
         # Core structures
         self.G = nx.Graph()

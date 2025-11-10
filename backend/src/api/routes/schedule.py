@@ -14,7 +14,8 @@ router = APIRouter(prefix="/schedule", tags=["Scheduling"])
 async def generate_schedule_from_dataset(
     dataset_id: UUID,
     schedule_name: str,
-    max_per_day: int = 3,
+    student_max_per_day: int = 3,
+    instructor_max_per_day: int = 3,
     avoid_back_to_back: bool = True,
     max_days: int = 7,
     current_user: Users = Depends(get_current_user),
@@ -31,7 +32,8 @@ async def generate_schedule_from_dataset(
             dataset_id,
             current_user.user_id,
             schedule_name,
-            max_per_day,
+            student_max_per_day,
+            instructor_max_per_day,
             avoid_back_to_back,
             max_days,
         )

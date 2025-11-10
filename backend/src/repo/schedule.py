@@ -5,7 +5,6 @@ from sqlalchemy.orm import Session, joinedload
 
 from src.repo.base import BaseRepo
 from src.schemas.db import (
-    Conflicts,
     ExamAssignments,
     Runs,
     Schedules,
@@ -116,15 +115,6 @@ class ScheduleRepo(BaseRepo[Schedules]):
         )
         return count or 0
 
-    def get_conflicts_count(self, schedule_id: UUID) -> int:
-        """Count conflicts for a schedule."""
-        count = (
-            self.db.query(func.count(Conflicts.conflict_id))
-            .filter(Conflicts.schedule_id == schedule_id)
-            .scalar()
-        )
-        return count or 0
-
     def get_schedule_summary(self, schedule_id: UUID, user_id: UUID) -> dict | None:
         """
         Get schedule summary with counts.
@@ -136,14 +126,12 @@ class ScheduleRepo(BaseRepo[Schedules]):
             return None
 
         exam_count = self.get_exam_assignments_count(schedule_id)
-        conflict_count = self.get_conflicts_count(schedule_id)
 
         return {
             "schedule_id": str(schedule.schedule_id),
             "schedule_name": schedule.schedule_name,
             "created_at": schedule.created_at.isoformat(),
             "total_exams": exam_count,
-            "total_conflicts": conflict_count,
             "algorithm": schedule.run.algorithm_name,
             "parameters": schedule.run.parameters,
             "status": schedule.run.status.value,
@@ -167,10 +155,6 @@ class ScheduleRepo(BaseRepo[Schedules]):
         self.db.query(ExamAssignments).filter(
             ExamAssignments.schedule_id == schedule_id
         ).delete(synchronize_session=False)
-
-        self.db.query(Conflicts).filter(Conflicts.schedule_id == schedule_id).delete(
-            synchronize_session=False
-        )
 
         self.db.delete(schedule)
 

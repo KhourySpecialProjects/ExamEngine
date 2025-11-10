@@ -128,10 +128,11 @@ class ScheduleService:
                 instructor_max_per_day=instructor_max_per_day,
             )
             graph.build_graph()
+
             graph.dsatur_color()
-            graph.dsatur_schedule(
-                max_days=max_days,
-            )
+
+            graph.dsatur_schedule(max_days=max_days)
+
             results_df = graph.assign_rooms()
 
             try:
@@ -167,7 +168,7 @@ class ScheduleService:
             # Get dataset info for response
             dataset_info = self.dataset_service.get_dataset_info(dataset_id, user_id)
 
-            return {
+            response = {
                 "schedule_id": str(schedule.schedule_id),
                 "schedule_name": schedule.schedule_name,
                 "dataset_id": str(dataset_id),
@@ -196,6 +197,8 @@ class ScheduleService:
                 },
             }
 
+            return response
+
         except DatasetNotFoundError:
             self.run_repo.update_status(run.run_id, StatusEnum.Failed)
             raise
@@ -206,6 +209,63 @@ class ScheduleService:
             raise ScheduleGenerationError(
                 f"Schedule generation failed: {str(e)}"
             ) from e
+
+    def delete_schedule(self, schedule_id: UUID, user_id: UUID) -> dict[str, Any]:
+        """
+        Delete schedule and all related data.
+
+        Cascades to exam assignments and conflicts.
+        """
+        success = self.schedule_repo.delete_schedule_cascade(schedule_id, user_id)
+
+        if not success:
+            raise DatasetNotFoundError(
+                f"Schedule {schedule_id} not found or access denied"
+            )
+
+        return {"message": "Schedule deleted", "schedule_id": str(schedule_id)}
+
+    def get_schedule_detail(
+        self, schedule_id: UUID, user_id: UUID
+    ) -> dict[Any, Any] | None:
+        """
+        Get detailed schedule information.
+
+        Returns summary without loading all exam data.
+        """
+        return self.schedule_repo.get_schedule_summary(schedule_id, user_id)
+
+    def list_schedules_for_user(
+        self,
+        user_id: UUID,
+    ) -> list[dict[str, Any]]:
+        """
+        List all schedules for user with metadata.
+
+        Returns lightweight schedule info for list views.
+        """
+        schedules = self.schedule_repo.get_all_for_user(user_id)
+        print("Here")
+
+        result = []
+        for s in schedules:
+            # Get counts
+            exam_count = self.schedule_repo.get_exam_assignments_count(s.schedule_id)
+
+            result.append(
+                {
+                    "schedule_id": str(s.schedule_id),
+                    "schedule_name": s.schedule_name,
+                    "created_at": s.created_at.isoformat(),
+                    "algorithm": s.run.algorithm_name,
+                    "parameters": s.run.parameters,
+                    "status": s.run.status.value,
+                    "dataset_id": str(s.run.dataset_id),
+                    "total_exams": exam_count,
+                }
+            )
+
+        return result
 
     async def _ensure_courses_exist(
         self, dataset_id: UUID, courses_df: pd.DataFrame
@@ -227,8 +287,8 @@ class ScheduleService:
             }
             return mapping
 
-        # Create new course records
-        return self.course_repo.bulk_create_from_dataframe(dataset_id, courses_df)
+        mapping = self.course_repo.bulk_create_from_dataframe(dataset_id, courses_df)
+        return mapping
 
     async def _ensure_rooms_exist(
         self, dataset_id: UUID, rooms_df: pd.DataFrame
@@ -514,61 +574,6 @@ class ScheduleService:
                 "details": {},
             },
         }
-
-    def list_schedules_for_user(
-        self, user_id: UUID, skip: int = 0, limit: int = 100
-    ) -> list[dict[str, Any]]:
-        """
-        List all schedules for user with metadata.
-
-        Returns lightweight schedule info for list views.
-        """
-        schedules = self.schedule_repo.get_all_for_user(user_id, skip, limit)
-
-        result = []
-        for s in schedules:
-            # Get counts
-            exam_count = self.schedule_repo.get_exam_assignments_count(s.schedule_id)
-
-            result.append(
-                {
-                    "schedule_id": str(s.schedule_id),
-                    "schedule_name": s.schedule_name,
-                    "created_at": s.created_at.isoformat(),
-                    "algorithm": s.run.algorithm_name,
-                    "parameters": s.run.parameters,
-                    "status": s.run.status.value,
-                    "dataset_id": str(s.run.dataset_id),
-                    "total_exams": exam_count,
-                }
-            )
-
-        return result
-
-    async def delete_schedule(self, schedule_id: UUID, user_id: UUID) -> dict[str, Any]:
-        """
-        Delete schedule and all related data.
-
-        Cascades to exam assignments and conflicts.
-        """
-        success = self.schedule_repo.delete_schedule_cascade(schedule_id, user_id)
-
-        if not success:
-            raise DatasetNotFoundError(
-                f"Schedule {schedule_id} not found or access denied"
-            )
-
-        return {"message": "Schedule deleted", "schedule_id": str(schedule_id)}
-
-    def get_schedule_detail(
-        self, schedule_id: UUID, user_id: UUID
-    ) -> dict[Any, Any] | None:
-        """
-        Get detailed schedule information.
-
-        Returns summary without loading all exam data.
-        """
-        return self.schedule_repo.get_schedule_summary(schedule_id, user_id)
 
     def _build_calendar_structure(self, results_df: pd.DataFrame) -> dict:
         """

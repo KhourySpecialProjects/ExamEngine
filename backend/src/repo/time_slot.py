@@ -23,13 +23,22 @@ class TimeSlotRepo(BaseRepo[TimeSlots]):
 
         Maps DSATUR output (day_index, block_index) to TimeSlot records.
         """
-        # Map day names to enum
+        # Map day names to enum (handle multiple formats)
         day_map = {
             "Mon": DayEnum.Monday,
+            "Monday": DayEnum.Monday,
             "Tue": DayEnum.Tuesday,
+            "Tuesday": DayEnum.Tuesday,
             "Wed": DayEnum.Wednesday,
+            "Wednesday": DayEnum.Wednesday,
             "Thu": DayEnum.Thursday,
+            "Thursday": DayEnum.Thursday,
             "Fri": DayEnum.Friday,
+            "Friday": DayEnum.Friday,
+            "Sat": DayEnum.Saturday,
+            "Saturday": DayEnum.Saturday,
+            "Sun": DayEnum.Sunday,
+            "Sunday": DayEnum.Sunday,
         }
 
         # Map block index to time ranges
@@ -41,10 +50,21 @@ class TimeSlotRepo(BaseRepo[TimeSlots]):
             4: (time(19, 0), time(21, 0), "7PM-9PM"),
         }
 
+        # Get day enum
         day_enum = day_map.get(day)
-        start_time, end_time, label = block_times.get(
-            block_index, (time(9, 0), time(11, 0), "9AM-11AM")
-        )
+
+        # If day not found in map, raise a clear error
+        if day_enum is None:
+            raise ValueError(
+                f"Invalid day name: '{day}'. Expected one of: {list(day_map.keys())}"
+            )
+
+        # Get time info for block
+        time_info = block_times.get(block_index)
+        if time_info is None:
+            raise ValueError(f"Invalid block_index: {block_index}. Expected 0-4.")
+
+        start_time, end_time, label = time_info
 
         # Try to find existing slot
         stmt = select(TimeSlots).where(

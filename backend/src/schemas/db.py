@@ -32,6 +32,8 @@ class DayEnum(enum.Enum):
     Wednesday = "Wednesday"
     Thursday = "Thursday"
     Friday = "Friday"
+    Saturday = "Saturday"
+    Sunday = "Sunday"
 
 
 class Users(Base):
@@ -117,6 +119,7 @@ class Courses(Base):
     course_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
     )
+    crn: Mapped[str] = mapped_column(String(50), nullable=False)
     course_subject_code: Mapped[str] = mapped_column(String)
     enrollment_count: Mapped[int] = mapped_column(Integer)
     dataset_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("datasets.dataset_id"))
@@ -337,5 +340,5 @@ class ConflictAnalyses(Base):
     )
 
     schedule: Mapped["Schedules"] = relationship(
-        "Schedules", lazy="select", back_populates="conflict_analysis"
+        "Schedules", lazy="select", back_populates="conflict_analyses"
     )

@@ -1,5 +1,6 @@
-from backend.src.core.config import get_settings
 from dotenv import load_dotenv
+
+from src.core.config import get_settings
 
 
 load_dotenv()

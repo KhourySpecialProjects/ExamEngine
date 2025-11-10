@@ -1,17 +1,5 @@
-#!/usr/bin/env python3
-"""
-Pytest configuration and shared fixtures for the backend tests
-"""
-
-import os
-import sys
-
 import pandas as pd
 import pytest
-
-
-# Add the backend src to the path
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "src"))
 
 
 @pytest.fixture(scope="session")

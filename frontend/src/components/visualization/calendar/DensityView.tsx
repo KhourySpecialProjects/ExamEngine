@@ -84,10 +84,16 @@ export default function DensityView() {
 
   return (
     <div className="space-y-4">
-      <div className="flex justify-end">
-        <Select onValueChange={(val) => setTheme(val)}>
-          <SelectTrigger size="default" className="min-w-30 ">
-            <SelectValue placeholder={"Choose a Theme"} />
+      <div className="flex items-center justify-between gap-2">
+        <div className="pl-2">
+          <h1 className="text-2xl font-bold">Density View</h1>
+          <p className="text-muted-foreground">
+            Color-coded heat map of exam distribution and conflicts
+          </p>
+        </div>
+        <Select value={theme} onValueChange={(val) => setTheme(val)}>
+          <SelectTrigger className="w-[180px]">
+            <SelectValue placeholder="Choose a Theme" />
           </SelectTrigger>
           <SelectContent>
             {THEME_KEYS.map((k) => (

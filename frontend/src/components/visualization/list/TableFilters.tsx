@@ -27,14 +27,15 @@ export function TableFilters({ table }: TableFiltersProps) {
           placeholder="Search courses, rooms, instructors, time..."
           value={globalFilter}
           onChange={(e) => table.setGlobalFilter(e.target.value)}
-          className="pl-9 pr-9"
+          className="pl-10 pr-9 bg-white"
         />
         {globalFilter && (
           <Button
             variant="ghost"
             size="icon"
-            className="absolute right-1 top-1/2 -translate-y-1/2 h-7 w-7"
+            className="absolute right-1 top-1/2 -translate-y-1/2 h-8 w-8 hover:bg-gray-100 transition-colors bg-white"
             onClick={() => table.setGlobalFilter("")}
+            aria-label="Clear search"
           >
             <X className="h-4 w-4" />
           </Button>

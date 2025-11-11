@@ -24,6 +24,14 @@ export default function ListView() {
 
   return (
     <div className="space-y-4">
+      <div className="flex items-center justify-between gap-2">
+        <div className="pl-2">
+          <h1 className="text-2xl font-bold">List View</h1>
+          <p className="text-muted-foreground">
+            Searchable table of all scheduled exams
+          </p>
+        </div>
+      </div>
       {/* Search filters and column visibility */}
       <TableFilters table={table} />
 

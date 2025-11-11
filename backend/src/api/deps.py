@@ -3,7 +3,7 @@ from sqlalchemy.orm import Session
 
 from src.core.config import get_settings
 from src.core.database import get_db
-from src.repo.conflict import ConflictRepo
+from src.repo.conflict_analyses import ConflictAnalysesRepo
 from src.repo.course import CourseRepo
 from src.repo.dataset import DatasetRepo
 from src.repo.exam_assignment import ExamAssignmentRepo
@@ -87,7 +87,7 @@ def get_schedule_service(db: Session = Depends(get_db)) -> ScheduleService:
     schedule_repo = ScheduleRepo(db)
     run_repo = RunRepo(db)
     exam_assignment_repo = ExamAssignmentRepo(db)
-    conflict_repo = ConflictRepo(db)
+    conflict_analyses_repo = ConflictAnalysesRepo(db)
     course_repo = CourseRepo(db)
     time_slot_repo = TimeSlotRepo(db)
     room_repo = RoomRepo(db)
@@ -99,7 +99,7 @@ def get_schedule_service(db: Session = Depends(get_db)) -> ScheduleService:
         schedule_repo,
         run_repo,
         exam_assignment_repo,
-        conflict_repo,
+        conflict_analyses_repo,
         course_repo,
         time_slot_repo,
         room_repo,
@@ -120,3 +120,8 @@ def get_dataset_repo(db: Session = Depends(get_db)) -> DatasetRepo:
 def get_schedule_repo(db: Session = Depends(get_db)):
     """Dependency injection for ScheduleRepository."""
     return ScheduleRepo(db)
+
+
+def get_conflict_analyses_repo(db: Session = Depends(get_db)) -> ConflictAnalysesRepo:
+    """Dependency injection for ConflictAnalysesRepo."""
+    return ConflictAnalysesRepo(db)

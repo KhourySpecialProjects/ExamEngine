@@ -40,7 +40,8 @@ class CourseRepo(BaseRepo[Courses]):
         course_objs = []
         for _, row in courses_df.iterrows():
             course = Courses(
-                course_subject_code=row.get("course_ref", ""),
+                course_subject_code=str(row.get("CourseID", "")),
+                crn=str(row.get("CRN", "")),
                 enrollment_count=int(row.get("num_students", 0)),
                 dataset_id=dataset_id,
             )

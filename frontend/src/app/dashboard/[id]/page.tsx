@@ -39,8 +39,6 @@ export default function SchedulePage({ params }: { params: { id: string } }) {
   const router = useRouter();
 
   const { schedule } = useScheduleData();
-  const theme = useCalendarStore((s) => s.colorTheme);
-  const setTheme = useCalendarStore((s) => s.setColorTheme);
 
   const handleExport = async () => {
     if (!schedule) {
@@ -101,25 +99,6 @@ export default function SchedulePage({ params }: { params: { id: string } }) {
       <div className="flex items-center justify-between">
         <ViewTabSwitcher activeView={activeView} onViewChange={setActiveView} />
         <div className="flex items-center gap-3">
-          <Select onValueChange={(val) => setTheme(val)}>
-            <SelectTrigger size="default" className="min-w-30">
-              <SelectValue
-                placeholder={
-                  theme
-                    ? theme.charAt(0).toUpperCase() + theme.slice(1)
-                    : "Theme"
-                }
-              />
-            </SelectTrigger>
-            <SelectContent>
-              {THEME_KEYS.map((k) => (
-                <SelectItem key={k} value={k}>
-                  {k.charAt(0).toUpperCase() + k.slice(1)}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-
           <Button
             onClick={handleExport}
             className="bg-black text-white hover:opacity-90 min-w-50"

@@ -7,7 +7,8 @@
 	],
 	"scripts": {
 		"prepare": "husky",
-		"install:backend": "cd backend && pip install -r requirements.txt",
+		"install:backend": "cd backend && pip install -e \".[dev]\"",
+		"install:backend:prod": "cd backend && pip install .",
 		"install:all": "npm install && npm run install:backend",
 		"dev": "concurrently -n \"backend,frontend\" -c \"blue,green\" \"npm run dev:backend\" \"npm run dev:frontend\"",
 		"dev:backend": "cd backend && uvicorn src.main:app --reload --host 0.0.0.0 --port 8000",
@@ -20,11 +21,17 @@
 		"lint:frontend": "npm run lint --workspace=frontend",
 		"test": "npm run test:backend && npm run test:frontend",
 		"test:backend": "cd backend && pytest",
+		"test:backend:cov": "cd backend && pytest --cov=src --cov-report=html --cov-report=term",
 		"test:frontend": "npm run test --workspace=frontend",
 		"build": "npm run build --workspace=frontend",
+		"build:backend": "cd backend && pip install .",
 		"docker:up": "docker-compose up -d",
 		"docker:down": "docker-compose down",
-		"docker:logs": "docker-compose logs -f"
+		"docker:logs": "docker-compose logs -f",
+		"docker:rebuild": "docker-compose down && docker-compose build --no-cache && docker-compose up -d",
+		"clean": "npm run clean:backend && npm run clean:frontend",
+		"clean:backend": "cd backend && rm -rf .pytest_cache .coverage htmlcov **/__pycache__ **/*.pyc dist build *.egg-info",
+		"clean:frontend": "npm run clean --workspace=frontend"
 	},
 	"lint-staged": {
 		"backend/**/*.py": [

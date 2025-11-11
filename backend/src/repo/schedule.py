@@ -5,7 +5,6 @@ from sqlalchemy.orm import Session, joinedload
 
 from src.repo.base import BaseRepo
 from src.schemas.db import (
-    Conflicts,
     ExamAssignments,
     Runs,
     Schedules,
@@ -48,23 +47,19 @@ class ScheduleRepo(BaseRepo[Schedules]):
         stmt = (
             select(Schedules)
             .join(Runs)
-            .options(joinedload(Schedules.run_id))
+            .options(joinedload(Schedules.run))
             .where(Schedules.schedule_id == schedule_id, Runs.user_id == user_id)
         )
         return self.db.execute(stmt).scalars().first()
 
-    def get_all_for_user(
-        self, user_id: UUID, skip: int = 0, limit: int = 100
-    ) -> list[Schedules]:
+    def get_all_for_user(self, user_id: UUID) -> list[Schedules]:
         """Get all schedules for user with pagination."""
         stmt = (
             select(Schedules)
             .join(Runs)
-            .options(joinedload(Schedules.run_id))
+            .options(joinedload(Schedules.run))
             .where(Runs.user_id == user_id)
             .order_by(Schedules.created_at.desc())
-            .offset(skip)
-            .limit(limit)
         )
         return list(self.db.execute(stmt).scalars().unique().all())
 
@@ -109,20 +104,10 @@ class ScheduleRepo(BaseRepo[Schedules]):
 
     def get_exam_assignments_count(self, schedule_id: UUID) -> int:
         """Count exam assignments for a schedule."""
-        count = (
-            self.db.query(func.count(ExamAssignments.exam_assignment_id))
-            .filter(ExamAssignments.schedule_id == schedule_id)
-            .scalar()
+        stmt = select(func.count(ExamAssignments.exam_assignment_id)).where(
+            ExamAssignments.schedule_id == schedule_id
         )
-        return count or 0
-
-    def get_conflicts_count(self, schedule_id: UUID) -> int:
-        """Count conflicts for a schedule."""
-        count = (
-            self.db.query(func.count(Conflicts.conflict_id))
-            .filter(Conflicts.schedule_id == schedule_id)
-            .scalar()
-        )
+        count = self.db.execute(stmt).scalar()
         return count or 0
 
     def get_schedule_summary(self, schedule_id: UUID, user_id: UUID) -> dict | None:
@@ -136,14 +121,12 @@ class ScheduleRepo(BaseRepo[Schedules]):
             return None
 
         exam_count = self.get_exam_assignments_count(schedule_id)
-        conflict_count = self.get_conflicts_count(schedule_id)
 
         return {
             "schedule_id": str(schedule.schedule_id),
             "schedule_name": schedule.schedule_name,
             "created_at": schedule.created_at.isoformat(),
             "total_exams": exam_count,
-            "total_conflicts": conflict_count,
             "algorithm": schedule.run.algorithm_name,
             "parameters": schedule.run.parameters,
             "status": schedule.run.status.value,
@@ -167,10 +150,6 @@ class ScheduleRepo(BaseRepo[Schedules]):
         self.db.query(ExamAssignments).filter(
             ExamAssignments.schedule_id == schedule_id
         ).delete(synchronize_session=False)
-
-        self.db.query(Conflicts).filter(Conflicts.schedule_id == schedule_id).delete(
-            synchronize_session=False
-        )
 
         self.db.delete(schedule)
 

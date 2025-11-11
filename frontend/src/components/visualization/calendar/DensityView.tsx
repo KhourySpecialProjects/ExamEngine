@@ -1,10 +1,17 @@
 import { useMemo } from "react";
 import { EmptyScheduleState } from "@/components/common/EmptyScheduleState";
-import { colorThemes } from "@/lib/constants/colorThemes";
+import { colorThemes, THEME_KEYS } from "@/lib/constants/colorThemes";
 import { useScheduleData } from "@/lib/hooks/useScheduleData";
 import { useCalendarStore } from "@/lib/store/calendarStore";
 import { getReadableTextColorFromBg } from "@/lib/utils";
 import { CalendarGrid } from "./CalendarGrid";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 
 const DAYS = [
   "Monday",
@@ -65,6 +72,7 @@ export default function DensityView() {
   const { hasData, isLoading, calendarRows } = useScheduleData();
   const selectCell = useCalendarStore((state) => state.selectCell);
   const theme = useCalendarStore((s) => s.colorTheme || "gray");
+  const setTheme = useCalendarStore((s) => s.setColorTheme);
   const thresholds = useMemo(() => {
     const counts = calendarRows.flatMap((row) =>
       row.days.map((d) => d.examCount),
@@ -76,6 +84,20 @@ export default function DensityView() {
 
   return (
     <div className="space-y-4">
+      <div className="flex justify-end">
+        <Select onValueChange={(val) => setTheme(val)}>
+          <SelectTrigger size="default" className="min-w-30 ">
+            <SelectValue placeholder={"Choose a Theme"} />
+          </SelectTrigger>
+          <SelectContent>
+            {THEME_KEYS.map((k) => (
+              <SelectItem key={k} value={k}>
+                Theme: {k.charAt(0).toUpperCase() + k.slice(1)}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </div>
       {/* Calendar Grid */}
       <CalendarGrid
         data={calendarRows}

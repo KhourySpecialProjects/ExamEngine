@@ -17,6 +17,7 @@ async def generate_schedule_from_dataset(
     max_per_day: int = 3,
     avoid_back_to_back: bool = True,
     max_days: int = 7,
+    prioritize_large_courses: bool = False,
     current_user: Users = Depends(get_current_user),
     schedule_service: ScheduleService = Depends(get_schedule_service),
 ):
@@ -34,6 +35,7 @@ async def generate_schedule_from_dataset(
             max_per_day,
             avoid_back_to_back,
             max_days,
+            prioritize_large_courses,
         )
         return result
     except Exception as e:

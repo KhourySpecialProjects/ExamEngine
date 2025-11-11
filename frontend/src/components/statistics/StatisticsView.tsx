@@ -10,8 +10,6 @@ import {
   XAxis,
   YAxis,
   CartesianGrid,
-  Tooltip,
-  Legend,
   ResponsiveContainer,
 } from "recharts";
 import {
@@ -31,6 +29,11 @@ import {
   TrendingUp,
   Clock,
 } from "lucide-react";
+import {
+  ChartContainer,
+  ChartTooltip,
+  type ChartConfig,
+} from "@/components/ui/chart";
 
 const COLORS = {
   primary: "#3b82f6",
@@ -234,6 +237,20 @@ export function StatisticsView() {
     );
   }
 
+  const dayChartConfig: ChartConfig = {
+    exams: {
+      label: "Exams",
+      color: "hsl(var(--chart-1))",
+    },
+  };
+
+  const blockChartConfig: ChartConfig = {
+    exams: {
+      label: "Exams",
+      color: "hsl(var(--chart-2))",
+    },
+  };
+
   return (
     <div className="space-y-6">
       {/* Overview Cards */}
@@ -316,20 +333,27 @@ export function StatisticsView() {
             </CardDescription>
           </CardHeader>
           <CardContent>
-            <ResponsiveContainer width="100%" height={300}>
+            <ChartContainer config={dayChartConfig} className="h-[300px]">
               <BarChart data={stats.dayData}>
-                <CartesianGrid strokeDasharray="3 3" />
+                <CartesianGrid vertical={false} strokeDasharray="4 4" />
                 <XAxis
                   dataKey="name"
                   angle={-45}
                   textAnchor="end"
                   height={80}
+                  tickLine={false}
+                  axisLine={false}
+                  tickMargin={12}
                 />
-                <YAxis />
-                <Tooltip />
-                <Bar dataKey="exams" fill={COLORS.primary} />
+                <YAxis tickLine={false} axisLine={false} tickMargin={8} />
+                <ChartTooltip />
+                <Bar
+                  dataKey="exams"
+                  fill="var(--color-exams)"
+                  radius={[6, 6, 0, 0]}
+                />
               </BarChart>
-            </ResponsiveContainer>
+            </ChartContainer>
           </CardContent>
         </Card>
 
@@ -381,21 +405,14 @@ export function StatisticsView() {
                       />
                     ))}
                   </Pie>
-                  <Tooltip
-                    formatter={(value: number, name: string, props: any) => {
-                      // Show full name in tooltip
-                      const fullName = props.payload?.name || name;
+                  <ChartTooltip
+                    formatter={(value: number, _name: string, props: any) => {
+                      const fullName = props.payload?.name || "";
                       return [
                         `${value.toLocaleString()} student${value !== 1 ? "s" : ""}`,
                         fullName,
                       ];
                     }}
-                  />
-                  <Legend
-                    formatter={(value: string) => {
-                      return value;
-                    }}
-                    wrapperStyle={{ paddingTop: "20px" }}
                   />
                 </PieChart>
               </ResponsiveContainer>
@@ -418,20 +435,27 @@ export function StatisticsView() {
             </CardDescription>
           </CardHeader>
           <CardContent>
-            <ResponsiveContainer width="100%" height={300}>
+            <ChartContainer config={blockChartConfig} className="h-[300px]">
               <BarChart data={stats.blockData}>
-                <CartesianGrid strokeDasharray="3 3" />
+                <CartesianGrid vertical={false} strokeDasharray="4 4" />
                 <XAxis
                   dataKey="name"
                   angle={-45}
                   textAnchor="end"
                   height={100}
+                  tickLine={false}
+                  axisLine={false}
+                  tickMargin={12}
                 />
-                <YAxis />
-                <Tooltip />
-                <Bar dataKey="exams" fill={COLORS.info} />
+                <YAxis tickLine={false} axisLine={false} tickMargin={8} />
+                <ChartTooltip />
+                <Bar
+                  dataKey="exams"
+                  fill="var(--color-exams)"
+                  radius={[6, 6, 0, 0]}
+                />
               </BarChart>
-            </ResponsiveContainer>
+            </ChartContainer>
           </CardContent>
         </Card>
       )}

@@ -34,6 +34,7 @@ export const useScheduleStore = create<ScheduleState>((set, get) => ({
     instructor_per_day: 2,
     avoid_back_to_back: true,
     max_days: 7,
+    prioritize_large_courses: false,
   },
 
   generateSchedule: async (datasetId: string) => {

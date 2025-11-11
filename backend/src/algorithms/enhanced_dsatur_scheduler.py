@@ -353,89 +353,101 @@ class DSATURExamGraph:
         )
 
     # ---------- scheduling ----------
-    def dsatur_schedule(self, max_days: int = 7):
+    def dsatur_schedule(
+        self, max_days: int = 7, prioritize_large_courses: bool = False
+    ):
         if not self.colors:
             raise RuntimeError("Run dsatur_color() before dsatur_schedule().")
 
         # Persist allowed slots and use them everywhere
         self.max_days = int(max_days)
         self.usable_blocks = [(d, b) for d in range(self.max_days) for b in range(5)]
+        self.prioritize_large_courses = prioritize_large_courses
 
-        # group by color; place larger first within color
-        color_to_crns = defaultdict(list)
-        for crn, c in self.colors.items():
-            color_to_crns[c].append(crn)
-        for c in color_to_crns:
-            color_to_crns[c].sort(
-                key=lambda x: int(self.G.nodes[x].get("size", 0) or 0), reverse=True
+        if prioritize_large_courses:
+            ordered_crns = sorted(
+                self.colors.keys(),
+                key=lambda crn: int(self.G.nodes[crn].get("size", 0) or 0),
+                reverse=True,
             )
+        else:
+            # group by color; place larger first within color
+            color_to_crns = defaultdict(list)
+            for crn, c in self.colors.items():
+                color_to_crns[c].append(crn)
+            for c in color_to_crns:
+                color_to_crns[c].sort(
+                    key=lambda x: int(self.G.nodes[x].get("size", 0) or 0), reverse=True
+                )
 
-        # order colors by total seats
-        ordered_colors = sorted(
-            color_to_crns.keys(),
-            key=lambda c: sum(
-                int(self.G.nodes[x].get("size", 0) or 0) for x in color_to_crns[c]
-            ),
-            reverse=True,
-        )
+            # order colors by total seats
+            ordered_colors = sorted(
+                color_to_crns.keys(),
+                key=lambda c: sum(
+                    int(self.G.nodes[x].get("size", 0) or 0) for x in color_to_crns[c]
+                ),
+                reverse=True,
+            )
+            ordered_crns = []
+            for color in ordered_colors:
+                ordered_crns.extend(color_to_crns[color])
 
         # live occupancy for checks
         student_sched = defaultdict(list)  # sid -> [(day, block)]
         instr_sched = defaultdict(list)  # name -> [(day, block)]
 
-        for color in ordered_colors:
-            for crn in color_to_crns[color]:
-                candidates = []
+        for crn in ordered_crns:
+            candidates = []
 
-                # Evaluate all slots - always place, but track conflicts
-                for day, block in self.usable_blocks:
-                    # Check for conflicts (but don't block)
-                    conflicts = self._check_conflicts(
-                        student_sched, instr_sched, crn, day, block
-                    )
-
-                    # Calculate soft penalty tuple
-                    soft_tuple = self._soft_tuple(
-                        student_sched, instr_sched, crn, day, block
-                    )
-
-                    # Add to candidates - prioritize conflict avoidance heavily
-                    # Conflicts should be the PRIMARY concern, not just a tie-breaker
-                    conflict_count = len(conflicts)
-
-                    # Create tuple with conflict_count as HIGH PRIORITY (first element)
-                    # This ensures slots with fewer conflicts are always preferred
-                    # Format: (conflict_count, large_late*wL, b2b_students*wS, b2b_instr*wI, instr_load, seat_load, exam_ct, day, block)
-                    candidates.append(
-                        (
-                            (conflict_count,)
-                            + soft_tuple,  # Conflicts first for high priority
-                            day,
-                            block,
-                            conflicts,  # Store conflicts for this slot
-                        )
-                    )
-
-                # Always choose best slot (even if it has conflicts)
-                # Conflicts are now the primary factor, then soft preferences
-                _, day, block, slot_conflicts = min(candidates, key=lambda x: x[0])
-
-                # Track conflicts for this placement
-                self.conflicts.extend(slot_conflicts)
-
-                # commit - always place the exam
-                self.assignment[crn] = (day, block)
-                self.slot_to_crns[(day, block)].append(crn)  # Track CRNs at each slot
-                for sid in self.students_by_crn.get(crn, ()):
-                    student_sched[sid].append((day, block))
-                for instr in self.instructors_by_crn.get(crn, ()):
-                    instr_sched[instr].append((day, block))
-                    # Track instructor assignments persistently
-                    self.instructor_sched[instr].append((day, block))
-                self.block_exam_count[(day, block)] += 1
-                self.block_seat_load[(day, block)] += int(
-                    self.G.nodes[crn].get("size", 0) or 0
+            # Evaluate all slots - always place, but track conflicts
+            for day, block in self.usable_blocks:
+                # Check for conflicts (but don't block)
+                conflicts = self._check_conflicts(
+                    student_sched, instr_sched, crn, day, block
                 )
+
+                # Calculate soft penalty tuple
+                soft_tuple = self._soft_tuple(
+                    student_sched, instr_sched, crn, day, block
+                )
+
+                # Add to candidates - prioritize conflict avoidance heavily
+                # Conflicts should be the PRIMARY concern, not just a tie-breaker
+                conflict_count = len(conflicts)
+
+                # Create tuple with conflict_count as HIGH PRIORITY (first element)
+                # This ensures slots with fewer conflicts are always preferred
+                # Format: (conflict_count, large_late*wL, b2b_students*wS, b2b_instr*wI, instr_load, seat_load, exam_ct, day, block)
+                candidates.append(
+                    (
+                        (conflict_count,)
+                        + soft_tuple,  # Conflicts first for high priority
+                        day,
+                        block,
+                        conflicts,  # Store conflicts for this slot
+                    )
+                )
+
+            # Always choose best slot (even if it has conflicts)
+            # Conflicts are now the primary factor, then soft preferences
+            _, day, block, slot_conflicts = min(candidates, key=lambda x: x[0])
+
+            # Track conflicts for this placement
+            self.conflicts.extend(slot_conflicts)
+
+            # commit - always place the exam
+            self.assignment[crn] = (day, block)
+            self.slot_to_crns[(day, block)].append(crn)  # Track CRNs at each slot
+            for sid in self.students_by_crn.get(crn, ()):
+                student_sched[sid].append((day, block))
+            for instr in self.instructors_by_crn.get(crn, ()):
+                instr_sched[instr].append((day, block))
+                # Track instructor assignments persistently
+                self.instructor_sched[instr].append((day, block))
+            self.block_exam_count[(day, block)] += 1
+            self.block_seat_load[(day, block)] += int(
+                self.G.nodes[crn].get("size", 0) or 0
+            )
 
         # sanity guard: all within allowed days
         self._check_allowed_slots()

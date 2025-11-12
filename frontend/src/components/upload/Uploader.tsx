@@ -23,6 +23,7 @@ import { Label } from "@/components/ui/label";
 import { useUploadStore } from "@/lib/store/uploadStore";
 import type { FileSlot } from "@/lib/types/upload.types";
 import { UploaderSlot } from "./UploaderSlot";
+import { useDatasetStore } from "@/lib/store/datasetStore";
 
 export function Uploader() {
   const slots = useUploadStore((state) => state.slots);
@@ -31,6 +32,7 @@ export function Uploader() {
   const hasFiles = useUploadStore((state) => state.hasFiles());
   const allFilesUploaded = useUploadStore((state) => state.allFilesUploaded());
   const hasErrors = useUploadStore((state) => state.hasErrors());
+  const selectDataset = useDatasetStore((state) => state.selectDataset);
 
   const setFile = useUploadStore((state) => state.setFile);
   const setDatasetName = useUploadStore((state) => state.setDatasetName);
@@ -64,6 +66,7 @@ export function Uploader() {
         id: uploadToast,
         description: `${result.dataset_name} uploaded with ${result.files.courses.rows} courses`,
       });
+      selectDataset(result.dataset_id);
     } catch (error) {
       const errorMessage =
         error instanceof Error ? error.message : "Upload failed";

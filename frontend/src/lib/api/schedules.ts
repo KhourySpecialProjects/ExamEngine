@@ -89,6 +89,17 @@ export interface ScheduleResult {
   parameters: ScheduleParameters;
 }
 
+export interface ScheduleListItem {
+  schedule_id: string;
+  schedule_name: string;
+  created_at: string;
+  algorithm: string;
+  parameters: ScheduleParameters;
+  status: "Running" | "Completed" | "Failed";
+  dataset_id: string;
+  total_exams: number;
+}
+
 export class SchedulesAPI extends BaseAPI {
   async generate(
     dataset_id: string,
@@ -128,5 +139,10 @@ export class SchedulesAPI extends BaseAPI {
         method: "POST",
       },
     );
+  }
+  async list(): Promise<ScheduleListItem[]> {
+    return this.request("/schedule", {
+      method: "GET",
+    });
   }
 }

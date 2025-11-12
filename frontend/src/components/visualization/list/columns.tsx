@@ -1,19 +1,11 @@
-import {
-  type Column,
-  type ColumnDef,
-  createColumnHelper,
-} from "@tanstack/react-table";
-import { AlertCircle, ArrowUpDown } from "lucide-react";
+import { type ColumnDef, createColumnHelper } from "@tanstack/react-table";
+import { AlertCircle } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
+import { SortableHeader } from "@/components/common/table/SortableHeader";
 import type { Exam } from "@/lib/store/calendarStore";
 
 const columnHelper = createColumnHelper<Exam>();
 
-/**
- * Cell Components - Extracted for performance
- * These are reusable components
- */
 const CourseCell = ({
   courseCode,
   section,
@@ -40,58 +32,31 @@ const ConflictCell = ({ conflicts }: { conflicts: number }) => (
   </div>
 );
 
-const SortableHeader = ({
-  label,
-  column,
-}: {
-  label: string;
-  column: Column<Exam, unknown>;
-}) => (
-  <Button
-    variant="ghost"
-    size="sm"
-    onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
-    className="-ml-3"
-  >
-    {label}
-    <ArrowUpDown className="ml-2 size-4" />
-  </Button>
-);
-
-/**
- * Creates column definitions for the exam table
- */
-
-// biome-ignore lint/suspicious/noExplicitAny: cannot support string and number
 export function createExamColumns(): ColumnDef<Exam, any>[] {
   return [
     columnHelper.accessor("courseCode", {
       id: "courseCode",
-      header: ({ column }) => <SortableHeader label="Course" column={column} />,
+      header: ({ column }) => <SortableHeader column={column} label="Course" />,
       cell: (info) => (
         <CourseCell
           courseCode={info.getValue()}
           section={info.row.original.section}
         />
       ),
-      filterFn: (row, id, value) => {
-        const cellValue = row.getValue(id) as string;
-        return cellValue.toLowerCase().includes(value.toLowerCase());
-      },
     }),
     columnHelper.accessor("day", {
       id: "day",
-      header: ({ column }) => <SortableHeader label="Day" column={column} />,
+      header: ({ column }) => <SortableHeader column={column} label="Day" />,
       cell: (info) => <div className="text-sm">{info.getValue()}</div>,
     }),
     columnHelper.accessor("timeSlot", {
       id: "timeSlot",
-      header: ({ column }) => <SortableHeader label="Time" column={column} />,
+      header: ({ column }) => <SortableHeader column={column} label="Time" />,
       cell: (info) => <div className="text-sm">{info.getValue()}</div>,
     }),
     columnHelper.accessor("room", {
       id: "room",
-      header: ({ column }) => <SortableHeader label="Room" column={column} />,
+      header: ({ column }) => <SortableHeader column={column} label="Room" />,
       cell: (info) => (
         <div className="text-sm font-mono">{info.getValue()}</div>
       ),
@@ -99,7 +64,7 @@ export function createExamColumns(): ColumnDef<Exam, any>[] {
     columnHelper.accessor("instructor", {
       id: "instructor",
       header: ({ column }) => (
-        <SortableHeader label="Instructor" column={column} />
+        <SortableHeader column={column} label="Instructor" />
       ),
       cell: (info) => (
         <div className="text-sm max-w-[200px] truncate" title={info.getValue()}>
@@ -110,17 +75,7 @@ export function createExamColumns(): ColumnDef<Exam, any>[] {
     columnHelper.accessor("studentCount", {
       id: "studentCount",
       header: ({ column }) => (
-        <div className="text-right">
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
-            className="-mr-3"
-          >
-            Students
-            <ArrowUpDown className="ml-2 size-4" />
-          </Button>
-        </div>
+        <SortableHeader column={column} label="Students" />
       ),
       cell: (info) => (
         <div className="text-sm text-right font-medium">{info.getValue()}</div>
@@ -129,9 +84,7 @@ export function createExamColumns(): ColumnDef<Exam, any>[] {
     columnHelper.accessor("conflicts", {
       id: "conflicts",
       header: ({ column }) => (
-        <div className="text-center">
-          <SortableHeader label="Conflicts" column={column} />
-        </div>
+        <SortableHeader column={column} label="Conflicts" />
       ),
       cell: (info) => <ConflictCell conflicts={info.getValue()} />,
     }),

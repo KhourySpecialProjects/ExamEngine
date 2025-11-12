@@ -89,6 +89,17 @@ export interface ScheduleResult {
   parameters: ScheduleParameters;
 }
 
+export interface ScheduleListItem {
+  schedule_id: string;
+  schedule_name: string;
+  created_at: string;
+  algorithm: string;
+  parameters: ScheduleParameters;
+  status: "Running" | "Completed" | "Failed";
+  dataset_id: string;
+  total_exams: number;
+}
+
 export class SchedulesAPI extends BaseAPI {
   async generate(
     dataset_id: string,
@@ -113,12 +124,6 @@ export class SchedulesAPI extends BaseAPI {
         parameters.instructor_max_per_day.toString(),
       );
     }
-    if (parameters.instructor_per_day !== undefined) {
-      queryParams.append(
-        "instructor_per_day",
-        parameters.instructor_per_day.toString(),
-      );
-    }
     if (parameters.avoid_back_to_back !== undefined) {
       queryParams.append(
         "avoid_back_to_back",
@@ -134,5 +139,10 @@ export class SchedulesAPI extends BaseAPI {
         method: "POST",
       },
     );
+  }
+  async list(): Promise<ScheduleListItem[]> {
+    return this.request("/schedule", {
+      method: "GET",
+    });
   }
 }

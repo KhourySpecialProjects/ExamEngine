@@ -1,15 +1,19 @@
 import type { Table } from "@tanstack/react-table";
 import { Button } from "@/components/ui/button";
-import type { Exam } from "@/lib/store/calendarStore";
 
-interface TablePaginationProps {
-  table: Table<Exam>;
+interface DataTablePaginationProps<TData> {
+  table: Table<TData>;
+  itemName?: string;
 }
 
 /**
- * TablePagination - Pagination controls with row counts
+ * Generic reusable table pagination component
+ * Shows row counts and page navigation
  */
-export function TablePagination({ table }: TablePaginationProps) {
+export function DataTablePagination<TData>({
+  table,
+  itemName = "items",
+}: DataTablePaginationProps<TData>) {
   const { pageIndex, pageSize } = table.getState().pagination;
   const totalRows = table.getFilteredRowModel().rows.length;
   const startRow = pageIndex * pageSize + 1;
@@ -20,7 +24,8 @@ export function TablePagination({ table }: TablePaginationProps) {
       <div className="text-sm text-muted-foreground">
         Showing <span className="font-medium text-foreground">{startRow}</span>{" "}
         to <span className="font-medium text-foreground">{endRow}</span> of{" "}
-        <span className="font-medium text-foreground">{totalRows}</span> exams
+        <span className="font-medium text-foreground">{totalRows}</span>{" "}
+        {itemName}
       </div>
       <div className="flex items-center gap-2">
         <Button

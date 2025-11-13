@@ -150,7 +150,6 @@ export default function ConflictView({
 
     for (const c of bd as any[]) {
       const type = c.conflict_type ?? c.violation ?? "unknown";
-      const count = typeof c.count === "number" ? c.count : 1;
 
       if (type === "student_double_book") {
         init.hard_student_conflicts += (typeof c.student_conflicts === "number" ? c.student_conflicts : (typeof c.count === "number" ? c.count : 1));

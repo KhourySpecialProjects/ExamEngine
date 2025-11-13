@@ -2,7 +2,7 @@ import { type ClassValue, clsx } from "clsx";
 import { twMerge } from "tailwind-merge";
 import type { CalendarRow } from "@/lib/store/calendarStore";
 import type { CalendarExam, ScheduleResult } from "./api/schedules";
-import { useScheduleStore } from "@/lib/store/scheduleStore";
+// note: do not call hooks at module scope; provide pure mapping helpers instead
 import type { conflictMap } from "./types/conflict.types";
 
 export function cn(...inputs: ClassValue[]) {
@@ -11,20 +11,10 @@ export function cn(...inputs: ClassValue[]) {
 
 
 
-export const conflictMapper = (): conflictMap[] => {
-  const { currentSchedule } = useScheduleStore();
-
-  const conflicts = currentSchedule?.conflicts.breakdown
-  
-  const conflictMap: conflictMap[] = (conflicts ?? []).map((conflict) => ({
-    conflictType: conflict.conflict_type,
-    backToBack: conflict.conflict_type ? "back_to_back" : false,
-    instructorConflicts: conflict.conflict_type
-   
-  }));
-
-  return conflictMap;
-}
+export const conflictMapper = (breakdown: any[] = []): conflictMap[] => {
+  // Thin wrapper to reuse the more robust mapping implementation below
+  return mapConflictsToConflictMap(breakdown ?? []);
+};
 
 
 
@@ -399,7 +389,7 @@ export function wrapSampleDataAsScheduleResult(
       max_days: 7,
     },
   } as any;
-  };
+}
 
 export const getTimeAgo = (dateString: string) => {
   const date = new Date(dateString);

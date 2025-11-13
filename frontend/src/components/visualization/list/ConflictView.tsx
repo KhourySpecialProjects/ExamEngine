@@ -320,7 +320,7 @@ export default function ConflictView({
     const crnVal = rawCrn ?? (exam ? String(exam.crn ?? exam.CRN ?? exam.id) : null);
     const courseVal = conf.course ?? conf.conflicting_course ?? (exam ? (exam.course_name ?? exam.course ?? exam.title) : null) ?? (Array.isArray(conf.conflicting_courses) ? conf.conflicting_courses[0] : null);
 
-  const sizeVal = exam ? (exam.enrollment ?? exam.size ?? exam.students_count ?? null) : null;
+  const sizeVal = exam?.enrollment ?? exam?.size ?? exam?.students_count ?? null;
 
     const entityVal = conf.student_id ? `S:${conf.student_id}` : conf.instructor_id ? `I:${conf.instructor_id}` : conf.entity_id ?? null;
 

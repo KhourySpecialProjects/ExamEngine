@@ -131,8 +131,6 @@ export function mapConflictsToRows(allExams: any[] = [], breakdown: any[] = []) 
     };
     addFromList(otherCourses);
     addFromList(otherCrns);
-
-    // dedupe
     const uniq = Array.from(new Set(matched));
 
     // back-to-back rows

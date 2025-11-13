@@ -1,18 +1,19 @@
 "use client";
 
-import { AlertTriangle, Info } from "lucide-react";
+// header icon removed
 import { useState } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { useExamTable } from "@/lib/hooks/useExamTable";
 import { useScheduleStore } from "@/lib/store/scheduleStore";
-import { mapConflictsToConflictMap, mapConflictsToRows } from "@/lib/utils";
+import { mapConflictsToRows } from "@/lib/utils";
 
 type ConflictMetrics = {
   hard_student_conflicts: number;
   hard_instructor_conflicts: number;
   students_back_to_back: number;
+  instructors_back_to_back: number;
   large_courses_not_early: number;
   student_gt3_per_day: number;
 };
@@ -52,16 +53,11 @@ function ConflictStat({
     <Card className="shadow-none">
       <CardHeader className="flex items-center justify-between gap-2 p-3">
         <div className="flex items-center gap-2">
-          <div className="text-sm font-medium">{label}</div>
-          {description ? (
-            <span title={description} className="text-muted-foreground">
-              <Info className="h-4 w-4" />
-            </span>
-          ) : null}
+          <div className="text-sm md:text-base font-medium">{label}</div>
         </div>
 
-        <Badge variant={variant as any}>
-          {value == null ? "—" : formatNumber(value)}
+        <Badge variant={variant as any} className="px-2 py-1">
+          <span className="text-base md:text-lg font-semibold">{value == null ? "—" : formatNumber(value)}</span>
         </Badge>
       </CardHeader>
       <CardContent className="p-0" />
@@ -76,6 +72,7 @@ function computeAggregatesFromExams(
     hard_student_conflicts: 0,
     hard_instructor_conflicts: 0,
     students_back_to_back: 0,
+    instructors_back_to_back: 0,
     large_courses_not_early: 0,
     student_gt3_per_day: 0,
   };
@@ -99,6 +96,12 @@ function computeAggregatesFromExams(
       init.students_back_to_back += exam.students_back_to_back;
     } else if (exam.students_back_to_back) {
       init.students_back_to_back += 1;
+    }
+
+    if (typeof exam.instructors_back_to_back === "number") {
+      init.instructors_back_to_back += exam.instructors_back_to_back;
+    } else if (exam.instructors_back_to_back || exam.back_to_back_instructor) {
+      init.instructors_back_to_back += 1;
     }
 
     if (typeof exam.large_courses_not_early === "number") {
@@ -126,28 +129,55 @@ export default function ConflictView({
   const derived = computeAggregatesFromExams(allExams ?? []);
   const currentSchedule = useScheduleStore((s) => s.currentSchedule);
   const breakdown = currentSchedule?.conflicts?.breakdown ?? [];
-  const mapped = mapConflictsToConflictMap(breakdown);
-
-  // Aggregate mapped conflict values into the same shape as ConflictMetrics
-  const mappedTotals: ConflictMetrics = mapped.reduce(
-    (acc, m) => {
-      acc.hard_student_conflicts += typeof m.studentConflicts === "number" ? m.studentConflicts : 0;
-      acc.hard_instructor_conflicts += typeof m.instructorConflicts === "number" ? m.instructorConflicts : 0;
-      // For back-to-back, prefer a numeric count if available, otherwise count the occurrence
-      acc.students_back_to_back += m.backToBack ? (typeof m.studentConflicts === "number" && m.studentConflicts > 0 ? m.studentConflicts : 1) : 0;
-      // large_courses_not_early is not provided by the conflictMap; keep derived value
-      acc.large_courses_not_early += 0;
-      acc.student_gt3_per_day += m.overMaxExams ? 1 : 0;
-      return acc;
-    },
-    {
+  // Compute totals directly from backend breakdown for more accurate summary
+  function computeTotalsFromBreakdown(bd: any[] | undefined): ConflictMetrics {
+    const init: ConflictMetrics = {
       hard_student_conflicts: 0,
       hard_instructor_conflicts: 0,
       students_back_to_back: 0,
+      instructors_back_to_back: 0,
       large_courses_not_early: 0,
       student_gt3_per_day: 0,
-    } as ConflictMetrics,
-  );
+    };
+    if (!Array.isArray(bd) || bd.length === 0) return init;
+
+    const BACK_TO_BACK_GENERIC = new Set(["back_to_back"]);
+    const BACK_TO_BACK_STUDENT = new Set(["back_to_back_student"]);
+    const BACK_TO_BACK_INSTRUCTOR = new Set(["back_to_back_instructor"]);
+
+    for (const c of bd as any[]) {
+      const type = c.conflict_type ?? c.violation ?? "unknown";
+      const count = typeof c.count === "number" ? c.count : 1;
+
+      if (type === "student_double_book") {
+        init.hard_student_conflicts += (typeof c.student_conflicts === "number" ? c.student_conflicts : (typeof c.count === "number" ? c.count : 1));
+      }
+      if (type === "instructor_double_book") {
+        init.hard_instructor_conflicts += (typeof c.instructor_conflicts === "number" ? c.instructor_conflicts : (typeof c.count === "number" ? c.count : 1));
+      }
+
+      // Back-to-back handling: prefer explicit student/instructor counts when available
+      if (BACK_TO_BACK_GENERIC.has(type) || BACK_TO_BACK_STUDENT.has(type) || BACK_TO_BACK_INSTRUCTOR.has(type)) {
+        const studentCount = typeof c.student_conflicts === "number" ? c.student_conflicts : (BACK_TO_BACK_STUDENT.has(type) || BACK_TO_BACK_GENERIC.has(type) ? (typeof c.count === "number" ? c.count : 1) : 0);
+        const instructorCount = typeof c.instructor_conflicts === "number" ? c.instructor_conflicts : (BACK_TO_BACK_INSTRUCTOR.has(type) || BACK_TO_BACK_GENERIC.has(type) ? (typeof c.count === "number" ? c.count : 0) : 0);
+
+        init.students_back_to_back += studentCount;
+        init.instructors_back_to_back += instructorCount;
+      }
+
+      if (type === "large_course_not_early" || c.large_courses_not_early) {
+        init.large_courses_not_early += 1;
+      }
+
+      if (["student_gt_max_per_day", "student_gt3_per_day", "student_gt_max"].includes(type)) {
+        init.student_gt3_per_day += (typeof c.student_conflicts === "number" ? c.student_conflicts : (typeof c.count === "number" ? c.count : 1));
+      }
+    }
+
+    return init;
+  }
+
+  const mappedTotals: ConflictMetrics = computeTotalsFromBreakdown(breakdown);
 
   const merged: ConflictMetrics = {
     hard_student_conflicts:
@@ -156,19 +186,17 @@ export default function ConflictView({
       metrics?.hard_instructor_conflicts ?? (mappedTotals.hard_instructor_conflicts > 0 ? mappedTotals.hard_instructor_conflicts : derived.hard_instructor_conflicts),
     students_back_to_back:
       metrics?.students_back_to_back ?? (mappedTotals.students_back_to_back > 0 ? mappedTotals.students_back_to_back : derived.students_back_to_back),
+    instructors_back_to_back:
+      metrics?.instructors_back_to_back ?? (mappedTotals.instructors_back_to_back > 0 ? mappedTotals.instructors_back_to_back : derived.instructors_back_to_back),
     large_courses_not_early:
       metrics?.large_courses_not_early ?? derived.large_courses_not_early,
     student_gt3_per_day:
       metrics?.student_gt3_per_day ?? (mappedTotals.student_gt3_per_day > 0 ? mappedTotals.student_gt3_per_day : derived.student_gt3_per_day),
   };
   // --- Tabbed table views per file comment ---
-  const tabs = [
-    { id: "back-to-back", label: "Students back-to-back" },
-    { id: "large-not-early", label: "Large courses not early" },
-    { id: "not-scheduled", label: "Courses not scheduled" },
-  ];
+  // tabs will be built dynamically from backend conflict types later
 
-  const [activeTab, setActiveTab] = useState<string>(tabs[0].id);
+  // activeTab will be initialized after we compute effectiveTabs
 
   // Map exams -> rows for each table. If there's no useful data, return small fake datasets
   function buildRows() {
@@ -184,12 +212,6 @@ export default function ConflictView({
       size: number | string;
       day?: string;
       block?: string;
-    }> = [];
-    const notScheduledRows: Array<{
-      crn: string;
-      course: string;
-      size: number | string;
-      reason: string;
     }> = [];
 
     if (Array.isArray(allExams) && allExams.length > 0) {
@@ -221,132 +243,161 @@ export default function ConflictView({
           });
         }
 
-        // not scheduled: look for common flags
-        if (
-          e.scheduled === false ||
-          e.not_scheduled ||
-          e.unscheduled_reason ||
-          e.status === "unscheduled"
-        ) {
-          notScheduledRows.push({
-            crn: String(crn),
-            course: String(course),
-            size: Number.isFinite(Number(size)) ? Number(size) : size,
-            reason: e.unscheduled_reason ?? "No slot available",
-          });
-        }
+        // algorithm schedules all classes; skip unscheduled handling
       }
     }
 
-    // Provide small fake rows if none were discovered (helps local visual testing)
-    if (backRows.length === 0) {
-      // Students with Back-to-Back Exams
-      backRows.push({ student: "1995272", day: "Fri", blocks: [1, 2] });
-      backRows.push({ student: "2141168", day: "Fri", blocks: [3, 4] });
-      backRows.push({ student: "2158852", day: "Fri", blocks: [0, 1] });
-    }
+    // No fake rows — if no data is present, tables will simply show empty state.
 
-    if (largeRows.length === 0) {
-      // Large Courses NOT Scheduled Early (Thu–Sun)
-      largeRows.push({
-        crn: "10284",
-        course: "CS1800",
-        size: 245,
-        day: "Thu",
-        block: "4 (7:00–9:00)",
-      });
-      largeRows.push({
-        crn: "12227",
-        course: "BIOL2217",
-        size: 157,
-        day: "Sun",
-        block: "1 (11:30–1:30)",
-      });
-      largeRows.push({
-        crn: "13326",
-        course: "PSYC4510",
-        size: 151,
-        day: "Thu",
-        block: "3 (4:30–6:30)",
-      });
-    }
-
-    if (notScheduledRows.length === 0) {
-      // Unassigned Courses
-      notScheduledRows.push({
-        crn: "18421",
-        course: "CS3100",
-        size: 160,
-        reason: "student_double_book: 34, instructor_double_book: 1",
-      });
-      notScheduledRows.push({
-        crn: "14982",
-        course: "CHEM2313",
-        size: 149,
-        reason: "student_double_book: 35",
-      });
-    }
-
-    return { backRows, largeRows, notScheduledRows };
+    return { backRows, largeRows };
   }
 
-  const { backRows, largeRows, notScheduledRows } = buildRows();
+  const { backRows, largeRows } = buildRows();
 
   // Prefer rows built from backend conflicts when available
   const mappedRows = mapConflictsToRows(allExams ?? [], breakdown ?? []);
   const displayBackRows = (mappedRows.backRows && mappedRows.backRows.length > 0) ? mappedRows.backRows : backRows;
   const displayLargeRows = (mappedRows.largeRows && mappedRows.largeRows.length > 0) ? mappedRows.largeRows : largeRows;
-  const displayNotScheduledRows = (mappedRows.notScheduledRows && mappedRows.notScheduledRows.length > 0) ? mappedRows.notScheduledRows : notScheduledRows;
+  // Build rows per conflict type from backend breakdown (dynamic tabs)
+  const conflictTypeMap: Record<string, string> = {
+    student_double_book: "Student Double-Book",
+    student_gt_max_per_day: "Student Per-Day Limit",
+    student_gt3_per_day: "Student >3/day",
+    instructor_double_book: "Instructor Double-Book",
+    back_to_back: "Back-to-Back",
+    back_to_back_student: "Back-to-Back (Students)",
+    back_to_back_instructor: "Back-to-Back (Instructors)",
+    large_course_not_early: "Large Course Not Early",
+    unknown: "Uncategorized",
+  };
+  // Build rows grouped by conflict type from breakdown, with fallbacks to exams data
+  const conflictTypeRows: Record<string, any[]> = {};
+
+  const findExamByCrn = (crn: any) => {
+    if (!crn) return null;
+    return (allExams ?? []).find((e: any) => String(e.crn ?? e.CRN ?? e.id) === String(crn));
+  };
+
+  for (const conf of (breakdown ?? []) as any[]) {
+    const type = conf.conflict_type ?? conf.violation ?? "unknown";
+    conflictTypeRows[type] = conflictTypeRows[type] ?? [];
+
+    const rawCrn = conf.crn ?? (Array.isArray(conf.conflicting_crns) ? conf.conflicting_crns[0] : conf.conflicting_crn) ?? null;
+  const exam: any = findExamByCrn(rawCrn);
+
+    const crnVal = rawCrn ?? (exam ? String(exam.crn ?? exam.CRN ?? exam.id) : null);
+    const courseVal = conf.course ?? conf.conflicting_course ?? (exam ? (exam.course_name ?? exam.course ?? exam.title) : null) ?? (Array.isArray(conf.conflicting_courses) ? conf.conflicting_courses[0] : null);
+
+  const sizeVal = exam ? (exam.enrollment ?? exam.size ?? exam.students_count ?? null) : null;
+
+    const entityVal = conf.student_id ? `S:${conf.student_id}` : conf.instructor_id ? `I:${conf.instructor_id}` : conf.entity_id ?? null;
+
+    let blockVal = null;
+    if (Array.isArray(conf.blocks)) blockVal = conf.blocks.join(", ");
+    else if (conf.block_time) blockVal = conf.block_time;
+    else if (conf.block) blockVal = conf.block;
+
+    let conflictingCourses: string[] = [];
+    if (Array.isArray(conf.conflicting_courses)) conflictingCourses = conf.conflicting_courses.map((c: any) => String(c));
+    else if (Array.isArray(conf.conflicting_crns)) conflictingCourses = conf.conflicting_crns.map((c: any) => String(c));
+    else if (typeof conf.conflicting_courses === "string") conflictingCourses = [conf.conflicting_courses];
+
+    const row = {
+      entity: entityVal,
+      type,
+      day: conf.day ?? conf.block_day ?? null,
+      block: blockVal,
+      size: sizeVal,
+      course: courseVal,
+      crn: crnVal,
+      conflicting_courses: conflictingCourses,
+      reason: conf.unscheduled_reason ?? conf.reason ?? null,
+      raw: conf,
+    };
+
+    conflictTypeRows[type].push(row);
+  }
+
+  const dynamicTabEntries = Object.keys(conflictTypeRows).length > 0
+    ? Object.keys(conflictTypeRows).map((t) => ({ id: t, label: conflictTypeMap[t] ?? t }))
+    : [
+        { id: "back_to_back", label: "Back-to-Back" },
+        { id: "large_course_not_early", label: "Large courses not early" },
+      ];
+
+  // replace tabs with dynamic entries
+  const effectiveTabs = dynamicTabEntries;
+
+  // pagination state per active tab
+  const PAGE_SIZE = 10;
+  const [pageByTab, setPageByTab] = useState<Record<string, number>>({});
+
+  function setPage(tabId: string, page: number) {
+    setPageByTab((s) => ({ ...s, [tabId]: page }));
+  }
+
+  function getPage(tabId: string) {
+    return pageByTab[tabId] ?? 0;
+  }
+
+  // active tab state (initialize to first dynamic tab)
+  const [activeTab, setActiveTab] = useState<string>(effectiveTabs[0]?.id ?? "back_to_back");
 
   return (
     <section className="space-y-4">
       <div className="flex items-center justify-between">
-        <h2 className="text-lg font-semibold flex items-center gap-2">
-          <AlertTriangle className="h-5 w-5 text-amber-600" />
-          Conflict Summary
-        </h2>
+        <h1 className="text-2xl font-bold">Conflict View</h1>
         <p className="text-sm text-muted-foreground">
           Quick overview of schedule conflicts
         </p>
       </div>
 
-      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-5">
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-6">
         <ConflictStat
-          label="Hard student conflicts"
+          label="Student Double-Book"
           value={merged.hard_student_conflicts}
-          description="Number of student-hard conflicts (must-resolve overlaps)."
+          description="Number of student double-book conflicts (must-resolve overlaps)."
           variant="destructive"
         />
         <ConflictStat
-          label="Hard instructor conflicts"
+          label="Instructor Double-Book"
           value={merged.hard_instructor_conflicts}
-          description="Number of instructor-hard conflicts (instructor double-booked)."
-          variant="secondary"
+          description="Number of instructor double-book conflicts (instructor double-booked)."
+          variant="destructive"
         />
         <ConflictStat
-          label="Students back-to-back"
+          label="Student >3/day"
+          value={merged.student_gt3_per_day}
+          description="Count of students scheduled for more than 3 exams in a day."
+          variant="destructive"
+        />
+        <ConflictStat
+          label="Students Back-to-Back"
           value={merged.students_back_to_back}
           description="Number of students scheduled back-to-back with no break."
         />
         <ConflictStat
-          label="Large courses not early"
-          value={merged.large_courses_not_early}
-          description="Large courses that are scheduled later than desired (not early)."
+          label="Instructors Back-to-Back"
+          value={merged.instructors_back_to_back}
+          description="Number of instructors scheduled back-to-back with no break."
         />
         <ConflictStat
-          label="Students >3/day"
-          value={merged.student_gt3_per_day}
-          description="Count of students scheduled for more than 3 exams in a day."
+          label="Large Course Not Early"
+          value={merged.large_courses_not_early}
+          description="Large courses that are scheduled later than desired (not early)."
         />
       </div>
 
       {/* Tabs */}
       <div className="mt-4">
         <div className="flex gap-2">
-          {tabs.map((t) => (
+          {effectiveTabs.map((t) => (
             <Button
               key={t.id}
-              onClick={() => setActiveTab(t.id)}
+              onClick={() => {
+                setActiveTab(t.id);
+                setPage(t.id, 0);
+              }}
               className={`rounded-md px-3 py-1 text-sm font-medium transition-colors ${
                 activeTab === t.id
                   ? "bg-primary text-primary-foreground"
@@ -359,103 +410,110 @@ export default function ConflictView({
         </div>
 
         <div className="mt-3">
-          {activeTab === "back-to-back" && (
-            <Card>
-              <CardHeader>
-                <CardTitle>Students back-to-back</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="overflow-auto">
-                  <table className="w-full table-auto text-sm">
-                    <thead>
-                      <tr className="text-left text-muted-foreground">
-                        <th className="px-2 py-2">Student</th>
-                        <th className="px-2 py-2">Day</th>
-                        <th className="px-2 py-2">Block(s)</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {displayBackRows.map((r, i) => (
-                        <tr key={i} className="border-t">
-                          <td className="px-2 py-2">{r.student}</td>
-                          <td className="px-2 py-2">{r.day}</td>
-                          <td className="px-2 py-2">
-                            {r.blocks ? r.blocks.join(", ") : (r.block ?? "—")}
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              </CardContent>
-            </Card>
-          )}
+          {/* Generic table for the active conflict type */}
+          <Card>
+            <CardHeader>
+              <CardTitle>{effectiveTabs.find((x) => x.id === activeTab)?.label ?? "Conflicts"}</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="overflow-auto">
+                {(() => {
+                  const rowsForActive = conflictTypeRows[activeTab] ?? (activeTab === "back_to_back" ? displayBackRows : activeTab === "large_course_not_early" ? displayLargeRows : []);
+                  const page = getPage(activeTab);
+                  const totalPages = Math.max(1, Math.ceil(rowsForActive.length / PAGE_SIZE));
+                  const start = page * PAGE_SIZE;
+                  const end = Math.min(rowsForActive.length, start + PAGE_SIZE);
 
-          {activeTab === "large-not-early" && (
-            <Card>
-              <CardHeader>
-                <CardTitle>Large courses not early</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="overflow-auto">
-                  <table className="w-full table-auto text-sm">
-                    <thead>
-                      <tr className="text-left text-muted-foreground">
-                        <th className="px-2 py-2">CRN</th>
-                        <th className="px-2 py-2">Course</th>
-                        <th className="px-2 py-2">Size</th>
-                        <th className="px-2 py-2">Day</th>
-                        <th className="px-2 py-2">Block</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {displayLargeRows.map((r, i) => (
-                        <tr key={i} className="border-t">
-                          <td className="px-2 py-2">{r.crn}</td>
-                          <td className="px-2 py-2">{r.course}</td>
-                          <td className="px-2 py-2">{r.size}</td>
-                          <td className="px-2 py-2">{r.day ?? "—"}</td>
-                          <td className="px-2 py-2">{r.block ?? "—"}</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              </CardContent>
-            </Card>
-          )}
+                  // Determine which columns actually have data for these rows.
+                  const has = {
+                    entity: rowsForActive.some((r: any) => r.entity != null && String(r.entity).trim() !== ""),
+                    day: rowsForActive.some((r: any) => r.day != null && String(r.day).trim() !== ""),
+                    block: rowsForActive.some((r: any) => (Array.isArray(r.blocks) ? r.blocks.length > 0 : (r.block != null && String(r.block).trim() !== ""))),
+                    course: rowsForActive.some((r: any) => r.course != null && String(r.course).trim() !== ""),
+                    crn: rowsForActive.some((r: any) => r.crn != null && String(r.crn).trim() !== ""),
+                    conflicting_courses: rowsForActive.some((r: any) => Array.isArray(r.conflicting_courses) ? r.conflicting_courses.length > 0 : (r.conflicting_courses != null && String(r.conflicting_courses).trim() !== "")),
+                    reason: rowsForActive.some((r: any) => r.reason != null && String(r.reason).trim() !== ""),
+                    size: rowsForActive.some((r: any) => r.size != null && String(r.size).trim() !== ""),
+                  };
 
-          {activeTab === "not-scheduled" && (
-            <Card>
-              <CardHeader>
-                <CardTitle>Courses not scheduled</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="overflow-auto">
-                  <table className="w-full table-auto text-sm">
-                    <thead>
-                      <tr className="text-left text-muted-foreground">
-                        <th className="px-2 py-2">CRN</th>
-                        <th className="px-2 py-2">Course</th>
-                        <th className="px-2 py-2">Size</th>
-                        <th className="px-2 py-2">Reason</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {displayNotScheduledRows.map((r, i) => (
-                        <tr key={i} className="border-t">
-                          <td className="px-2 py-2">{r.crn}</td>
-                          <td className="px-2 py-2">{r.course}</td>
-                          <td className="px-2 py-2">{r.size}</td>
-                          <td className="px-2 py-2">{r.reason}</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              </CardContent>
-            </Card>
-          )}
+                  // Special-case large_course_not_early: hide block, conflicting courses and reason per request
+                  if (activeTab === "large_course_not_early") {
+                    has.block = false;
+                    has.conflicting_courses = false;
+                    has.reason = false;
+                  }
+
+                  const columns: Array<{ key: string; label: string }> = [];
+                  if (has.entity) columns.push({ key: "entity", label: "Entity" });
+                  if (has.day) columns.push({ key: "day", label: "Day" });
+                  if (has.block) columns.push({ key: "block", label: "Block" });
+                  if (has.course) columns.push({ key: "course", label: "Course" });
+                  if (has.crn) columns.push({ key: "crn", label: "CRN" });
+                  if (has.size) columns.push({ key: "size", label: "Size" });
+                  if (has.conflicting_courses) columns.push({ key: "conflicting_courses", label: "Conflicting Courses" });
+                  if (has.reason) columns.push({ key: "reason", label: "Reason" });
+
+                  return (
+                    <>
+                      <table className="w-full table-auto text-sm">
+                        <thead>
+                          <tr className="text-left text-muted-foreground">
+                            {columns.map((c) => (
+                              <th key={c.key} className="px-2 py-2">{c.label}</th>
+                            ))}
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {rowsForActive.slice(start, end).map((r: any, i: number) => (
+                            <tr key={i} className="border-t">
+                              {columns.map((c) => {
+                                const key = c.key;
+                                let cell: any = "—";
+                                if (key === "entity") cell = r.entity ?? r.student ?? "—";
+                                else if (key === "day") cell = r.day ?? "—";
+                                else if (key === "block") cell = Array.isArray(r.blocks) ? r.blocks.join(", ") : (r.block ?? "—");
+                                else if (key === "course") cell = r.course ?? "—";
+                                else if (key === "crn") cell = r.crn ?? "—";
+                                else if (key === "conflicting_courses") cell = (r.conflicting_courses || []).join ? (r.conflicting_courses || []).join(", ") : String(r.conflicting_courses ?? "—");
+                                else if (key === "reason") cell = r.reason ?? "—";
+                                else if (key === "size") cell = r.size ?? "—";
+
+                                return (
+                                  <td key={key} className="px-2 py-2">{cell}</td>
+                                );
+                              })}
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+
+                      <div className="flex items-center justify-between mt-2">
+                        <div className="text-sm text-muted-foreground">
+                          Showing {rowsForActive.length === 0 ? 0 : start + 1}-{end} of {rowsForActive.length}
+                        </div>
+                        <div className="flex gap-2">
+                          <Button
+                            size="sm"
+                            disabled={page <= 0}
+                            onClick={() => setPage(activeTab, Math.max(0, page - 1))}
+                          >
+                            Prev
+                          </Button>
+                          <Button
+                            size="sm"
+                            disabled={page >= totalPages - 1}
+                            onClick={() => setPage(activeTab, Math.min(totalPages - 1, page + 1))}
+                          >
+                            Next
+                          </Button>
+                        </div>
+                      </div>
+                    </>
+                  );
+                })()}
+              </div>
+            </CardContent>
+          </Card>
         </div>
       </div>
     </section>

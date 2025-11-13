@@ -21,7 +21,9 @@ export default function DashboardLayout({
         </aside>
 
         {/* Main Content Area - Flexible, scrollable */}
-        <main className="flex-1 overflow-y-auto bg-gray-50">{children}</main>
+        <main className="flex-1 overflow-y-auto bg-gray-50 no-scrollbar">
+          {children}
+        </main>
       </div>
     </div>
   );

@@ -126,13 +126,13 @@ export function ScheduleRunner() {
               <div className="flex items-center justify-between">
                 <Label>Maximum Exams Per Student Per Day</Label>
                 <span className="text-sm font-medium">
-                  {parameters.max_per_day}
+                  {parameters.student_max_per_day}
                 </span>
               </div>
               <Slider
-                value={[parameters.max_per_day || 3]}
+                value={[parameters.student_max_per_day || 3]}
                 onValueChange={([value]) =>
-                  setParameters({ max_per_day: value })
+                  setParameters({ student_max_per_day: value })
                 }
                 min={1}
                 max={5}
@@ -151,13 +151,13 @@ export function ScheduleRunner() {
               <div className="flex items-center justify-between">
                 <Label>Maximum Exams Per Instructor Per Day</Label>
                 <span className="text-sm font-medium">
-                  {parameters.instructor_per_day || 2}
+                  {parameters.instructor_max_per_day || 2}
                 </span>
               </div>
               <Slider
-                value={[parameters.instructor_per_day || 2]}
+                value={[parameters.instructor_max_per_day || 2]}
                 onValueChange={([value]) =>
-                  setParameters({ instructor_per_day: value })
+                  setParameters({ instructor_max_per_day: value })
                 }
                 min={1}
                 max={5}

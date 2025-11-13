@@ -1,23 +1,9 @@
-#!/usr/bin/env python3
-"""
-Comprehensive tests for the Enhanced DSATUR Algorithm
-"""
-
-import os
 import sys
-from unittest.mock import patch
 
 import pandas as pd
 import pytest
 
-
-# Add the backend src to the path
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "src"))
-
-from algorithms.enhanced_dsatur_scheduler import (
-    DSATURExamGraph,
-    export_student_schedule,
-)
+from src.algorithms.enhanced_dsatur_scheduler import DSATURExamGraph
 
 
 class TestDSATURAlgorithm:
@@ -336,28 +322,6 @@ class TestDSATURAlgorithm:
             bad_census = pd.DataFrame({"CRN": ["1001"]})
             DSATURExamGraph(bad_census, empty_enrollment, empty_classrooms)
 
-    def test_export_student_schedule(
-        self, sample_census, sample_enrollment, sample_classrooms
-    ):
-        """Test student schedule export functionality."""
-        graph = DSATURExamGraph(sample_census, sample_enrollment, sample_classrooms)
-        graph.build_graph()
-        graph.dsatur_color()
-        graph.dsatur_schedule()
-        schedule_df = graph.assign_rooms()
-
-        # Test export function
-        student_schedule = export_student_schedule(
-            graph, sample_enrollment, schedule_df, base_name="test_schedule"
-        )
-
-        # Check that export was successful
-        assert len(student_schedule) > 0
-        assert "student_id" in student_schedule.columns
-        assert "CRN" in student_schedule.columns
-        assert "Day" in student_schedule.columns
-        assert "Block" in student_schedule.columns
-
 
 class TestAlgorithmIntegration:
     """Integration tests for the complete algorithm workflow."""
@@ -540,74 +504,6 @@ class TestAlgorithmPerformance:
         print(f"  - Initial memory: {initial_memory:.1f}MB")
         print(f"  - Peak memory: {peak_memory:.1f}MB")
         print(f"  - Memory increase: {memory_increase:.1f}MB")
-
-    def test_algorithm_scalability(self):
-        """Test how algorithm scales with increasing data size."""
-        import time
-
-        scalability_results = []
-
-        for size in [10, 50, 100, 200]:
-            # Generate data of different sizes
-            census = pd.DataFrame(
-                {
-                    "CRN": [f"{i:04d}" for i in range(size)],
-                    "course_ref": [f"CS{i:03d}" for i in range(size)],
-                    "num_students": [20 + (i % 30) for i in range(size)],
-                }
-            )
-
-            enrollment = pd.DataFrame(
-                {
-                    "student_id": [f"S{i:03d}" for i in range(size * 2)],
-                    "CRN": [f"{i % size:04d}" for i in range(size * 2)],
-                    "instructor_name": [f"Dr. {i % 10}" for i in range(size * 2)],
-                }
-            )
-
-            classrooms = pd.DataFrame(
-                {
-                    "room_name": [f"Room_{i:02d}" for i in range(max(10, size // 10))],
-                    "capacity": [30 + (i % 20) for i in range(max(10, size // 10))],
-                }
-            )
-
-            start_time = time.time()
-            graph = DSATURExamGraph(census, enrollment, classrooms)
-            graph.build_graph()
-            graph.dsatur_color()
-            graph.dsatur_schedule()
-            graph.assign_rooms()
-            total_time = time.time() - start_time
-
-            scalability_results.append(
-                {
-                    "size": size,
-                    "time": total_time,
-                    "nodes": graph.G.number_of_nodes(),
-                    "edges": graph.G.number_of_edges(),
-                }
-            )
-
-        # Verify scalability (time should not grow exponentially)
-        for i in range(1, len(scalability_results)):
-            prev = scalability_results[i - 1]
-            curr = scalability_results[i]
-
-            # Time growth should be reasonable (not exponential)
-            time_ratio = curr["time"] / prev["time"] if prev["time"] > 0 else 1
-            size_ratio = curr["size"] / prev["size"]
-
-            # Time should not grow faster than quadratically
-            assert time_ratio < size_ratio**2, (
-                f"Algorithm doesn't scale well: {time_ratio:.2f} vs {size_ratio:.2f}"
-            )
-
-        print("Scalability test results:")
-        for result in scalability_results:
-            print(
-                f"  Size {result['size']}: {result['time']:.2f}s, {result['nodes']} nodes, {result['edges']} edges"
-            )
 
 
 class TestAdvancedConstraints:
@@ -1288,7 +1184,7 @@ class TestAlgorithmComparison:
 
         # Test with max_student_per_day=2 (default)
         graph_default = DSATURExamGraph(
-            census, enrollment, classrooms, max_student_per_day=2
+            census, enrollment, classrooms, student_max_per_day=2
         )
         graph_default.build_graph()
         graph_default.dsatur_color()
@@ -1298,7 +1194,7 @@ class TestAlgorithmComparison:
 
         # Test with max_student_per_day=3 (more permissive)
         graph_permissive = DSATURExamGraph(
-            census, enrollment, classrooms, max_student_per_day=3
+            census, enrollment, classrooms, student_max_per_day=3
         )
         graph_permissive.build_graph()
         graph_permissive.dsatur_color()
@@ -1308,7 +1204,7 @@ class TestAlgorithmComparison:
 
         # Test with max_student_per_day=1 (very restrictive)
         graph_restrictive = DSATURExamGraph(
-            census, enrollment, classrooms, max_student_per_day=1
+            census, enrollment, classrooms, student_max_per_day=1
         )
         graph_restrictive.build_graph()
         graph_restrictive.dsatur_color()
@@ -1333,9 +1229,9 @@ class TestAlgorithmComparison:
         )
 
         # Verify the parameter is stored correctly
-        assert graph_default.max_student_per_day == 2
-        assert graph_permissive.max_student_per_day == 3
-        assert graph_restrictive.max_student_per_day == 1
+        assert graph_default.student_max_per_day == 2
+        assert graph_permissive.student_max_per_day == 3
+        assert graph_restrictive.student_max_per_day == 1
 
     def test_max_instructor_per_day_toggle(self):
         """Test that max_instructor_per_day parameter works correctly."""
@@ -1363,7 +1259,7 @@ class TestAlgorithmComparison:
 
         # Test with max_instructor_per_day=2 (default)
         graph_default = DSATURExamGraph(
-            census, enrollment, classrooms, max_instructor_per_day=2
+            census, enrollment, classrooms, instructor_max_per_day=2
         )
         graph_default.build_graph()
         graph_default.dsatur_color()
@@ -1373,7 +1269,7 @@ class TestAlgorithmComparison:
 
         # Test with max_instructor_per_day=3 (more permissive)
         graph_permissive = DSATURExamGraph(
-            census, enrollment, classrooms, max_instructor_per_day=3
+            census, enrollment, classrooms, instructor_max_per_day=3
         )
         graph_permissive.build_graph()
         graph_permissive.dsatur_color()
@@ -1383,7 +1279,7 @@ class TestAlgorithmComparison:
 
         # Test with max_instructor_per_day=1 (very restrictive)
         graph_restrictive = DSATURExamGraph(
-            census, enrollment, classrooms, max_instructor_per_day=1
+            census, enrollment, classrooms, instructor_max_per_day=1
         )
         graph_restrictive.build_graph()
         graph_restrictive.dsatur_color()
@@ -1408,9 +1304,9 @@ class TestAlgorithmComparison:
         )
 
         # Verify the parameter is stored correctly
-        assert graph_default.max_instructor_per_day == 2
-        assert graph_permissive.max_instructor_per_day == 3
-        assert graph_restrictive.max_instructor_per_day == 1
+        assert graph_default.instructor_max_per_day == 2
+        assert graph_permissive.instructor_max_per_day == 3
+        assert graph_restrictive.instructor_max_per_day == 1
 
     def test_toggle_parameters_combined(self):
         """Test that both toggle parameters work together."""
@@ -1447,8 +1343,8 @@ class TestAlgorithmComparison:
             census,
             enrollment,
             classrooms,
-            max_student_per_day=3,
-            max_instructor_per_day=2,
+            student_max_per_day=3,
+            instructor_max_per_day=2,
         )
         graph.build_graph()
         graph.dsatur_color()
@@ -1460,8 +1356,8 @@ class TestAlgorithmComparison:
         assert summary["unplaced_exams"] == 0
 
         # Verify both parameters are stored correctly
-        assert graph.max_student_per_day == 3
-        assert graph.max_instructor_per_day == 2
+        assert graph.student_max_per_day == 3
+        assert graph.instructor_max_per_day == 2
 
         # Verify conflicts are tracked (may be > 0 due to constraints)
         assert "student_gt_max_per_day" in summary

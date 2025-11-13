@@ -1,3 +1,4 @@
+import asyncio
 import io
 import uuid
 from datetime import datetime
@@ -9,7 +10,6 @@ from fastapi import UploadFile
 
 from src.core.exceptions import DatasetNotFoundError, StorageError, ValidationError
 from src.repo.dataset import DatasetRepo
-from src.repo.student import StudentRepo
 from src.schemas.db import Datasets
 from src.services.storage import storage
 from src.services.validation import get_file_statistics, validate_csv_schema
@@ -60,17 +60,6 @@ class DatasetService:
                 file_metadata=validated_files["metadata"],
                 storage_keys=storage_keys,
             )
-            student_repo = StudentRepo(self.dataset_repo.db)
-
-            enrollment_content = validated_files["contents"]["enrollments"]
-            enrollment_df = pd.read_csv(io.BytesIO(enrollment_content))
-
-            # Create student records
-            student_repo.bulk_create_from_dataframe(
-                dataset_id=dataset.dataset_id,
-                enrollment_df=enrollment_df,
-            )
-
         except Exception as e:
             # Cleanup uploaded files
             storage.delete_directory(str(dataset_uuid))
@@ -122,6 +111,7 @@ class DatasetService:
         file_metadata = {}
         file_contents = {}
 
+        # TODO parallelize
         for file_type, upload_file in files.items():
             try:
                 content = await upload_file.read()
@@ -164,6 +154,7 @@ class DatasetService:
         storage_keys = {}
         uploaded_keys = []
 
+        # TODO parallelize
         try:
             for file_type, content in file_contents.items():
                 key = f"{dataset_uuid}/{file_type}.csv"
@@ -236,7 +227,7 @@ class DatasetService:
                 f"Dataset {dataset_id} not found or access denied"
             )
 
-        # Delete from S3
+        # Delete from external storage (S3, etc)
         storage_success = storage.delete_directory(str(dataset_id))
 
         # Delete from database
@@ -255,24 +246,32 @@ class DatasetService:
         dataset = self.dataset_repo.get_by_id_for_user(dataset_id, user_id)
         if not dataset:
             raise DatasetNotFoundError(f"Dataset {dataset_id} not found")
+        tasks = [
+            self._download_and_parse(file_entry) for file_entry in dataset.file_paths
+        ]
+        results = await asyncio.gather(*tasks)
 
-        files_data = {}
-        for file_entry in dataset.file_paths:
-            file_type = file_entry["type"]
-            storage_key = file_entry["storage_key"]
-
-            content = storage.download_file(storage_key)
-            if not content:
-                raise StorageError(
-                    f"Failed to download {file_type}",
-                    detail={"storage_key": storage_key},
-                )
-
-            try:
-                files_data[file_type] = pd.read_csv(io.BytesIO(content))
-            except Exception as e:
-                raise ValidationError(
-                    f"Failed to parse {file_type}", detail={"error": str(e)}
-                ) from e
+        files_data = dict(results)
 
         return files_data
+
+    async def _download_and_parse(self, file_entry: dict) -> tuple[str, pd.DataFrame]:
+        """Download one file and parse it."""
+        file_type = file_entry["type"]
+        storage_key = file_entry["storage_key"]
+
+        content = await asyncio.to_thread(storage.download_file, storage_key)
+
+        if not content:
+            raise StorageError(
+                f"Failed to download {file_type}",
+                detail={"storage_key": storage_key},
+            )
+
+        try:
+            df = await asyncio.to_thread(pd.read_csv, io.BytesIO(content))
+            return file_type, df
+        except Exception as e:
+            raise ValidationError(
+                f"Failed to parse {file_type}", detail={"error": str(e)}
+            ) from e

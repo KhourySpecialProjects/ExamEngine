@@ -1,96 +1,76 @@
 "use client";
 
-import { Save } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { toast } from "sonner";
-import { ViewTabSwitcher } from "@/components/common/ViewTabSwitcher";
-import { Button } from "@/components/ui/button";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import CompactView from "@/components/visualization/calendar/CompactView";
-import DensityView from "@/components/visualization/calendar/DensityView";
-import { ExamListDialog } from "@/components/visualization/calendar/ExamListDialog";
-import ListView from "@/components/visualization/list/ListView";
-import { StatisticsView } from "@/components/statistics/StatisticsView";
-import { THEME_KEYS } from "@/lib/constants/colorThemes";
-import { useScheduleData } from "@/lib/hooks/useScheduleData";
-import { useCalendarStore } from "@/lib/store/calendarStore";
-import { exportScheduleRowsAsCsv } from "@/lib/utils";
-
-type ViewType = "density" | "compact" | "list" | "statistics";
+import { ScheduleListView } from "@/components/schedules/ScheduleListView";
+import type { ScheduleListItem } from "@/lib/api/schedules";
+import { apiClient } from "@/lib/api/client";
+import { Loader2 } from "lucide-react";
 
 export default function DashboardPage() {
-  const [activeView, setActiveView] = useState<ViewType>("density");
-  const { schedule } = useScheduleData();
-  const setTheme = useCalendarStore((s) => s.setColorTheme);
+  const [schedules, setSchedules] = useState<ScheduleListItem[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
-  const handleExport = async () => {
-    if (!schedule) {
-      toast.error("No schedule to export", {
-        description: "Generate a schedule first",
-      });
-      return;
-    }
+  useEffect(() => {
+    fetchSchedules();
+  }, []);
 
+  const fetchSchedules = async () => {
     try {
-      const rows = schedule.schedule.complete;
-      if (!rows || rows.length === 0) {
-        toast.error("Schedule empty", { description: "Nothing to export" });
-        return;
-      }
-
-      exportScheduleRowsAsCsv(rows, "schedule_exams.csv");
-
-      toast.success("Export started", {
-        description: "Downloading schedule CSV",
-      });
+      setIsLoading(true);
+      setError(null);
+      const data = await apiClient.schedules.list();
+      setSchedules(data);
     } catch (err) {
-      toast.error("Export failed", {
-        description: err instanceof Error ? err.message : "Unknown error",
+      const errorMessage =
+        err instanceof Error ? err.message : "Failed to load schedules";
+      setError(errorMessage);
+      toast.error("Failed to load schedules", {
+        description: errorMessage,
       });
+    } finally {
+      setIsLoading(false);
     }
   };
 
-  return (
-    <div className="space-y-6 m-5">
-      <div className="flex items-center justify-between">
-        <ViewTabSwitcher activeView={activeView} onViewChange={setActiveView} />
-        <div className="flex items-center gap-3">
-          <Select onValueChange={(val) => setTheme(val)}>
-            <SelectTrigger size="default" className="min-w-30">
-              <SelectValue placeholder={"Choose a Theme"} />
-            </SelectTrigger>
-            <SelectContent>
-              {THEME_KEYS.map((k) => (
-                <SelectItem key={k} value={k}>
-                  Theme: {k.charAt(0).toUpperCase() + k.slice(1)}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+  const handleDelete = async (scheduleId: string) => {
+    toast.info("Delete functionality", {
+      description: "Schedule deletion will be implemented soon",
+    });
+  };
 
-          <Button
-            onClick={handleExport}
-            className="bg-black text-white hover:opacity-90 min-w-50"
-            disabled={!schedule}
-          >
-            <Save />
-            <span>Export Schedule</span>
-          </Button>
+  return (
+    <div className="space-y-6 p-6">
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-2xl font-bold">Manage Your Schedules</h1>
+          <p className="text-muted-foreground">
+            View and manage your exam schedules
+          </p>
         </div>
       </div>
 
-      {activeView === "density" && <DensityView />}
-      {activeView === "compact" && <CompactView />}
-      {activeView === "list" && <ListView />}
-      {activeView === "statistics" && <StatisticsView />}
+      {isLoading && (
+        <div className="flex items-center justify-center py-12">
+          <div className="flex flex-col items-center gap-3">
+            <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+            <p className="text-sm text-muted-foreground">
+              Loading schedules...
+            </p>
+          </div>
+        </div>
+      )}
 
-      <ExamListDialog />
+      {error && !isLoading && (
+        <div className="rounded-lg border border-destructive/50 bg-destructive/10 p-4">
+          <p className="text-sm text-destructive">{error}</p>
+        </div>
+      )}
+
+      {!isLoading && !error && (
+        <ScheduleListView schedules={schedules} onDelete={handleDelete} />
+      )}
     </div>
   );
 }

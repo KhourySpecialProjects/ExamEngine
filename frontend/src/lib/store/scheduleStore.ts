@@ -30,8 +30,8 @@ export const useScheduleStore = create<ScheduleState>((set, get) => ({
   isGenerating: false,
   error: null,
   parameters: {
-    max_per_day: 3,
-    instructor_per_day: 2,
+    student_max_per_day: 3,
+    instructor_max_per_day: 2,
     avoid_back_to_back: true,
     max_days: 7,
     prioritize_large_courses: false,

@@ -43,13 +43,6 @@ const COLORS = {
   info: "#6366f1",
 };
 
-const CONFLICT_COLORS = [
-  "#ef4444", // Student double-book
-  "#f59e0b", // Student per-day limit
-  "#8b5cf6", // Instructor double-book
-  "#ec4899", // Instructor per-day limit
-];
-
 interface ConflictData {
   name: string;
   value: number;
@@ -253,6 +246,14 @@ export function StatisticsView() {
 
   return (
     <div className="space-y-6">
+      <div className="flex items-center justify-between gap-2">
+        <div className="pl-2">
+          <h1 className="text-2xl font-bold">Statistics View</h1>
+          <p className="text-muted-foreground">
+            Analytics and insights about your exam schedule
+          </p>
+        </div>
+      </div>
       {/* Overview Cards */}
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
         <Card>
@@ -374,7 +375,7 @@ export function StatisticsView() {
                     cx="50%"
                     cy="50%"
                     labelLine={false}
-                    label={({ percent, value, name }) => {
+                    label={({ percent, name }) => {
                       // Show percentage and day name for larger segments
                       if (
                         percent > 0.05 ||

@@ -27,37 +27,47 @@ export default function CompactView() {
   if (!hasData) return <EmptyScheduleState isLoading={isLoading} />;
 
   return (
-    <CalendarGrid
-      data={calendarRows}
-      days={DAYS}
-      minCellHeight="min-h-[150px]"
-      renderCell={(cell) => {
-        const maxVisible = 6;
-        const visibleExams = cell.exams.slice(0, maxVisible);
-        const hasMore = cell.exams.length > maxVisible;
-        return (
-          <div className="p-2 space-y-1 max-h-[150px] overflow-auto no-scrollbar">
-            {visibleExams.map((exam) => (
-              <Course
-                key={exam.id}
-                title={exam.courseCode}
-                students={exam.studentCount.toString()}
-                building={exam.building}
-              />
-            ))}
+    <div className="space-y-4">
+      <div className="flex items-center justify-between gap-2">
+        <div className="pl-2">
+          <h1 className="text-2xl font-bold">Compact View</h1>
+          <p className="text-muted-foreground">
+            Detailed view of scheduled exams with course information
+          </p>
+        </div>
+      </div>
+      <CalendarGrid
+        data={calendarRows}
+        days={DAYS}
+        minCellHeight="min-h-[120px]"
+        renderCell={(cell) => {
+          const maxVisible = 6;
+          const visibleExams = cell.exams.slice(0, maxVisible);
+          const hasMore = cell.exams.length > maxVisible;
+          return (
+            <div className="p-2 space-y-1 max-h-[150px] overflow-auto no-scrollbar">
+              {visibleExams.map((exam) => (
+                <Course
+                  key={exam.id}
+                  title={exam.courseCode}
+                  students={exam.studentCount.toString()}
+                  building={exam.building}
+                />
+              ))}
 
-            {hasMore && (
-              <Button
-                onClick={() => selectCell(cell)}
-                className="text-xs text-blue-600 hover:text-blue-800 w-full text-left pl-2 py-1 bg-transparent hover:bg-transparent"
-              >
-                {"+"}
-                {cell.exams.length - maxVisible} more
-              </Button>
-            )}
-          </div>
-        );
-      }}
-    />
+              {hasMore && (
+                <Button
+                  onClick={() => selectCell(cell)}
+                  className="text-xs text-blue-600 hover:text-blue-800 w-full text-left pl-2 py-1 bg-transparent hover:bg-transparent"
+                >
+                  {"+"}
+                  {cell.exams.length - maxVisible} more
+                </Button>
+              )}
+            </div>
+          );
+        }}
+      />
+    </div>
   );
 }

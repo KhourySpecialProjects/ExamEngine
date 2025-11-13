@@ -348,7 +348,7 @@ export default function ConflictView({
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-bold">Conflict View</h1>
         <p className="text-sm text-muted-foreground">
-          Quick overview of schedule conflicts
+           In depth overview of schedule conflicts
         </p>
       </div>
 

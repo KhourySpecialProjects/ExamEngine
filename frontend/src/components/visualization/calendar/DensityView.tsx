@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { User, Users } from "lucide-react";
 import { EmptyScheduleState } from "@/components/common/EmptyScheduleState";
 import {
@@ -75,12 +75,25 @@ export default function DensityView() {
   const selectCell = useCalendarStore((state) => state.selectCell);
   const theme = useCalendarStore((s) => s.colorTheme || "gray");
   const setTheme = useCalendarStore((s) => s.setColorTheme);
+  const [densityMode, setDensityMode] = useState<"exams" | "students">("exams");
+  const getStudentCount = (cell: any): number => {
+    if (!cell) return 0;
+    const exams = cell.exams || [];
+    let total = 0;
+    for (const ex of exams) {
+      if (!ex) continue;
+      const n = ex.enrollment ?? ex.student_count ?? ex.studentCount ?? ex.num_students ?? ex.students?.length ?? ex.roster?.length ?? 0;
+      total += Number(n || 0);
+    }
+    return total;
+  };
+
   const thresholds = useMemo(() => {
     const counts = calendarRows.flatMap((row) =>
-      row.days.map((d) => d.examCount),
+      row.days.map((d: any) => (densityMode === "exams" ? d.examCount || 0 : getStudentCount(d))),
     );
     return calculateThresholds(counts);
-  }, [calendarRows]);
+  }, [calendarRows, densityMode]);
 
   const extractTimeFromBlock = (blockStr: string): string => {
     if (!blockStr) return "";
@@ -149,7 +162,8 @@ export default function DensityView() {
             Color-coded heat map of exam distribution and conflicts
           </p>
         </div>
-        <Select value={theme} onValueChange={(val) => setTheme(val)}>
+        <div className="flex items-center gap-2">
+          <Select value={theme} onValueChange={(val) => setTheme(val)}>
           <SelectTrigger className="w-[180px]">
             <SelectValue placeholder="Choose a Theme" />
           </SelectTrigger>
@@ -160,7 +174,19 @@ export default function DensityView() {
               </SelectItem>
             ))}
           </SelectContent>
-        </Select>
+          </Select>
+
+          {/* Density mode selector: Exams | Students */}
+          <Select value={densityMode} onValueChange={(val) => setDensityMode(val as "exams" | "students")}>
+            <SelectTrigger className="w-[160px]">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="exams">Density: Exams</SelectItem>
+              <SelectItem value="students">Density: Students</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
       </div>
       {/* Calendar Grid */}
       <CalendarGrid
@@ -171,14 +197,11 @@ export default function DensityView() {
         defaultCellWidth={140}
         timeSlotWidth={140}
         renderCell={(cell) => {
-          const examCount = cell ? cell.examCount : 0;
+          const examCount = cell ? cell.examCount || 0 : 0;
           const conflictsNum = cell ? cell.conflicts || 0 : 0;
           const themeColors = colorThemes[theme] || colorThemes.gray;
-          const { bg, color } = getDensityColor(
-            cell ? cell.examCount : 0,
-            thresholds,
-            themeColors,
-          );
+          const displayCount = densityMode === "exams" ? examCount : getStudentCount(cell);
+          const { bg, color } = getDensityColor(displayCount, thresholds, themeColors);
 
           // Only detect student double-book conflicts (ignore all other types)
           const cellAny = cell as any;
@@ -244,11 +267,11 @@ export default function DensityView() {
               )}
 
               <div className="flex flex-col items-start justify-start p-3 w-full h-full">
-                {/* Exam Count */}
+                {/* Density Count */}
                 <div className="text-base font-semibold leading-tight">
-                  {examCount === 0
-                    ? "No Exams"
-                    : `${examCount} ${examCount === 1 ? "Exam" : "Exams"}`}
+                  {displayCount === 0
+                    ? `No ${densityMode === "exams" ? "Exams" : "Students"}`
+                    : `${displayCount} ${displayCount === 1 ? (densityMode === "exams" ? "Exam" : "Student") : (densityMode === "exams" ? "Exams" : "Students")}`}
                 </div>
 
                 {/* Conflict Indicator: only student double-book */}
@@ -268,7 +291,7 @@ export default function DensityView() {
 
       {/* Legend (dynamic based on selected theme) */}
       <div className="bg-white rounded-lg shadow p-4">
-        <h3 className="font-semibold mb-3 text-sm">Density Legend</h3>
+        <h3 className="font-semibold mb-3 text-sm">Density Legend ({densityMode === "exams" ? "Exams" : "Students"})</h3>
         <div className="flex gap-3 items-center flex-wrap text-sm">
           {(() => {
             const themeColors = colorThemes[theme] || colorThemes.gray;

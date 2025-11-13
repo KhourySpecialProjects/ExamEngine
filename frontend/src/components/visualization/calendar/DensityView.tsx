@@ -1,10 +1,17 @@
 import { useMemo } from "react";
 import { EmptyScheduleState } from "@/components/common/EmptyScheduleState";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { colorThemes, THEME_KEYS } from "@/lib/constants/colorThemes";
 import { useScheduleData } from "@/lib/hooks/useScheduleData";
 import { useCalendarStore } from "@/lib/store/calendarStore";
-import { CalendarGrid } from "./CalendarGrid";
-import { colorThemes } from "@/lib/constants/colorThemes";
 import { getReadableTextColorFromBg } from "@/lib/utils";
+import { CalendarGrid } from "./CalendarGrid";
 
 const DAYS = [
   "Monday",
@@ -65,6 +72,7 @@ export default function DensityView() {
   const { hasData, isLoading, calendarRows } = useScheduleData();
   const selectCell = useCalendarStore((state) => state.selectCell);
   const theme = useCalendarStore((s) => s.colorTheme || "gray");
+  const setTheme = useCalendarStore((s) => s.setColorTheme);
   const thresholds = useMemo(() => {
     const counts = calendarRows.flatMap((row) =>
       row.days.map((d) => d.examCount),
@@ -76,6 +84,26 @@ export default function DensityView() {
 
   return (
     <div className="space-y-4">
+      <div className="flex items-center justify-between gap-2">
+        <div className="pl-2">
+          <h1 className="text-2xl font-bold">Density View</h1>
+          <p className="text-muted-foreground">
+            Color-coded heat map of exam distribution and conflicts
+          </p>
+        </div>
+        <Select value={theme} onValueChange={(val) => setTheme(val)}>
+          <SelectTrigger className="w-[180px]">
+            <SelectValue placeholder="Choose a Theme" />
+          </SelectTrigger>
+          <SelectContent>
+            {THEME_KEYS.map((k) => (
+              <SelectItem key={k} value={k}>
+                Theme: {k.charAt(0).toUpperCase() + k.slice(1)}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </div>
       {/* Calendar Grid */}
       <CalendarGrid
         data={calendarRows}
@@ -88,19 +116,21 @@ export default function DensityView() {
           const examCount = cell ? cell.examCount : 0;
           const conflicts = cell ? cell.conflicts : 0;
           const themeColors = colorThemes[theme] || colorThemes.gray;
-          const { bg, color } = getDensityColor(cell ? cell.examCount : 0, thresholds, themeColors);
+          const { bg, color } = getDensityColor(
+            cell ? cell.examCount : 0,
+            thresholds,
+            themeColors,
+          );
 
           return (
             <div
               onClick={() => examCount > 0 && cell && selectCell(cell)}
               style={{ backgroundColor: bg, color }}
-              className={
-                `w-full h-full flex items-center border border-gray-200 ${
-                  examCount > 0
-                    ? "cursor-pointer hover:shadow-lg hover:z-10 relative transition-all duration-200"
-                    : "cursor-default"
-                }`
-              }
+              className={`w-full h-full flex items-center border border-gray-200 ${
+                examCount > 0
+                  ? "cursor-pointer hover:shadow-lg hover:z-10 relative transition-all duration-200"
+                  : "cursor-default"
+              }`}
             >
               <div className="flex flex-col items-start justify-start p-3 w-full h-full">
                 {/* Exam Count */}
@@ -130,13 +160,15 @@ export default function DensityView() {
             const themeColors = colorThemes[theme] || colorThemes.gray;
             const levels = [0, 1, 2, 3, 4];
 
-            const textColorFromBg = (bg: string) => getReadableTextColorFromBg(bg);
+            const textColorFromBg = (bg: string) =>
+              getReadableTextColorFromBg(bg);
 
             return levels.map((lvl) => {
               const bg = themeColors[lvl] || themeColors[0];
               const textColor = textColorFromBg(bg);
               let label = "";
-              const safe = (n: number) => (Number.isFinite(n) ? Math.max(0, Math.floor(n)) : 0);
+              const safe = (n: number) =>
+                Number.isFinite(n) ? Math.max(0, Math.floor(n)) : 0;
               const t1 = safe(thresholds.t1);
               const t2 = safe(thresholds.t2);
               const t3 = safe(thresholds.t3);
@@ -162,10 +194,19 @@ export default function DensityView() {
                 <div key={lvl} className="flex items-center gap-2">
                   <div
                     className="w-10 h-10 border-2 rounded"
-                    style={{ backgroundColor: bg, borderColor: "rgba(0,0,0,0.08)" }}
+                    style={{
+                      backgroundColor: bg,
+                      borderColor: "rgba(0,0,0,0.08)",
+                    }}
                   />
                   {/* Keep label text readable on the white legend background */}
-                  <span className={lvl === 4 ? "px-2 py-0.5 rounded text-sm font-medium" : "text-sm"}>
+                  <span
+                    className={
+                      lvl === 4
+                        ? "px-2 py-0.5 rounded text-sm font-medium"
+                        : "text-sm"
+                    }
+                  >
                     {label}
                   </span>
                 </div>

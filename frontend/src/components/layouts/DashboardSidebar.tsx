@@ -1,6 +1,12 @@
 "use client";
 
-import { Building, Calendar, Database, Users } from "lucide-react";
+import {
+  Building,
+  Calendar,
+  Database,
+  SlidersHorizontal,
+  Users,
+} from "lucide-react";
 import { useEffect } from "react";
 import {
   Select,
@@ -136,6 +142,10 @@ export function DashboardSidebar() {
       </section>
 
       <section>
+        <div className="flex items-center gap-2 mb-3">
+          <SlidersHorizontal />
+          <h2 className="font-semibold text-sm">Optimization Controls</h2>
+        </div>
         <ScheduleRunner />
       </section>
     </div>

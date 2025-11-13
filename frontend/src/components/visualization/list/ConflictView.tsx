@@ -1,11 +1,10 @@
-
-
 "use client";
 
+import { AlertTriangle, Info } from "lucide-react";
 import { useState } from "react";
-import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Info, AlertTriangle } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { useExamTable } from "@/lib/hooks/useExamTable";
 
 type ConflictMetrics = {
@@ -21,7 +20,6 @@ function formatNumber(n: number | null | undefined) {
   return n.toLocaleString();
 }
 
-
 /*
   Should 3 tabls (like in ViewTabSwitcher)
   the 3 tabs are for 
@@ -36,8 +34,6 @@ function formatNumber(n: number | null | undefined) {
 
   Use fake data to test the table views
 */
-
-
 
 function ConflictStat({
   label,
@@ -62,14 +58,18 @@ function ConflictStat({
           ) : null}
         </div>
 
-        <Badge variant={variant as any}>{value == null ? "—" : formatNumber(value)}</Badge>
+        <Badge variant={variant as any}>
+          {value == null ? "—" : formatNumber(value)}
+        </Badge>
       </CardHeader>
       <CardContent className="p-0" />
     </Card>
   );
 }
 
-function computeAggregatesFromExams(allExams: any[] | undefined): ConflictMetrics {
+function computeAggregatesFromExams(
+  allExams: any[] | undefined,
+): ConflictMetrics {
   const init: ConflictMetrics = {
     hard_student_conflicts: 0,
     hard_instructor_conflicts: 0,
@@ -124,11 +124,16 @@ export default function ConflictView({
   const derived = computeAggregatesFromExams(allExams ?? []);
 
   const merged: ConflictMetrics = {
-    hard_student_conflicts: metrics?.hard_student_conflicts ?? derived.hard_student_conflicts,
-    hard_instructor_conflicts: metrics?.hard_instructor_conflicts ?? derived.hard_instructor_conflicts,
-    students_back_to_back: metrics?.students_back_to_back ?? derived.students_back_to_back,
-    large_courses_not_early: metrics?.large_courses_not_early ?? derived.large_courses_not_early,
-    student_gt3_per_day: metrics?.student_gt3_per_day ?? derived.student_gt3_per_day,
+    hard_student_conflicts:
+      metrics?.hard_student_conflicts ?? derived.hard_student_conflicts,
+    hard_instructor_conflicts:
+      metrics?.hard_instructor_conflicts ?? derived.hard_instructor_conflicts,
+    students_back_to_back:
+      metrics?.students_back_to_back ?? derived.students_back_to_back,
+    large_courses_not_early:
+      metrics?.large_courses_not_early ?? derived.large_courses_not_early,
+    student_gt3_per_day:
+      metrics?.student_gt3_per_day ?? derived.student_gt3_per_day,
   };
   // --- Tabbed table views per file comment ---
   const tabs = [
@@ -141,9 +146,25 @@ export default function ConflictView({
 
   // Map exams -> rows for each table. If there's no useful data, return small fake datasets
   function buildRows() {
-  const backRows: Array<{ student: string; day: string; block?: string; blocks?: number[] }> = [];
-  const largeRows: Array<{ crn: string; course: string; size: number | string; day?: string; block?: string }> = [];
-  const notScheduledRows: Array<{ crn: string; course: string; size: number | string; reason: string }> = [];
+    const backRows: Array<{
+      student: string;
+      day: string;
+      block?: string;
+      blocks?: number[];
+    }> = [];
+    const largeRows: Array<{
+      crn: string;
+      course: string;
+      size: number | string;
+      day?: string;
+      block?: string;
+    }> = [];
+    const notScheduledRows: Array<{
+      crn: string;
+      course: string;
+      size: number | string;
+      reason: string;
+    }> = [];
 
     if (Array.isArray(allExams) && allExams.length > 0) {
       for (const e of allExams as any[]) {
@@ -156,16 +177,37 @@ export default function ConflictView({
 
         if (e.students_back_to_back) {
           // exams don't carry student ids usually; create a row that references the student and count
-          backRows.push({ student: e.example_student_id ?? `student(s): ${e.students_back_to_back}`, day, block });
+          backRows.push({
+            student:
+              e.example_student_id ?? `student(s): ${e.students_back_to_back}`,
+            day,
+            block,
+          });
         }
 
         if (e.large_courses_not_early) {
-          largeRows.push({ crn: String(crn), course: String(course), size: Number.isFinite(Number(size)) ? Number(size) : size, day, block });
+          largeRows.push({
+            crn: String(crn),
+            course: String(course),
+            size: Number.isFinite(Number(size)) ? Number(size) : size,
+            day,
+            block,
+          });
         }
 
         // not scheduled: look for common flags
-        if (e.scheduled === false || e.not_scheduled || e.unscheduled_reason || e.status === "unscheduled") {
-          notScheduledRows.push({ crn: String(crn), course: String(course), size: Number.isFinite(Number(size)) ? Number(size) : size, reason: e.unscheduled_reason ?? "No slot available" });
+        if (
+          e.scheduled === false ||
+          e.not_scheduled ||
+          e.unscheduled_reason ||
+          e.status === "unscheduled"
+        ) {
+          notScheduledRows.push({
+            crn: String(crn),
+            course: String(course),
+            size: Number.isFinite(Number(size)) ? Number(size) : size,
+            reason: e.unscheduled_reason ?? "No slot available",
+          });
         }
       }
     }
@@ -180,15 +222,43 @@ export default function ConflictView({
 
     if (largeRows.length === 0) {
       // Large Courses NOT Scheduled Early (Thu–Sun)
-      largeRows.push({ crn: "10284", course: "CS1800", size: 245, day: "Thu", block: "4 (7:00–9:00)" });
-      largeRows.push({ crn: "12227", course: "BIOL2217", size: 157, day: "Sun", block: "1 (11:30–1:30)" });
-      largeRows.push({ crn: "13326", course: "PSYC4510", size: 151, day: "Thu", block: "3 (4:30–6:30)" });
+      largeRows.push({
+        crn: "10284",
+        course: "CS1800",
+        size: 245,
+        day: "Thu",
+        block: "4 (7:00–9:00)",
+      });
+      largeRows.push({
+        crn: "12227",
+        course: "BIOL2217",
+        size: 157,
+        day: "Sun",
+        block: "1 (11:30–1:30)",
+      });
+      largeRows.push({
+        crn: "13326",
+        course: "PSYC4510",
+        size: 151,
+        day: "Thu",
+        block: "3 (4:30–6:30)",
+      });
     }
 
     if (notScheduledRows.length === 0) {
       // Unassigned Courses
-      notScheduledRows.push({ crn: "18421", course: "CS3100", size: 160, reason: "student_double_book: 34, instructor_double_book: 1" });
-      notScheduledRows.push({ crn: "14982", course: "CHEM2313", size: 149, reason: "student_double_book: 35" });
+      notScheduledRows.push({
+        crn: "18421",
+        course: "CS3100",
+        size: 160,
+        reason: "student_double_book: 34, instructor_double_book: 1",
+      });
+      notScheduledRows.push({
+        crn: "14982",
+        course: "CHEM2313",
+        size: 149,
+        reason: "student_double_book: 35",
+      });
     }
 
     return { backRows, largeRows, notScheduledRows };
@@ -203,7 +273,9 @@ export default function ConflictView({
           <AlertTriangle className="h-5 w-5 text-amber-600" />
           Conflict Summary
         </h2>
-        <p className="text-sm text-muted-foreground">Quick overview of schedule conflicts</p>
+        <p className="text-sm text-muted-foreground">
+          Quick overview of schedule conflicts
+        </p>
       </div>
 
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-5">
@@ -240,7 +312,7 @@ export default function ConflictView({
       <div className="mt-4">
         <div className="flex gap-2">
           {tabs.map((t) => (
-            <button
+            <Button
               key={t.id}
               onClick={() => setActiveTab(t.id)}
               className={`rounded-md px-3 py-1 text-sm font-medium transition-colors ${
@@ -250,7 +322,7 @@ export default function ConflictView({
               }`}
             >
               {t.label}
-            </button>
+            </Button>
           ))}
         </div>
 
@@ -275,7 +347,9 @@ export default function ConflictView({
                         <tr key={i} className="border-t">
                           <td className="px-2 py-2">{r.student}</td>
                           <td className="px-2 py-2">{r.day}</td>
-                          <td className="px-2 py-2">{r.blocks ? r.blocks.join(", ") : r.block ?? "—"}</td>
+                          <td className="px-2 py-2">
+                            {r.blocks ? r.blocks.join(", ") : (r.block ?? "—")}
+                          </td>
                         </tr>
                       ))}
                     </tbody>

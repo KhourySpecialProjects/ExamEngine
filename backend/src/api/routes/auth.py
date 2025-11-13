@@ -50,7 +50,7 @@ async def login(
         key="auth_token",
         value=access_token,
         httponly=True,
-        secure=True,
+        secure=False,  # Allow HTTP in development
         samesite="lax",
         max_age=settings.access_token_expire_minutes * 60,
         path="/",

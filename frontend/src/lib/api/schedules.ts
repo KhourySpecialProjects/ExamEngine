@@ -1,16 +1,26 @@
 import { BaseAPI } from "./base";
 
 export interface ScheduleParameters {
-  max_per_day?: number;
+  student_max_per_day?: number;
+  instructor_max_per_day?: number;
   avoid_back_to_back?: boolean;
   max_days?: number;
 }
 
 export interface ConflictBreakdown {
-  student_id: string;
+  student_id?: string;
+  entity_id?: string;
   day: string;
+  block?: number;
+  block_time?: string;
   conflict_type: string;
-  blocks: number[];
+  blocks?: number[];
+  crn?: string;
+  course?: string;
+  conflicting_crn?: string;
+  conflicting_course?: string;
+  conflicting_crns?: string[];
+  conflicting_courses?: string[];
 }
 
 export interface ScheduleFailure {
@@ -29,6 +39,7 @@ export interface ScheduleExam {
   Capacity: number;
   Size: number;
   Valid: boolean;
+  Instructor?: string;
 }
 
 export interface CalendarExam {
@@ -38,6 +49,7 @@ export interface CalendarExam {
   Capacity: number;
   Size: number;
   Valid: boolean;
+  Instructor?: string;
 }
 
 export interface CalendarData {
@@ -77,15 +89,40 @@ export interface ScheduleResult {
   parameters: ScheduleParameters;
 }
 
+export interface ScheduleListItem {
+  schedule_id: string;
+  schedule_name: string;
+  created_at: string;
+  algorithm: string;
+  parameters: ScheduleParameters;
+  status: "Running" | "Completed" | "Failed";
+  dataset_id: string;
+  total_exams: number;
+}
+
 export class SchedulesAPI extends BaseAPI {
   async generate(
     dataset_id: string,
+    schedule_name: string,
     parameters: ScheduleParameters = {},
   ): Promise<ScheduleResult> {
     const queryParams = new URLSearchParams();
 
-    if (parameters.max_per_day !== undefined) {
-      queryParams.append("max_per_day", parameters.max_per_day.toString());
+    if (schedule_name) {
+      queryParams.append("schedule_name", schedule_name);
+    }
+
+    if (parameters.student_max_per_day !== undefined) {
+      queryParams.append(
+        "student_max_per_day",
+        parameters.student_max_per_day.toString(),
+      );
+    }
+    if (parameters.instructor_max_per_day !== undefined) {
+      queryParams.append(
+        "instructor_max_per_day",
+        parameters.instructor_max_per_day.toString(),
+      );
     }
     if (parameters.avoid_back_to_back !== undefined) {
       queryParams.append(
@@ -102,5 +139,10 @@ export class SchedulesAPI extends BaseAPI {
         method: "POST",
       },
     );
+  }
+  async list(): Promise<ScheduleListItem[]> {
+    return this.request("/schedule", {
+      method: "GET",
+    });
   }
 }

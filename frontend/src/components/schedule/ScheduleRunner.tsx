@@ -18,6 +18,7 @@ import { Slider } from "@/components/ui/slider";
 import { Switch } from "@/components/ui/switch";
 import { useDatasetStore } from "@/lib/store/datasetStore";
 import { useScheduleStore } from "@/lib/store/scheduleStore";
+import { Input } from "../ui/input";
 
 export function ScheduleRunner() {
   const selectedDatasetId = useDatasetStore((state) => state.selectedDatasetId);
@@ -28,15 +29,23 @@ export function ScheduleRunner() {
   const {
     currentSchedule,
     isGenerating,
+    scheduleName,
     parameters,
     generateSchedule,
     setParameters,
+    setScheduleName,
   } = useScheduleStore();
 
   const handleGenerate = async () => {
     if (!selectedDatasetId) {
       toast.error("No dataset selected", {
         description: "Please select a dataset first",
+      });
+      return;
+    }
+    if (!scheduleName || scheduleName.trim() === "") {
+      toast.error("Schedule name required", {
+        description: "Please enter a name for your schedule",
       });
       return;
     }
@@ -58,9 +67,8 @@ export function ScheduleRunner() {
       });
     }
   };
-
-
-  // Export removed from Optimize dialog — exporting is available from the Dashboard header
+  const isGenerateDisabled =
+    !selectedDatasetId || isGenerating || !scheduleName?.trim();
 
   return (
     <Dialog>
@@ -98,6 +106,17 @@ export function ScheduleRunner() {
             </Alert>
           )}
 
+          <div className="space-y-2">
+            <Label htmlFor="schedule-name">Schedule Name</Label>
+            <Input
+              id="schedule-name"
+              type="text"
+              placeholder="e.g., Fall 2024 Final Exams"
+              value={scheduleName || ""}
+              onChange={(e) => setScheduleName(e.target.value)}
+            />
+          </div>
+
           {/* Parameters */}
           <div className="space-y-4">
             <h3 className="text-sm font-semibold">Algorithm Parameters</h3>
@@ -107,13 +126,13 @@ export function ScheduleRunner() {
               <div className="flex items-center justify-between">
                 <Label>Maximum Exams Per Student Per Day</Label>
                 <span className="text-sm font-medium">
-                  {parameters.max_per_day}
+                  {parameters.student_max_per_day}
                 </span>
               </div>
               <Slider
-                value={[parameters.max_per_day || 3]}
+                value={[parameters.student_max_per_day || 3]}
                 onValueChange={([value]) =>
-                  setParameters({ max_per_day: value })
+                  setParameters({ student_max_per_day: value })
                 }
                 min={1}
                 max={5}
@@ -122,6 +141,31 @@ export function ScheduleRunner() {
               />
               <p className="text-xs text-muted-foreground">
                 Limit how many exams a student can take in one day
+              </p>
+            </div>
+
+            <Separator />
+
+            {/* Max Exams Per Instructor Per Day */}
+            <div className="space-y-3">
+              <div className="flex items-center justify-between">
+                <Label>Maximum Exams Per Instructor Per Day</Label>
+                <span className="text-sm font-medium">
+                  {parameters.instructor_max_per_day || 2}
+                </span>
+              </div>
+              <Slider
+                value={[parameters.instructor_max_per_day || 2]}
+                onValueChange={([value]) =>
+                  setParameters({ instructor_max_per_day: value })
+                }
+                min={1}
+                max={5}
+                step={1}
+                disabled={isGenerating}
+              />
+              <p className="text-xs text-muted-foreground">
+                Limit how many exams an instructor can teach in one day
               </p>
             </div>
 
@@ -155,7 +199,8 @@ export function ScheduleRunner() {
               <div className="space-y-1">
                 <Label>Avoid Back-to-Back Exams</Label>
                 <p className="text-xs text-muted-foreground">
-                  Prevent consecutive exam blocks for students when possible
+                  Prevent consecutive exam blocks for students and instructors
+                  when possible
                 </p>
               </div>
               <Switch
@@ -172,7 +217,7 @@ export function ScheduleRunner() {
           <div className="flex gap-3 pt-4 border-t">
             <Button
               onClick={handleGenerate}
-              disabled={!selectedDatasetId || isGenerating}
+              disabled={isGenerateDisabled}
               className="flex-1"
             >
               {isGenerating ? (
@@ -198,8 +243,14 @@ export function ScheduleRunner() {
                 <div className="font-medium">Current Schedule</div>
                 <div className="text-xs text-muted-foreground mt-1">
                   {currentSchedule.schedule.total_exams} exams scheduled •{" "}
-                  {currentSchedule.conflicts.total} conflicts •{" "}
+                  {currentSchedule.summary.real_conflicts} conflicts •{" "}
                   {currentSchedule.failures.length} failures
+                  {currentSchedule.conflicts.total > 0 && (
+                    <>
+                      {" "}
+                      • {currentSchedule.conflicts.total} back-to-back warnings
+                    </>
+                  )}
                 </div>
               </AlertDescription>
             </Alert>

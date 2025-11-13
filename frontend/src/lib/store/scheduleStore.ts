@@ -5,6 +5,7 @@ import type { ScheduleParameters, ScheduleResult } from "../api/schedules";
 interface ScheduleState {
   // Initial data state
   currentSchedule: ScheduleResult | null;
+  scheduleName: string;
 
   // UI State
   isGenerating: boolean;
@@ -16,6 +17,7 @@ interface ScheduleState {
   // Actions
   generateSchedule: (datasetId: string) => Promise<ScheduleResult>;
   setScheduleData: (schedule: ScheduleResult) => void;
+  setScheduleName: (name: string) => void;
   setParameters: (params: Partial<ScheduleParameters>) => void;
   clearSchedule: () => void;
   clearError: () => void;
@@ -24,10 +26,12 @@ interface ScheduleState {
 export const useScheduleStore = create<ScheduleState>((set, get) => ({
   // Initial state
   currentSchedule: null,
+  scheduleName: "",
   isGenerating: false,
   error: null,
   parameters: {
-    max_per_day: 3,
+    student_max_per_day: 3,
+    instructor_max_per_day: 2,
     avoid_back_to_back: true,
     max_days: 7,
   },
@@ -38,6 +42,7 @@ export const useScheduleStore = create<ScheduleState>((set, get) => ({
     try {
       const result = await apiClient.schedules.generate(
         datasetId,
+        get().scheduleName,
         get().parameters,
       );
       set({ currentSchedule: result, isGenerating: false });
@@ -56,6 +61,10 @@ export const useScheduleStore = create<ScheduleState>((set, get) => ({
   // Manually set schedule data (for testing, imports, etc.)
   setScheduleData: (schedule) => {
     set({ currentSchedule: schedule, error: null });
+  },
+
+  setScheduleName: (name: string) => {
+    set({ scheduleName: name });
   },
 
   // Update parameters

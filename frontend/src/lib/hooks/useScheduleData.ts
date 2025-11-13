@@ -14,7 +14,10 @@ export function useScheduleData() {
   // Convert schedule to calendar rows
   const calendarRows = useMemo(() => {
     if (!currentSchedule) return [];
-    return convertToCalendarRows(currentSchedule.schedule.calendar);
+    return convertToCalendarRows(
+      currentSchedule.schedule.calendar,
+      currentSchedule.conflicts.breakdown,
+    );
   }, [currentSchedule]);
 
   // Flatten to exam list
@@ -57,6 +60,7 @@ export function useScheduleData() {
  */
 function convertToCalendarRows(
   calendar: Record<string, Record<string, CalendarExam[]>>,
+  conflictBreakdown: any[] = [],
 ): CalendarRow[] {
   const backendDays = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
   const frontendDays = [
@@ -68,6 +72,45 @@ function convertToCalendarRows(
     "Saturday",
     "Sunday",
   ];
+
+  // Create a day name mapping (backend -> frontend)
+  const dayNameMap: Record<string, string> = {
+    Mon: "Monday",
+    Tue: "Tuesday",
+    Wed: "Wednesday",
+    Thu: "Thursday",
+    Fri: "Friday",
+    Sat: "Saturday",
+    Sun: "Sunday",
+  };
+
+  // Helper function to extract time from Block format "0 (9:00-11:00)" -> "9:00-11:00"
+  const extractTimeFromBlock = (blockStr: string): string => {
+    // If it's already just a time (like "9:00-11:00"), return it
+    if (!blockStr.includes("(")) {
+      return blockStr;
+    }
+    // Extract the part in parentheses: "0 (9:00-11:00)" -> "9:00-11:00"
+    const match = blockStr.match(/\(([^)]+)\)/);
+    return match ? match[1] : blockStr;
+  };
+
+  // Create a map of conflicts by day and time slot for quick lookup
+  const conflictMap = new Map<string, number>();
+  conflictBreakdown
+    .filter((c) => c.conflict_type !== "back_to_back")
+    .forEach((conflict) => {
+      const day = conflict.day || "";
+      const blockTime = conflict.block_time || "";
+      if (day && blockTime) {
+        // Map backend day names to frontend day names
+        const frontendDay = dayNameMap[day] || day;
+        // Normalize blockTime (extract time if it's in "N (time)" format)
+        const normalizedTime = extractTimeFromBlock(blockTime);
+        const key = `${frontendDay}-${normalizedTime}`;
+        conflictMap.set(key, (conflictMap.get(key) || 0) + 1);
+      }
+    });
 
   // Get all time slots
   const timeSlotSet = new Set<string>();
@@ -86,12 +129,13 @@ function convertToCalendarRows(
       const backendDay = backendDays[index];
       const examsInSlot = calendar[backendDay]?.[timeSlot] || [];
 
-      const exams: Exam[] = examsInSlot.map((exam) => ({
-        id: `${frontendDay}-${timeSlot}-${exam.CRN}-${Math.random() * 5000}`,
+      // Use deterministic IDs instead of Math.random() to avoid hydration mismatch
+      const exams: Exam[] = examsInSlot.map((exam, examIndex) => ({
+        id: `${frontendDay}-${timeSlot}-${exam.CRN}-${examIndex}`,
         courseCode: exam.Course,
         section: exam.CRN,
         department: exam.Course.split(" ")[0] || "MISC",
-        instructor: "TBD",
+        instructor: exam.Instructor || "TBD",
         studentCount: exam.Size,
         room: exam.Room,
         building: exam.Room.split(" ")[0] || "TBD",
@@ -100,11 +144,18 @@ function convertToCalendarRows(
         timeSlot,
       }));
 
+      // Count conflicts for this cell from both exam validity and actual conflict breakdown
+      // Extract time from timeSlot format "0 (9:00-11:00)" -> "9:00-11:00" to match conflict map
+      const normalizedTimeSlot = extractTimeFromBlock(timeSlot);
+      const cellConflictKey = `${frontendDay}-${normalizedTimeSlot}`;
+      const actualConflicts = conflictMap.get(cellConflictKey) || 0;
+      const invalidExams = exams.filter((e) => e.conflicts > 0).length;
+
       return {
         day: frontendDay,
         timeSlot,
         examCount: exams.length,
-        conflicts: exams.filter((e) => e.conflicts > 0).length,
+        conflicts: actualConflicts + invalidExams, // Combine both types
         exams,
       };
     }),

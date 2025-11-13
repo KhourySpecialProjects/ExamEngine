@@ -34,6 +34,13 @@ export const colorThemes: Record<string, string[]> = {
     "rgb(148,0,211)",
     "rgb(75,0,130)",
   ],
+  sunset: [
+    "rgb(255,255,255)",
+    "rgb(102,178,255)",
+    "rgb(255,255,102)",
+    "rgb(255,102,102)",
+    "rgb(255,0,0)",
+  ],
 };
 
 export const THEME_KEYS = Object.keys(colorThemes);

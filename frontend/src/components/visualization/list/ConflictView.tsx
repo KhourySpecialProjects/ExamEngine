@@ -7,6 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { useExamTable } from "@/lib/hooks/useExamTable";
+import { useScheduleData } from "@/lib/hooks/useScheduleData";
 import { useScheduleStore } from "@/lib/store/scheduleStore";
 import { mapConflictsToRows } from "@/lib/utils";
 
@@ -129,9 +130,12 @@ export default function ConflictView({
   metrics?: Partial<ConflictMetrics>;
 }) {
   const { allExams } = useExamTable();
+  const { calendarRows } = useScheduleData();
   const derived = computeAggregatesFromExams(allExams ?? []);
   const currentSchedule = useScheduleStore((s) => s.currentSchedule);
   const breakdown = currentSchedule?.conflicts?.breakdown ?? [];
+
+  
   // Compute totals directly from backend breakdown for more accurate summary
   function computeTotalsFromBreakdown(bd: any[] | undefined): ConflictMetrics {
     const init: ConflictMetrics = {
@@ -310,12 +314,23 @@ export default function ConflictView({
     return (allExams ?? []).find((e: any) => String(e.crn ?? e.CRN ?? e.id) === String(crn));
   };
 
+  // Helper: map backend day abbreviations to frontend day names used in calendarRows
+  const dayNameMap: Record<string, string> = {
+    Mon: "Monday",
+    Tue: "Tuesday",
+    Wed: "Wednesday",
+    Thu: "Thursday",
+    Fri: "Friday",
+    Sat: "Saturday",
+    Sun: "Sunday",
+  };
+
   for (const conf of (breakdown ?? []) as any[]) {
     const type = conf.conflict_type ?? conf.violation ?? "unknown";
     conflictTypeRows[type] = conflictTypeRows[type] ?? [];
 
     const rawCrn = conf.crn ?? (Array.isArray(conf.conflicting_crns) ? conf.conflicting_crns[0] : conf.conflicting_crn) ?? null;
-  const exam: any = findExamByCrn(rawCrn);
+    const exam: any = findExamByCrn(rawCrn);
 
     const crnVal = rawCrn ?? (exam ? String(exam.crn ?? exam.CRN ?? exam.id) : null);
     const courseVal = conf.course ?? conf.conflicting_course ?? (exam ? (exam.course_name ?? exam.course ?? exam.title) : null) ?? (Array.isArray(conf.conflicting_courses) ? conf.conflicting_courses[0] : null);
@@ -324,10 +339,22 @@ export default function ConflictView({
 
     const entityVal = conf.student_id ? `S:${conf.student_id}` : conf.instructor_id ? `I:${conf.instructor_id}` : conf.entity_id ?? null;
 
-    let blockVal = null;
-    if (Array.isArray(conf.blocks)) blockVal = conf.blocks.join(", ");
-    else if (conf.block_time) blockVal = conf.block_time;
-    else if (conf.block) blockVal = conf.block;
+    // Resolve block: backend may send numeric block indices. Try to map them to frontend timeSlot strings
+    let blockVal: string | null = null;
+    if (Array.isArray(conf.blocks)) {
+      blockVal = conf.blocks.join(", ");
+    } else if (conf.block_time) {
+      blockVal = conf.block_time;
+    } else if (conf.block !== undefined && conf.block !== null) {
+      // If block is numeric, try to find matching calendarRows.timeSlot
+      const bStr = String(conf.block);
+      // Find a calendar row whose timeSlot starts with the block index (e.g., "3 (13:00-15:00)")
+      const match = (calendarRows || []).find((r: any) => {
+        const ts = String(r.timeSlot || "");
+        return ts.split(" ")[0] === bStr;
+      });
+      blockVal = match ? String(match.timeSlot) : String(conf.block);
+    }
 
     let conflictingCourses: string[] = [];
     if (Array.isArray(conf.conflicting_courses)) conflictingCourses = conf.conflicting_courses.map((c: any) => String(c));
@@ -337,7 +364,7 @@ export default function ConflictView({
     const row = {
       entity: entityVal,
       type,
-      day: conf.day ?? conf.block_day ?? null,
+      day: dayNameMap[conf.day] ?? conf.day ?? conf.block_day ?? null,
       block: blockVal,
       size: sizeVal,
       course: courseVal,
@@ -382,6 +409,7 @@ export default function ConflictView({
         <p className="text-sm text-muted-foreground mt-1">
           Quick overview of schedule conflicts
         </p>
+        {/* raw breakdown toggle removed */}
       </div>
 
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-6">
@@ -568,6 +596,7 @@ export default function ConflictView({
               ))}
             </div>
           </div>
+          {/* raw JSON dump removed */}
         </div>
       </div>
     </section>

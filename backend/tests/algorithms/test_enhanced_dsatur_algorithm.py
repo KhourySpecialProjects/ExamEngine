@@ -894,7 +894,7 @@ class TestAlgorithmOptimization:
         large_courses = schedule_df[schedule_df["Size"] >= 40]
         if len(large_courses) > 0:
             # Check if large courses are scheduled early (this is a soft constraint)
-            early_days = ["Mon", "Tue", "Wed"]
+            early_days = ["Monday", "Tuesday", "Wednesday"]
             early_scheduled = large_courses[large_courses["Day"].isin(early_days)]
             early_ratio = len(early_scheduled) / len(large_courses)
 

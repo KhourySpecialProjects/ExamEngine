@@ -82,6 +82,7 @@ export interface ScheduleData {
 export interface ScheduleResult {
   dataset_id: string;
   dataset_name: string;
+  schedule_name: string;
   summary: ScheduleSummary;
   conflicts: ScheduleConflicts;
   failures: ScheduleFailure[];
@@ -142,6 +143,11 @@ export class SchedulesAPI extends BaseAPI {
   }
   async list(): Promise<ScheduleListItem[]> {
     return this.request("/schedule", {
+      method: "GET",
+    });
+  }
+  async get(id: string): Promise<ScheduleResult> {
+    return this.request(`/schedule/${id}`, {
       method: "GET",
     });
   }

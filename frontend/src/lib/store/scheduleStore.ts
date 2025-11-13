@@ -16,6 +16,7 @@ interface ScheduleState {
 
   // Actions
   generateSchedule: (datasetId: string) => Promise<ScheduleResult>;
+  fetchSchedule: (scheduleId: string) => Promise<ScheduleResult>;
   setScheduleData: (schedule: ScheduleResult) => void;
   setScheduleName: (name: string) => void;
   setParameters: (params: Partial<ScheduleParameters>) => void;
@@ -45,7 +46,7 @@ export const useScheduleStore = create<ScheduleState>((set, get) => ({
         get().scheduleName,
         get().parameters,
       );
-      set({ currentSchedule: result, isGenerating: false });
+      set({ currentSchedule: result, scheduleName: "", isGenerating: false });
       return result;
     } catch (error) {
       set({
@@ -53,6 +54,21 @@ export const useScheduleStore = create<ScheduleState>((set, get) => ({
           error instanceof Error
             ? error.message
             : "Failed to generate schedule",
+        isGenerating: false,
+      });
+      throw error;
+    }
+  },
+  fetchSchedule: async (scheduleId: string) => {
+    set({ isGenerating: true, error: null });
+    try {
+      const result = await apiClient.schedules.get(scheduleId);
+      set({ currentSchedule: result, isGenerating: false });
+      return result;
+    } catch (error) {
+      set({
+        error:
+          error instanceof Error ? error.message : "Failed to fetch schedule",
         isGenerating: false,
       });
       throw error;

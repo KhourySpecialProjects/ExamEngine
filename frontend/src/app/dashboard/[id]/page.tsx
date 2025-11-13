@@ -3,7 +3,7 @@
 import { ChevronRight, MoveLeft, Save } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { use, useEffect, useState } from "react";
 import { toast } from "sonner";
 import { ViewTabSwitcher } from "@/components/common/ViewTabSwitcher";
 import { StatisticsView } from "@/components/statistics/StatisticsView";
@@ -20,23 +20,26 @@ import CompactView from "@/components/visualization/calendar/CompactView";
 import DensityView from "@/components/visualization/calendar/DensityView";
 import { ExamListDialog } from "@/components/visualization/calendar/ExamListDialog";
 import ListView from "@/components/visualization/list/ListView";
-import { THEME_KEYS } from "@/lib/constants/colorThemes";
 import { useScheduleData } from "@/lib/hooks/useScheduleData";
-import { useCalendarStore } from "@/lib/store/calendarStore";
 import { exportScheduleRowsAsCsv } from "@/lib/utils";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
+import { useScheduleStore } from "@/lib/store/scheduleStore";
 
 type ViewType = "density" | "compact" | "list" | "statistics";
 
-export default function SchedulePage({ params }: { params: { id: string } }) {
+export default function SchedulePage({
+  params,
+}: {
+  params: Promise<{ id: string }>;
+}) {
+  const { id: scheduleId } = use(params);
   const [activeView, setActiveView] = useState<ViewType>("density");
   const router = useRouter();
+
+  const fetchSchedule = useScheduleStore((state) => state.fetchSchedule);
+
+  useEffect(() => {
+    fetchSchedule(scheduleId);
+  }, [scheduleId, fetchSchedule]);
 
   const { schedule } = useScheduleData();
 
@@ -90,8 +93,7 @@ export default function SchedulePage({ params }: { params: { id: string } }) {
               <ChevronRight className="h-4 w-4" />
             </BreadcrumbSeparator>
             <BreadcrumbItem>
-              {/* TODO: replace with schedule name */}
-              <BreadcrumbPage>2025 Fall Schedule</BreadcrumbPage>
+              <BreadcrumbPage>{schedule?.schedule_name}</BreadcrumbPage>
             </BreadcrumbItem>
           </BreadcrumbList>
         </Breadcrumb>

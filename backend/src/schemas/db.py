@@ -121,6 +121,7 @@ class Courses(Base):
     )
     crn: Mapped[str] = mapped_column(String(50), nullable=False)
     course_subject_code: Mapped[str] = mapped_column(String)
+    instructor_name: Mapped[str | None] = mapped_column(String, nullable=True)
     enrollment_count: Mapped[int] = mapped_column(Integer)
     dataset_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("datasets.dataset_id"))
     exam_assignments: Mapped[list["ExamAssignments"]] = relationship(

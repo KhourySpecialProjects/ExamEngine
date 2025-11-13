@@ -6,6 +6,8 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { useExamTable } from "@/lib/hooks/useExamTable";
+import { useScheduleStore } from "@/lib/store/scheduleStore";
+import { mapConflictsToConflictMap, mapConflictsToRows } from "@/lib/utils";
 
 type ConflictMetrics = {
   hard_student_conflicts: number;
@@ -122,18 +124,42 @@ export default function ConflictView({
 }) {
   const { allExams } = useExamTable();
   const derived = computeAggregatesFromExams(allExams ?? []);
+  const currentSchedule = useScheduleStore((s) => s.currentSchedule);
+  const breakdown = currentSchedule?.conflicts?.breakdown ?? [];
+  const mapped = mapConflictsToConflictMap(breakdown);
+
+  // Aggregate mapped conflict values into the same shape as ConflictMetrics
+  const mappedTotals: ConflictMetrics = mapped.reduce(
+    (acc, m) => {
+      acc.hard_student_conflicts += typeof m.studentConflicts === "number" ? m.studentConflicts : 0;
+      acc.hard_instructor_conflicts += typeof m.instructorConflicts === "number" ? m.instructorConflicts : 0;
+      // For back-to-back, prefer a numeric count if available, otherwise count the occurrence
+      acc.students_back_to_back += m.backToBack ? (typeof m.studentConflicts === "number" && m.studentConflicts > 0 ? m.studentConflicts : 1) : 0;
+      // large_courses_not_early is not provided by the conflictMap; keep derived value
+      acc.large_courses_not_early += 0;
+      acc.student_gt3_per_day += m.overMaxExams ? 1 : 0;
+      return acc;
+    },
+    {
+      hard_student_conflicts: 0,
+      hard_instructor_conflicts: 0,
+      students_back_to_back: 0,
+      large_courses_not_early: 0,
+      student_gt3_per_day: 0,
+    } as ConflictMetrics,
+  );
 
   const merged: ConflictMetrics = {
     hard_student_conflicts:
-      metrics?.hard_student_conflicts ?? derived.hard_student_conflicts,
+      metrics?.hard_student_conflicts ?? (mappedTotals.hard_student_conflicts > 0 ? mappedTotals.hard_student_conflicts : derived.hard_student_conflicts),
     hard_instructor_conflicts:
-      metrics?.hard_instructor_conflicts ?? derived.hard_instructor_conflicts,
+      metrics?.hard_instructor_conflicts ?? (mappedTotals.hard_instructor_conflicts > 0 ? mappedTotals.hard_instructor_conflicts : derived.hard_instructor_conflicts),
     students_back_to_back:
-      metrics?.students_back_to_back ?? derived.students_back_to_back,
+      metrics?.students_back_to_back ?? (mappedTotals.students_back_to_back > 0 ? mappedTotals.students_back_to_back : derived.students_back_to_back),
     large_courses_not_early:
       metrics?.large_courses_not_early ?? derived.large_courses_not_early,
     student_gt3_per_day:
-      metrics?.student_gt3_per_day ?? derived.student_gt3_per_day,
+      metrics?.student_gt3_per_day ?? (mappedTotals.student_gt3_per_day > 0 ? mappedTotals.student_gt3_per_day : derived.student_gt3_per_day),
   };
   // --- Tabbed table views per file comment ---
   const tabs = [
@@ -266,6 +292,12 @@ export default function ConflictView({
 
   const { backRows, largeRows, notScheduledRows } = buildRows();
 
+  // Prefer rows built from backend conflicts when available
+  const mappedRows = mapConflictsToRows(allExams ?? [], breakdown ?? []);
+  const displayBackRows = (mappedRows.backRows && mappedRows.backRows.length > 0) ? mappedRows.backRows : backRows;
+  const displayLargeRows = (mappedRows.largeRows && mappedRows.largeRows.length > 0) ? mappedRows.largeRows : largeRows;
+  const displayNotScheduledRows = (mappedRows.notScheduledRows && mappedRows.notScheduledRows.length > 0) ? mappedRows.notScheduledRows : notScheduledRows;
+
   return (
     <section className="space-y-4">
       <div className="flex items-center justify-between">
@@ -343,7 +375,7 @@ export default function ConflictView({
                       </tr>
                     </thead>
                     <tbody>
-                      {backRows.map((r, i) => (
+                      {displayBackRows.map((r, i) => (
                         <tr key={i} className="border-t">
                           <td className="px-2 py-2">{r.student}</td>
                           <td className="px-2 py-2">{r.day}</td>
@@ -377,7 +409,7 @@ export default function ConflictView({
                       </tr>
                     </thead>
                     <tbody>
-                      {largeRows.map((r, i) => (
+                      {displayLargeRows.map((r, i) => (
                         <tr key={i} className="border-t">
                           <td className="px-2 py-2">{r.crn}</td>
                           <td className="px-2 py-2">{r.course}</td>
@@ -410,7 +442,7 @@ export default function ConflictView({
                       </tr>
                     </thead>
                     <tbody>
-                      {notScheduledRows.map((r, i) => (
+                      {displayNotScheduledRows.map((r, i) => (
                         <tr key={i} className="border-t">
                           <td className="px-2 py-2">{r.crn}</td>
                           <td className="px-2 py-2">{r.course}</td>

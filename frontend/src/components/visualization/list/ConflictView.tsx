@@ -24,13 +24,13 @@ function formatNumber(n: number | null | undefined) {
 }
 
 /*
-  Should 3 tabls (like in ViewTabSwitcher)
+  Should 3 tabs (like in ViewTabSwitcher)
   the 3 tabs are for 
   1. Students back-to-back
   2. Large courses not early
   3. Courses Not Scheduled
 
-  Each tabe shows a table of exams that contribute to that metric
+  Each tab shows a table of exams that contribute to that metric
   back to back : student id, day, block 
   large courses not early: CRN, Course, Size, Day, Block
   courses not scheduled: CRN, Course, Size, Reason
@@ -147,7 +147,6 @@ export default function ConflictView({
 
     for (const c of bd as any[]) {
       const type = c.conflict_type ?? c.violation ?? "unknown";
-      const count = typeof c.count === "number" ? c.count : 1;
 
       if (type === "student_double_book") {
         init.hard_student_conflicts += (typeof c.student_conflicts === "number" ? c.student_conflicts : (typeof c.count === "number" ? c.count : 1));
@@ -283,12 +282,12 @@ export default function ConflictView({
     conflictTypeRows[type] = conflictTypeRows[type] ?? [];
 
     const rawCrn = conf.crn ?? (Array.isArray(conf.conflicting_crns) ? conf.conflicting_crns[0] : conf.conflicting_crn) ?? null;
-  const exam: any = findExamByCrn(rawCrn);
+    const exam: any = findExamByCrn(rawCrn);
 
     const crnVal = rawCrn ?? (exam ? String(exam.crn ?? exam.CRN ?? exam.id) : null);
     const courseVal = conf.course ?? conf.conflicting_course ?? (exam ? (exam.course_name ?? exam.course ?? exam.title) : null) ?? (Array.isArray(conf.conflicting_courses) ? conf.conflicting_courses[0] : null);
 
-  const sizeVal = exam ? (exam.enrollment ?? exam.size ?? exam.students_count ?? null) : null;
+    const sizeVal = exam ? (exam.enrollment ?? exam.size ?? exam.students_count ?? null) : null;
 
     const entityVal = conf.student_id ? `S:${conf.student_id}` : conf.instructor_id ? `I:${conf.instructor_id}` : conf.entity_id ?? null;
 

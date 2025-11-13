@@ -399,7 +399,8 @@ export function wrapSampleDataAsScheduleResult(
       max_days: 7,
     },
   } as any;
-  };
+}
+
 
 export const getTimeAgo = (dateString: string) => {
   const date = new Date(dateString);

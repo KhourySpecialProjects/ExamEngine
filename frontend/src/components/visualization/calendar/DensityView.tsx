@@ -12,7 +12,6 @@ import { colorThemes, THEME_KEYS } from "@/lib/constants/colorThemes";
 import { useScheduleData } from "@/lib/hooks/useScheduleData";
 import { useCalendarStore } from "@/lib/store/calendarStore";
 import { getReadableTextColorFromBg } from "@/lib/utils";
-import { Badge } from "@/components/ui/badge";
 import { CalendarGrid } from "./CalendarGrid";
 
 const DAYS = [
@@ -198,7 +197,6 @@ export default function DensityView() {
         timeSlotWidth={140}
         renderCell={(cell) => {
           const examCount = cell ? cell.examCount || 0 : 0;
-          const conflictsNum = cell ? cell.conflicts || 0 : 0;
           const themeColors = colorThemes[theme] || colorThemes.gray;
           const displayCount = densityMode === "exams" ? examCount : getStudentCount(cell);
           const { bg, color } = getDensityColor(displayCount, thresholds, themeColors);

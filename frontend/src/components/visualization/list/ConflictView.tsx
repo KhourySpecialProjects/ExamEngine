@@ -2,6 +2,7 @@
 
 // header icon removed
 import { useState } from "react";
+import { User, Users, Clock, Calendar, AlertTriangle, BookOpen } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -43,11 +44,13 @@ function ConflictStat({
   value,
   description,
   variant = "default",
+  badgeClassName,
 }: {
   label: string;
   value: number | null | undefined;
   description?: string;
   variant?: "default" | "secondary" | "destructive";
+  badgeClassName?: string;
 }) {
   return (
     <Card className="shadow-none">
@@ -56,7 +59,7 @@ function ConflictStat({
           <div className="text-sm md:text-base font-medium">{label}</div>
         </div>
 
-        <Badge variant={variant as any} className="px-2 py-1">
+        <Badge variant={variant as any} className={`px-2 py-1 ${badgeClassName ?? ""}`}>
           <span className="text-base md:text-lg font-semibold">{value == null ? "—" : formatNumber(value)}</span>
         </Badge>
       </CardHeader>
@@ -273,6 +276,36 @@ export default function ConflictView({
   // Build rows grouped by conflict type from breakdown, with fallbacks to exams data
   const conflictTypeRows: Record<string, any[]> = {};
 
+ 
+  const conflictDescriptions: Record<string, string> = {
+    student_double_book: "A student is scheduled for more than one exam at the same time. Requires resolution.",
+    instructor_double_book: "An instructor is scheduled to proctor/teach more than one exam at the same time.",
+    back_to_back: "Exams scheduled back-to-back for the same entity (student/instructor) with no gap.",
+    back_to_back_student: "A student has two exams scheduled in immediately consecutive blocks.",
+    back_to_back_instructor: "An instructor has back-to-back assignments with no break.",
+    large_course_not_early: "Large-enrollment courses that are not scheduled in earlier (preferred) time slots.",
+    student_gt3_per_day: "Students scheduled for more than 3 exams in a single day.",
+    student_gt_max_per_day: "Students exceeding the configured maximum exams per day.",
+    unknown: "Uncategorized or unknown conflict type.",
+  };
+
+  function getIconForType(type: string) {
+    // Map specific conflict types to distinct icons/colors
+    if (!type) return null;
+    const t = String(type).toLowerCase();
+
+    if (t.includes("student_double_book")) return <User className="w-4 h-4 text-rose-600" />;
+    if (t.includes("instructor_double_book")) return <Users className="w-4 h-4 text-amber-600" />;
+    if (t.includes("back_to_back_student") || t.includes("back_to_back_instructor") || t === "back_to_back") return <Clock className="w-4 h-4 text-sky-600" />;
+    if (t.includes("large_course_not_early")) return <BookOpen className="w-4 h-4 text-indigo-600" />;
+    if (t.includes("student_gt3") || t.includes("student_gt_max") || t.includes("student_gt_max_per_day") || t.includes("student_gt")) return <AlertTriangle className="w-4 h-4 text-rose-600" />;
+    if (t.includes("student") && !t.includes("double")) return <User className="w-4 h-4 text-rose-600" />;
+    if (t.includes("instructor") && !t.includes("double")) return <Users className="w-4 h-4 text-amber-600" />;
+
+    // fallback
+    return <Calendar className="w-4 h-4 text-foreground" />;
+  }
+
   const findExamByCrn = (crn: any) => {
     if (!crn) return null;
     return (allExams ?? []).find((e: any) => String(e.crn ?? e.CRN ?? e.id) === String(crn));
@@ -345,9 +378,9 @@ export default function ConflictView({
 
   return (
     <section className="space-y-4">
-      <div className="flex items-center justify-between">
+      <div>
         <h1 className="text-2xl font-bold">Conflict View</h1>
-        <p className="text-sm text-muted-foreground">
+        <p className="text-sm text-muted-foreground mt-1">
           Quick overview of schedule conflicts
         </p>
       </div>
@@ -375,16 +408,19 @@ export default function ConflictView({
           label="Students Back-to-Back"
           value={merged.students_back_to_back}
           description="Number of students scheduled back-to-back with no break."
+          badgeClassName="bg-amber-600 text-white"
         />
         <ConflictStat
           label="Instructors Back-to-Back"
           value={merged.instructors_back_to_back}
           description="Number of instructors scheduled back-to-back with no break."
+          badgeClassName="bg-amber-600 text-white"
         />
         <ConflictStat
           label="Large Course Not Early"
           value={merged.large_courses_not_early}
           description="Large courses that are scheduled later than desired (not early)."
+          badgeClassName="bg-amber-600 text-white"
         />
       </div>
 
@@ -413,7 +449,10 @@ export default function ConflictView({
           {/* Generic table for the active conflict type */}
           <Card>
             <CardHeader>
-              <CardTitle>{effectiveTabs.find((x) => x.id === activeTab)?.label ?? "Conflicts"}</CardTitle>
+              <CardTitle className="flex items-center gap-2">
+                <span className="inline-flex items-center">{getIconForType(activeTab)}</span>
+                <span>{effectiveTabs.find((x) => x.id === activeTab)?.label ?? "Conflicts"}</span>
+              </CardTitle>
             </CardHeader>
             <CardContent>
               <div className="overflow-auto">
@@ -466,7 +505,7 @@ export default function ConflictView({
                         <tbody>
                           {rowsForActive.slice(start, end).map((r: any, i: number) => (
                             <tr key={i} className="border-t">
-                              {columns.map((c) => {
+                                {columns.map((c) => {
                                 const key = c.key;
                                 let cell: any = "—";
                                 if (key === "entity") cell = r.entity ?? r.student ?? "—";
@@ -514,6 +553,22 @@ export default function ConflictView({
               </div>
             </CardContent>
           </Card>
+
+          {/* Conflict Definitions: helpful descriptions for each conflict type */}
+          <div className="mt-4 bg-white rounded-lg shadow p-4">
+            <h3 className="font-semibold mb-3">Conflict Definitions</h3>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm">
+              {Object.keys(conflictTypeMap).map((type) => (
+                <div key={type} className="flex flex-col">
+                  <div className="font-medium flex items-center gap-2">
+                    <span className="inline-flex items-center">{getIconForType(type)}</span>
+                    <span>{conflictTypeMap[type] ?? type}</span>
+                  </div>
+                  <div className="text-muted-foreground text-sm">{conflictDescriptions[type] ?? conflictDescriptions.unknown}</div>
+                </div>
+              ))}
+            </div>
+          </div>
         </div>
       </div>
     </section>

@@ -5,6 +5,7 @@ export interface ScheduleParameters {
   instructor_max_per_day?: number;
   avoid_back_to_back?: boolean;
   max_days?: number;
+  prioritize_large_courses?: boolean;
 }
 
 export interface ConflictBreakdown {
@@ -134,8 +135,14 @@ export class SchedulesAPI extends BaseAPI {
     if (parameters.max_days !== undefined) {
       queryParams.append("max_days", parameters.max_days.toString());
     }
+    if (parameters.prioritize_large_courses !== undefined) {
+      queryParams.append(
+        "prioritize_large_courses",
+        parameters.prioritize_large_courses.toString(),
+      );
+    }
     return this.request(
-      `/schedule/generate/${dataset_id}/${queryParams.toString() ? `?${queryParams}` : ""}`,
+      `/schedule/generate/${dataset_id}${queryParams.toString() ? `?${queryParams}` : ""}`,
       {
         method: "POST",
       },

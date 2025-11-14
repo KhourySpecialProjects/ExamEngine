@@ -64,6 +64,7 @@ class ScheduleService:
         instructor_max_per_day: int = 3,
         avoid_back_to_back: bool = True,
         max_days: int = 7,
+        prioritize_large_courses: bool = False,
     ) -> dict[str, Any]:
         """
         Generate complete exam schedule from dataset.
@@ -82,6 +83,7 @@ class ScheduleService:
             instructor_max_per_day: Max exams per instructor per day
             avoid_back_to_back: Avoid consecutive exam blocks
             max_days: Days to spread exams across
+            prioritize_large_courses: If True, schedule largest courses first (default: False)
 
         Returns:
             Complete schedule with all metadata
@@ -103,13 +105,16 @@ class ScheduleService:
             "instructor_max_per_day": instructor_max_per_day,
             "avoid_back_to_back": avoid_back_to_back,
             "max_days": max_days,
+            "prioritize_large_courses": prioritize_large_courses,
         }
 
         schedule, run = self.schedule_repo.create_schedule_with_run(
             schedule_name=schedule_name,
             dataset_id=dataset_id,
             user_id=user_id,
-            algorithm_name="DSATUR",
+            algorithm_name=(
+                "DSATUR (Large-first)" if prioritize_large_courses else "DSATUR"
+            ),
             parameters=parameters,
         )
 
@@ -132,7 +137,10 @@ class ScheduleService:
 
             graph.dsatur_color()
 
-            graph.dsatur_schedule(max_days=max_days)
+            graph.dsatur_schedule(
+                max_days=max_days,
+                prioritize_large_courses=prioritize_large_courses,
+            )
 
             results_df = graph.assign_rooms()
 
@@ -195,6 +203,7 @@ class ScheduleService:
                     "instructor_max_per_day": instructor_max_per_day,
                     "avoid_back_to_back": avoid_back_to_back,
                     "max_days": max_days,
+                    "prioritize_large_courses": prioritize_large_courses,
                 },
             }
 

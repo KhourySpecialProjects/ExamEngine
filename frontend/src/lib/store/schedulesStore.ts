@@ -2,7 +2,7 @@ import { create } from "zustand";
 import { apiClient } from "@/lib/api/client";
 import type { ScheduleParameters, ScheduleResult } from "../api/schedules";
 
-interface ScheduleState {
+interface SchedulesState {
   // Initial data state
   currentSchedule: ScheduleResult | null;
   scheduleName: string;
@@ -24,7 +24,7 @@ interface ScheduleState {
   clearError: () => void;
 }
 
-export const useScheduleStore = create<ScheduleState>((set, get) => ({
+export const useSchedulesStore = create<SchedulesState>((set, get) => ({
   // Initial state
   currentSchedule: null,
   scheduleName: "",

@@ -22,7 +22,7 @@ import { ExamListDialog } from "@/components/visualization/calendar/ExamListDial
 import ListView from "@/components/visualization/list/ListView";
 import { useScheduleData } from "@/lib/hooks/useScheduleData";
 import { exportScheduleRowsAsCsv } from "@/lib/utils";
-import { useScheduleStore } from "@/lib/store/scheduleStore";
+import { useSchedulesStore } from "@/lib/store/schedulesStore";
 
 type ViewType = "density" | "compact" | "list" | "statistics";
 
@@ -35,7 +35,7 @@ export default function SchedulePage({
   const [activeView, setActiveView] = useState<ViewType>("density");
   const router = useRouter();
 
-  const fetchSchedule = useScheduleStore((state) => state.fetchSchedule);
+  const fetchSchedule = useSchedulesStore((state) => state.fetchSchedule);
 
   useEffect(() => {
     fetchSchedule(scheduleId);

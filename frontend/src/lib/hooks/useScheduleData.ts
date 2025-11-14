@@ -1,6 +1,6 @@
 import { useMemo } from "react";
 import type { CalendarRow, Exam } from "@/lib/store/calendarStore";
-import { useScheduleStore } from "@/lib/store/scheduleStore";
+import { useSchedulesStore } from "@/lib/store/schedulesStore";
 import type { CalendarExam } from "../api/schedules";
 
 /**
@@ -8,8 +8,8 @@ import type { CalendarExam } from "../api/schedules";
  * Single source of data transformation
  */
 export function useScheduleData() {
-  const currentSchedule = useScheduleStore((state) => state.currentSchedule);
-  const isGenerating = useScheduleStore((state) => state.isGenerating);
+  const currentSchedule = useSchedulesStore((state) => state.currentSchedule);
+  const isGenerating = useSchedulesStore((state) => state.isGenerating);
 
   // Convert schedule to calendar rows
   const calendarRows = useMemo(() => {

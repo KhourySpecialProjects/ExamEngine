@@ -21,7 +21,7 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import { useScheduleStore } from "@/lib/store/scheduleStore";
+import { useSchedulesStore } from "@/lib/store/schedulesStore";
 import { BookOpen, AlertTriangle, Building2, TrendingUp } from "lucide-react";
 
 const COLORS = {
@@ -38,7 +38,7 @@ interface ConflictData {
 }
 
 export function StatisticsView() {
-  const currentSchedule = useScheduleStore((state) => state.currentSchedule);
+  const currentSchedule = useSchedulesStore((state) => state.currentSchedule);
 
   const stats = useMemo(() => {
     if (!currentSchedule) return null;

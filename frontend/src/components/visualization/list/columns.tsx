@@ -78,7 +78,7 @@ export function createExamColumns(): ColumnDef<Exam, any>[] {
         <SortableHeader column={column} label="Students" />
       ),
       cell: (info) => (
-        <div className="text-sm text-right font-medium">{info.getValue()}</div>
+        <div className="text-sm font-medium">{info.getValue()}</div>
       ),
     }),
     columnHelper.accessor("conflicts", {

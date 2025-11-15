@@ -56,10 +56,10 @@ class CourseRepo(BaseRepo[Courses]):
         self.db.bulk_save_objects(course_objs, return_defaults=True)
         self.db.commit()
 
-        # Build mapping: course_ref -> course_id
+        # Build mapping: crn -> course_id
         mapping = {}
         for obj in course_objs:
-            mapping[obj.course_subject_code] = obj.course_id
+            mapping[obj.crn] = obj.course_id
 
         return mapping
 

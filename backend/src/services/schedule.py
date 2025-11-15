@@ -553,11 +553,10 @@ class ScheduleService:
 
         for _, row in results_df.iterrows():
             crn = row["CRN"]
-            course_ref = row["Course"]
             room_name = row["Room"]
 
             # Get course_id from mapping
-            course_id = course_mapping.get(course_ref)
+            course_id = course_mapping.get(crn)
             if not course_id:
                 # Skip courses not found (shouldn't happen)
                 continue

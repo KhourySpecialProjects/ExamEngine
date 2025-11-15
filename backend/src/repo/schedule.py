@@ -63,10 +63,12 @@ class ScheduleRepo(BaseRepo[Schedules]):
         )
         return list(self.db.execute(stmt).scalars().unique().all())
 
-    def name_exists(self, schedule_name: str) -> bool:
-        """Check if schedule name is already taken."""
-        stmt = select(Schedules.schedule_id).where(
-            Schedules.schedule_name == schedule_name
+    def name_exists(self, schedule_name: str, user_id: UUID) -> bool:
+        """Check if schedule name is already taken by a specific user."""
+        stmt = (
+            select(Schedules.schedule_id)
+            .join(Runs, Schedules.run_id == Runs.run_id)
+            .where(Schedules.schedule_name == schedule_name, Runs.user_id == user_id)
         )
         return self.db.execute(stmt).first() is not None
 

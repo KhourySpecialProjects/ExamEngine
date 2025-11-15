@@ -91,7 +91,7 @@ class ScheduleService:
             ValidationError: If schedule_name already exists
             ScheduleGenerationError: If algorithm fails
         """
-        if self.schedule_repo.name_exists(schedule_name):
+        if self.schedule_repo.name_exists(schedule_name, user_id):
             raise ValidationError(
                 f"Schedule name '{schedule_name}' already exists",
                 detail={"field": "schedule_name"},

@@ -6,14 +6,26 @@ import { ScheduleListView } from "@/components/schedules/ScheduleListView";
 import type { ScheduleListItem } from "@/lib/api/schedules";
 import { apiClient } from "@/lib/api/client";
 import { Loader2 } from "lucide-react";
+import { useSchedulesStore } from "@/lib/store/schedulesStore";
 
+// ABSTRACT
 export default function DashboardPage() {
   const [schedules, setSchedules] = useState<ScheduleListItem[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
+  // Subscribe to the latest generated/fetched schedule from the store
+  const currentSchedule = useSchedulesStore((state) => state.currentSchedule);
+
   useEffect(() => {
     fetchSchedules();
+  }, []);
+
+  // listen for schedule-created event from ScheduleRunner
+  useEffect(() => {
+    const update = () => fetchSchedules();
+    window.addEventListener("schedule-created", update);
+    return () => window.removeEventListener("schedule-created", update);
   }, []);
 
   const fetchSchedules = async () => {

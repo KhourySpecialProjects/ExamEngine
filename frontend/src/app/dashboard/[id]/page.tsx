@@ -3,7 +3,7 @@
 import { ChevronRight, MoveLeft, Save } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useEffect, useState } from "react";
+import { use, useEffect, useState } from "react";
 import { toast } from "sonner";
 import { ViewTabSwitcher } from "@/components/common/ViewTabSwitcher";
 import { StatisticsView } from "@/components/statistics/StatisticsView";
@@ -20,31 +20,27 @@ import CompactView from "@/components/visualization/calendar/CompactView";
 import DensityView from "@/components/visualization/calendar/DensityView";
 import { ExamListDialog } from "@/components/visualization/calendar/ExamListDialog";
 import ListView from "@/components/visualization/list/ListView";
+import { useScheduleData } from "@/lib/hooks/useScheduleData";
 import { exportScheduleRowsAsCsv } from "@/lib/utils";
-import { useSchedulesStore } from "@/lib/store/schedulesStore";
 
 type ViewType = "density" | "compact" | "list" | "statistics";
 
 export default function SchedulePage({
   params,
 }: {
-  params: { id: string };
+  params: Promise<{ id: string }>;
 }) {
-  const scheduleId = params.id;
+  const { id: scheduleId } = use(params);
   const [activeView, setActiveView] = useState<ViewType>("density");
   const router = useRouter();
 
-  const fetchSchedule = useSchedulesStore((state) => state.fetchSchedule);
-  const schedule = useSchedulesStore((state) => state.currentSchedule);
+  const fetchSchedule = useScheduleStore((state) => state.fetchSchedule);
 
-  // Load schedule when you land on /dashboard/[id]
   useEffect(() => {
-    if (scheduleId) {
-      fetchSchedule(scheduleId).catch((err) => {
-        console.error("Failed to fetch schedule", err);
-      });
-    }
+    fetchSchedule(scheduleId);
   }, [scheduleId, fetchSchedule]);
+
+  const { schedule } = useScheduleData();
 
   const handleExport = async () => {
     if (!schedule) {
@@ -101,7 +97,6 @@ export default function SchedulePage({
           </BreadcrumbList>
         </Breadcrumb>
       </div>
-
       <div className="flex items-center justify-between">
         <ViewTabSwitcher activeView={activeView} onViewChange={setActiveView} />
         <div className="flex items-center gap-3">

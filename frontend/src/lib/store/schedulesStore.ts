@@ -1,8 +1,16 @@
 import { create } from "zustand";
 import { apiClient } from "@/lib/api/client";
-import type { ScheduleParameters, ScheduleResult } from "../api/schedules";
+import type { 
+  ScheduleParameters, 
+  ScheduleResult, 
+  ScheduleListItem,
+} from "../api/schedules";
 
 interface SchedulesState {
+  // List state
+  schedules: ScheduleListItem[];
+  isLoadingList: boolean;
+
   // Initial data state
   currentSchedule: ScheduleResult | null;
   scheduleName: string;
@@ -17,6 +25,7 @@ interface SchedulesState {
   // Actions
   generateSchedule: (datasetId: string) => Promise<ScheduleResult>;
   fetchSchedule: (scheduleId: string) => Promise<ScheduleResult>;
+  fetchSchedules: () => Promise<void>;
   setScheduleData: (schedule: ScheduleResult) => void;
   setScheduleName: (name: string) => void;
   setParameters: (params: Partial<ScheduleParameters>) => void;
@@ -25,6 +34,10 @@ interface SchedulesState {
 }
 
 export const useSchedulesStore = create<SchedulesState>((set, get) => ({
+  // List state
+  schedules: [],
+  isLoadingList: false,
+
   // Initial state
   currentSchedule: null,
   scheduleName: "",
@@ -37,6 +50,24 @@ export const useSchedulesStore = create<SchedulesState>((set, get) => ({
     max_days: 7,
   },
 
+  // Load all schedules into the store
+  fetchSchedules: async () => {
+    set({ isLoadingList: true, error: null });
+    try {
+      const data = await apiClient.schedules.list();
+      set({ schedules: data, isLoadingList: false });
+    } catch (error) {
+      set({
+        error:
+          error instanceof Error
+            ? error.message
+            : "Failed to load schedules",
+        isLoadingList: false,
+      });
+      throw error;
+    }
+  },
+
   generateSchedule: async (datasetId: string) => {
     set({ isGenerating: true, error: null });
 
@@ -46,6 +77,16 @@ export const useSchedulesStore = create<SchedulesState>((set, get) => ({
         get().scheduleName,
         get().parameters,
       );
+
+      // Refresh list inside the store after a successful generation
+      let updatedList = get().schedules;
+      try {
+        const data = await apiClient.schedules.list();
+        updatedList = data;
+      } catch {
+        // If the list refresh fails, don't block schedule generation
+      }
+
       set({ currentSchedule: result, scheduleName: "", isGenerating: false });
       return result;
     } catch (error) {
@@ -59,6 +100,7 @@ export const useSchedulesStore = create<SchedulesState>((set, get) => ({
       throw error;
     }
   },
+
   fetchSchedule: async (scheduleId: string) => {
     set({ isGenerating: true, error: null });
     try {
@@ -74,6 +116,7 @@ export const useSchedulesStore = create<SchedulesState>((set, get) => ({
       throw error;
     }
   },
+  
   // Manually set schedule data (for testing, imports, etc.)
   setScheduleData: (schedule) => {
     set({ currentSchedule: schedule, error: null });

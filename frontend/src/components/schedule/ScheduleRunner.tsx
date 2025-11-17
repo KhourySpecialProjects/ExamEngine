@@ -60,10 +60,6 @@ export function ScheduleRunner() {
         id: toastId,
         description: `${result.schedule.total_exams} exams scheduled`,
       });
-
-      // tell DashboardPage to refresh its schedule list
-      window.dispatchEvent(new Event("schedule-created"));
-
     } catch (error) {
       toast.error("Generation failed", {
         id: toastId,

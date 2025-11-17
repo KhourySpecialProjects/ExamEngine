@@ -10,41 +10,23 @@ import { useSchedulesStore } from "@/lib/store/schedulesStore";
 
 // ABSTRACT
 export default function DashboardPage() {
-  const [schedules, setSchedules] = useState<ScheduleListItem[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-
-  // Subscribe to the latest generated/fetched schedule from the store
-  const currentSchedule = useSchedulesStore((state) => state.currentSchedule);
+  const { schedules, isLoadingList, error, fetchSchedules } = useSchedulesStore(
+    (state) => ({
+      schedules: state.schedules,
+      isLoadingList: state.isLoadingList,
+      error: state.error,
+      fetchSchedules: state.fetchSchedules,
+    }),
+  );
 
   useEffect(() => {
-    fetchSchedules();
-  }, []);
-
-  // listen for schedule-created event from ScheduleRunner
-  useEffect(() => {
-    const update = () => fetchSchedules();
-    window.addEventListener("schedule-created", update);
-    return () => window.removeEventListener("schedule-created", update);
-  }, []);
-
-  const fetchSchedules = async () => {
-    try {
-      setIsLoading(true);
-      setError(null);
-      const data = await apiClient.schedules.list();
-      setSchedules(data);
-    } catch (err) {
-      const errorMessage =
-        err instanceof Error ? err.message : "Failed to load schedules";
-      setError(errorMessage);
+    fetchSchedules().catch((err) => {
       toast.error("Failed to load schedules", {
-        description: errorMessage,
+        description:
+          err instanceof Error ? err.message : "Failed to load schedules",
       });
-    } finally {
-      setIsLoading(false);
-    }
-  };
+    });
+  }, [fetchSchedules]);
 
   const handleDelete = async (scheduleId: string) => {
     toast.info("Delete functionality", {
@@ -63,7 +45,7 @@ export default function DashboardPage() {
         </div>
       </div>
 
-      {isLoading && (
+      {isLoadingList && (
         <div className="flex items-center justify-center py-12">
           <div className="flex flex-col items-center gap-3">
             <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
@@ -74,13 +56,13 @@ export default function DashboardPage() {
         </div>
       )}
 
-      {error && !isLoading && (
+      {error && !isLoadingList && (
         <div className="rounded-lg border border-destructive/50 bg-destructive/10 p-4">
           <p className="text-sm text-destructive">{error}</p>
         </div>
       )}
 
-      {!isLoading && !error && (
+      {!isLoadingList && !error && (
         <ScheduleListView schedules={schedules} onDelete={handleDelete} />
       )}
     </div>

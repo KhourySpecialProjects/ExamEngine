@@ -10,14 +10,11 @@ import { useSchedulesStore } from "@/lib/store/schedulesStore";
 
 // ABSTRACT
 export default function DashboardPage() {
-  const { schedules, isLoadingList, error, fetchSchedules } = useSchedulesStore(
-    (state) => ({
-      schedules: state.schedules,
-      isLoadingList: state.isLoadingList,
-      error: state.error,
-      fetchSchedules: state.fetchSchedules,
-    }),
-  );
+  const schedules = useSchedulesStore((state) => state.schedules);
+  const isLoadingList = useSchedulesStore((state) => state.isLoadingList);
+  const error = useSchedulesStore((state) => state.error);
+  const fetchSchedules = useSchedulesStore((state) => state.fetchSchedules);
+
 
   useEffect(() => {
     fetchSchedules().catch((err) => {

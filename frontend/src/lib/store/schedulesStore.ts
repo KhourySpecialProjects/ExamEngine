@@ -69,34 +69,72 @@ export const useSchedulesStore = create<SchedulesState>((set, get) => ({
   },
 
   generateSchedule: async (datasetId: string) => {
-    set({ isGenerating: true, error: null });
+    const name = get().scheduleName?.trim() || "Untitled schedule";
+    const params = get().parameters;
+    const tempId = `temp-${Date.now()}`;
+
+    set((state) => ({
+      isGenerating: true,
+      error: null,
+      schedules: [
+        {
+          schedule_id: tempId,
+          schedule_name: name,
+          created_at: new Date().toISOString(),
+          algorithm: "DSATUR",
+          parameters: params,
+          status: "Running",
+          dataset_id: datasetId,
+          total_exams: 0,
+        },
+        ...state.schedules,
+      ],
+    }));
 
     try {
       const result = await apiClient.schedules.generate(
         datasetId,
-        get().scheduleName,
-        get().parameters,
+        name,
+        params,
       );
 
-      // Refresh list inside the store after a successful generation
-      let updatedList = get().schedules;
-      try {
-        const data = await apiClient.schedules.list();
-        updatedList = data;
-      } catch {
-        // If the list refresh fails, don't block schedule generation
-      }
+      set((state) => ({
+        currentSchedule: result,
+        scheduleName: "",
+        isGenerating: false,
+        schedules: state.schedules.map((schedule) =>
+          schedule.schedule_id === tempId
+            ? {
+                ...schedule,
+                schedule_id: result.schedule_id,
+                schedule_name: result.schedule_name,
+                status: "Completed",
+                total_exams: result.schedule.total_exams,
+                parameters: result.parameters,
+                dataset_id: result.dataset_id,
+              }
+            : schedule,
+        ),
+      }));
 
-      set({ currentSchedule: result, scheduleName: "", isGenerating: false });
+      try {
+        const refreshed = await apiClient.schedules.list();
+        set({ schedules: refreshed });
+      } catch {
+        // Keep optimistic list if refresh fails
+      }
       return result;
     } catch (error) {
-      set({
+      set((state) => ({
         error:
           error instanceof Error
             ? error.message
             : "Failed to generate schedule",
         isGenerating: false,
-      });
+        schedules: state.schedules.filter(
+          (schedule) => schedule.schedule_id !== tempId,
+        ),
+      }));
       throw error;
     }
   },
@@ -116,7 +154,7 @@ export const useSchedulesStore = create<SchedulesState>((set, get) => ({
       throw error;
     }
   },
-  
+
   // Manually set schedule data (for testing, imports, etc.)
   setScheduleData: (schedule) => {
     set({ currentSchedule: schedule, error: null });

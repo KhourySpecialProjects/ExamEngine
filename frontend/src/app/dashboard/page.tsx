@@ -8,7 +8,6 @@ import { apiClient } from "@/lib/api/client";
 import { Loader2 } from "lucide-react";
 import { useSchedulesStore } from "@/lib/store/schedulesStore";
 
-// ABSTRACT
 export default function DashboardPage() {
   const schedules = useSchedulesStore((state) => state.schedules);
   const isLoadingList = useSchedulesStore((state) => state.isLoadingList);

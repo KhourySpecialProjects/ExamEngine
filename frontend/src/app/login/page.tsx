@@ -28,7 +28,7 @@ export default function Login() {
   const [suName, setSuName] = React.useState("");
   const [suEmail, setSuEmail] = React.useState("");
   const [suPassword, setSuPassword] = React.useState("");
-
+  const [activeTab, setActiveTab] = React.useState<"signin" | "signup">("signin")
   const handleLogin = async () => {
     try {
       await login(email, password);
@@ -52,7 +52,7 @@ export default function Login() {
     try {
       await signup(suName, suEmail, suPassword);
       toast.success("Sign Up Successful");
-      router.push("/dashboard");
+      setActiveTab("signin");
     } catch (err: unknown) {
       try {
         const errorMessage = err instanceof Error ? err.message : String(err);
@@ -85,7 +85,7 @@ export default function Login() {
       <main className="flex flex-1 items-start justify-center py-12 px-4">
         <div className="w-full max-w-3xl">
           <div className="mx-auto max-w-xl">
-            <Tabs defaultValue="signin">
+            <Tabs  value={activeTab} onValueChange={(val) => setActiveTab(val as "signin" | "signup")}>
               <TabsList className="mb-4">
                 <TabsTrigger value="signin">Sign in</TabsTrigger>
                 <TabsTrigger value="signup">Sign up</TabsTrigger>

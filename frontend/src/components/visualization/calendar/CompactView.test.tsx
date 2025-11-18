@@ -2,8 +2,6 @@ import { render, screen, fireEvent } from "@testing-library/react";
 import { describe, it, expect, vi, beforeEach, Mock } from "vitest";
 import CompactView from "./CompactView";
 
-// ─── Mocks ───────────────────────────────────────────────
-
 vi.mock("@/lib/hooks/useScheduleData", () => ({
   useScheduleData: vi.fn(),
 }));
@@ -14,7 +12,6 @@ vi.mock("@/components/common/EmptyScheduleState", () => ({
   ),
 }));
 
-// Mock Zustand calendar store
 vi.mock("@/lib/store/calendarStore", () => ({
   useCalendarStore: (fn: any) =>
     fn({
@@ -31,7 +28,6 @@ vi.mock("../Course", () => ({
   ),
 }));
 
-// Mock CalendarGrid to emit cells with renderCell
 vi.mock("./CalendarGrid", () => ({
   CalendarGrid: ({ data, renderCell }: any) => (
     <div data-testid="grid">
@@ -54,7 +50,6 @@ describe("CompactView", () => {
     vi.clearAllMocks();
   });
 
-  // ───────────────────────────────────────────────
 
   it("renders empty state when no data", () => {
     (useScheduleData as Mock).mockReturnValue({
@@ -67,7 +62,6 @@ describe("CompactView", () => {
     expect(screen.getByText("No Data")).toBeInTheDocument();
   });
 
-  // ───────────────────────────────────────────────
 
   it("renders title and subtitle when data available", () => {
     (useScheduleData as Mock).mockReturnValue({
@@ -86,7 +80,6 @@ describe("CompactView", () => {
     ).toBeInTheDocument();
   });
 
-  // ───────────────────────────────────────────────
 
   it("renders up to 6 course cards", () => {
     const exams = Array.from({ length: 8 }).map((_, i) => ({
@@ -111,7 +104,6 @@ describe("CompactView", () => {
     expect(courseCards.length).toBe(6);
   });
 
-  // ───────────────────────────────────────────────
 
   it('shows "+X more" when cell has extra exams', () => {
     const exams = Array.from({ length: 9 }).map((_, i) => ({
@@ -134,7 +126,6 @@ describe("CompactView", () => {
     expect(screen.getByText("+3 more")).toBeInTheDocument();
   });
 
-  // ───────────────────────────────────────────────
 
   it("calls selectCell when clicking '+X more' button", () => {
     const mockSelect = vi.fn();
@@ -167,7 +158,6 @@ describe("CompactView", () => {
     expect(mockSelect).toHaveBeenCalledTimes(1);
   });
 
-  // ───────────────────────────────────────────────
 
   it("handles empty exam cells correctly", () => {
     (useScheduleData as Mock).mockReturnValue({

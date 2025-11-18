@@ -40,10 +40,8 @@ describe("ExamCard", () => {
 
     render(<ExamCard exam={examConflict} />);
 
-    // Badge appears
     expect(screen.getByText("2")).toBeInTheDocument();
 
-    // Check badge variant styling (partial class match)
     const badge = screen.getByText("2").closest(".gap-1");
     expect(badge).toBeInTheDocument();
   });

@@ -4,7 +4,6 @@ import "@testing-library/jest-dom";
 
 import DensityView from "./DensityView";
 
-// ─── Mock hooks and stores ───────────────────────────────────────────
 
 vi.mock("@/lib/hooks/useScheduleData", () => ({
   useScheduleData: vi.fn(),
@@ -21,7 +20,6 @@ vi.mock("@/lib/store/calendarStore", () => {
   };
 });
 
-// Mock constant themes
 vi.mock("@/lib/constants/colorThemes", () => ({
   colorThemes: {
     gray: ["#eee", "#ddd", "#ccc", "#bbb", "#aaa"],
@@ -29,12 +27,10 @@ vi.mock("@/lib/constants/colorThemes", () => ({
   THEME_KEYS: ["gray", "blue"],
 }));
 
-// Make text readable color predictable
 vi.mock("@/lib/utils", () => ({
   getReadableTextColorFromBg: () => "black",
 }));
 
-// Mock CalendarGrid — we only verify `renderCell` output, not grid logic
 vi.mock("../CalendarGrid", () => ({
   CalendarGrid: ({ renderCell, data, days }: any) => (
     <div data-testid="calendar-grid">
@@ -49,7 +45,6 @@ vi.mock("../CalendarGrid", () => ({
   ),
 }));
 
-// Mock Empty state
 vi.mock("@/components/common/EmptyScheduleState", () => ({
   EmptyScheduleState: ({ isLoading }: any) => (
     <div>{isLoading ? "Loading…" : "No Data"}</div>
@@ -109,7 +104,6 @@ describe("DensityView Component", () => {
       screen.getByText("Color-coded heat map of exam distribution and conflicts")
     ).toBeInTheDocument();
 
-    // Theme select exists
     expect(screen.getByText("Theme: Gray")).toBeInTheDocument();
   });
 
@@ -141,8 +135,8 @@ describe("DensityView Component", () => {
       calendarRows: [
         {
           days: [
-            { examCount: 0, conflicts: 0 }, // level 0 → #eee
-            { examCount: 3, conflicts: 1 }, // should map to some level
+            { examCount: 0, conflicts: 0 }, 
+            { examCount: 3, conflicts: 1 }, 
           ],
         },
       ],
@@ -152,14 +146,12 @@ describe("DensityView Component", () => {
 
     const cells = screen.getAllByTestId("grid-cell");
 
-    // style tags are inline so we can check them
     expect(cells[0].firstChild).toHaveStyle("background-color: #eee");
   });
 
   it("calls selectCell when clicking non-zero exam cell", () => {
     const mockSelect = vi.fn();
 
-    // override store with selectCell mock
     vi.mocked(useCalendarStore).mockImplementation((fn: any) =>
       fn({
         colorTheme: "gray",

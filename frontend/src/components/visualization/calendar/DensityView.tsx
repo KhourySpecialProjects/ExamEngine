@@ -150,6 +150,56 @@ export default function DensityView() {
     return map;
   }, [schedule, calendarRows]);
 
+  // Compute how many conflicts are present in the schedule breakdown (total)
+  // and how many are actually shown on the calendar cells (displayed).
+  const conflictCounts = useMemo(() => {
+    let totalStudent = 0;
+    let totalInstructor = 0;
+
+    const isStudent = (s: string) => /double/i.test(s) || s.includes("student_double_book");
+    const isInstructor = (s: string) => /instructor/i.test(s) || s.includes("instructor_double_book");
+
+    // Count totals from schedule-level breakdown
+    for (const arr of Array.from(breakdownMap.values())) {
+      for (const t of arr) {
+        const s = String(t).toLowerCase();
+        if (isStudent(s)) totalStudent += 1;
+        if (isInstructor(s)) totalInstructor += 1;
+      }
+    }
+
+    // Count displayed occurrences on calendar cells (per-cell lists preferred, fallback to breakdownMap)
+    let displayedStudent = 0;
+    let displayedInstructor = 0;
+
+    for (const row of calendarRows) {
+      for (const d of row.days) {
+        const dAny: any = d;
+        const perCellList: any[] =
+          (dAny && (dAny.conflictList || dAny.conflicts_list || dAny.conflict_details || dAny.conflictDetails || dAny.conflicts_detail)) || [];
+
+        let conflictTypes: string[] = (perCellList || []).map((c: any) => (c && (c.conflict_type || c.type || c.violation || String(c)))).filter(Boolean);
+
+        if (conflictTypes.length === 0) {
+          const key = `${(dAny).day}-${extractTimeFromBlock((dAny).timeSlot)}`;
+          const fromBd = breakdownMap.get(key) || [];
+          conflictTypes = fromBd.slice();
+        }
+
+        for (const t of conflictTypes) {
+          const s = String(t).toLowerCase();
+          if (isStudent(s)) displayedStudent += 1;
+          if (isInstructor(s)) displayedInstructor += 1;
+        }
+      }
+    }
+
+    return {
+      displayed: { student: displayedStudent, instructor: displayedInstructor },
+      total: { student: totalStudent, instructor: totalInstructor },
+    };
+  }, [breakdownMap, calendarRows]);
+
   if (!hasData) return <EmptyScheduleState isLoading={isLoading} />;
 
   return (
@@ -350,44 +400,21 @@ export default function DensityView() {
           })()}
         </div>
       </div>
-      {/* Conflict Legend: Student + Instructor Double-Book */}
+      {/* Conflict Legend: Student + Instructor Double-Book (with counts) */}
       <div className="bg-white rounded-lg shadow p-4">
         <h3 className="font-semibold mb-3 text-sm">Conflict Legend</h3>
         <div className="flex gap-3 items-center flex-wrap text-sm">
           {(() => {
-            // detect student and instructor double-book presence in schedule-level breakdown and per-cell lists
-            let foundStudent = false;
-            let foundInstructor = false;
+            const disp = conflictCounts.displayed;
+            const tot = conflictCounts.total;
 
-            for (const arr of Array.from(breakdownMap.values())) {
-              for (const t of arr) {
-                const s = String(t).toLowerCase();
-                if (/double/.test(s) || s.includes("student_double_book")) foundStudent = true;
-                if (/instructor/.test(s) || s.includes("instructor_double_book")) foundInstructor = true;
-              }
-            }
-
-            // also scan per-cell explicit lists
-            for (const row of calendarRows) {
-              for (const d of row.days) {
-                const dAny = d as any;
-                const list = (dAny && (dAny.conflictList || dAny.conflicts_list || dAny.conflict_details || dAny.conflictDetails || dAny.conflicts_detail)) || [];
-                for (const c of list) {
-                  const t = c && (c.conflict_type || c.type || c.violation || String(c));
-                  if (!t) continue;
-                  const s = String(t).toLowerCase();
-                  if (/double/.test(s) || s.includes("student_double_book")) foundStudent = true;
-                  if (/instructor/.test(s) || s.includes("instructor_double_book")) foundInstructor = true;
-                }
-              }
-            }
-
-            if (!foundStudent && !foundInstructor) {
+            if (!disp.student && !disp.instructor && !tot.student && !tot.instructor) {
               return <div className="text-sm text-muted-foreground">No double-book conflicts detected</div>;
             }
 
             const items: any[] = [];
-            if (foundStudent) {
+
+            if (tot.student || disp.student) {
               items.push(
                 <div key="student" className="flex items-center gap-2">
                   <div
@@ -397,11 +424,12 @@ export default function DensityView() {
                     <User className="h-4 w-4 text-white" />
                   </div>
                   <span className="text-sm">Student Double-Book</span>
+                  <span className="text-sm text-muted-foreground">&nbsp;({`Displayed: ${disp.student} · Total: ${tot.student}`})</span>
                 </div>,
               );
             }
 
-            if (foundInstructor) {
+            if (tot.instructor || disp.instructor) {
               items.push(
                 <div key="instructor" className="flex items-center gap-2">
                   <div
@@ -411,6 +439,7 @@ export default function DensityView() {
                     <Users className="h-4 w-4 text-white" />
                   </div>
                   <span className="text-sm">Instructor Double-Book</span>
+                  <span className="text-sm text-muted-foreground">&nbsp;({`Displayed: ${disp.instructor} · Total: ${tot.instructor}`})</span>
                 </div>,
               );
             }

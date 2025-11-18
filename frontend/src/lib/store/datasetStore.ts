@@ -4,114 +4,121 @@ import { apiClient } from "../api/client";
 import type { DatasetMetadata } from "../api/datasets";
 
 interface DatasetState {
-  // State
-  datasets: DatasetMetadata[];
-  selectedDatasetId: string | null;
-  isLoading: boolean;
-  error: string | null;
+	// State
+	datasets: DatasetMetadata[];
+	selectedDatasetId: string | null;
+	selectedDeleteDataset: DatasetMetadata | null;
+	isLoading: boolean;
+	error: string | null;
 
-  // Actions
-  fetchDatasets: () => Promise<void>;
-  selectDataset: (datasetId: string | null) => void;
-  deleteDataset: (datasetId: string) => Promise<void>;
-  clearError: () => void;
-  refreshDatasets: () => Promise<void>;
+	// Actions
+	fetchDatasets: () => Promise<void>;
+	selectDataset: (datasetId: string | null) => void;
+	selectDeleteDataset: (dataset: DatasetMetadata) => void;
+	deleteDataset: (datasetId: string) => Promise<void>;
+	clearError: () => void;
+	refreshDatasets: () => Promise<void>;
 
-  // Computed
-  getSelectedDataset: () => DatasetMetadata | null;
-  getDatasetById: (datasetId: string) => DatasetMetadata | null;
+	// Computed
+	getSelectedDataset: () => DatasetMetadata | null;
+	getDatasetById: (datasetId: string) => DatasetMetadata | null;
 }
 
 export const useDatasetStore = create<DatasetState>()(
-  persist(
-    (set, get) => ({
-      // Initial state
-      datasets: [],
-      selectedDatasetId: null,
-      isLoading: false,
-      error: null,
+	persist(
+		(set, get) => ({
+			// Initial state
+			datasets: [],
+			selectedDatasetId: null,
+			isLoading: false,
+			selectedDeleteDataset: null,
+			error: null,
 
-      // Fetch all datasets
-      fetchDatasets: async () => {
-        set({ isLoading: true, error: null });
-        try {
-          const datasets = await apiClient.datasets.list();
-          set({ datasets, isLoading: false });
-        } catch (error) {
-          set({
-            error:
-              error instanceof Error
-                ? error.message
-                : "Failed to fetch datasets",
-            isLoading: false,
-          });
-        }
-      },
+			selectDeleteDataset: (dataset: DatasetMetadata | null) => {
+				set({ selectedDeleteDataset: dataset });
+			},
 
-      // Select a dataset
-      selectDataset: (datasetId: string | null) => {
-        set({ selectedDatasetId: datasetId });
-      },
+			// Fetch all datasets
+			fetchDatasets: async () => {
+				set({ isLoading: true, error: null });
+				try {
+					const datasets = await apiClient.datasets.list();
+					set({ datasets, isLoading: false });
+				} catch (error) {
+					set({
+						error:
+							error instanceof Error
+								? error.message
+								: "Failed to fetch datasets",
+						isLoading: false,
+					});
+				}
+			},
 
-      // Delete a dataset
-      deleteDataset: async (datasetId: string) => {
-        set({ isLoading: true, error: null });
-        try {
-          await apiClient.datasets.deleteDataset(datasetId);
+			// Select a dataset
+			selectDataset: (datasetId: string | null) => {
+				set({ selectedDatasetId: datasetId });
+			},
 
-          set((state) => ({
-            datasets: state.datasets.filter((d) => d.dataset_id !== datasetId),
-            selectedDatasetId:
-              state.selectedDatasetId === datasetId
-                ? null
-                : state.selectedDatasetId,
-            isLoading: false,
-          }));
-        } catch (error) {
-          set({
-            error:
-              error instanceof Error
-                ? error.message
-                : "Failed to delete dataset",
-            isLoading: false,
-          });
-          throw error;
-        }
-      },
+			// Delete a dataset
+			deleteDataset: async (datasetId: string) => {
+				set({ isLoading: true, error: null });
+				try {
+					await apiClient.datasets.deleteDataset(datasetId);
 
-      // Clear error
-      clearError: () => {
-        set({ error: null });
-      },
+					set((state) => ({
+						datasets: state.datasets.filter((d) => d.dataset_id !== datasetId),
+						selectedDatasetId:
+							state.selectedDatasetId === datasetId
+								? null
+								: state.selectedDatasetId,
+						isLoading: false,
+					}));
+				} catch (error) {
+					set({
+						error:
+							error instanceof Error
+								? error.message
+								: "Failed to delete dataset",
+						isLoading: false,
+					});
+					throw error;
+				}
+			},
 
-      // Refresh datasets (alias for fetchDatasets)
-      refreshDatasets: async () => {
-        await get().fetchDatasets();
-      },
+			// Clear error
+			clearError: () => {
+				set({ error: null });
+			},
 
-      // Get selected dataset
-      getSelectedDataset: () => {
-        const state = get();
-        if (!state.selectedDatasetId) return null;
-        return (
-          state.datasets.find(
-            (d) => d.dataset_id === state.selectedDatasetId,
-          ) || null
-        );
-      },
+			// Refresh datasets (alias for fetchDatasets)
+			refreshDatasets: async () => {
+				await get().fetchDatasets();
+			},
 
-      // Get dataset by ID
-      getDatasetById: (datasetId: string) => {
-        const state = get();
-        return state.datasets.find((d) => d.dataset_id === datasetId) || null;
-      },
-    }),
-    {
-      name: "dataset-storage", // localStorage key
-      partialize: (state) => ({
-        // Only persist these fields
-        selectedDatasetId: state.selectedDatasetId,
-      }),
-    },
-  ),
+			// Get selected dataset
+			getSelectedDataset: () => {
+				const state = get();
+				if (!state.selectedDatasetId) return null;
+				return (
+					state.datasets.find(
+						(d) => d.dataset_id === state.selectedDatasetId,
+					) || null
+				);
+			},
+
+			// Get dataset by ID
+			getDatasetById: (datasetId: string) => {
+				const state = get();
+				return state.datasets.find((d) => d.dataset_id === datasetId) || null;
+			},
+		}),
+		{
+			name: "dataset-storage", // localStorage key
+			partialize: (state) => ({
+				// Only persist these fields
+				selectedDatasetId: state.selectedDatasetId,
+			}),
+		},
+	),
 );

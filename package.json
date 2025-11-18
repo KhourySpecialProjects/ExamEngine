@@ -34,15 +34,15 @@
 		"clean:frontend": "npm run clean --workspace=frontend"
 	},
 	"lint-staged": {
-		"backend/**/*.py": [
-			"ruff format",
-			"ruff check --fix"
-		],
-		"frontend/**/*.{ts,tsx,js,jsx,json}": [
-			"cd frontend && biome format --write --no-errors-on-unmatched",
-			"cd frontend && biome check --write --no-errors-on-unmatched"
-		]
-	},
+  "backend/**/*.py": [
+    "ruff format",
+    "ruff check --fix"
+  ],
+  "frontend/**/*.{ts,tsx,js,jsx,json}": [
+    "npx biome format --write --no-errors-on-unmatched",
+    "npx biome check --write --no-errors-on-unmatched"
+  ]
+},
 	"devDependencies": {
 		"concurrently": "^8.2.2",
 		"husky": "^9.0.11",

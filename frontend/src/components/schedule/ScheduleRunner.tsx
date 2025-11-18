@@ -17,7 +17,7 @@ import { Separator } from "@/components/ui/separator";
 import { Slider } from "@/components/ui/slider";
 import { Switch } from "@/components/ui/switch";
 import { useDatasetStore } from "@/lib/store/datasetStore";
-import { useScheduleStore } from "@/lib/store/scheduleStore";
+import { useSchedulesStore } from "@/lib/store/schedulesStore";
 import { Input } from "../ui/input";
 
 export function ScheduleRunner() {
@@ -34,7 +34,7 @@ export function ScheduleRunner() {
     generateSchedule,
     setParameters,
     setScheduleName,
-  } = useScheduleStore();
+  } = useSchedulesStore();
 
   const handleGenerate = async () => {
     if (!selectedDatasetId) {

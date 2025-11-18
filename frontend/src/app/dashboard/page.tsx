@@ -6,33 +6,23 @@ import { ScheduleListView } from "@/components/schedules/ScheduleListView";
 import type { ScheduleListItem } from "@/lib/api/schedules";
 import { apiClient } from "@/lib/api/client";
 import { Loader2 } from "lucide-react";
+import { useSchedulesStore } from "@/lib/store/schedulesStore";
 
 export default function DashboardPage() {
-  const [schedules, setSchedules] = useState<ScheduleListItem[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const schedules = useSchedulesStore((state) => state.schedules);
+  const isLoadingList = useSchedulesStore((state) => state.isLoadingList);
+  const error = useSchedulesStore((state) => state.error);
+  const fetchSchedules = useSchedulesStore((state) => state.fetchSchedules);
+
 
   useEffect(() => {
-    fetchSchedules();
-  }, []);
-
-  const fetchSchedules = async () => {
-    try {
-      setIsLoading(true);
-      setError(null);
-      const data = await apiClient.schedules.list();
-      setSchedules(data);
-    } catch (err) {
-      const errorMessage =
-        err instanceof Error ? err.message : "Failed to load schedules";
-      setError(errorMessage);
+    fetchSchedules().catch((err) => {
       toast.error("Failed to load schedules", {
-        description: errorMessage,
+        description:
+          err instanceof Error ? err.message : "Failed to load schedules",
       });
-    } finally {
-      setIsLoading(false);
-    }
-  };
+    });
+  }, [fetchSchedules]);
 
   const handleDelete = async (scheduleId: string) => {
     toast.info("Delete functionality", {
@@ -51,7 +41,7 @@ export default function DashboardPage() {
         </div>
       </div>
 
-      {isLoading && (
+      {isLoadingList && (
         <div className="flex items-center justify-center py-12">
           <div className="flex flex-col items-center gap-3">
             <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
@@ -62,13 +52,13 @@ export default function DashboardPage() {
         </div>
       )}
 
-      {error && !isLoading && (
+      {error && !isLoadingList && (
         <div className="rounded-lg border border-destructive/50 bg-destructive/10 p-4">
           <p className="text-sm text-destructive">{error}</p>
         </div>
       )}
 
-      {!isLoading && !error && (
+      {!isLoadingList && !error && (
         <ScheduleListView schedules={schedules} onDelete={handleDelete} />
       )}
     </div>

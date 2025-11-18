@@ -1,6 +1,5 @@
 import { render, screen, fireEvent } from "@testing-library/react";
 import { describe, it, expect, vi, beforeEach, Mock } from "vitest";
-import '@testing-library/jest-dom/vitest';
 import CompactView from "./CompactView";
 
 vi.mock("@/lib/hooks/useScheduleData", () => ({

@@ -91,23 +91,25 @@ export function ScheduleRunner() {
         <div className="space-y-6 py-4">
           {/* Dataset Info */}
           {selectedDataset && (
-            <Alert>
-              <AlertCircle className="h-4 w-4" />
-              <AlertDescription>
-                <div className="font-medium">
-                  {selectedDataset.dataset_name}
-                </div>
-                <div className="text-xs text-muted-foreground mt-1">
-                  {selectedDataset.files.courses.unique_crns} courses •{" "}
-                  {selectedDataset.files.enrollments.unique_students} students •{" "}
-                  {selectedDataset.files.rooms.unique_rooms} rooms
-                </div>
-              </AlertDescription>
-            </Alert>
+            <div className="space-y-2">
+              <Label htmlFor="font-semibold">Dataset Name</Label>
+              <Alert>
+                <AlertDescription>
+                  <div className="font-medium">
+                    {selectedDataset.dataset_name}
+                  </div>
+                  <div className="text-xs text-muted-foreground mt-1">
+                    {selectedDataset.files.courses.unique_crns} courses •{" "}
+                    {selectedDataset.files.enrollments.unique_students} students
+                    • {selectedDataset.files.rooms.unique_rooms} rooms
+                  </div>
+                </AlertDescription>
+              </Alert>
+            </div>
           )}
 
           <div className="space-y-2">
-            <Label htmlFor="schedule-name">Schedule Name</Label>
+            <Label htmlFor="schedule-name font-semibold">Schedule Name</Label>
             <Input
               id="schedule-name"
               type="text"
@@ -232,29 +234,7 @@ export function ScheduleRunner() {
                 </>
               )}
             </Button>
-            {/* Export removed from Optimize dialog; exporting is available from the Dashboard header */}
           </div>
-
-          {/* Current Schedule Info */}
-          {currentSchedule && (
-            <Alert>
-              <AlertCircle className="h-4 w-4" />
-              <AlertDescription>
-                <div className="font-medium">Current Schedule</div>
-                <div className="text-xs text-muted-foreground mt-1">
-                  {currentSchedule.schedule.total_exams} exams scheduled •{" "}
-                  {currentSchedule.summary.real_conflicts} conflicts •{" "}
-                  {currentSchedule.failures.length} failures
-                  {currentSchedule.conflicts.total > 0 && (
-                    <>
-                      {" "}
-                      • {currentSchedule.conflicts.total} back-to-back warnings
-                    </>
-                  )}
-                </div>
-              </AlertDescription>
-            </Alert>
-          )}
         </div>
       </DialogContent>
     </Dialog>

@@ -10,41 +10,25 @@ export function cn(...inputs: ClassValue[]) {
 }
 
 
-
-export const conflictMapper = (breakdown: any[] = []): conflictMap[] => {
-  // Thin wrapper to reuse the more robust mapping implementation below
-  return mapConflictsToConflictMap(breakdown ?? []);
-};
-
-
-
-
-
-
 export function mapConflictsToConflictMap(breakdown: any[] = []): conflictMap[] {
-  const BACK_TO_BACK_TYPES = new Set([
-    "back_to_back",
-    "back_to_back_student",
-    "back_to_back_instructor",
-  ]);
+  const BACK_TO_BACK_TYPES = new Set(["back_to_back", "back_to_back_student", "back_to_back_instructor"]);
+  const OVER_MAX_TYPES = new Set(["student_gt_max_per_day", "student_gt3_per_day", "student_gt_max"]);
+
+  function getType(conf: any) {
+    return conf.conflict_type ?? conf.violation ?? "unknown";
+  }
+
+  function getNumericOrFlag(conf: any, countKey: string, idKey: string) {
+    // Prefer numeric count if present, otherwise fall back to whether an id is present as heuristic
+    if (typeof conf[countKey] === "number") return conf[countKey];
+    return conf[idKey] ? 1 : 0;
+  }
 
   return (breakdown ?? []).map((conf) => {
-    const type = conf.conflict_type ?? conf.violation ?? "unknown";
+    const type = getType(conf);
 
-    // Try to extract numeric counts if backend provides them; otherwise default heuristics
-    const instructorConflicts =
-      typeof conf.instructor_conflicts === "number"
-        ? conf.instructor_conflicts
-        : conf.instructor_id
-        ? 1
-        : 0;
-
-    const studentConflicts =
-      typeof conf.student_conflicts === "number"
-        ? conf.student_conflicts
-        : conf.student_id
-        ? 1
-        : 0;
+    const instructorConflicts = getNumericOrFlag(conf, "instructor_conflicts", "instructor_id");
+    const studentConflicts = getNumericOrFlag(conf, "student_conflicts", "student_id");
 
     return {
       conflictType: type,
@@ -52,10 +36,7 @@ export function mapConflictsToConflictMap(breakdown: any[] = []): conflictMap[] 
       studentConflicts,
       backToBack: BACK_TO_BACK_TYPES.has(type),
       instructorBackToBack: type === "back_to_back_instructor",
-      overMaxExams:
-        type === "student_gt_max_per_day" ||
-        type === "student_gt3_per_day" ||
-        type === "student_gt_max",
+      overMaxExams: OVER_MAX_TYPES.has(type),
     } as conflictMap;
   });
 }
@@ -70,22 +51,37 @@ export function mapConflictsToRows(allExams: any[] = [], breakdown: any[] = []) 
 
   const normalizeCourse = (s: any) => {
     if (!s) return null;
-    let str = String(s);
+    const str = String(s);
     const match = str.match(/course_ref\s+(\S+)/i);
     if (match) return match[1];
     return str.replace(/Name:\s*\d+,\s*dtype:\s*\w+.*/i, "").trim() || null;
   };
 
-  for (const ex of allExams ?? []) {
-    const crn = (ex.crn ?? ex.CRN ?? ex.section ?? ex.id)?.toString?.();
-    const course = normalizeCourse(ex.course ?? ex.course_name ?? ex.course_ref ?? ex.title);
-    if (crn) {
-      annotatedByCrn.set(crn, (annotatedByCrn.get(crn) ?? []).concat(ex));
-    }
-    if (course) {
-      annotatedByCourse.set(course, (annotatedByCourse.get(course) ?? []).concat(ex));
+  function buildAnnotatedMaps(exams: any[]) {
+    for (const ex of exams ?? []) {
+      const crn = (ex.crn ?? ex.CRN ?? ex.section ?? ex.id)?.toString?.();
+      const course = normalizeCourse(ex.course ?? ex.course_name ?? ex.course_ref ?? ex.title);
+      if (crn) annotatedByCrn.set(crn, (annotatedByCrn.get(crn) ?? []).concat(ex));
+      if (course) annotatedByCourse.set(course, (annotatedByCourse.get(course) ?? []).concat(ex));
     }
   }
+
+  function addMatchesForIdentifier(matched: any[], identifier: any) {
+    if (!identifier) return;
+    if (Array.isArray(identifier)) {
+      for (const it of identifier) {
+        const k = String(it);
+        if (annotatedByCrn.has(k)) matched.push(...(annotatedByCrn.get(k) ?? []));
+        const norm = normalizeCourse(it);
+        if (norm && annotatedByCourse.has(norm)) matched.push(...(annotatedByCourse.get(norm) ?? []));
+      }
+    } else {
+      const norm = normalizeCourse(identifier);
+      if (norm && annotatedByCourse.has(norm)) matched.push(...(annotatedByCourse.get(norm) ?? []));
+    }
+  }
+
+  buildAnnotatedMaps(allExams ?? []);
 
   const backRows: Array<any> = [];
   const largeRows: Array<any> = [];
@@ -97,33 +93,17 @@ export function mapConflictsToRows(allExams: any[] = [], breakdown: any[] = []) 
     const course = conf.course ?? conf.course_ref ?? conf.conflicting_course ?? null;
     const normCourse = normalizeCourse(course);
 
-    // find matching exams
+    // collect matching exams (by CRN or normalized course)
     const matched: any[] = [];
     if (crn && annotatedByCrn.has(String(crn))) matched.push(...(annotatedByCrn.get(String(crn)) ?? []));
     if (normCourse && annotatedByCourse.has(normCourse)) matched.push(...(annotatedByCourse.get(normCourse) ?? []));
 
-    // include conflicting_courses/conflicting_crns also
-    const otherCourses = conf.conflicting_courses ?? conf.conflicting_course ?? null;
-    const otherCrns = conf.conflicting_crns ?? conf.conflicting_crn ?? null;
-    const addFromList = (list: any) => {
-      if (!list) return;
-      if (Array.isArray(list)) {
-        for (const it of list) {
-          const k = String(it);
-          if (annotatedByCrn.has(k)) matched.push(...(annotatedByCrn.get(k) ?? []));
-          const norm = normalizeCourse(it);
-          if (norm && annotatedByCourse.has(norm)) matched.push(...(annotatedByCourse.get(norm) ?? []));
-        }
-      } else {
-        const norm = normalizeCourse(list);
-        if (norm && annotatedByCourse.has(norm)) matched.push(...(annotatedByCourse.get(norm) ?? []));
-      }
-    };
-    addFromList(otherCourses);
-    addFromList(otherCrns);
+    addMatchesForIdentifier(matched, conf.conflicting_courses ?? conf.conflicting_course ?? null);
+    addMatchesForIdentifier(matched, conf.conflicting_crns ?? conf.conflicting_crn ?? null);
+
     const uniq = Array.from(new Set(matched));
 
-    // back-to-back rows
+    // Back-to-back rows: prefer explicit student id, otherwise use count heuristic
     if (type === "back_to_back" || type === "back_to_back_student" || type === "back_to_back_instructor") {
       const studentId = conf.entity_id ?? conf.student_id ?? null;
       const day = conf.day ?? conf.block_day ?? conf.block_time ?? "—";
@@ -131,7 +111,7 @@ export function mapConflictsToRows(allExams: any[] = [], breakdown: any[] = []) 
       backRows.push({ student: studentId ? String(studentId) : `student(s): ${conf.count ?? 1}`, day, blocks });
     }
 
-    // large courses not early
+    // Large courses not early: map to available exam records when possible
     if (type === "large_course_not_early" || conf.large_courses_not_early) {
       if (uniq.length > 0) {
         for (const ex of uniq) {
@@ -148,7 +128,7 @@ export function mapConflictsToRows(allExams: any[] = [], breakdown: any[] = []) 
       }
     }
 
-    // not scheduled — conflicts that reference courses not in allExams or explicit not_scheduled flag
+    // Not scheduled: when conflict references courses not present in allExams or explicit not_scheduled flag
     const unscheduled = conf.not_scheduled || conf.unscheduled_reason || (!uniq.length && (type === "unknown" || type === "course_not_scheduled"));
     if (unscheduled && uniq.length === 0) {
       notScheduledRows.push({ crn: conf.crn ?? conf.course ?? "—", course: conf.course ?? conf.conflicting_course ?? "—", size: conf.size ?? "—", reason: conf.unscheduled_reason ?? `Conflict: ${type}` });
@@ -157,96 +137,6 @@ export function mapConflictsToRows(allExams: any[] = [], breakdown: any[] = []) 
 
   return { backRows, largeRows, notScheduledRows };
 }
-
-
-/*
-
-export interface ConflictBreakdown {
-  student_id?: string;
-  entity_id?: string;
-  day: string;
-  block?: number;
-  block_time?: string;
-  conflict_type: string;
-  blocks?: number[];
-  crn?: string;
-  course?: string;
-  conflicting_crn?: string;
-  conflicting_course?: string;
-  conflicting_crns?: string[];
-  conflicting_courses?: string[];
-}
-
-export interface ScheduleFailure {
-  CRN: string;
-  Course: string;
-  Size: number;
-  reasons: Record<string, number>;
-}
-
-export interface ScheduleExam {
-  CRN: string;
-  Course: string;
-  Day: string;
-  Block: string;
-  Room: string;
-  Capacity: number;
-  Size: number;
-  Valid: boolean;
-  Instructor?: string;
-}
-
-export interface CalendarExam {
-  CRN: string;
-  Course: string;
-  Room: string;
-  Capacity: number;
-  Size: number;
-  Valid: boolean;
-  Instructor?: string;
-}
-
-export interface CalendarData {
-  [day: string]: {
-    [timeSlot: string]: CalendarExam[];
-  };
-}
-
-export interface ScheduleSummary {
-  num_classes: number;
-  num_students: number;
-  potential_overlaps: number;
-  real_conflicts: number;
-  num_rooms: number;
-  slots_used: number;
-}
-
-export interface ScheduleConflicts {
-  total: number;
-  breakdown: ConflictBreakdown[];
-  details: Record<string, string[]>;
-}
-
-export interface ScheduleData {
-  complete: ScheduleExam[];
-  calendar: CalendarData;
-  total_exams: number;
-}
-
-export interface ScheduleResult {
-  dataset_id: string;
-  dataset_name: string;
-  summary: ScheduleSummary;
-  conflicts: ScheduleConflicts;
-  failures: ScheduleFailure[];
-  schedule: ScheduleData;
-  parameters: ScheduleParameters;
-}
-
-*/
-
-
-
 
 
 

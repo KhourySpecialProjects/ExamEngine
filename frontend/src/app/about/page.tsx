@@ -157,7 +157,7 @@ export default function AboutPage() {
 
           <div className="mt-8 flex flex-wrap justify-center gap-3">
             <Button asChild size="lg" className="gap-2">
-              <Link href="/signup">
+              <Link href="/login#signup">
                 Create an account
                 <ArrowRight className="h-4 w-4" />
               </Link>
@@ -375,7 +375,8 @@ export default function AboutPage() {
             Ready to modernize exam planning?
           </p>
           <h2 className="mt-3 text-3xl font-semibold text-gray-900">
-            Start with your datasets. Generate conflict-free schedules this term.
+            Start with your datasets. Generate conflict-free schedules this
+            term.
           </h2>
           <p className="mt-4 text-lg text-muted-foreground">
             Invite your planning team, upload last term’s CSVs, and see how fast
@@ -394,7 +395,7 @@ export default function AboutPage() {
               variant="outline"
               className="border-gray-200 text-gray-900 hover:bg-gray-50"
             >
-              <Link href="/signup">Create an account</Link>
+              <Link href="/login#signup">Create an account</Link>
             </Button>
           </div>
         </div>

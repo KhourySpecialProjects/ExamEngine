@@ -1,5 +1,5 @@
 import { useMemo } from "react";
-import type { CalendarRow, Exam } from "@/lib/types/calendar.type";
+import type { CalendarRow, Exam } from "@/lib/types/calendar.types";
 import { useSchedulesStore } from "@/lib/store/schedulesStore";
 import type { CalendarExam } from "../api/schedules";
 

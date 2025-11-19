@@ -1,5 +1,5 @@
 import { create } from "zustand";
-import type {CalendarState} from "@/lib/types/calendar.type"
+import type {CalendarState} from "@/lib/types/calendar.types"
 
 
 export const useCalendarStore = create<CalendarState>((set) => ({

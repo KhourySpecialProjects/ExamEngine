@@ -1,6 +1,7 @@
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
 import { apiClient } from "../api/client";
+import type { DatasetMetadata } from "@/lib/types/datasets.api.types";
 import type {DatasetState} from "@/lib/types/dataset.types"
 
 export const useDatasetStore = create<DatasetState>()(

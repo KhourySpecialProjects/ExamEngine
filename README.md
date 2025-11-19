@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="frontend/public/logo.svg" alt="Exam Engine" width="250"/>
+  <img src="frontend/public/github.svg" alt="Exam Engine" width="250"/>
   <p align="center" class="logo-subtitle"><em>Schedule Smarter</em></p>
 </p>
 

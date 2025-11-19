@@ -10,7 +10,12 @@ export const useDatasetStore = create<DatasetState>()(
       datasets: [],
       selectedDatasetId: null,
       isLoading: false,
+      selectedDeleteDataset: null,
       error: null,
+
+      selectDeleteDataset: (dataset: DatasetMetadata | null) => {
+        set({ selectedDeleteDataset: dataset });
+      },
 
       // Fetch all datasets
       fetchDatasets: async () => {

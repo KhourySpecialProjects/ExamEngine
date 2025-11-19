@@ -133,8 +133,8 @@ function convertToCalendarRows(
     const match = timeSlot.match(/^(\d+):?(\d*)([AP]M)/);
     if (!match) return 0;
 
-    let hours = parseInt(match[1]);
-    const minutes = match[2] ? parseInt(match[2]) : 0;
+    let hours = parseInt(match[1], 10);
+    const minutes = match[2] ? parseInt(match[2], 10) : 0;
     const period = match[3];
 
     if (period === "PM" && hours !== 12) hours += 12;

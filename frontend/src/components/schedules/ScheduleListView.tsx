@@ -1,12 +1,12 @@
 "use client";
 
 import { flexRender } from "@tanstack/react-table";
-import { Table, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { useScheduleTable } from "@/lib/hooks/useScheduleTable";
 import { DataTableBody } from "@/components/common/table/DataTableBody";
 import { DataTableFilters } from "@/components/common/table/DataTableFilters";
 import { DataTablePagination } from "@/components/common/table/DataTablePagination";
+import { Table, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import type { ScheduleListItem } from "@/lib/api/schedules";
+import { useScheduleTable } from "@/lib/hooks/useScheduleTable";
 
 interface ScheduleListViewProps {
   schedules: ScheduleListItem[];

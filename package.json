@@ -39,8 +39,8 @@
 			"ruff check --fix"
 		],
 		"frontend/**/*.{ts,tsx,js,jsx,json}": [
-			"cd frontend && biome format --write --no-errors-on-unmatched",
-			"cd frontend && biome check --write --no-errors-on-unmatched"
+			"npm run format --workspace=frontend",
+			"npm run lint --workspace=frontend"
 		]
 	},
 	"devDependencies": {

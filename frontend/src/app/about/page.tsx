@@ -123,6 +123,37 @@ const foundationHighlights = [
   },
 ];
 
+const contributors = [
+  {
+    name: "Nidhi Jadhav",
+    linkedin: "https://www.linkedin.com/in/nidhii-jadhav/",
+  },
+  {
+    name: "Blair Kuzniarek",
+    linkedin: "https://www.linkedin.com/in/blair-kuzniarek/",
+  },
+  {
+    name: "Khoi Ngo",
+    linkedin: "https://www.linkedin.com/in/khoiqngo/",
+  },
+  {
+    name: "Shreyas Shukla",
+    linkedin: "https://www.linkedin.com/in/shreyas-shukla26/",
+  },
+  {
+    name: "Alexander Weinberger",
+    linkedin: "https://www.linkedin.com/in/weinberger-alexander/",
+  },
+  {
+    name: "Joe Portas",
+    linkedin: "https://www.linkedin.com/in/joseph-portas/",
+  },
+  {
+    name: "Maxim Onashchenko",
+    linkedin: "https://www.linkedin.com/in/maximonashchenko/",
+  },
+];
+
 export default function AboutPage() {
   return (
     <div className="min-h-screen bg-gray-50">
@@ -365,6 +396,48 @@ export default function AboutPage() {
                 one place built for their workflow.
               </p>
             </div>
+          </div>
+        </div>
+      </section>
+
+      <section className="border-t border-gray-100 bg-white">
+        <div className="mx-auto max-w-5xl px-6 py-16">
+          <div className="text-center">
+            <p className="text-xs font-semibold uppercase tracking-[0.3em] text-emerald-600">
+              Project contributors
+            </p>
+            <h2 className="mt-3 text-3xl font-semibold text-gray-900">
+              Meet the team building ExamEngine
+            </h2>
+            <p className="mt-4 text-lg text-muted-foreground">
+              ExamEngine is being built by Northeastern University students in
+              the Software Engineering for Consultants (CS 4535) course, guided by faculty
+              mentors and industry partners.
+            </p>
+          </div>
+
+          <div className="mt-10 grid gap-6 md:grid-cols-3">
+            {[...contributors]
+              .sort((a, b) => a.name.localeCompare(b.name))
+              .map((person) => (
+                <div
+                  key={person.name}
+                  className="rounded-3xl border border-gray-100 bg-white p-6 shadow-sm"
+                >
+                  <div className="flex flex-col gap-1 text-left">
+                    <h3 className="text-xl font-semibold text-gray-900">
+                      {person.name}
+                    </h3>
+                    <Link
+                      href={person.linkedin}
+                      target="_blank"
+                      className="text-sm font-medium text-emerald-600 hover:underline"
+                    >
+                      LinkedIn →
+                    </Link>
+                  </div>
+                </div>
+              ))}
           </div>
         </div>
       </section>

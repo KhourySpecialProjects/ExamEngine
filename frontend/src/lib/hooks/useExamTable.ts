@@ -10,7 +10,7 @@ import {
 } from "@tanstack/react-table";
 import { useMemo, useState } from "react";
 import { createExamColumns } from "@/components/visualization/list/columns";
-import type { Exam } from "../store/calendarStore";
+import type { Exam } from "../types/calendar.type";
 import { useScheduleData } from "./useScheduleData";
 
 /**

@@ -1,26 +1,7 @@
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
 import { apiClient } from "../api/client";
-import type { DatasetMetadata } from "../api/datasets";
-
-interface DatasetState {
-  // State
-  datasets: DatasetMetadata[];
-  selectedDatasetId: string | null;
-  isLoading: boolean;
-  error: string | null;
-
-  // Actions
-  fetchDatasets: () => Promise<void>;
-  selectDataset: (datasetId: string | null) => void;
-  deleteDataset: (datasetId: string) => Promise<void>;
-  clearError: () => void;
-  refreshDatasets: () => Promise<void>;
-
-  // Computed
-  getSelectedDataset: () => DatasetMetadata | null;
-  getDatasetById: (datasetId: string) => DatasetMetadata | null;
-}
+import type {DatasetState} from "@/lib/types/dataset.types"
 
 export const useDatasetStore = create<DatasetState>()(
   persist(

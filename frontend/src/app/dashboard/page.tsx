@@ -4,8 +4,6 @@ import { Loader2 } from "lucide-react";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { ScheduleListView } from "@/components/schedules/ScheduleListView";
-import { apiClient } from "@/lib/api/client";
-import { Loader2 } from "lucide-react";
 import { useSchedulesStore } from "@/lib/store/schedulesStore";
 
 export default function DashboardPage() {
@@ -13,7 +11,6 @@ export default function DashboardPage() {
   const isLoadingList = useSchedulesStore((state) => state.isLoadingList);
   const error = useSchedulesStore((state) => state.error);
   const fetchSchedules = useSchedulesStore((state) => state.fetchSchedules);
-
 
   useEffect(() => {
     fetchSchedules().catch((err) => {

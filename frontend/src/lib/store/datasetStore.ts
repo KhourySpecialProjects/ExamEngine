@@ -15,7 +15,7 @@ interface DatasetState {
   fetchDatasets: () => Promise<void>;
   selectDataset: (datasetId: string | null) => void;
   selectDeleteDataset: (dataset: DatasetMetadata | null) => void;
-  deleteDataset: (datasetId: string | null) => Promise<void>;
+  deleteDataset: (datasetId: string) => Promise<void>;
   clearError: () => void;
   refreshDatasets: () => Promise<void>;
 

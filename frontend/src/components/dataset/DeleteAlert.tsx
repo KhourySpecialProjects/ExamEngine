@@ -18,7 +18,7 @@ export function DeleteAlert() {
   const selectedDataset = getSelectedDataset();
 
   const handleDeleteDataset = () => {
-    deleteDataset(selectedDatasetId);
+    if (selectedDatasetId) deleteDataset(selectedDatasetId);
   };
 
   return (

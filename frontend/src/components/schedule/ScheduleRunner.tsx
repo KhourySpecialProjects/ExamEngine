@@ -27,7 +27,6 @@ export function ScheduleRunner() {
   );
 
   const {
-    currentSchedule,
     isGenerating,
     scheduleName,
     parameters,

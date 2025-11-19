@@ -23,7 +23,6 @@ import { DeleteAlert } from "./DeleteAlert";
 export function DatasetBar() {
   const {
     datasets,
-    selectedDatasetId,
     selectDataset,
     fetchDatasets,
     getSelectedDataset,

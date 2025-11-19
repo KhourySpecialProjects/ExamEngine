@@ -26,14 +26,12 @@ import {
   PopoverTrigger,
 } from "@/components/ui/popover";
 import type { DatasetMetadata } from "@/lib/api/datasets";
-import { useAuthStore } from "@/lib/store/authStore";
 import { useDatasetStore } from "@/lib/store/datasetStore";
 
 export function DeleteDataset() {
   const { datasets, fetchDatasets } = useDatasetStore();
   const [currentDataset, setDataset] = useState<DatasetMetadata | null>();
   const deleteDataset = useDatasetStore((state) => state.deleteDataset);
-  const _user = useAuthStore((state) => state.user);
 
   const handleDeleteDataset = async () => {
     const uploadToast = toast.loading("Deleting dataset...", {

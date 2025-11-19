@@ -21,7 +21,7 @@ import DensityView from "@/components/visualization/calendar/DensityView";
 import { ExamListDialog } from "@/components/visualization/calendar/ExamListDialog";
 import ListView from "@/components/visualization/list/ListView";
 import { useScheduleData } from "@/lib/hooks/useScheduleData";
-import { useScheduleStore } from "@/lib/store/scheduleStore";
+import { useSchedulesStore } from "@/lib/store/schedulesStore";
 import { exportScheduleRowsAsCsv } from "@/lib/utils";
 
 type ViewType = "density" | "compact" | "list" | "statistics";
@@ -35,10 +35,14 @@ export default function SchedulePage({
   const [activeView, setActiveView] = useState<ViewType>("density");
   const router = useRouter();
 
-  const fetchSchedule = useScheduleStore((state) => state.fetchSchedule);
+  const fetchSchedule = useSchedulesStore((state) => state.fetchSchedule);
 
   useEffect(() => {
-    fetchSchedule(scheduleId);
+    fetchSchedule(scheduleId).catch((error) => {
+      toast.error("Failed to load schedule", {
+        description: error instanceof Error ? error.message : "Unknown error",
+      });
+    });
   }, [scheduleId, fetchSchedule]);
 
   const { schedule } = useScheduleData();

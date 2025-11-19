@@ -1,11 +1,9 @@
 "use client";
 
+import { Loader2 } from "lucide-react";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { ScheduleListView } from "@/components/schedules/ScheduleListView";
-import type { ScheduleListItem } from "@/lib/api/schedules";
-import { apiClient } from "@/lib/api/client";
-import { Loader2 } from "lucide-react";
 import { useSchedulesStore } from "@/lib/store/schedulesStore";
 
 export default function DashboardPage() {
@@ -13,7 +11,6 @@ export default function DashboardPage() {
   const isLoadingList = useSchedulesStore((state) => state.isLoadingList);
   const error = useSchedulesStore((state) => state.error);
   const fetchSchedules = useSchedulesStore((state) => state.fetchSchedules);
-
 
   useEffect(() => {
     fetchSchedules().catch((err) => {
@@ -24,7 +21,7 @@ export default function DashboardPage() {
     });
   }, [fetchSchedules]);
 
-  const handleDelete = async (scheduleId: string) => {
+  const handleDelete = async (_scheduleId: string) => {
     toast.info("Delete functionality", {
       description: "Schedule deletion will be implemented soon",
     });

@@ -165,7 +165,7 @@ export default function DensityView() {
 
             return levels.map((lvl) => {
               const bg = themeColors[lvl] || themeColors[0];
-              const textColor = textColorFromBg(bg);
+              const _textColor = textColorFromBg(bg);
               let label = "";
               const safe = (n: number) =>
                 Number.isFinite(n) ? Math.max(0, Math.floor(n)) : 0;

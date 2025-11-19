@@ -21,8 +21,8 @@ import DensityView from "@/components/visualization/calendar/DensityView";
 import { ExamListDialog } from "@/components/visualization/calendar/ExamListDialog";
 import ListView from "@/components/visualization/list/ListView";
 import { useScheduleData } from "@/lib/hooks/useScheduleData";
-import { exportScheduleRowsAsCsv } from "@/lib/utils";
 import { useScheduleStore } from "@/lib/store/scheduleStore";
+import { exportScheduleRowsAsCsv } from "@/lib/utils";
 
 type ViewType = "density" | "compact" | "list" | "statistics";
 

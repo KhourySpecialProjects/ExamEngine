@@ -1,11 +1,11 @@
 "use client";
 
+import { Loader2 } from "lucide-react";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { ScheduleListView } from "@/components/schedules/ScheduleListView";
-import type { ScheduleListItem } from "@/lib/api/schedules";
 import { apiClient } from "@/lib/api/client";
-import { Loader2 } from "lucide-react";
+import type { ScheduleListItem } from "@/lib/api/schedules";
 
 export default function DashboardPage() {
   const [schedules, setSchedules] = useState<ScheduleListItem[]>([]);
@@ -14,7 +14,7 @@ export default function DashboardPage() {
 
   useEffect(() => {
     fetchSchedules();
-  }, []);
+  }, [fetchSchedules]);
 
   const fetchSchedules = async () => {
     try {
@@ -34,7 +34,7 @@ export default function DashboardPage() {
     }
   };
 
-  const handleDelete = async (scheduleId: string) => {
+  const handleDelete = async (_scheduleId: string) => {
     toast.info("Delete functionality", {
       description: "Schedule deletion will be implemented soon",
     });

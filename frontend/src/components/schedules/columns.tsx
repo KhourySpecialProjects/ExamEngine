@@ -1,6 +1,7 @@
 import { type ColumnDef, createColumnHelper } from "@tanstack/react-table";
-import { MoreHorizontal, Eye, Trash2 } from "lucide-react";
+import { Eye, MoreHorizontal, Trash2 } from "lucide-react";
 import Link from "next/link";
+import { SortableHeader } from "@/components/common/table/SortableHeader";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -11,7 +12,6 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { SortableHeader } from "@/components/common/table/SortableHeader";
 import type { ScheduleListItem } from "@/lib/api/schedules";
 
 const columnHelper = createColumnHelper<ScheduleListItem>();

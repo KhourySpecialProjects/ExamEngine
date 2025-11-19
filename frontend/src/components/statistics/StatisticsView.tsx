@@ -1,6 +1,5 @@
 "use client";
 
-import { AlertTriangle, BookOpen, Building2, TrendingUp } from "lucide-react";
 import { useMemo } from "react";
 import {
   Bar,

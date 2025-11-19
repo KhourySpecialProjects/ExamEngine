@@ -507,10 +507,8 @@ class ScheduleService:
 
         if existing_courses:
             # Build mapping from existing records
-            mapping = {
-                course.course_subject_code: course.course_id
-                for course in existing_courses
-            }
+            mapping = {course.crn: course.course_id for course in existing_courses}
+
             return mapping
 
         mapping = self.course_repo.bulk_create_from_dataframe(

@@ -1,12 +1,12 @@
-import { render, screen } from "../../../node_modules/@testing-library/react";
+import { render, screen } from "@testing-library/react";
 import { describe, it, expect, vi, beforeEach, Mock, beforeAll } from "vitest";
 import { StatisticsView } from "./StatisticsView";
-import { useScheduleStore } from "../../lib/store/scheduleStore";
-
 
 vi.mock("@/lib/store/scheduleStore", () => ({
   useScheduleStore: vi.fn(),
 }));
+
+const { useScheduleStore } = await import("@/lib/store/scheduleStore");
 
 beforeAll(() => {
   global.ResizeObserver = class {

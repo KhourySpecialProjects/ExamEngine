@@ -66,7 +66,6 @@ export default function ConflictView({
   const conflictTypeRows: Record<string, any[]> = {};
 
 
-
   /**
    * Find an exam object in `allExams` by matching common CRN-like fields.
    * Returns null when no matching exam is found.
@@ -124,6 +123,38 @@ export default function ConflictView({
 
     conflictTypeRows[type].push(row);
   }
+
+    // --- derive reliable counts from mapped rows / conflictTypeRows ---
+    // Prefer explicit breakdown counts when present, otherwise count table rows.
+    const studentDoubleCount = (conflictTypeRows["student_double_book"]?.length ?? 0) || (mappedRows.backRows?.filter(Boolean).length ? 0 : 0);
+    const instructorDoubleCount = (conflictTypeRows["instructor_double_book"]?.length ?? 0) || 0;
+
+    // Back-to-back: count explicit student/instructor types, plus inspect generic 'back_to_back' rows
+    let studentsBackToBackCount = conflictTypeRows["back_to_back_student"]?.length ?? 0;
+    let instructorsBackToBackCount = conflictTypeRows["back_to_back_instructor"]?.length ?? 0;
+    const genericBack = conflictTypeRows["back_to_back"] ?? [];
+    for (const r of genericBack) {
+      const ent = r?.entity ?? "";
+      if (typeof ent === "string" && ent.startsWith("I:")) instructorsBackToBackCount += 1;
+      else studentsBackToBackCount += 1;
+    }
+
+    const largeCoursesNotEarlyCount = (conflictTypeRows["large_course_not_early"]?.length ?? 0) || (displayLargeRows?.length ?? 0);
+
+    const finalMerged: ConflictMetrics = {
+      hard_student_conflicts:
+        metrics?.hard_student_conflicts ?? (mappedTotals.hard_student_conflicts > 0 ? mappedTotals.hard_student_conflicts : derived.hard_student_conflicts),
+      hard_instructor_conflicts:
+        metrics?.hard_instructor_conflicts ?? (mappedTotals.hard_instructor_conflicts > 0 ? mappedTotals.hard_instructor_conflicts : derived.hard_instructor_conflicts),
+      students_back_to_back:
+        metrics?.students_back_to_back ?? (mappedTotals.students_back_to_back > 0 ? mappedTotals.students_back_to_back : studentsBackToBackCount ?? derived.students_back_to_back),
+      instructors_back_to_back:
+        metrics?.instructors_back_to_back ?? (mappedTotals.instructors_back_to_back > 0 ? mappedTotals.instructors_back_to_back : instructorsBackToBackCount ?? derived.instructors_back_to_back),
+      large_courses_not_early:
+        metrics?.large_courses_not_early ?? (mappedTotals.large_courses_not_early > 0 ? mappedTotals.large_courses_not_early : largeCoursesNotEarlyCount ?? derived.large_courses_not_early),
+      student_gt3_per_day:
+        metrics?.student_gt3_per_day ?? (mappedTotals.student_gt3_per_day > 0 ? mappedTotals.student_gt3_per_day : derived.student_gt3_per_day),
+    };
 
   const dynamicTabEntries = Object.keys(conflictTypeRows).length > 0
     ? Object.keys(conflictTypeRows).map((t) => ({ id: t, label: conflictTypeMap[t] ?? t }))
@@ -263,12 +294,12 @@ export default function ConflictView({
   }
 
   const summaryCards = [
-    { label: "Student Double-Book", value: merged.hard_student_conflicts, variant: "destructive" },
-    { label: "Instructor Double-Book", value: merged.hard_instructor_conflicts, variant: "destructive" },
-    { label: "Student >3/day", value: merged.student_gt3_per_day, variant: "destructive" },
-    { label: "Students Back-to-Back", value: merged.students_back_to_back, badgeClassName: "bg-amber-600 text-white" },
-    { label: "Instructors Back-to-Back", value: merged.instructors_back_to_back, badgeClassName: "bg-amber-600 text-white" },
-    { label: "Large Course Not Early", value: merged.large_courses_not_early, badgeClassName: "bg-amber-600 text-white" },
+    { label: "Student Double-Book", value: finalMerged.hard_student_conflicts, variant: "destructive" },
+    { label: "Instructor Double-Book", value: finalMerged.hard_instructor_conflicts, variant: "destructive" },
+    { label: "Student >3/day", value: finalMerged.student_gt3_per_day, variant: "destructive" },
+    { label: "Students Back-to-Back", value: finalMerged.students_back_to_back, badgeClassName: "bg-amber-600 text-white" },
+    { label: "Instructors Back-to-Back", value: finalMerged.instructors_back_to_back, badgeClassName: "bg-amber-600 text-white" },
+    { label: "Large Course Not Early", value: finalMerged.large_courses_not_early, badgeClassName: "bg-amber-600 text-white" },
   ];
 
   const rowsForActive = conflictTypeRows[activeTab] ?? (activeTab === "back_to_back" ? displayBackRows : activeTab === "large_course_not_early" ? displayLargeRows : []);

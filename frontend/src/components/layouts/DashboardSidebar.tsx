@@ -6,8 +6,11 @@ import {
   Database,
   SlidersHorizontal,
   Users,
+  Shield,
 } from "lucide-react";
 import { useEffect } from "react";
+import Link from "next/link";
+import { usePathname } from "next/navigation";
 import {
   Select,
   SelectContent,
@@ -15,7 +18,9 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { Button } from "@/components/ui/button";
 import { useDatasetStore } from "@/lib/store/datasetStore";
+import { useAuthStore } from "@/lib/store/authStore";
 import { getTimeAgo } from "@/lib/utils";
 import { ScheduleRunner } from "../schedule/ScheduleRunner";
 import { Uploader } from "../upload/Uploader";
@@ -29,6 +34,8 @@ export function DashboardSidebar() {
     getSelectedDataset,
     isLoading,
   } = useDatasetStore();
+  const { user } = useAuthStore();
+  const pathname = usePathname();
 
   const selectedDataset = getSelectedDataset();
 
@@ -148,6 +155,7 @@ export function DashboardSidebar() {
         </div>
         <ScheduleRunner />
       </section>
+
     </div>
   );
 }

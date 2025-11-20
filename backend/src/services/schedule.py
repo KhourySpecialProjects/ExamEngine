@@ -243,13 +243,37 @@ class ScheduleService:
         List all schedules for user with metadata.
 
         Returns lightweight schedule info for list views.
+        Includes information about whether schedule is owned or shared.
         """
+        from src.repo.schedule_share import ScheduleShareRepo
+
         schedules = self.schedule_repo.get_all_for_user(user_id)
+        share_repo = ScheduleShareRepo(self.schedule_repo.db)
 
         result = []
         for s in schedules:
             # Get counts
             exam_count = self.schedule_repo.get_exam_assignments_count(s.schedule_id)
+
+            # Check if user owns this schedule
+            is_owner = s.run.user_id == user_id
+
+            # Get creator information
+            created_by_user_id = str(s.run.user_id)
+            created_by_user_name = s.run.user.name if s.run.user else "Unknown"
+
+            # If not owner, get share information
+            is_shared = False
+            shared_by_user_id = None
+            shared_by_user_name = None
+            if not is_owner:
+                share = share_repo.get_share_by_schedule_and_user(
+                    s.schedule_id, user_id
+                )
+                if share and share.shared_by_user:
+                    is_shared = True
+                    shared_by_user_id = str(share.shared_by_user_id)
+                    shared_by_user_name = share.shared_by_user.name
 
             result.append(
                 {
@@ -261,6 +285,12 @@ class ScheduleService:
                     "status": s.run.status.value,
                     "dataset_id": str(s.run.dataset_id),
                     "total_exams": exam_count,
+                    "is_owner": is_owner,
+                    "is_shared": is_shared,
+                    "created_by_user_id": created_by_user_id,
+                    "created_by_user_name": created_by_user_name,
+                    "shared_by_user_id": shared_by_user_id,
+                    "shared_by_user_name": shared_by_user_name,
                 }
             )
 
@@ -290,6 +320,29 @@ class ScheduleService:
             exam_assignments, calendar, conflicts_data
         )
 
+        # Check if user owns this schedule
+        is_owner = schedule.run.user_id == user_id
+
+        # Get creator information
+        created_by_user_id = str(schedule.run.user_id)
+        created_by_user_name = schedule.run.user.name if schedule.run.user else "Unknown"
+
+        # If not owner, get share information
+        is_shared = False
+        shared_by_user_id = None
+        shared_by_user_name = None
+        if not is_owner:
+            from src.repo.schedule_share import ScheduleShareRepo
+
+            share_repo = ScheduleShareRepo(self.schedule_repo.db)
+            share = share_repo.get_share_by_schedule_and_user(
+                schedule_id, user_id
+            )
+            if share and share.shared_by_user:
+                is_shared = True
+                shared_by_user_id = str(share.shared_by_user_id)
+                shared_by_user_name = share.shared_by_user.name
+
         return {
             "schedule_id": str(schedule.schedule_id),
             "schedule_name": schedule.schedule_name,
@@ -307,6 +360,12 @@ class ScheduleService:
             "parameters": schedule.run.parameters,
             "algorithm": schedule.run.algorithm_name,
             "status": schedule.run.status.value,
+            "is_owner": is_owner,
+            "is_shared": is_shared,
+            "created_by_user_id": created_by_user_id,
+            "created_by_user_name": created_by_user_name,
+            "shared_by_user_id": shared_by_user_id,
+            "shared_by_user_name": shared_by_user_name,
         }
 
     def _build_schedule_data(
@@ -374,6 +433,51 @@ class ScheduleService:
         hard_conflicts = conflicts_json.get("hard_conflicts", {})
         soft_conflicts = conflicts_json.get("soft_conflicts", {})
 
+        # Block to time mapping
+        block_time_map = {
+            0: "9AM-11AM",
+            1: "11:30AM-1:30PM",
+            2: "2PM-4PM",
+            3: "4:30PM-6:30PM",
+            4: "7PM-9PM",
+        }
+
+        # Get course names from database for this schedule
+        schedule_id = conflict_analysis.schedule_id
+        exam_assignments = self.exam_assignment_repo.get_all_for_schedule(schedule_id)
+        course_name_map = {}
+        for assignment in exam_assignments:
+            crn = assignment.course.crn
+            course_name = assignment.course.course_subject_code
+            course_name_map[str(crn)] = course_name
+
+        # Enrich conflicts with block_time and course names if missing
+        def enrich_conflict(conflict: dict) -> dict:
+            enriched = conflict.copy()
+            # Add block_time if missing
+            if "block_time" not in enriched and "block" in enriched:
+                enriched["block_time"] = block_time_map.get(enriched["block"], "")
+            # Add course name if missing
+            if "course" not in enriched or enriched.get("course") == "Unknown":
+                crn = enriched.get("crn")
+                if crn:
+                    enriched["course"] = course_name_map.get(str(crn), "Unknown")
+            # Add conflicting course names if missing
+            if "conflicting_crn" in enriched and "conflicting_course" not in enriched:
+                conflicting_crn = enriched.get("conflicting_crn")
+                if conflicting_crn:
+                    enriched["conflicting_course"] = course_name_map.get(str(conflicting_crn), "Unknown")
+            if "conflicting_crns" in enriched and "conflicting_courses" not in enriched:
+                conflicting_crns = enriched.get("conflicting_crns", [])
+                enriched["conflicting_courses"] = [
+                    course_name_map.get(str(crn), "Unknown") for crn in conflicting_crns
+                ]
+            return enriched
+
+        # Enrich all conflicts
+        for conflict_type, conflicts_list in hard_conflicts.items():
+            hard_conflicts[conflict_type] = [enrich_conflict(c) for c in conflicts_list]
+
         breakdown = []
 
         # Process hard conflicts
@@ -439,34 +543,44 @@ class ScheduleService:
         self, conflicts: list[dict], conflict_type: str, entity_key: str
     ) -> list[dict]:
         """Process double-booking conflicts (student or instructor)."""
-        return [
-            {
+        result = []
+        for conflict in conflicts:
+            record = {
                 entity_key: conflict.get("entity_id"),
                 "day": conflict.get("day"),
                 "block": conflict.get("block"),
+                "block_time": conflict.get("block_time"),
                 "conflict_type": conflict_type,
                 "crn": conflict.get("crn"),
-                "course": conflict.get("course"),
+                "course": conflict.get("course", "Unknown"),
                 "conflicting_crn": conflict.get("conflicting_crn"),
                 "conflicting_course": conflict.get("conflicting_course"),
             }
-            for conflict in conflicts
-        ]
+            # Handle conflicting_crns array if present
+            if conflict.get("conflicting_crns"):
+                record["conflicting_crns"] = conflict.get("conflicting_crns")
+            if conflict.get("conflicting_courses"):
+                record["conflicting_courses"] = conflict.get("conflicting_courses")
+            result.append(record)
+        return result
 
     def _process_max_per_day_conflicts(
         self, conflicts: list[dict], conflict_type: str, entity_key: str
     ) -> list[dict]:
         """Process max-per-day violations (student or instructor)."""
-        return [
-            {
+        result = []
+        for conflict in conflicts:
+            # For max_per_day conflicts, we need to get block_time for each CRN
+            # But since these conflicts span multiple blocks, we'll use the day only
+            record = {
                 entity_key: conflict.get("entity_id"),
                 "day": conflict.get("day"),
                 "conflict_type": conflict_type,
-                "crns": conflict.get("crns"),
-                "courses": conflict.get("courses"),
+                "crns": conflict.get("crns", []),
+                "courses": conflict.get("courses", []),
             }
-            for conflict in conflicts
-        ]
+            result.append(record)
+        return result
 
     def _process_back_to_back_conflicts(
         self, conflicts: list[dict], conflict_type: str, entity_key: str
@@ -627,6 +741,33 @@ class ScheduleService:
             "instructor_gt_max_per_day": [],
         }
 
+        # Block to time mapping
+        block_time_map = {
+            0: "9AM-11AM",
+            1: "11:30AM-1:30PM",
+            2: "2PM-4PM",
+            3: "4:30PM-6:30PM",
+            4: "7PM-9PM",
+        }
+
+        # Get course names from census data
+        course_name_map = {}
+        if hasattr(graph, "census") and not graph.census.empty:
+            # Try different column name variations
+            crn_col = None
+            course_col = None
+            for col in graph.census.columns:
+                if col.upper() in ["CRN", "COURSE_REF", "COURSEID"]:
+                    crn_col = col
+                if col.upper() in ["COURSE", "COURSE_REF", "COURSEID", "COURSE_SUBJECT_CODE"]:
+                    course_col = col
+            
+            if crn_col and course_col:
+                for _, row in graph.census.iterrows():
+                    crn_val = str(row[crn_col])
+                    course_val = str(row[course_col])
+                    course_name_map[crn_val] = course_val
+
         # Process graph.conflicts list
         for conflict_tuple in graph.conflicts:
             if len(conflict_tuple) == 5:
@@ -637,18 +778,33 @@ class ScheduleService:
                     conflict_tuple
                 )
 
+            # Get course name
+            crn_str = str(crn)
+            course_name = course_name_map.get(crn_str, "Unknown")
+
             conflict_record = {
                 "entity_id": entity_id,
                 "day": graph.day_names[day] if day < len(graph.day_names) else str(day),
                 "block": block,
-                "crn": crn,
+                "block_time": block_time_map.get(block, f"Block {block}"),
+                "crn": crn_str,
+                "course": course_name,
             }
 
             if conflicting_info:
                 if isinstance(conflicting_info, list):
                     conflict_record["conflicting_crns"] = conflicting_info
+                    # Try to get course names for conflicting CRNs
+                    conflicting_courses = [
+                        course_name_map.get(str(c), "Unknown") for c in conflicting_info
+                    ]
+                    if conflicting_courses:
+                        conflict_record["conflicting_courses"] = conflicting_courses
                 else:
                     conflict_record["conflicting_crn"] = str(conflicting_info)
+                    conflicting_course = course_name_map.get(str(conflicting_info), "Unknown")
+                    if conflicting_course != "Unknown":
+                        conflict_record["conflicting_course"] = conflicting_course
 
             if conflict_type in hard_conflicts:
                 hard_conflicts[conflict_type].append(conflict_record)

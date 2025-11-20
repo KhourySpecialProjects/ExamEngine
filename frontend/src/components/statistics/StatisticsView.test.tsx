@@ -1,7 +1,7 @@
 import { render, screen } from "@testing-library/react";
 import { describe, it, expect, vi, beforeEach, Mock, beforeAll } from "vitest";
 import { StatisticsView } from "./StatisticsView";
-import { useScheduleStore } from "@/lib/store/scheduleStore";
+import { useScheduleStore } from "../../lib/store/scheduleStore";
 
 
 vi.mock("@/lib/store/scheduleStore", () => ({

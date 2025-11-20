@@ -20,17 +20,17 @@ async def lifespan(app: FastAPI):
 # Create app with lifespan
 app = FastAPI(title="Exam Scheduler API", version="1.0", lifespan=lifespan)
 
-# Get settings
-settings = get_settings()
-
 # CORS
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[settings.frontend_url, "http://127.0.0.1:3000", "*"],
+    allow_origins=["*"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# Get settings
+settings = get_settings()
 
 app.include_router(schedule.router)
 app.include_router(datasets.router)

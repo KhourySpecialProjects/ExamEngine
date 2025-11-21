@@ -1,7 +1,6 @@
 import { create } from "zustand";
 import { apiClient } from "@/lib/api/client";
-import type {SchedulesState} from "@/lib/types/schedule.types"
-
+import type { SchedulesState } from "@/lib/types/schedule.types";
 
 export const useSchedulesStore = create<SchedulesState>((set, get) => ({
   // List state
@@ -21,7 +20,7 @@ export const useSchedulesStore = create<SchedulesState>((set, get) => ({
   },
 
   // Load all schedules into the store
-  fetchSchedules: async (options) => {
+  fetchSchedules: async () => {
     set({ isLoadingList: true, error: null });
     try {
       const data = await apiClient.schedules.list();
@@ -32,9 +31,6 @@ export const useSchedulesStore = create<SchedulesState>((set, get) => ({
           error instanceof Error ? error.message : "Failed to load schedules",
         isLoadingList: false,
       });
-      if (!options?.suppressError) {
-        throw error;
-      }
     }
   },
 
@@ -87,7 +83,6 @@ export const useSchedulesStore = create<SchedulesState>((set, get) => ({
         ),
       }));
 
-      await get().fetchSchedules({ suppressError: true });
       return result;
     } catch (error) {
       set((state) => ({

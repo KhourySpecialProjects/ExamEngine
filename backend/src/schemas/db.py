@@ -63,7 +63,7 @@ class Datasets(Base):
     Metadata catalog for uploaded CSV files stored on S3.
 
     Stores on simple storage (S3,etc) keys for courses, enrollments, and rooms CSV files.
-    Does NOT store the actual CSV data - files remain on S3.
+    Does NOT store the actual CSV data - files remain on external storage (if not deleted).
 
     Links to user (ownership).
     """
@@ -82,6 +82,10 @@ class Datasets(Base):
     )
     user: Mapped["Users"] = relationship(
         "Users", back_populates="datasets", lazy="select"
+    )
+    # Soft delete on db to maintain consistency, data will be deleted from external storage
+    deleted_at: Mapped[datetime.datetime | None] = mapped_column(
+        DateTime, nullable=True, default=None
     )
     courses: Mapped[list["Courses"]] = relationship(
         "Courses",

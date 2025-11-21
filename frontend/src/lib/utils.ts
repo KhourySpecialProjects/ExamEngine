@@ -121,6 +121,8 @@ export function wrapSampleDataAsScheduleResult(
   return {
     dataset_id: "sample-data",
     dataset_name: "Sample Data",
+    schedule_id: "sample-data",
+    schedule_name: "sample-data",
     summary: {
       num_classes: totalExams,
       num_students: Math.floor(totalExams * 25),
@@ -141,7 +143,7 @@ export function wrapSampleDataAsScheduleResult(
       total_exams: totalExams,
     },
     parameters: {
-      max_per_day: 3,
+      student_max_per_day: 3,
       avoid_back_to_back: true,
       max_days: 7,
     },

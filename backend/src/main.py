@@ -8,6 +8,9 @@ from src.core.config import get_settings
 from src.core.database import init_db
 
 
+settings = get_settings()
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Lifespan event handler - runs on startup and shutdown"""
@@ -23,18 +26,15 @@ app = FastAPI(title="Exam Scheduler API", version="1.0", lifespan=lifespan)
 # CORS
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=[settings.frontend_url],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
-# Get settings
-settings = get_settings()
-
-app.include_router(schedule.router)
-app.include_router(datasets.router)
-app.include_router(auth.router)
+app.include_router(schedule.router, prefix="/api")
+app.include_router(datasets.router, prefix="/api")
+app.include_router(auth.router, prefix="/api")
 
 
 @app.get("/")

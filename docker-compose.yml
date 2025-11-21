@@ -61,7 +61,7 @@ services:
       - /app/.next 
       - /app/node_modules       
     env_file:
-      - ./frontend/.env.local
+      - ./frontend/.env
     environment:
       - NODE_ENV=development
       - API_URL=http://backend:8000

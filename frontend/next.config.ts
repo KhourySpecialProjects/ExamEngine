@@ -1,9 +1,5 @@
 import type { NextConfig } from "next";
 
-const nextConfig: NextConfig = {
-  /* config options here */
-  output: "standalone",
-  allowedDevOrigins: ["*"]
-};
+const nextConfig: NextConfig = {};
 
 export default nextConfig;

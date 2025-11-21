@@ -1,37 +1,7 @@
 import { create } from "zustand";
 import { apiClient } from "@/lib/api/client";
-import type {
-  ScheduleListItem,
-  ScheduleParameters,
-  ScheduleResult,
-} from "../api/schedules";
+import type {SchedulesState} from "@/lib/types/schedule.types"
 
-interface SchedulesState {
-  // List state
-  schedules: ScheduleListItem[];
-  isLoadingList: boolean;
-
-  // Initial data state
-  currentSchedule: ScheduleResult | null;
-  scheduleName: string;
-
-  // UI State
-  isGenerating: boolean;
-  error: string | null;
-
-  // Parameters
-  parameters: ScheduleParameters;
-
-  // Actions
-  generateSchedule: (datasetId: string) => Promise<ScheduleResult>;
-  fetchSchedule: (scheduleId: string) => Promise<ScheduleResult>;
-  fetchSchedules: (options?: { suppressError?: boolean }) => Promise<void>;
-  setScheduleData: (schedule: ScheduleResult) => void;
-  setScheduleName: (name: string) => void;
-  setParameters: (params: Partial<ScheduleParameters>) => void;
-  clearSchedule: () => void;
-  clearError: () => void;
-}
 
 export const useSchedulesStore = create<SchedulesState>((set, get) => ({
   // List state

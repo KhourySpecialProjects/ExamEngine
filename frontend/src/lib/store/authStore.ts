@@ -1,16 +1,8 @@
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
-import type { User } from "../api/auth";
 import { apiClient } from "../api/client";
-
-interface AuthState {
-  user: User | null;
-  isLoading: boolean;
-  login: (email: string, password: string) => Promise<void>;
-  logout: () => Promise<void>;
-  signup: (name: string, email: string, password: string) => Promise<void>;
-  updateProfile: (data: Partial<User>) => void;
-}
+import type { User } from "../api/auth";
+import type { AuthState } from "../types/auth.types";
 
 export const useAuthStore = create<AuthState>()(
   persist(

@@ -65,7 +65,7 @@ export default function Login() {
     try {
       await signup(suName, suEmail, suPassword);
       toast.success("Sign Up Successful");
-      router.push("/dashboard");
+      setActiveTab("signin");
     } catch (err: unknown) {
       try {
         const errorMessage = err instanceof Error ? err.message : String(err);

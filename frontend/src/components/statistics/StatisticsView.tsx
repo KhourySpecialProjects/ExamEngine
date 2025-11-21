@@ -2,17 +2,17 @@
 
 import { useMemo } from "react";
 import {
-  BarChart,
   Bar,
-  PieChart,
-  Pie,
+  BarChart,
+  CartesianGrid,
   Cell,
+  Legend,
+  Pie,
+  PieChart,
+  ResponsiveContainer,
+  Tooltip,
   XAxis,
   YAxis,
-  CartesianGrid,
-  Tooltip,
-  Legend,
-  ResponsiveContainer,
 } from "recharts";
 import {
   Card,
@@ -21,7 +21,7 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import { useScheduleStore } from "@/lib/store/scheduleStore";
+import { useSchedulesStore } from "@/lib/store/schedulesStore";
 import { BookOpen, AlertTriangle, Building2, TrendingUp } from "lucide-react";
 
 const COLORS = {
@@ -38,7 +38,7 @@ interface ConflictData {
 }
 
 export function StatisticsView() {
-  const currentSchedule = useScheduleStore((state) => state.currentSchedule);
+  const currentSchedule = useSchedulesStore((state) => state.currentSchedule);
 
   const stats = useMemo(() => {
     if (!currentSchedule) return null;
@@ -100,7 +100,7 @@ export function StatisticsView() {
     // If no conflicts found in breakdown but real_conflicts > 0, create a placeholder
     // This handles the case where conflicts exist but aren't in the breakdown array
     if (Object.keys(conflictTypes).length === 0 && summary.real_conflicts > 0) {
-      conflictTypes["unknown"] = summary.real_conflicts;
+      conflictTypes.unknown = summary.real_conflicts;
       // Debug: log this issue
       console.warn(
         `Conflict mismatch: ${summary.real_conflicts} conflicts reported but ${conflicts.breakdown.length} items in breakdown.`,
@@ -357,7 +357,7 @@ export function StatisticsView() {
                     fill="#8884d8"
                     dataKey="value"
                   >
-                    {stats.studentsPerDayData.map((entry, index) => (
+                    {stats.studentsPerDayData.map((_entry, index) => (
                       <Cell
                         key={`cell-${index}`}
                         fill={
@@ -490,7 +490,7 @@ export function StatisticsView() {
 
                         // Extract Course ID and CRN - handle stringified pandas Series
                         let courseId = conflict.course || "Unknown";
-                        let crn = conflict.crn || "Unknown";
+                        const crn = conflict.crn || "Unknown";
 
                         // Clean up courseId if it looks like a pandas Series string
                         if (typeof courseId === "string") {

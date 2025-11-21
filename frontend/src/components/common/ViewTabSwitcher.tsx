@@ -1,7 +1,7 @@
 "use client";
 
 // biome-ignore lint/suspicious/noShadowRestrictedNames: false postive
-import { LayoutGrid, List, Map, BarChart3 } from "lucide-react";
+import { BarChart3, LayoutGrid, List, Map } from "lucide-react";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 type ViewType = "density" | "compact" | "list" | "statistics";

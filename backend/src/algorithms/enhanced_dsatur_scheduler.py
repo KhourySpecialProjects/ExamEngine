@@ -730,6 +730,165 @@ class DSATURExamGraph:
             "unplaced_exams": len(self.unassigned),
         }
 
+    def conflict_report(self) -> dict:
+        """
+        Return everything the frontend needs in a single, normalized shape.
+        """
+
+        metrics = self.summary()
+
+        def make_block_label(block_idx: int) -> str:
+            return f"Block {block_idx} — {self.block_times[block_idx]}"
+
+        rows = []
+
+        # 1) Hard conflicts from self.conflicts
+        for tup in self.conflicts:
+            # Handle old 5-tuple vs new 6-tuple
+            if len(tup) == 5:
+                conflict_type, entity_id, day, block, crn = tup
+                conflicting_info = None
+            else:
+                conflict_type, entity_id, day, block, crn, conflicting_info = tup
+
+            day_name = self.day_names[day] if day < len(self.day_names) else str(day)
+            block_label = make_block_label(block)
+
+            node = self.G.nodes.get(crn, {}) if crn is not None else {}
+            course = node.get("course_ref", "") or node.get("CourseID", "")
+            try:
+                size = int(node.get("size", 0) or 0)
+            except Exception:
+                size = 0
+
+            # Normalize type names to what frontend expects
+            if conflict_type == "student_double_book":
+                norm_type = "student_double_book"
+                reason = "Student double-booked in same slot"
+                entity = f"S:{entity_id}"
+            elif conflict_type == "student_gt_max_per_day":
+                norm_type = "student_gt3_per_day"
+                reason = "Student has more than allowed exams that day"
+                entity = f"S:{entity_id}"
+            elif conflict_type == "instructor_double_book":
+                norm_type = "instructor_double_book"
+                reason = "Instructor double-booked in same slot"
+                entity = f"I:{entity_id}"
+            elif conflict_type == "instructor_gt_max_per_day":
+                norm_type = "instructor_gt3_per_day"
+                reason = "Instructor has more than allowed exams that day"
+                entity = f"I:{entity_id}"
+            else:
+                norm_type = conflict_type
+                reason = conflict_type
+                entity = str(entity_id)
+
+            # Conflicting courses list if we have it
+            conflicting_courses = []
+            if conflicting_info:
+                if isinstance(conflicting_info, (list, tuple, set)):
+                    crns = list(conflicting_info)
+                else:
+                    crns = [conflicting_info]
+
+                for other in crns:
+                    other_node = (
+                        self.G.nodes.get(other, {}) if other is not None else {}
+                    )
+                    c = other_node.get("course_ref", "") or other_node.get(
+                        "CourseID", ""
+                    )
+                    if c:
+                        conflicting_courses.append(c)
+
+            row = {
+                "id": f"{norm_type}-{entity_id}-{day}-{block}-{crn}-{conflicting_courses}",
+                "type": norm_type,
+                "entity": entity,
+                "day": day_name,
+                "block": block_label,
+                "course": course,
+                "crn": str(crn) if crn is not None else "",
+                "conflictingCourses": conflicting_courses,
+                "size": size,
+                "reason": reason,
+            }
+            rows.append(row)
+
+        # 2) Student back-to-back soft conflicts
+        if not getattr(self, "student_soft_violations", pd.DataFrame()).empty:
+            for _, r in self.student_soft_violations.iterrows():
+                blocks = r.get("blocks", [])
+                if hasattr(blocks, "tolist"):
+                    blocks_list = list(blocks.tolist())
+                else:
+                    try:
+                        blocks_list = list(blocks)
+                    except Exception:
+                        blocks_list = [blocks]
+
+                rows.append(
+                    {
+                        "id": f"back_to_back_student-{r['student_id']}-{r['day']}-{blocks_list}",
+                        "type": "back_to_back_student",
+                        "entity": f"S:{r['student_id']}",
+                        "day": r["day"],
+                        "block": f"Blocks {','.join(str(b) for b in blocks_list)}",
+                        "course": "",
+                        "crn": "",
+                        "conflictingCourses": [],
+                        "size": None,
+                        "reason": "Student has back-to-back exams",
+                    }
+                )
+
+        # 3) Instructor back-to-back soft conflicts
+        if not getattr(self, "instructor_soft_violations", pd.DataFrame()).empty:
+            for _, r in self.instructor_soft_violations.iterrows():
+                blocks = r.get("blocks", [])
+                if hasattr(blocks, "tolist"):
+                    blocks_list = list(blocks.tolist())
+                else:
+                    try:
+                        blocks_list = list(blocks)
+                    except Exception:
+                        blocks_list = [blocks]
+
+                rows.append(
+                    {
+                        "id": f"back_to_back_instructor-{r['instructor_name']}-{r['day']}-{blocks_list}",
+                        "type": "back_to_back_instructor",
+                        "entity": f"I:{r['instructor_name']}",
+                        "day": r["day"],
+                        "block": f"Blocks {','.join(str(b) for b in blocks_list)}",
+                        "course": "",
+                        "crn": "",
+                        "conflictingCourses": [],
+                        "size": None,
+                        "reason": "Instructor has back-to-back exams",
+                    }
+                )
+
+        # 4) Large courses not early
+        if not getattr(self, "large_courses_not_early", pd.DataFrame()).empty:
+            for _, r in self.large_courses_not_early.iterrows():
+                rows.append(
+                    {
+                        "id": f"large_course_not_early-{r['CRN']}",
+                        "type": "large_course_not_early",
+                        "entity": "",
+                        "day": r["Day"],
+                        "block": r["Block"],
+                        "course": r["Course"],
+                        "crn": str(r["CRN"]),
+                        "conflictingCourses": [],
+                        "size": int(r["Size"]),
+                        "reason": "Large course scheduled late in week",
+                    }
+                )
+
+        return {"metrics": metrics, "rows": rows}
+
     def fail_report(self) -> pd.DataFrame:
         """CRNs that could not be scheduled without breaking hard rules."""
         if not self.fallback_courses:

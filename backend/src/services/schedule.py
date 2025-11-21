@@ -161,6 +161,11 @@ class ScheduleService:
                     f"Failed to save conflicts: {str(db_error)}"
                 ) from db_error
 
+            try:
+                conflict_payload = graph.conflict_report()
+            except Exception:
+                conflict_payload = conflicts_response.get("conflicts", {})
+
             self.run_repo.update_status(run.run_id, StatusEnum.Completed)
 
             summary = graph.summary()
@@ -182,7 +187,8 @@ class ScheduleService:
                     "slots_used": summary["slots_used"],
                     "unplaced_exams": summary.get("unplaced_exams", 0),
                 },
-                "conflicts": conflicts_response["conflicts"],
+                # Provide the normalized conflict payload for the frontend
+                "conflicts": conflict_payload,
                 "failures": [],
                 "schedule": {
                     "complete": results_df.to_dict(orient="records"),

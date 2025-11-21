@@ -1,163 +1,42 @@
 // "use client";
 
-// header icon removed
 import { useState } from "react";
-import { User, Users, Clock, Calendar, AlertTriangle, BookOpen } from "lucide-react";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { useExamTable } from "@/lib/hooks/useExamTable";
-import { useScheduleData } from "@/lib/hooks/useScheduleData";
-import { useScheduleStore } from "@/lib/store/scheduleStore";
-import { mapConflictsToRows } from "@/lib/utils";
+import { useConflictDataSimple } from "@/lib/hooks/useConflictDataSimple";
 import { ConflictMetrics } from "@/lib/types/conflict.types";
 import {
-  computeAggregatesFromExams,
-  computeTotalsFromBreakdown,
   PAGE_SIZE,
   conflictTypeMap,
   conflictDescriptions,
-  dayNameMap,
   getIconForType,
   ConflictStat,
 } from "@/lib/hooks/useConflictData"
 
 
-/**
- * Main Conflict View component.
- * Displays summary metrics and a tabbed listing of conflict rows.
- * It combines computed aggregates from local exams with backend breakdowns,
- * preferring backend totals when available.
- */
+// Conflict View: show backend-provided metrics and rows
 export default function ConflictView({
   metrics,
 }: {
   metrics?: Partial<ConflictMetrics>;
 }) {
-  const { allExams } = useExamTable();
-  const { calendarRows } = useScheduleData();
-  const derived = computeAggregatesFromExams(allExams ?? []);
-  const currentSchedule = useScheduleStore((s) => s.currentSchedule);
-  const breakdown = currentSchedule?.conflicts?.breakdown ?? [];
+  // Use the simple backend-driven conflict hook — backend returns a single normalized shape
+  const { metrics: backendMetrics, rowsByType, types } = useConflictDataSimple();
+  const conflictTypeRows: Record<string, any[]> = { ...(rowsByType || {}) };
 
-  const mappedTotals: ConflictMetrics = computeTotalsFromBreakdown(breakdown);
 
-  const merged: ConflictMetrics = {
-    hard_student_conflicts:
-      metrics?.hard_student_conflicts ?? (mappedTotals.hard_student_conflicts > 0 ? mappedTotals.hard_student_conflicts : derived.hard_student_conflicts),
-    hard_instructor_conflicts:
-      metrics?.hard_instructor_conflicts ?? (mappedTotals.hard_instructor_conflicts > 0 ? mappedTotals.hard_instructor_conflicts : derived.hard_instructor_conflicts),
-    students_back_to_back:
-      metrics?.students_back_to_back ?? (mappedTotals.students_back_to_back > 0 ? mappedTotals.students_back_to_back : derived.students_back_to_back),
-    instructors_back_to_back:
-      metrics?.instructors_back_to_back ?? (mappedTotals.instructors_back_to_back > 0 ? mappedTotals.instructors_back_to_back : derived.instructors_back_to_back),
-    large_courses_not_early:
-      metrics?.large_courses_not_early ?? derived.large_courses_not_early,
-    student_gt3_per_day:
-      metrics?.student_gt3_per_day ?? (mappedTotals.student_gt3_per_day > 0 ? mappedTotals.student_gt3_per_day : derived.student_gt3_per_day),
+  // Prefer backend-provided metrics when available
+  const finalMerged = {
+    hard_student_conflicts: backendMetrics?.hard_student_conflicts ?? 0,
+    hard_instructor_conflicts: backendMetrics?.hard_instructor_conflicts ?? 0,
+    students_back_to_back: backendMetrics?.students_back_to_back ?? 0,
+    instructors_back_to_back: backendMetrics?.instructors_back_to_back ?? 0,
+    large_courses_not_early: backendMetrics?.large_courses_not_early ?? 0,
+    student_gt3_per_day: backendMetrics?.student_gt3_per_day ?? 0,
   };
 
-  // Use backend-mapped rows only; do not synthesize fake rows from local data.
-  const mappedRows = mapConflictsToRows(allExams ?? [], breakdown ?? []);
-  const displayBackRows = (mappedRows.backRows && mappedRows.backRows.length > 0) ? mappedRows.backRows : [];
-  const displayLargeRows = (mappedRows.largeRows && mappedRows.largeRows.length > 0) ? mappedRows.largeRows : [];
-
-
-  const conflictTypeRows: Record<string, any[]> = {};
-
-
-  /**
-   * Find an exam object in `allExams` by matching common CRN-like fields.
-   * Returns null when no matching exam is found.
-   */
-  const findExamByCrn = (crn: any) => {
-    if (!crn) return null;
-    return (allExams ?? []).find((e: any) => String(e.crn ?? e.CRN ?? e.id) === String(crn));
-  };
-
-  for (const conf of (breakdown ?? []) as any[]) {
-    const type = conf.conflict_type ?? conf.violation ?? "unknown";
-    conflictTypeRows[type] = conflictTypeRows[type] ?? [];
-
-    const rawCrn = conf.crn ?? (Array.isArray(conf.conflicting_crns) ? conf.conflicting_crns[0] : conf.conflicting_crn) ?? null;
-    const exam: any = findExamByCrn(rawCrn);
-
-    const crnVal = rawCrn ?? (exam ? String(exam.crn ?? exam.CRN ?? exam.id) : null);
-    const courseVal = conf.course ?? conf.conflicting_course ?? (exam ? (exam.course_name ?? exam.course ?? exam.title) : null) ?? (Array.isArray(conf.conflicting_courses) ? conf.conflicting_courses[0] : null);
-
-    const sizeVal = exam?.enrollment ?? exam?.size ?? exam?.students_count ?? null;
-
-    const entityVal = conf.student_id ? `S:${conf.student_id}` : conf.instructor_id ? `I:${conf.instructor_id}` : conf.entity_id ?? null;
-
-    let blockVal: string | null = null;
-    if (Array.isArray(conf.blocks)) {
-      blockVal = conf.blocks.join(", ");
-    } else if (conf.block_time) {
-      blockVal = conf.block_time;
-    } else if (conf.block !== undefined && conf.block !== null) {
-      const bStr = String(conf.block);
-      const match = (calendarRows || []).find((r: any) => {
-        const ts = String(r.timeSlot || "");
-        return ts.split(" ")[0] === bStr;
-      });
-      blockVal = match ? String(match.timeSlot) : String(conf.block);
-    }
-
-    let conflictingCourses: string[] = [];
-    if (Array.isArray(conf.conflicting_courses)) conflictingCourses = conf.conflicting_courses.map((c: any) => String(c));
-    else if (Array.isArray(conf.conflicting_crns)) conflictingCourses = conf.conflicting_crns.map((c: any) => String(c));
-    else if (typeof conf.conflicting_courses === "string") conflictingCourses = [conf.conflicting_courses];
-
-    const row = {
-      entity: entityVal,
-      type,
-      day: dayNameMap[conf.day] ?? conf.day ?? conf.block_day ?? null,
-      block: blockVal,
-      size: sizeVal,
-      course: courseVal,
-      crn: crnVal,
-      conflicting_courses: conflictingCourses,
-      reason: conf.unscheduled_reason ?? conf.reason ?? null,
-      raw: conf,
-    };
-
-    conflictTypeRows[type].push(row);
-  }
-
-    // --- derive reliable counts from mapped rows / conflictTypeRows ---
-    // Prefer explicit breakdown counts when present, otherwise count table rows.
-    const studentDoubleCount = (conflictTypeRows["student_double_book"]?.length ?? 0) || (mappedRows.backRows?.filter(Boolean).length ? 0 : 0);
-    const instructorDoubleCount = (conflictTypeRows["instructor_double_book"]?.length ?? 0) || 0;
-
-    // Back-to-back: count explicit student/instructor types, plus inspect generic 'back_to_back' rows
-    let studentsBackToBackCount = conflictTypeRows["back_to_back_student"]?.length ?? 0;
-    let instructorsBackToBackCount = conflictTypeRows["back_to_back_instructor"]?.length ?? 0;
-    const genericBack = conflictTypeRows["back_to_back"] ?? [];
-    for (const r of genericBack) {
-      const ent = r?.entity ?? "";
-      if (typeof ent === "string" && ent.startsWith("I:")) instructorsBackToBackCount += 1;
-      else studentsBackToBackCount += 1;
-    }
-
-    const largeCoursesNotEarlyCount = (conflictTypeRows["large_course_not_early"]?.length ?? 0) || (displayLargeRows?.length ?? 0);
-
-    const finalMerged: ConflictMetrics = {
-      hard_student_conflicts:
-        metrics?.hard_student_conflicts ?? (mappedTotals.hard_student_conflicts > 0 ? mappedTotals.hard_student_conflicts : derived.hard_student_conflicts),
-      hard_instructor_conflicts:
-        metrics?.hard_instructor_conflicts ?? (mappedTotals.hard_instructor_conflicts > 0 ? mappedTotals.hard_instructor_conflicts : derived.hard_instructor_conflicts),
-      students_back_to_back:
-        metrics?.students_back_to_back ?? (mappedTotals.students_back_to_back > 0 ? mappedTotals.students_back_to_back : studentsBackToBackCount ?? derived.students_back_to_back),
-      instructors_back_to_back:
-        metrics?.instructors_back_to_back ?? (mappedTotals.instructors_back_to_back > 0 ? mappedTotals.instructors_back_to_back : instructorsBackToBackCount ?? derived.instructors_back_to_back),
-      large_courses_not_early:
-        metrics?.large_courses_not_early ?? (mappedTotals.large_courses_not_early > 0 ? mappedTotals.large_courses_not_early : largeCoursesNotEarlyCount ?? derived.large_courses_not_early),
-      student_gt3_per_day:
-        metrics?.student_gt3_per_day ?? (mappedTotals.student_gt3_per_day > 0 ? mappedTotals.student_gt3_per_day : derived.student_gt3_per_day),
-    };
-
-  const dynamicTabEntries = Object.keys(conflictTypeRows).length > 0
-    ? Object.keys(conflictTypeRows).map((t) => ({ id: t, label: conflictTypeMap[t] ?? t }))
+  const dynamicTabEntries = (types && types.length > 0)
+    ? types.map((t) => ({ id: t, label: conflictTypeMap[t] ?? t }))
     : [
         { id: "back_to_back", label: "Back-to-Back" },
         { id: "large_course_not_early", label: "Large courses not early" },
@@ -177,11 +56,7 @@ export default function ConflictView({
 
   const [activeTab, setActiveTab] = useState<string>(effectiveTabs[0]?.id ?? "back_to_back");
 
-  /**
-   * Render a generic, paginated table for a given conflict-type tab.
-   * - `rowsForActive` is the array of rows to display
-   * - `activeTabId` controls special column rules (e.g. large courses)
-   */
+  // Paginated table for a conflict tab
   function ConflictTable({
     rowsForActive,
     activeTabId,
@@ -271,9 +146,7 @@ export default function ConflictView({
     );
   }
 
-  /**
-   * Render the conflict type definitions panel used as a legend/help.
-   */
+  // Legend: conflict type definitions
   function ConflictDefinitions() {
     return (
       <div className="mt-4 bg-white rounded-lg shadow p-4">
@@ -302,7 +175,7 @@ export default function ConflictView({
     { label: "Large Course Not Early", value: finalMerged.large_courses_not_early, badgeClassName: "bg-amber-600 text-white" },
   ];
 
-  const rowsForActive = conflictTypeRows[activeTab] ?? (activeTab === "back_to_back" ? displayBackRows : activeTab === "large_course_not_early" ? displayLargeRows : []);
+  const rowsForActive = conflictTypeRows[activeTab] ?? [];
   const page = getPage(activeTab);
 
   return (

@@ -9,22 +9,12 @@ import {
   Shield,
 } from "lucide-react";
 import { useEffect } from "react";
-import Link from "next/link";
-import { usePathname } from "next/navigation";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import { Button } from "@/components/ui/button";
 import { useDatasetStore } from "@/lib/store/datasetStore";
 import { useAuthStore } from "@/lib/store/authStore";
 import { getTimeAgo } from "@/lib/utils";
+import { DatasetBar } from "../dataset/DatasetBar";
 import { ScheduleRunner } from "../schedule/ScheduleRunner";
 import { Uploader } from "../upload/Uploader";
-
 export function DashboardSidebar() {
   const {
     datasets,
@@ -35,20 +25,14 @@ export function DashboardSidebar() {
     isLoading,
   } = useDatasetStore();
   const { user } = useAuthStore();
-  const pathname = usePathname();
 
   const selectedDataset = getSelectedDataset();
-
   useEffect(() => {
     // Fetch datasets on mount
     if (datasets.length === 0) {
       fetchDatasets();
     }
   }, [fetchDatasets, datasets.length]);
-
-  const handleValueChange = (value: string) => {
-    selectDataset(value);
-  };
 
   return (
     <div className="p-6 space-y-6">
@@ -58,53 +42,9 @@ export function DashboardSidebar() {
           <h2 className="font-semibold text-sm">Data Management</h2>
         </div>
 
-        {/* Dataset Selector */}
-        {isLoading && datasets.length === 0 ? (
-          <Select disabled>
-            <SelectTrigger className="mb-3 w-full">
-              <SelectValue placeholder="Loading datasets..." />
-            </SelectTrigger>
-          </Select>
-        ) : datasets.length === 0 ? (
-          <Select disabled>
-            <SelectTrigger className="mb-3 w-full">
-              <SelectValue placeholder="No datasets - Upload one" />
-            </SelectTrigger>
-          </Select>
-        ) : (
-          <Select
-            value={selectedDatasetId || undefined}
-            onValueChange={handleValueChange}
-          >
-            <SelectTrigger className="mb-3 w-full">
-              <SelectValue placeholder="Select dataset">
-                {selectedDataset && (
-                  <span className="truncate">
-                    {selectedDataset.dataset_name}
-                  </span>
-                )}
-              </SelectValue>
-            </SelectTrigger>
-            <SelectContent>
-              {datasets.map((dataset) => (
-                <SelectItem key={dataset.dataset_id} value={dataset.dataset_id}>
-                  <div className="flex flex-col">
-                    <div className="flex items-center gap-2">
-                      <span className="font-medium">
-                        {dataset.dataset_name}
-                      </span>
-                    </div>
-                    <span className="text-xs text-muted-foreground">
-                      {dataset.files.courses.unique_crns} courses •
-                      {dataset.files.enrollments.unique_students} students
-                    </span>
-                  </div>
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        )}
+        {/*Select & Delete Components*/}
 
+        <DatasetBar />
         {/* Upload Button */}
         <Uploader />
 

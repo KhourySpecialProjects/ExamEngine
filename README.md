@@ -1,4 +1,7 @@
-# ExamEngine
+<p align="center">
+  <img src="frontend/public/github.svg" alt="Exam Engine" width="250"/>
+  <p align="center" class="logo-subtitle"><em>Schedule Smarter</em></p>
+</p>
 
 An intelligent exam scheduling system that uses the DSATUR graph coloring algorithm to automatically generate conflict-free exam schedules. The system optimizes scheduling by analyzing student enrollment data, classroom capacities, and scheduling constraints to produce efficient exam timetables.
 

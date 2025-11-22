@@ -1,3 +1,4 @@
+// frontend/src/lib/hooks/useExamTable.ts
 import {
   getCoreRowModel,
   getFilteredRowModel,
@@ -8,20 +9,31 @@ import {
   type VisibilityState,
 } from "@tanstack/react-table";
 import { useMemo, useState } from "react";
-import { createScheduleColumns } from "@/components/schedules/columns";
-import type { ScheduleListItem } from "@/lib/api/schedules";
+import { createExamColumns } from "@/components/visualization/list/columns";
+import { useScheduleData } from "./useScheduleData";
 
-export function useScheduleTable(
-  schedules: ScheduleListItem[],
-  onDelete?: (scheduleId: string) => void,
-) {
+/**
+ * Custom hook for managing exam table state and logic
+ *
+ * Handles:
+ * - Table state (sorting, filtering, visibility)
+ * - TanStack Table configuration
+ * - Performance optimization with memoization
+ */
+export function useConflictTable() {
+  const { allExams } = useScheduleData();
+  const conflict_exams = allExams.filter((e) => e.conflicts > 0)
+
+  // Table state management
   const [sorting, setSorting] = useState<SortingState>([]);
   const [columnVisibility, setColumnVisibility] = useState<VisibilityState>({});
 
-  const columns = useMemo(() => createScheduleColumns(onDelete), [onDelete]);
+  // Memoize columns to prevent recreation on every render
+  const columns = useMemo(() => createExamColumns(), []);
 
+  // Configure TanStack Table
   const table = useReactTable({
-    data: schedules,
+    data: allExams,
     columns,
     state: {
       sorting,
@@ -38,12 +50,13 @@ export function useScheduleTable(
         pageSize: 10,
       },
     },
+    // Performance optimizations
     autoResetPageIndex: false,
     enableRowSelection: false,
   });
 
   return {
     table,
-    schedules,
+    allExams,
   };
 }

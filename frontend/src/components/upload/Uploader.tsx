@@ -20,10 +20,10 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { useDatasetStore } from "@/lib/store/datasetStore";
 import { useUploadStore } from "@/lib/store/uploadStore";
 import type { FileSlot } from "@/lib/types/upload.types";
 import { UploaderSlot } from "./UploaderSlot";
-import { useDatasetStore } from "@/lib/store/datasetStore";
 
 export function Uploader() {
   const slots = useUploadStore((state) => state.slots);

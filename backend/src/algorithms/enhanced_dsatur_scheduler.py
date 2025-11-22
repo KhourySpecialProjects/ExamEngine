@@ -209,6 +209,7 @@ class DSATURExamGraph(DSATURSchedulingMixin):
         self.colors = self._graph_builder.dsatur_color(self.G)
         return self.colors
 
+    # ---------- scheduling methods are inherited from DSATURSchedulingMixin ----------
 
 # ---------- export utility function ----------
 def export_student_schedule(

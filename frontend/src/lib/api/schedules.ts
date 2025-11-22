@@ -81,9 +81,13 @@ export interface ScheduleData {
 }
 
 export interface ScheduleResult {
+  schedule_id: string;
   dataset_id: string;
   dataset_name: string;
   schedule_name: string;
+  created_at?: string;
+  algorithm?: string;
+  status?: "Running" | "Completed" | "Failed";
   summary: ScheduleSummary;
   conflicts: ScheduleConflicts;
   failures: ScheduleFailure[];

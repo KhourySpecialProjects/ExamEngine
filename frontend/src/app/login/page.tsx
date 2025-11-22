@@ -1,6 +1,7 @@
 "use client";
+import Image from "next/image";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import React from "react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -16,18 +17,30 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useAuthStore } from "@/lib/store/authStore";
-import Image from "next/image";
 
 export default function Login() {
   const login = useAuthStore((state) => state.login);
   const signup = useAuthStore((state) => state.signup);
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const pathname = usePathname();
 
+  const [activeTab, setActiveTab] = React.useState<"signin" | "signup">(
+    "signin",
+  );
   const [email, setEmail] = React.useState("");
   const [password, setPassword] = React.useState("");
   const [suName, setSuName] = React.useState("");
   const [suEmail, setSuEmail] = React.useState("");
   const [suPassword, setSuPassword] = React.useState("");
+
+  React.useEffect(() => {
+    const hash =
+      searchParams.get("tab") || (pathname?.includes("signup") ? "signup" : "");
+    if (hash === "signup" || window.location.hash === "#signup") {
+      setActiveTab("signup");
+    }
+  }, [searchParams, pathname]);
 
   const handleLogin = async () => {
     try {
@@ -110,7 +123,10 @@ export default function Login() {
       <main className="flex flex-1 items-start justify-center py-12 px-4">
         <div className="w-full max-w-3xl">
           <div className="mx-auto max-w-xl">
-            <Tabs defaultValue="signin">
+            <Tabs
+              value={activeTab}
+              onValueChange={(val) => setActiveTab(val as "signin" | "signup")}
+            >
               <TabsList className="mb-4">
                 <TabsTrigger value="signin">Sign in</TabsTrigger>
                 <TabsTrigger value="signup">Sign up</TabsTrigger>

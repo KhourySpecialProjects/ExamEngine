@@ -19,14 +19,15 @@ import { Button } from "@/components/ui/button";
 import CompactView from "@/components/visualization/calendar/CompactView";
 import DensityView from "@/components/visualization/calendar/DensityView";
 import { ExamListDialog } from "@/components/visualization/calendar/ExamListDialog";
+import ConflictView from "@/components/visualization/list/ConflictView";
 import ListView from "@/components/visualization/list/ListView";
 import { ShareScheduleDialog } from "@/components/schedule/ShareScheduleDialog";
 import { useScheduleData } from "@/lib/hooks/useScheduleData";
+import { useSchedulesStore } from "@/lib/store/schedulesStore";
 import { exportScheduleRowsAsCsv } from "@/lib/utils";
-import { useScheduleStore } from "@/lib/store/scheduleStore";
 import { useAuthStore } from "@/lib/store/authStore";
 
-type ViewType = "density" | "compact" | "list" | "statistics";
+type ViewType = "density" | "compact" | "list" | "statistics" | "conflicts";
 
 export default function SchedulePage({
   params,
@@ -38,10 +39,14 @@ export default function SchedulePage({
   const router = useRouter();
   const { user } = useAuthStore();
 
-  const fetchSchedule = useScheduleStore((state) => state.fetchSchedule);
+  const fetchSchedule = useSchedulesStore((state) => state.fetchSchedule);
 
   useEffect(() => {
-    fetchSchedule(scheduleId);
+    fetchSchedule(scheduleId).catch((error) => {
+      toast.error("Failed to load schedule", {
+        description: error instanceof Error ? error.message : "Unknown error",
+      });
+    });
   }, [scheduleId, fetchSchedule]);
 
   const { schedule } = useScheduleData();
@@ -155,6 +160,7 @@ export default function SchedulePage({
       {activeView === "compact" && <CompactView />}
       {activeView === "list" && <ListView />}
       {activeView === "statistics" && <StatisticsView />}
+      {activeView === "conflicts" && <ConflictView />}
 
       <ExamListDialog />
     </div>

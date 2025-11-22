@@ -227,16 +227,19 @@ class DatasetService:
                 f"Dataset {dataset_id} not found or access denied"
             )
 
-        # Delete from external storage (S3, etc)
-        storage_success = storage.delete_directory(str(dataset_id))
+        # Delete from external storage (S3, etc) with prefix
+        storage_success = storage.delete_directory(prefix=str(dataset_id))
 
-        # Delete from database
-        self.dataset_repo.delete(dataset)
+        # Soft delete from database
+        is_deleted = self.dataset_repo.soft_delete(
+            dataset_id=dataset_id, user_id=user_id
+        )
 
         return {
             "message": "Dataset deleted",
             "dataset_id": str(dataset_id),
             "removed_from_storage": storage_success,
+            "soft_deleted?": is_deleted,
         }
 
     async def get_dataset_files(

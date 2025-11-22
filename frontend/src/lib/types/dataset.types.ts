@@ -1,0 +1,22 @@
+import type { DatasetMetadata } from "@/lib/types/datasets.api.types";
+
+export interface DatasetState {
+    // State
+    datasets: DatasetMetadata[];
+    selectedDatasetId: string | null;
+    isLoading: boolean;
+    selectedDeleteDataset: DatasetMetadata | null;  // ← Add this line
+    error: string | null;
+
+    // Actions
+    fetchDatasets: () => Promise<void>;
+    selectDataset: (datasetId: string | null) => void;
+    deleteDataset: (datasetId: string) => Promise<void>;
+    clearError: () => void;
+    refreshDatasets: () => Promise<void>;
+
+    // Computed
+    getSelectedDataset: () => DatasetMetadata | null;
+    getDatasetById: (datasetId: string) => DatasetMetadata | null;
+}
+

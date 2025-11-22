@@ -93,7 +93,7 @@ class ScheduleService:
             ValidationError: If schedule_name already exists
             ScheduleGenerationError: If algorithm fails
         """
-        if self.schedule_repo.name_exists(schedule_name):
+        if self.schedule_repo.name_exists(schedule_name, user_id):
             raise ValidationError(
                 f"Schedule name '{schedule_name}' already exists",
                 detail={"field": "schedule_name"},
@@ -170,6 +170,11 @@ class ScheduleService:
                     f"Failed to save conflicts: {str(db_error)}"
                 ) from db_error
 
+            try:
+                conflict_payload = graph.conflict_report()
+            except Exception:
+                conflict_payload = conflicts_response.get("conflicts", {})
+
             self.run_repo.update_status(run.run_id, StatusEnum.Completed)
 
             summary = graph.summary()
@@ -191,7 +196,8 @@ class ScheduleService:
                     "slots_used": summary["slots_used"],
                     "unplaced_exams": summary.get("unplaced_exams", 0),
                 },
-                "conflicts": conflicts_response["conflicts"],
+                # Provide the normalized conflict payload for the frontend
+                "conflicts": conflict_payload,
                 "failures": [],
                 "schedule": {
                     "complete": results_df.to_dict(orient="records"),
@@ -630,10 +636,8 @@ class ScheduleService:
 
         if existing_courses:
             # Build mapping from existing records
-            mapping = {
-                course.course_subject_code: course.course_id
-                for course in existing_courses
-            }
+            mapping = {course.crn: course.course_id for course in existing_courses}
+
             return mapping
 
         mapping = self.course_repo.bulk_create_from_dataframe(
@@ -676,11 +680,10 @@ class ScheduleService:
 
         for _, row in results_df.iterrows():
             crn = row["CRN"]
-            course_ref = row["Course"]
             room_name = row["Room"]
 
             # Get course_id from mapping
-            course_id = course_mapping.get(course_ref)
+            course_id = course_mapping.get(crn)
             if not course_id:
                 # Skip courses not found (shouldn't happen)
                 continue

@@ -1,7 +1,7 @@
 import { type ColumnDef, createColumnHelper } from "@tanstack/react-table";
 import { AlertCircle } from "lucide-react";
-import { Badge } from "@/components/ui/badge";
 import { SortableHeader } from "@/components/common/table/SortableHeader";
+import { Badge } from "@/components/ui/badge";
 import type { Exam } from "@/lib/store/calendarStore";
 
 const columnHelper = createColumnHelper<Exam>();
@@ -78,7 +78,7 @@ export function createExamColumns(): ColumnDef<Exam, any>[] {
         <SortableHeader column={column} label="Students" />
       ),
       cell: (info) => (
-        <div className="text-sm text-right font-medium">{info.getValue()}</div>
+        <div className="text-sm font-medium">{info.getValue()}</div>
       ),
     }),
     columnHelper.accessor("conflicts", {

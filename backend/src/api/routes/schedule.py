@@ -76,3 +76,39 @@ async def list_schedules(
         raise HTTPException(
             status_code=500, detail=f"Failed to retrieve schedules: {e}"
         ) from e
+
+
+@router.get("/{schedule_id}")
+async def get_schedule(
+    schedule_id: UUID,
+    current_user: Users = Depends(get_current_user),
+    schedule_service: ScheduleService = Depends(get_schedule_service),
+):
+    """
+    Get a specific schedule with all its details including exams and conflicts.
+
+    Returns:
+        Complete schedule data with:
+        - Schedule metadata (name, created_at, etc.)
+        - All exam assignments
+        - Conflict analysis
+        - Calendar structure
+        - Parameters used
+    """
+    try:
+        result = await schedule_service.get_schedule_with_details(
+            schedule_id, current_user.user_id
+        )
+
+        if not result:
+            raise HTTPException(
+                status_code=404, detail=f"Schedule {schedule_id} not found"
+            )
+
+        return result
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(
+            status_code=500, detail=f"Failed to retrieve schedule: {e}"
+        ) from e

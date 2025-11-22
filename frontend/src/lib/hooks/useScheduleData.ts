@@ -1,6 +1,6 @@
 import { useMemo } from "react";
-import type { CalendarRow, Exam } from "@/lib/store/calendarStore";
-import { useScheduleStore } from "@/lib/store/scheduleStore";
+import type { CalendarRow, Exam } from "@/lib/types/calendar.types";
+import { useSchedulesStore } from "@/lib/store/schedulesStore";
 import type { CalendarExam } from "../api/schedules";
 
 /**
@@ -8,8 +8,8 @@ import type { CalendarExam } from "../api/schedules";
  * Single source of data transformation
  */
 export function useScheduleData() {
-  const currentSchedule = useScheduleStore((state) => state.currentSchedule);
-  const isGenerating = useScheduleStore((state) => state.isGenerating);
+  const currentSchedule = useSchedulesStore((state) => state.currentSchedule);
+  const isGenerating = useSchedulesStore((state) => state.isGenerating);
 
   // Convert schedule to calendar rows
   const calendarRows = useMemo(() => {
@@ -62,7 +62,15 @@ function convertToCalendarRows(
   calendar: Record<string, Record<string, CalendarExam[]>>,
   conflictBreakdown: any[] = [],
 ): CalendarRow[] {
-  const backendDays = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
+  const backendDays = [
+    "Monday",
+    "Tuesday",
+    "Wednesday",
+    "Thursday",
+    "Friday",
+    "Saturday",
+    "Sunday",
+  ];
   const frontendDays = [
     "Monday",
     "Tuesday",
@@ -120,7 +128,25 @@ function convertToCalendarRows(
     }
   }
 
-  const timeSlots = Array.from(timeSlotSet).sort();
+  // Helper function to extract start time for sorting
+  const getStartTime = (timeSlot: string): number => {
+    const match = timeSlot.match(/^(\d+):?(\d*)([AP]M)/);
+    if (!match) return 0;
+
+    let hours = parseInt(match[1], 10);
+    const minutes = match[2] ? parseInt(match[2], 10) : 0;
+    const period = match[3];
+
+    if (period === "PM" && hours !== 12) hours += 12;
+    if (period === "AM" && hours === 12) hours = 0;
+
+    return hours * 60 + minutes;
+  };
+
+  // Sort time slots
+  const timeSlots = Array.from(timeSlotSet).sort((a, b) => {
+    return getStartTime(a) - getStartTime(b);
+  });
 
   // Build rows
   return timeSlots.map((timeSlot) => ({

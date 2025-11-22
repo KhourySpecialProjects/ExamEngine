@@ -1,3 +1,4 @@
+from collections import defaultdict
 from typing import Any
 from uuid import UUID
 
@@ -90,7 +91,7 @@ class ScheduleService:
             ValidationError: If schedule_name already exists
             ScheduleGenerationError: If algorithm fails
         """
-        if self.schedule_repo.name_exists(schedule_name):
+        if self.schedule_repo.name_exists(schedule_name, user_id):
             raise ValidationError(
                 f"Schedule name '{schedule_name}' already exists",
                 detail={"field": "schedule_name"},
@@ -116,7 +117,7 @@ class ScheduleService:
             files = await self.dataset_service.get_dataset_files(dataset_id, user_id)
 
             course_mapping = await self._ensure_courses_exist(
-                dataset_id, files["courses"]
+                dataset_id, files["courses"], files["enrollments"]
             )
             room_mapping = await self._ensure_rooms_exist(dataset_id, files["rooms"])
 
@@ -161,6 +162,11 @@ class ScheduleService:
                     f"Failed to save conflicts: {str(db_error)}"
                 ) from db_error
 
+            try:
+                conflict_payload = graph.conflict_report()
+            except Exception:
+                conflict_payload = conflicts_response.get("conflicts", {})
+
             self.run_repo.update_status(run.run_id, StatusEnum.Completed)
 
             summary = graph.summary()
@@ -182,7 +188,8 @@ class ScheduleService:
                     "slots_used": summary["slots_used"],
                     "unplaced_exams": summary.get("unplaced_exams", 0),
                 },
-                "conflicts": conflicts_response["conflicts"],
+                # Provide the normalized conflict payload for the frontend
+                "conflicts": conflict_payload,
                 "failures": [],
                 "schedule": {
                     "complete": results_df.to_dict(orient="records"),
@@ -225,16 +232,6 @@ class ScheduleService:
 
         return {"message": "Schedule deleted", "schedule_id": str(schedule_id)}
 
-    def get_schedule_detail(
-        self, schedule_id: UUID, user_id: UUID
-    ) -> dict[Any, Any] | None:
-        """
-        Get detailed schedule information.
-
-        Returns summary without loading all exam data.
-        """
-        return self.schedule_repo.get_schedule_summary(schedule_id, user_id)
-
     def list_schedules_for_user(
         self,
         user_id: UUID,
@@ -245,7 +242,6 @@ class ScheduleService:
         Returns lightweight schedule info for list views.
         """
         schedules = self.schedule_repo.get_all_for_user(user_id)
-        print("Here")
 
         result = []
         for s in schedules:
@@ -267,8 +263,244 @@ class ScheduleService:
 
         return result
 
+    async def get_schedule_with_details(
+        self, schedule_id: UUID, user_id: UUID
+    ) -> dict[str, Any] | None:
+        """
+        Get complete schedule details including all exams and conflicts.
+
+        This reconstructs the full ScheduleResult format that matches
+        what the generate endpoint returns to make it consistent.
+        """
+        schedule = self.schedule_repo.get_with_run_details(schedule_id, user_id)
+        if not schedule:
+            return None
+
+        exam_assignments = self.exam_assignment_repo.get_all_for_schedule(schedule_id)
+        conflict_analysis = self.conflict_analyses_repo.get_by_schedule_id(schedule_id)
+
+        calendar, complete_exams = self._build_schedule_data(exam_assignments)
+
+        conflicts_data = self._build_conflicts_data(conflict_analysis)
+
+        summary = self._calculate_summary_stats(
+            exam_assignments, calendar, conflicts_data
+        )
+
+        return {
+            "schedule_id": str(schedule.schedule_id),
+            "schedule_name": schedule.schedule_name,
+            "created_at": schedule.created_at.isoformat(),
+            "dataset_id": str(schedule.run.dataset.dataset_id),
+            "dataset_name": schedule.run.dataset.dataset_name,
+            "summary": summary,
+            "conflicts": conflicts_data,
+            "failures": [],
+            "schedule": {
+                "complete": complete_exams,
+                "calendar": calendar,
+                "total_exams": len(exam_assignments),
+            },
+            "parameters": schedule.run.parameters,
+            "algorithm": schedule.run.algorithm_name,
+            "status": schedule.run.status.value,
+        }
+
+    def _build_schedule_data(
+        self, exam_assignments: list
+    ) -> tuple[dict[str, dict[str, list[dict]]], list[dict]]:
+        """
+        Build calendar and complete exam list from assignments.
+
+        Returns:
+            Tuple of (calendar_dict, complete_exams_list)
+        """
+        calendar = defaultdict(lambda: defaultdict(list))
+        complete_exams = []
+
+        for assignment in exam_assignments:
+            exam_data = self._assignment_to_exam_dict(assignment)
+
+            # Add to complete list
+            complete_exams.append(exam_data)
+
+            # Add to calendar
+            day = assignment.time_slot.day.value
+            slot_label = assignment.time_slot.slot_label
+            calendar[day][slot_label].append(self._exam_dict_for_calendar(assignment))
+
+        return dict(calendar), complete_exams
+
+    def _assignment_to_exam_dict(self, assignment) -> dict[str, Any]:
+        """Convert exam assignment to complete exam record format."""
+        return {
+            "CRN": assignment.course.crn,
+            "Course": assignment.course.course_subject_code,
+            "Day": assignment.time_slot.day.value,
+            "Block": assignment.time_slot.slot_label,
+            "Room": assignment.room.location,
+            "Capacity": assignment.room.capacity,
+            "Size": assignment.course.enrollment_count,
+            "Valid": True,
+            "Instructor": assignment.course.instructor_name,
+        }
+
+    def _exam_dict_for_calendar(self, assignment) -> dict[str, Any]:
+        """Convert exam assignment to calendar entry format (subset of fields)."""
+        return {
+            "CRN": assignment.course.crn,
+            "Course": assignment.course.course_subject_code,
+            "Room": assignment.room.location,
+            "Capacity": assignment.room.capacity,
+            "Size": assignment.course.enrollment_count,
+            "Valid": True,
+            "Instructor": assignment.course.instructor_name,
+        }
+
+    def _build_conflicts_data(self, conflict_analysis) -> dict[str, Any]:
+        """
+        Extract and format conflicts from conflict analysis.
+
+        Returns:
+            Dictionary with total count, breakdown list, and details
+        """
+        if not conflict_analysis or not conflict_analysis.conflicts:
+            return {"total": 0, "breakdown": [], "details": {}}
+
+        conflicts_json = conflict_analysis.conflicts
+        hard_conflicts = conflicts_json.get("hard_conflicts", {})
+        soft_conflicts = conflicts_json.get("soft_conflicts", {})
+
+        breakdown = []
+
+        # Process hard conflicts
+        breakdown.extend(
+            self._process_double_book_conflicts(
+                hard_conflicts.get("student_double_book", []),
+                "student_double_book",
+                entity_key="student_id",
+            )
+        )
+
+        breakdown.extend(
+            self._process_double_book_conflicts(
+                hard_conflicts.get("instructor_double_book", []),
+                "instructor_double_book",
+                entity_key="entity_id",
+            )
+        )
+
+        breakdown.extend(
+            self._process_max_per_day_conflicts(
+                hard_conflicts.get("student_gt_max_per_day", []),
+                "student_gt_max_per_day",
+                entity_key="student_id",
+            )
+        )
+
+        breakdown.extend(
+            self._process_max_per_day_conflicts(
+                hard_conflicts.get("instructor_gt_max_per_day", []),
+                "instructor_gt_max_per_day",
+                entity_key="entity_id",
+            )
+        )
+
+        # Process soft conflicts
+        breakdown.extend(
+            self._process_back_to_back_conflicts(
+                soft_conflicts.get("back_to_back_students", []),
+                "back_to_back",
+                entity_key="student_id",
+            )
+        )
+
+        breakdown.extend(
+            self._process_back_to_back_conflicts(
+                soft_conflicts.get("back_to_back_instructors", []),
+                "back_to_back_instructor",
+                entity_key="entity_id",
+            )
+        )
+
+        statistics = conflicts_json.get("statistics", {})
+        total_conflicts = statistics.get("total_hard_conflicts", 0)
+
+        return {
+            "total": total_conflicts,
+            "breakdown": breakdown,
+            "details": {},
+        }
+
+    def _process_double_book_conflicts(
+        self, conflicts: list[dict], conflict_type: str, entity_key: str
+    ) -> list[dict]:
+        """Process double-booking conflicts (student or instructor)."""
+        return [
+            {
+                entity_key: conflict.get("entity_id"),
+                "day": conflict.get("day"),
+                "block": conflict.get("block"),
+                "conflict_type": conflict_type,
+                "crn": conflict.get("crn"),
+                "course": conflict.get("course"),
+                "conflicting_crn": conflict.get("conflicting_crn"),
+                "conflicting_course": conflict.get("conflicting_course"),
+            }
+            for conflict in conflicts
+        ]
+
+    def _process_max_per_day_conflicts(
+        self, conflicts: list[dict], conflict_type: str, entity_key: str
+    ) -> list[dict]:
+        """Process max-per-day violations (student or instructor)."""
+        return [
+            {
+                entity_key: conflict.get("entity_id"),
+                "day": conflict.get("day"),
+                "conflict_type": conflict_type,
+                "crns": conflict.get("crns"),
+                "courses": conflict.get("courses"),
+            }
+            for conflict in conflicts
+        ]
+
+    def _process_back_to_back_conflicts(
+        self, conflicts: list[dict], conflict_type: str, entity_key: str
+    ) -> list[dict]:
+        """Process back-to-back exam conflicts (student or instructor)."""
+        return [
+            {
+                entity_key: conflict.get(entity_key),
+                "day": conflict.get("day"),
+                "blocks": conflict.get("blocks"),
+                "conflict_type": conflict_type,
+            }
+            for conflict in conflicts
+        ]
+
+    def _calculate_summary_stats(
+        self, exam_assignments: list, calendar: dict, conflicts_data: dict
+    ) -> dict[str, int]:
+        """Calculate summary statistics for the schedule."""
+        unique_courses = {assignment.course for assignment in exam_assignments}
+        unique_rooms = {assignment.room_id for assignment in exam_assignments}
+        slots_used = len({(day, slot) for day in calendar for slot in calendar[day]})
+
+        return {
+            "num_classes": len(exam_assignments),
+            "num_students": sum(course.enrollment_count for course in unique_courses),
+            "potential_overlaps": 0,
+            "real_conflicts": conflicts_data["total"],
+            "num_rooms": len(unique_rooms),
+            "slots_used": slots_used,
+        }
+
     async def _ensure_courses_exist(
-        self, dataset_id: UUID, courses_df: pd.DataFrame
+        self,
+        dataset_id: UUID,
+        courses_df: pd.DataFrame,
+        enrollment_df: pd.DataFrame,
     ) -> dict[str, UUID]:
         """
         Ensure all courses exist in database.
@@ -281,13 +513,13 @@ class ScheduleService:
 
         if existing_courses:
             # Build mapping from existing records
-            mapping = {
-                course.course_subject_code: course.course_id
-                for course in existing_courses
-            }
+            mapping = {course.crn: course.course_id for course in existing_courses}
+
             return mapping
 
-        mapping = self.course_repo.bulk_create_from_dataframe(dataset_id, courses_df)
+        mapping = self.course_repo.bulk_create_from_dataframe(
+            dataset_id, courses_df, enrollment_df=enrollment_df
+        )
         return mapping
 
     async def _ensure_rooms_exist(
@@ -325,11 +557,10 @@ class ScheduleService:
 
         for _, row in results_df.iterrows():
             crn = row["CRN"]
-            course_ref = row["Course"]
             room_name = row["Room"]
 
             # Get course_id from mapping
-            course_id = course_mapping.get(course_ref)
+            course_id = course_mapping.get(crn)
             if not course_id:
                 # Skip courses not found (shouldn't happen)
                 continue

@@ -23,7 +23,7 @@ export interface SchedulesState {
   // Actions
   generateSchedule: (datasetId: string) => Promise<ScheduleResult>;
   fetchSchedule: (scheduleId: string) => Promise<ScheduleResult>;
-  fetchSchedules: (options?: { suppressError?: boolean }) => Promise<void>;
+  fetchSchedules: () => Promise<void>;
   setScheduleData: (schedule: ScheduleResult) => void;
   setScheduleName: (name: string) => void;
   setParameters: (params: Partial<ScheduleParameters>) => void;

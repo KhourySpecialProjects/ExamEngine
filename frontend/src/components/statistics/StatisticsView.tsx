@@ -97,15 +97,16 @@ export function StatisticsView() {
       });
     }
 
-    // If no conflicts found in breakdown but real_conflicts > 0, create a placeholder
-    // This handles the case where conflicts exist but aren't in the breakdown array
     if (Object.keys(conflictTypes).length === 0 && summary.real_conflicts > 0) {
       conflictTypes["unknown"] = summary.real_conflicts;
-      // Debug: log this issue
+      // Debug: log this issue (safely handle missing breakdown)
+      const breakdownCount = Array.isArray(conflicts?.breakdown)
+        ? conflicts.breakdown.length
+        : 0;
       console.warn(
-        `Conflict mismatch: ${summary.real_conflicts} conflicts reported but ${conflicts.breakdown.length} items in breakdown.`,
+        `Conflict mismatch: ${summary.real_conflicts} conflicts reported but ${breakdownCount} items in breakdown.`,
         "Breakdown items:",
-        conflicts.breakdown,
+        conflicts?.breakdown,
       );
     }
 

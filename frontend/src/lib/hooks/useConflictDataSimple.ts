@@ -1,4 +1,4 @@
-import { useScheduleStore } from "@/lib/store/scheduleStore";
+import { useSchedulesStore as useScheduleStore } from "@/lib/store/schedulesStore";
 
 export type ConflictType =
   | "student_double_book"

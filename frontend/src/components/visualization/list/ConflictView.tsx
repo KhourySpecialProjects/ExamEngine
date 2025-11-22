@@ -79,14 +79,12 @@ export default function ConflictView({
       course: rowsForActive.some((r: any) => r.course != null && String(r.course).trim() !== ""),
       crn: rowsForActive.some((r: any) => r.crn != null && String(r.crn).trim() !== ""),
       conflicting_courses: rowsForActive.some((r: any) => Array.isArray(r.conflicting_courses) ? r.conflicting_courses.length > 0 : (r.conflicting_courses != null && String(r.conflicting_courses).trim() !== "")),
-      reason: rowsForActive.some((r: any) => r.reason != null && String(r.reason).trim() !== ""),
       size: rowsForActive.some((r: any) => r.size != null && String(r.size).trim() !== ""),
     };
 
     if (activeTabId === "large_course_not_early") {
       has.block = false;
       has.conflicting_courses = false;
-      has.reason = false;
     }
 
     const columns: Array<{ key: string; label: string }> = [];
@@ -97,7 +95,6 @@ export default function ConflictView({
     if (has.crn) columns.push({ key: "crn", label: "CRN" });
     if (has.size) columns.push({ key: "size", label: "Size" });
     if (has.conflicting_courses) columns.push({ key: "conflicting_courses", label: "Conflicting Courses" });
-    if (has.reason) columns.push({ key: "reason", label: "Reason" });
 
     return (
       <>
@@ -121,7 +118,6 @@ export default function ConflictView({
                   else if (key === "course") cell = r.course ?? "—";
                   else if (key === "crn") cell = r.crn ?? "—";
                   else if (key === "conflicting_courses") cell = (r.conflicting_courses || []).join ? (r.conflicting_courses || []).join(", ") : String(r.conflicting_courses ?? "—");
-                  else if (key === "reason") cell = r.reason ?? "—";
                   else if (key === "size") cell = r.size ?? "—";
 
                   return (

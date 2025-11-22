@@ -1,6 +1,6 @@
 import { type ClassValue, clsx } from "clsx";
 import { twMerge } from "tailwind-merge";
-import type { CalendarRow } from "@/lib/store/calendarStore";
+import type { CalendarRow } from "@/lib/types/calendar.types";
 import type { CalendarExam, ScheduleResult } from "./api/schedules";
 // note: do not call hooks at module scope; provide pure mapping helpers instead
 import type { conflictMap } from "./types/conflict.types";

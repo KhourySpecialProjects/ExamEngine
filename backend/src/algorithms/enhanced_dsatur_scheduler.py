@@ -129,7 +129,15 @@ class DSATURExamGraph:
 
         # Time grid
         self.exam_blocks = [(d, b) for d in range(7) for b in range(5)]
-        self.day_names = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]
+        self.day_names = [
+            "Monday",
+            "Tuesday",
+            "Wednesday",
+            "Thursday",
+            "Friday",
+            "Saturday",
+            "Sunday",
+        ]
         self.block_times = {
             0: "9:00-11:00",
             1: "11:30-1:30",

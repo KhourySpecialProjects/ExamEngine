@@ -1,15 +1,15 @@
-import { useMemo, useState } from "react";
-import { createScheduleColumns } from "@/components/schedules/columns";
-import type { ScheduleListItem } from "@/lib/api/schedules";
 import {
   getCoreRowModel,
   getFilteredRowModel,
   getPaginationRowModel,
   getSortedRowModel,
-  SortingState,
+  type SortingState,
   useReactTable,
-  VisibilityState,
+  type VisibilityState,
 } from "@tanstack/react-table";
+import { useMemo, useState } from "react";
+import { createScheduleColumns } from "@/components/schedules/columns";
+import type { ScheduleListItem } from "@/lib/api/schedules";
 
 export function useScheduleTable(
   schedules: ScheduleListItem[],

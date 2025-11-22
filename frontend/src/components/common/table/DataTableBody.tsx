@@ -1,7 +1,7 @@
 import type { Table } from "@tanstack/react-table";
 import { flexRender } from "@tanstack/react-table";
-import { TableBody, TableCell, TableRow } from "@/components/ui/table";
 import { AlertCircle } from "lucide-react";
+import { TableBody, TableCell, TableRow } from "@/components/ui/table";
 
 interface DataTableBodyProps<TData> {
   table: Table<TData>;

@@ -2,17 +2,17 @@
 
 import { useMemo } from "react";
 import {
-  BarChart,
   Bar,
-  PieChart,
-  Pie,
+  BarChart,
+  CartesianGrid,
   Cell,
+  Legend,
+  Pie,
+  PieChart,
+  ResponsiveContainer,
+  Tooltip,
   XAxis,
   YAxis,
-  CartesianGrid,
-  Tooltip,
-  Legend,
-  ResponsiveContainer,
 } from "recharts";
 import {
   Card,
@@ -21,7 +21,7 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import { useScheduleStore } from "@/lib/store/scheduleStore";
+import { useSchedulesStore } from "@/lib/store/schedulesStore";
 import { BookOpen, AlertTriangle, Building2, TrendingUp } from "lucide-react";
 
 const COLORS = {
@@ -38,7 +38,7 @@ interface ConflictData {
 }
 
 export function StatisticsView() {
-  const currentSchedule = useScheduleStore((state) => state.currentSchedule);
+  const currentSchedule = useSchedulesStore((state) => state.currentSchedule);
 
   const stats = useMemo(() => {
     if (!currentSchedule) return null;
@@ -358,7 +358,7 @@ export function StatisticsView() {
                     fill="#8884d8"
                     dataKey="value"
                   >
-                    {stats.studentsPerDayData.map((entry, index) => (
+                    {stats.studentsPerDayData.map((_entry, index) => (
                       <Cell
                         key={`cell-${index}`}
                         fill={
@@ -429,8 +429,6 @@ export function StatisticsView() {
           </CardContent>
         </Card>
       )}
-
-      {/* Detailed conflicts table removed per request */}
     </div>
   );
 }

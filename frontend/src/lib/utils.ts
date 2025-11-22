@@ -2,10 +2,143 @@ import { type ClassValue, clsx } from "clsx";
 import { twMerge } from "tailwind-merge";
 import type { CalendarRow } from "@/lib/types/calendar.types";
 import type { CalendarExam, ScheduleResult } from "./api/schedules";
+// note: do not call hooks at module scope; provide pure mapping helpers instead
+import type { conflictMap } from "./types/conflict.types";
 
 export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
 }
+
+
+export function mapConflictsToConflictMap(breakdown: any[] = []): conflictMap[] {
+  const BACK_TO_BACK_TYPES = new Set(["back_to_back", "back_to_back_student", "back_to_back_instructor"]);
+  const OVER_MAX_TYPES = new Set(["student_gt_max_per_day", "student_gt3_per_day", "student_gt_max"]);
+
+  function getType(conf: any) {
+    return conf.conflict_type ?? conf.violation ?? "unknown";
+  }
+
+  function getNumericOrFlag(conf: any, countKey: string, idKey: string) {
+    // Prefer numeric count if present, otherwise fall back to whether an id is present as heuristic
+    if (typeof conf[countKey] === "number") return conf[countKey];
+    return conf[idKey] ? 1 : 0;
+  }
+
+  return (breakdown ?? []).map((conf) => {
+    const type = getType(conf);
+
+    const instructorConflicts = getNumericOrFlag(conf, "instructor_conflicts", "instructor_id");
+    const studentConflicts = getNumericOrFlag(conf, "student_conflicts", "student_id");
+
+    return {
+      conflictType: type,
+      instructorConflicts,
+      studentConflicts,
+      backToBack: BACK_TO_BACK_TYPES.has(type),
+      instructorBackToBack: type === "back_to_back_instructor",
+      overMaxExams: OVER_MAX_TYPES.has(type),
+    } as conflictMap;
+  });
+}
+
+/**
+ * Build rows for ConflictView tables from backend breakdown and available exams.
+ * Returns an object with backRows, largeRows and notScheduledRows arrays.
+ */
+export function mapConflictsToRows(allExams: any[] = [], breakdown: any[] = []) {
+  const annotatedByCrn = new Map<string, any[]>();
+  const annotatedByCourse = new Map<string, any[]>();
+
+  const normalizeCourse = (s: any) => {
+    if (!s) return null;
+    const str = String(s);
+    const match = str.match(/course_ref\s+(\S+)/i);
+    if (match) return match[1];
+    return str.replace(/Name:\s*\d+,\s*dtype:\s*\w+.*/i, "").trim() || null;
+  };
+
+  function buildAnnotatedMaps(exams: any[]) {
+    for (const ex of exams ?? []) {
+      const crn = (ex.crn ?? ex.CRN ?? ex.section ?? ex.id)?.toString?.();
+      const course = normalizeCourse(ex.course ?? ex.course_name ?? ex.course_ref ?? ex.title);
+      if (crn) annotatedByCrn.set(crn, (annotatedByCrn.get(crn) ?? []).concat(ex));
+      if (course) annotatedByCourse.set(course, (annotatedByCourse.get(course) ?? []).concat(ex));
+    }
+  }
+
+  function addMatchesForIdentifier(matched: any[], identifier: any) {
+    if (!identifier) return;
+    if (Array.isArray(identifier)) {
+      for (const it of identifier) {
+        const k = String(it);
+        if (annotatedByCrn.has(k)) matched.push(...(annotatedByCrn.get(k) ?? []));
+        const norm = normalizeCourse(it);
+        if (norm && annotatedByCourse.has(norm)) matched.push(...(annotatedByCourse.get(norm) ?? []));
+      }
+    } else {
+      const norm = normalizeCourse(identifier);
+      if (norm && annotatedByCourse.has(norm)) matched.push(...(annotatedByCourse.get(norm) ?? []));
+    }
+  }
+
+  buildAnnotatedMaps(allExams ?? []);
+
+  const backRows: Array<any> = [];
+  const largeRows: Array<any> = [];
+  const notScheduledRows: Array<any> = [];
+
+  for (const conf of breakdown ?? []) {
+    const type = conf.conflict_type ?? conf.violation ?? "unknown";
+    const crn = conf.crn ?? (Array.isArray(conf.conflicting_crns) && conf.conflicting_crns[0]) ?? null;
+    const course = conf.course ?? conf.course_ref ?? conf.conflicting_course ?? null;
+    const normCourse = normalizeCourse(course);
+
+    // collect matching exams (by CRN or normalized course)
+    const matched: any[] = [];
+    if (crn && annotatedByCrn.has(String(crn))) matched.push(...(annotatedByCrn.get(String(crn)) ?? []));
+    if (normCourse && annotatedByCourse.has(normCourse)) matched.push(...(annotatedByCourse.get(normCourse) ?? []));
+
+    addMatchesForIdentifier(matched, conf.conflicting_courses ?? conf.conflicting_course ?? null);
+    addMatchesForIdentifier(matched, conf.conflicting_crns ?? conf.conflicting_crn ?? null);
+
+    const uniq = Array.from(new Set(matched));
+
+    // Back-to-back rows: prefer explicit student id, otherwise use count heuristic
+    if (type === "back_to_back" || type === "back_to_back_student" || type === "back_to_back_instructor") {
+      const studentId = conf.entity_id ?? conf.student_id ?? null;
+      const day = conf.day ?? conf.block_day ?? conf.block_time ?? "—";
+      const blocks = conf.blocks ?? (conf.block_time ? [conf.block_time] : undefined);
+      backRows.push({ student: studentId ? String(studentId) : `student(s): ${conf.count ?? 1}`, day, blocks });
+    }
+
+    // Large courses not early: map to available exam records when possible
+    if (type === "large_course_not_early" || conf.large_courses_not_early) {
+      if (uniq.length > 0) {
+        for (const ex of uniq) {
+          largeRows.push({
+            crn: ex.crn ?? ex.CRN ?? ex.section ?? "—",
+            course: ex.course_name ?? ex.course ?? ex.title ?? "—",
+            size: ex.enrollment ?? ex.size ?? ex.students_count ?? "—",
+            day: ex.day ?? ex.scheduled_day ?? conf.day ?? "—",
+            block: ex.block ?? ex.scheduled_block ?? conf.block_time ?? "—",
+          });
+        }
+      } else {
+        largeRows.push({ crn: conf.crn ?? "—", course: conf.course ?? "—", size: conf.size ?? "—", day: conf.day ?? "—", block: conf.block_time ?? "—" });
+      }
+    }
+
+    // Not scheduled: when conflict references courses not present in allExams or explicit not_scheduled flag
+    const unscheduled = conf.not_scheduled || conf.unscheduled_reason || (!uniq.length && (type === "unknown" || type === "course_not_scheduled"));
+    if (unscheduled && uniq.length === 0) {
+      notScheduledRows.push({ crn: conf.crn ?? conf.course ?? "—", course: conf.course ?? conf.conflicting_course ?? "—", size: conf.size ?? "—", reason: conf.unscheduled_reason ?? `Conflict: ${type}` });
+    }
+  }
+
+  return { backRows, largeRows, notScheduledRows };
+}
+
+
 
 export const generateSampleData = (): CalendarRow[] => {
   const days = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"];
@@ -145,7 +278,7 @@ export function wrapSampleDataAsScheduleResult(
       avoid_back_to_back: true,
       max_days: 7,
     },
-  };
+  } as any;
 }
 
 export const getTimeAgo = (dateString: string) => {

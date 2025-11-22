@@ -97,15 +97,16 @@ export function StatisticsView() {
       });
     }
 
-    // If no conflicts found in breakdown but real_conflicts > 0, create a placeholder
-    // This handles the case where conflicts exist but aren't in the breakdown array
     if (Object.keys(conflictTypes).length === 0 && summary.real_conflicts > 0) {
-      conflictTypes.unknown = summary.real_conflicts;
-      // Debug: log this issue
+      conflictTypes["unknown"] = summary.real_conflicts;
+      // Debug: log this issue (safely handle missing breakdown)
+      const breakdownCount = Array.isArray(conflicts?.breakdown)
+        ? conflicts.breakdown.length
+        : 0;
       console.warn(
-        `Conflict mismatch: ${summary.real_conflicts} conflicts reported but ${conflicts.breakdown.length} items in breakdown.`,
+        `Conflict mismatch: ${summary.real_conflicts} conflicts reported but ${breakdownCount} items in breakdown.`,
         "Breakdown items:",
-        conflicts.breakdown,
+        conflicts?.breakdown,
       );
     }
 
@@ -425,209 +426,6 @@ export function StatisticsView() {
                 <Bar dataKey="exams" fill={COLORS.info} />
               </BarChart>
             </ResponsiveContainer>
-          </CardContent>
-        </Card>
-      )}
-
-      {/* Detailed Conflicts Table */}
-      {(currentSchedule.conflicts.breakdown.length > 0 ||
-        currentSchedule.summary.real_conflicts > 0) && (
-        <Card>
-          <CardHeader>
-            <CardTitle>Detailed Conflict Information</CardTitle>
-            <CardDescription>
-              Complete list of all conflicts with day, time slot,
-              student/instructor, and courses
-              {currentSchedule.summary.real_conflicts > 0 &&
-                currentSchedule.conflicts.breakdown.filter(
-                  (c) => c.conflict_type !== "back_to_back",
-                ).length === 0 && (
-                  <span className="block mt-2 text-xs text-muted-foreground">
-                    Note: {currentSchedule.summary.real_conflicts} conflict(s)
-                    detected but detailed information not available. Check
-                    backend logs for more details.
-                  </span>
-                )}
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="overflow-x-auto">
-              {currentSchedule.conflicts.breakdown.filter(
-                (c) => c.conflict_type !== "back_to_back",
-              ).length > 0 ? (
-                <table className="w-full text-sm">
-                  <thead>
-                    <tr className="border-b">
-                      <th className="text-left p-2">Type</th>
-                      <th className="text-left p-2">Student/Instructor</th>
-                      <th className="text-left p-2">Day</th>
-                      <th className="text-left p-2">Time Slot</th>
-                      <th className="text-left p-2">Course (CRN)</th>
-                      <th className="text-left p-2">Conflicting Course(s)</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {currentSchedule.conflicts.breakdown
-                      .filter(
-                        (conflict) => conflict.conflict_type !== "back_to_back",
-                      )
-                      .map((conflict, index) => {
-                        const entityId =
-                          conflict.entity_id ||
-                          conflict.student_id ||
-                          "Unknown";
-                        const conflictTypeName =
-                          conflict.conflict_type
-                            ?.replace("_", " ")
-                            .replace(/\b\w/g, (l) => l.toUpperCase()) ||
-                          "Unknown";
-                        const day = conflict.day || "Unknown";
-                        const blockTime =
-                          conflict.block_time ||
-                          (conflict.blocks && conflict.blocks.length > 0
-                            ? `Blocks: ${conflict.blocks.join(", ")}`
-                            : "Unknown");
-
-                        // Extract Course ID and CRN - handle stringified pandas Series
-                        let courseId = conflict.course || "Unknown";
-                        const crn = conflict.crn || "Unknown";
-
-                        // Clean up courseId if it looks like a pandas Series string
-                        if (typeof courseId === "string") {
-                          // Remove pandas Series artifacts like "course_ref CS3000 course_ref CS3000"
-                          const match = courseId.match(/course_ref\s+(\S+)/);
-                          if (match) {
-                            courseId = match[1];
-                          }
-                          // Remove other artifacts
-                          courseId = courseId
-                            .replace(/Name:\s*\d+,\s*dtype:\s*\w+.*$/, "")
-                            .trim();
-                        }
-
-                        // Get conflicting courses data - handle both array and single value formats
-                        let conflictingCoursesList: string[] = [];
-                        let conflictingCrnsList: string[] = [];
-
-                        // Check for array format first
-                        if (
-                          Array.isArray(conflict.conflicting_courses) &&
-                          conflict.conflicting_courses.length > 0
-                        ) {
-                          conflictingCoursesList = conflict.conflicting_courses;
-                        } else if (conflict.conflicting_course) {
-                          // Single conflicting course
-                          conflictingCoursesList = [
-                            conflict.conflicting_course,
-                          ];
-                        }
-
-                        // Check for array format for CRNs
-                        if (
-                          Array.isArray(conflict.conflicting_crns) &&
-                          conflict.conflicting_crns.length > 0
-                        ) {
-                          conflictingCrnsList = conflict.conflicting_crns;
-                        } else if (conflict.conflicting_crn) {
-                          // Single conflicting CRN
-                          conflictingCrnsList = [conflict.conflicting_crn];
-                        }
-
-                        // Ensure both lists have the same length by padding with empty strings if needed
-                        while (
-                          conflictingCrnsList.length <
-                          conflictingCoursesList.length
-                        ) {
-                          conflictingCrnsList.push("—");
-                        }
-
-                        return (
-                          <tr
-                            key={index}
-                            className="border-b hover:bg-muted/50"
-                          >
-                            <td className="p-2">
-                              <span className="inline-flex items-center px-2 py-1 rounded-md text-xs font-medium bg-destructive/10 text-destructive">
-                                {conflictTypeName}
-                              </span>
-                            </td>
-                            <td className="p-2 font-mono text-xs">
-                              {entityId}
-                            </td>
-                            <td className="p-2">{day}</td>
-                            <td className="p-2">{blockTime}</td>
-                            <td className="p-2">
-                              <div className="font-medium">{courseId}</div>
-                              <div className="text-xs text-muted-foreground">
-                                CRN: {crn}
-                              </div>
-                            </td>
-                            <td className="p-2">
-                              {conflictingCoursesList.length > 0 ? (
-                                <div className="space-y-1">
-                                  {conflictingCoursesList.map(
-                                    (confCourse, idx) => {
-                                      // Clean up course ID similar to above
-                                      let cleanCourseId = confCourse;
-                                      if (typeof cleanCourseId === "string") {
-                                        // Remove pandas Series artifacts like "course_ref CS3000 course_ref CS3000"
-                                        const match =
-                                          cleanCourseId.match(
-                                            /course_ref\s+(\S+)/,
-                                          );
-                                        if (match) {
-                                          cleanCourseId = match[1];
-                                        }
-                                        // Remove other artifacts
-                                        cleanCourseId = cleanCourseId
-                                          .replace(
-                                            /Name:\s*\d+,\s*dtype:\s*\w+.*$/,
-                                            "",
-                                          )
-                                          .trim();
-                                      }
-                                      // Get corresponding CRN, fallback to empty string if not available
-                                      const confCrn =
-                                        conflictingCrnsList[idx] || "—";
-                                      return (
-                                        <div
-                                          key={idx}
-                                          className="text-destructive"
-                                        >
-                                          <div className="font-medium">
-                                            {cleanCourseId || "Unknown"}
-                                          </div>
-                                          <div className="text-xs text-muted-foreground">
-                                            CRN: {confCrn}
-                                          </div>
-                                        </div>
-                                      );
-                                    },
-                                  )}
-                                </div>
-                              ) : (
-                                <span className="text-muted-foreground">—</span>
-                              )}
-                            </td>
-                          </tr>
-                        );
-                      })}
-                  </tbody>
-                </table>
-              ) : (
-                <div className="text-center py-8">
-                  <p className="text-muted-foreground mb-2">
-                    No detailed conflict information available
-                  </p>
-                  <p className="text-xs text-muted-foreground">
-                    {currentSchedule.summary.real_conflicts} conflict(s)
-                    detected but breakdown data is missing. This may indicate a
-                    backend processing issue. Check the backend logs for
-                    details.
-                  </p>
-                </div>
-              )}
-            </div>
           </CardContent>
         </Card>
       )}

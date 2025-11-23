@@ -42,7 +42,9 @@ export class AdminAPI extends BaseAPI {
     });
   }
 
-  async inviteUser(data: UserInviteRequest): Promise<{ message: string; user_id: string }> {
+  async inviteUser(
+    data: UserInviteRequest,
+  ): Promise<{ message: string; user_id: string }> {
     return this.request("/admin/users/invite", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -50,16 +52,19 @@ export class AdminAPI extends BaseAPI {
     });
   }
 
-  async promoteUser(userId: string): Promise<{ message: string; user: UserResponse }> {
+  async promoteUser(
+    userId: string,
+  ): Promise<{ message: string; user: UserResponse }> {
     return this.request(`/admin/users/${userId}/promote`, {
       method: "POST",
     });
   }
 
-  async demoteUser(userId: string): Promise<{ message: string; user: UserResponse }> {
+  async demoteUser(
+    userId: string,
+  ): Promise<{ message: string; user: UserResponse }> {
     return this.request(`/admin/users/${userId}/demote`, {
       method: "POST",
     });
   }
 }
-

@@ -30,6 +30,7 @@ class ApiClient {
   public datasets: DatasetsAPI;
   public schedules: SchedulesAPI;
   public baseUrl: string;
+  public admin: AdminAPI;
 
   constructor(baseUrl?: string) {
     this.baseUrl = baseUrl || getApiBaseUrl();
@@ -37,6 +38,7 @@ class ApiClient {
     this.auth = new AuthAPI(this.baseUrl);
     this.datasets = new DatasetsAPI(this.baseUrl);
     this.schedules = new SchedulesAPI(this.baseUrl);
+    this.admin = new AdminAPI(this.baseUrl);
 
     // Log the URL being used (only in development)
     if (process.env.NODE_ENV === "development") {

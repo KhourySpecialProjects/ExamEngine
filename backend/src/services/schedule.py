@@ -318,7 +318,7 @@ class ScheduleService:
         exam_assignments = self.exam_assignment_repo.get_all_for_schedule(schedule_id)
         conflict_analysis = self.conflict_analyses_repo.get_by_schedule_id(schedule_id)
 
-        calendar, complete_exams = self._build_schedule_data(exam_assignments)
+        calendar, complete_exams = self._build_schedule_data(exam_assignments, conflict_analysis)
 
         conflicts_data = self._build_conflicts_data(conflict_analysis)
 
@@ -375,7 +375,7 @@ class ScheduleService:
         }
 
     def _build_schedule_data(
-        self, exam_assignments: list
+        self, exam_assignments: list, conflict_analysis=None
     ) -> tuple[dict[str, dict[str, list[dict]]], list[dict]]:
         """
         Build calendar and complete exam list from assignments.
@@ -386,8 +386,33 @@ class ScheduleService:
         calendar = defaultdict(lambda: defaultdict(list))
         complete_exams = []
 
+        # Build conflict count map by CRN
+        # Mark CRNs that are involved in conflicts (both sides of a conflict)
+        crn_has_conflict = set()
+        if conflict_analysis and conflict_analysis.conflicts:
+            conflicts_json = conflict_analysis.conflicts
+            hard_conflicts = conflicts_json.get("hard_conflicts", {})
+            
+            # Mark CRNs involved in conflicts
+            for conflict_type, conflicts_list in hard_conflicts.items():
+                for conflict in conflicts_list:
+                    crn = conflict.get("crn")
+                    conflicting_crn = conflict.get("conflicting_crn")
+                    conflicting_crns = conflict.get("conflicting_crns", [])
+                    
+                    # Mark all CRNs involved in this conflict
+                    if crn:
+                        crn_has_conflict.add(str(crn))
+                    if conflicting_crn:
+                        crn_has_conflict.add(str(conflicting_crn))
+                    for c_crn in conflicting_crns:
+                        if c_crn:
+                            crn_has_conflict.add(str(c_crn))
+
         for assignment in exam_assignments:
-            exam_data = self._assignment_to_exam_dict(assignment)
+            crn = assignment.course.crn
+            has_conflict = str(crn) in crn_has_conflict
+            exam_data = self._assignment_to_exam_dict(assignment, has_conflict)
 
             # Add to complete list
             complete_exams.append(exam_data)
@@ -395,11 +420,11 @@ class ScheduleService:
             # Add to calendar
             day = assignment.time_slot.day.value
             slot_label = assignment.time_slot.slot_label
-            calendar[day][slot_label].append(self._exam_dict_for_calendar(assignment))
+            calendar[day][slot_label].append(self._exam_dict_for_calendar(assignment, has_conflict))
 
         return dict(calendar), complete_exams
 
-    def _assignment_to_exam_dict(self, assignment) -> dict[str, Any]:
+    def _assignment_to_exam_dict(self, assignment, has_conflict: bool = False) -> dict[str, Any]:
         """Convert exam assignment to complete exam record format."""
         return {
             "CRN": assignment.course.crn,
@@ -409,11 +434,11 @@ class ScheduleService:
             "Room": assignment.room.location,
             "Capacity": assignment.room.capacity,
             "Size": assignment.course.enrollment_count,
-            "Valid": True,
+            "Valid": not has_conflict,
             "Instructor": assignment.course.instructor_name,
         }
 
-    def _exam_dict_for_calendar(self, assignment) -> dict[str, Any]:
+    def _exam_dict_for_calendar(self, assignment, has_conflict: bool = False) -> dict[str, Any]:
         """Convert exam assignment to calendar entry format (subset of fields)."""
         return {
             "CRN": assignment.course.crn,
@@ -421,7 +446,7 @@ class ScheduleService:
             "Room": assignment.room.location,
             "Capacity": assignment.room.capacity,
             "Size": assignment.course.enrollment_count,
-            "Valid": True,
+            "Valid": not has_conflict,
             "Instructor": assignment.course.instructor_name,
         }
 

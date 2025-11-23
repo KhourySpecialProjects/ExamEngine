@@ -1,3 +1,4 @@
+import { AdminAPI } from "./admin";
 import { AuthAPI } from "./auth";
 import { DatasetsAPI } from "./datasets";
 import { SchedulesAPI } from "./schedules";
@@ -24,6 +25,7 @@ function getApiBaseUrl(): string {
 }
 
 class ApiClient {
+  public admin: AdminAPI;
   public auth: AuthAPI;
   public datasets: DatasetsAPI;
   public schedules: SchedulesAPI;
@@ -31,6 +33,7 @@ class ApiClient {
 
   constructor(baseUrl?: string) {
     this.baseUrl = baseUrl || getApiBaseUrl();
+    this.admin = new AdminAPI(this.baseUrl);
     this.auth = new AuthAPI(this.baseUrl);
     this.datasets = new DatasetsAPI(this.baseUrl);
     this.schedules = new SchedulesAPI(this.baseUrl);

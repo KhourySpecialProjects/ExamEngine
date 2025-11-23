@@ -52,6 +52,7 @@ export default function CompactView() {
                   title={exam.courseCode}
                   students={exam.studentCount.toString()}
                   building={exam.building}
+                  hasConflict={exam.conflicts > 0}
                 />
               ))}
 

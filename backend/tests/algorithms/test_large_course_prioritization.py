@@ -109,7 +109,12 @@ class TestLargeCoursePrioritization:
                     + ["1003"] * 110
                     + ["1004"] * 100
                 ),
-                "instructor_name": ["Dr. Smith", "Dr. Jones", "Dr. Brown", "Dr. Wilson"] * 122,
+                "instructor_name": (
+                    ["Dr. Smith"] * 150
+                    + ["Dr. Jones"] * 130
+                    + ["Dr. Brown"] * 110
+                    + ["Dr. Wilson"] * 100
+                ),
             }
         )
 

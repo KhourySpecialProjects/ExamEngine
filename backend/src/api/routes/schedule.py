@@ -2,16 +2,16 @@ from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel
+from sqlalchemy.orm import Session
 
 from src.api.deps import get_current_user, get_db, get_schedule_service
 from src.repo.schedule import ScheduleRepo
 from src.repo.schedule_share import ScheduleShareRepo
 from src.schemas.db import Schedules, Users
 from src.services.schedule import ScheduleService
-from sqlalchemy.orm import Session
 
 
-router = APIRouter(prefix="/schedule", tags=["Scheduling"])
+router = APIRouter(prefix="/schedule", tags=["schedule"])
 
 
 @router.post("/generate/{dataset_id}")
@@ -98,15 +98,17 @@ async def get_shared_schedules(
         # Ensure relationships are loaded
         if share.schedule is None or share.shared_by_user is None:
             continue
-        result.append({
-            "share_id": str(share.share_id),
-            "schedule_id": str(share.schedule_id),
-            "schedule_name": share.schedule.schedule_name,
-            "permission": share.permission,
-            "shared_by_user_id": str(share.shared_by_user_id),
-            "shared_by_user_name": share.shared_by_user.name,
-            "shared_at": share.shared_at.isoformat(),
-        })
+        result.append(
+            {
+                "share_id": str(share.share_id),
+                "schedule_id": str(share.schedule_id),
+                "schedule_name": share.schedule.schedule_name,
+                "permission": share.permission,
+                "shared_by_user_id": str(share.shared_by_user_id),
+                "shared_by_user_name": share.shared_by_user.name,
+                "shared_at": share.shared_at.isoformat(),
+            }
+        )
     return result
 
 
@@ -196,14 +198,17 @@ async def share_schedule(
         )
 
     # Check if user owns it (not just has share)
-    from src.schemas.db import Runs
-
     from sqlalchemy import select
+
+    from src.schemas.db import Runs
 
     stmt = (
         select(Schedules)
         .join(Runs, Schedules.run_id == Runs.run_id)
-        .where(Schedules.schedule_id == schedule.schedule_id, Runs.user_id == current_user.user_id)
+        .where(
+            Schedules.schedule_id == schedule.schedule_id,
+            Runs.user_id == current_user.user_id,
+        )
     )
     if not db.execute(stmt).scalars().first():
         raise HTTPException(
@@ -292,13 +297,17 @@ async def list_schedule_shares(
         )
 
     # Check ownership
-    from src.schemas.db import Runs
     from sqlalchemy import select
+
+    from src.schemas.db import Runs
 
     stmt = (
         select(Schedules)
         .join(Runs, Schedules.run_id == Runs.run_id)
-        .where(Schedules.schedule_id == schedule.schedule_id, Runs.user_id == current_user.user_id)
+        .where(
+            Schedules.schedule_id == schedule.schedule_id,
+            Runs.user_id == current_user.user_id,
+        )
     )
     if not db.execute(stmt).scalars().first():
         raise HTTPException(
@@ -339,22 +348,24 @@ async def unshare_schedule(
         )
 
     # Verify user owns the schedule
-    schedule = schedule_repo.get_by_id_for_user(
-        share.schedule_id, current_user.user_id
-    )
+    schedule = schedule_repo.get_by_id_for_user(share.schedule_id, current_user.user_id)
     if not schedule:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND, detail="Schedule not found"
         )
 
     # Check ownership
-    from src.schemas.db import Runs
     from sqlalchemy import select
+
+    from src.schemas.db import Runs
 
     stmt = (
         select(Schedules)
         .join(Runs, Schedules.run_id == Runs.run_id)
-        .where(Schedules.schedule_id == schedule.schedule_id, Runs.user_id == current_user.user_id)
+        .where(
+            Schedules.schedule_id == schedule.schedule_id,
+            Runs.user_id == current_user.user_id,
+        )
     )
     if not db.execute(stmt).scalars().first():
         raise HTTPException(

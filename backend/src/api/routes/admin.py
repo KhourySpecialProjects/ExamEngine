@@ -8,14 +8,15 @@ from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel, EmailStr
+from sqlalchemy.orm import Session
 
 from src.api.deps import get_admin_user, get_auth_service, get_db
 from src.repo.user import UserRepo
 from src.schemas.db import Users
 from src.services.auth import AuthService
-from sqlalchemy.orm import Session
 
-router = APIRouter(prefix="/admin", tags=["Admin"])
+
+router = APIRouter(prefix="/admin", tags=["admin"])
 
 
 class UserInvite(BaseModel):
@@ -150,9 +151,10 @@ async def invite_user(
     The user will need to set their password when they first log in.
     For now, we'll create them with a temporary password that they must change.
     """
-    from src.utils.email import is_northeastern_email
     import secrets
     import string
+
+    from src.utils.email import is_northeastern_email
 
     # Validate Northeastern email
     if not is_northeastern_email(invite_data.email):
@@ -200,7 +202,7 @@ async def promote_to_admin(
 ):
     """
     Promote a user to admin role.
-    
+
     Only approved users can be promoted. Cannot promote yourself.
     """
     user_repo = UserRepo(db)
@@ -249,7 +251,7 @@ async def demote_from_admin(
 ):
     """
     Demote an admin user to regular user role.
-    
+
     Cannot demote yourself. Cannot demote if it's the last admin.
     """
     user_repo = UserRepo(db)
@@ -290,4 +292,3 @@ async def demote_from_admin(
         "message": "User demoted to regular user successfully",
         "user": UserResponse.from_user(updated_user),
     }
-

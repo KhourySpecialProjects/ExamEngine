@@ -35,7 +35,7 @@ def add_admin():
         email=ADMIN_EMAIL,
         password_hash=get_password_hash(ADMIN_PASSWORD),
         role="admin",
-        status="appproved",
+        status="Approved",
     )
     db = SessionLocal()
     db.add(admin_user)

@@ -22,6 +22,7 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { useSchedulesStore } from "@/lib/store/schedulesStore";
+import { useDatasetStore } from "@/lib/store/datasetStore";
 import { BookOpen, AlertTriangle, Building2, TrendingUp } from "lucide-react";
 
 const COLORS = {
@@ -39,13 +40,18 @@ interface ConflictData {
 
 export function StatisticsView() {
   const currentSchedule = useSchedulesStore((state) => state.currentSchedule);
-
+  const datasets = useDatasetStore((state) => state.datasets);
+  
   const stats = useMemo(() => {
     if (!currentSchedule) return null;
 
     const schedule = currentSchedule.schedule;
     const summary = currentSchedule.summary;
     const conflicts = currentSchedule.conflicts;
+    
+    // Try to get unique student count from dataset if available
+    const dataset = datasets.find((d) => d.dataset_id === currentSchedule.dataset_id);
+    const uniqueStudents = dataset?.files?.enrollments?.unique_students || null;
 
     // Calculate exams per day
     const examsPerDay: Record<string, number> = {};
@@ -189,23 +195,39 @@ export function StatisticsView() {
         ? (schedule.total_exams / summary.num_classes) * 100
         : 0;
 
+    // Calculate unique students
+    // Note: summary.num_students is the sum of all enrollments (not unique students)
+    // Try to get the actual unique student count from the dataset
+    // If not available, fall back to summary.num_students (which is sum of enrollments)
+    const totalUniqueStudents = uniqueStudents || summary.num_students || 0;
+
+    // Calculate back-to-back warnings from metrics
+    const breakdown = conflicts.breakdown || [];
+    const studentsBackToBack = breakdown.filter(
+      (c: any) => c.conflict_type === "back_to_back" || c.conflict_type === "back_to_back_student"
+    ).length;
+    const instructorsBackToBack = breakdown.filter(
+      (c: any) => c.conflict_type === "back_to_back_instructor"
+    ).length;
+    const totalBackToBackWarnings = studentsBackToBack + instructorsBackToBack;
+
     return {
       overview: {
         totalExams: schedule.total_exams,
         totalConflicts: summary.real_conflicts,
         roomUtilization: Math.round(roomUtilization * 10) / 10,
         scheduleEfficiency: Math.round(scheduleEfficiency * 10) / 10,
-        totalStudents: summary.num_students,
+        totalStudents: totalUniqueStudents,
         totalRooms: summary.num_rooms,
         slotsUsed: summary.slots_used,
-        backToBackWarnings: conflicts.total,
+        backToBackWarnings: totalBackToBackWarnings,
       },
       dayData,
       blockData,
       conflictBreakdown,
       studentsPerDayData,
     };
-  }, [currentSchedule]);
+  }, [currentSchedule, datasets]);
 
   if (!currentSchedule || !stats) {
     return (

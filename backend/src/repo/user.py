@@ -78,10 +78,88 @@ class UserRepo(BaseRepo[Users]):
         else:
             return None, True  # Ambiguous
 
-    def create_user(self, name: str, email: str, password_hash: str) -> Users:
-        """Create new user with hashed password."""
-        user = Users(name=name, email=email.lower(), password_hash=password_hash)
+    def create_user(
+        self,
+        name: str,
+        email: str,
+        password_hash: str,
+        role: str = "user",
+        status: str = "pending",
+        invited_by: UUID | None = None,
+    ) -> Users:
+        """
+        Create new user with hashed password and role/status.
+
+        Args:
+            name: User's display name
+            email: User's email address
+            password_hash: Hashed password
+            role: User role ("admin" or "user")
+            status: User status ("pending", "approved", or "rejected")
+            invited_by: Optional user ID who invited this user
+
+        Returns:
+            Created user
+        """
+        from datetime import datetime
+
+        user = Users(
+            name=name,
+            email=email.lower(),
+            password_hash=password_hash,
+            role=role,
+            status=status,
+            invited_by=invited_by,
+            invited_at=datetime.now() if invited_by else None,
+        )
         return self.create(user)
+
+    def get_pending_users(self) -> list[Users]:
+        """Get all users with pending status."""
+        stmt = select(Users).where(Users.status == "pending").order_by(Users.email)
+        return list(self.db.execute(stmt).scalars().all())
+
+    def get_all_users(self) -> list[Users]:
+        """Get all users."""
+        stmt = select(Users).order_by(Users.email)
+        return list(self.db.execute(stmt).scalars().all())
+
+    def approve_user(self, user_id: UUID, approved_by: UUID) -> Users | None:
+        """
+        Approve a pending user.
+
+        Args:
+            user_id: User to approve
+            approved_by: Admin user ID who is approving
+
+        Returns:
+            Updated user or None if not found
+        """
+        from datetime import datetime
+
+        user = self.get_by_id(user_id)
+        if user:
+            user.status = "approved"
+            user.approved_at = datetime.now()
+            user.approved_by = approved_by
+            return self.update(user)
+        return None
+
+    def reject_user(self, user_id: UUID) -> Users | None:
+        """
+        Reject a pending user.
+
+        Args:
+            user_id: User to reject
+
+        Returns:
+            Updated user or None if not found
+        """
+        user = self.get_by_id(user_id)
+        if user:
+            user.status = "rejected"
+            return self.update(user)
+        return None
 
     def update_password(self, user_id: UUID, new_password_hash: str) -> Users | None:
         """Update user's password hash."""
@@ -90,3 +168,25 @@ class UserRepo(BaseRepo[Users]):
             user.password_hash = new_password_hash
             return self.update(user)
         return None
+
+    def update_role(self, user_id: UUID, new_role: str) -> Users | None:
+        """
+        Update user's role.
+
+        Args:
+            user_id: User to update
+            new_role: New role ("admin" or "user")
+
+        Returns:
+            Updated user or None if not found
+        """
+        user = self.get_by_id(user_id)
+        if user:
+            user.role = new_role
+            return self.update(user)
+        return None
+
+    def count_admins(self) -> int:
+        """Count the number of admin users."""
+        stmt = select(Users).where(Users.role == "admin")
+        return len(list(self.db.execute(stmt).scalars().all()))

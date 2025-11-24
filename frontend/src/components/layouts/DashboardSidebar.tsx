@@ -6,15 +6,25 @@ import {
   Database,
   SlidersHorizontal,
   Users,
+  Shield,
 } from "lucide-react";
 import { useEffect } from "react";
 import { useDatasetStore } from "@/lib/store/datasetStore";
+import { useAuthStore } from "@/lib/store/authStore";
 import { getTimeAgo } from "@/lib/utils";
 import { DatasetBar } from "../dataset/DatasetBar";
 import { ScheduleRunner } from "../schedule/ScheduleRunner";
 import { Uploader } from "../upload/Uploader";
 export function DashboardSidebar() {
-  const { datasets, fetchDatasets, getSelectedDataset } = useDatasetStore();
+  const {
+    datasets,
+    selectedDatasetId,
+    selectDataset,
+    fetchDatasets,
+    getSelectedDataset,
+    isLoading,
+  } = useDatasetStore();
+  const { user } = useAuthStore();
 
   const selectedDataset = getSelectedDataset();
   useEffect(() => {
@@ -85,6 +95,7 @@ export function DashboardSidebar() {
         </div>
         <ScheduleRunner />
       </section>
+
     </div>
   );
 }

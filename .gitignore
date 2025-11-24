@@ -9,6 +9,14 @@ backend/tests/test_*.csv
 backend/*_by_student_*.csv
 backend/tests/*_by_student_*.csv
 
+# Diagnostic test scripts (not part of test suite)
+backend/tests/test_conflict_detection.py
+backend/tests/test_large_course_placement.py
+backend/tests/comprehensive_conflict_test.py
+backend/tests/diagnose_conflicts.py
+backend/tests/quick_test_large_courses.py
+backend/tests/verify_conflict_detection.py
+
 # Python cache
 __pycache__/
 *.py[cod]

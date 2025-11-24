@@ -47,8 +47,23 @@ export default function Login() {
       await login(email, password);
       toast.success("Logged In");
       router.push("/dashboard");
-    } catch (_error) {
-      toast.error("Login Failed");
+    } catch (error) {
+      const errorMessage =
+        error instanceof Error ? error.message : "Login Failed";
+      // Check if it's a pending user error
+      if (errorMessage.includes("pending") || errorMessage.includes("approval")) {
+        toast.error("Account Pending Approval", {
+          description: "Your account is pending admin approval. Please wait for an administrator to approve your account.",
+        });
+      } else if (errorMessage.includes("rejected")) {
+        toast.error("Account Rejected", {
+          description: "Your account has been rejected. Please contact an administrator.",
+        });
+      } else {
+        toast.error("Login Failed", {
+          description: errorMessage,
+        });
+      }
     }
   };
 
@@ -64,15 +79,25 @@ export default function Login() {
 
     try {
       await signup(suName, suEmail, suPassword);
-      toast.success("Sign Up Successful");
-      setActiveTab("signin");
+      toast.success("Sign Up Successful", {
+        description: "Your account is pending admin approval. You will be able to login once an administrator approves your account.",
+      });
+      // Don't redirect - user needs to wait for approval
+      setSuName("");
+      setSuEmail("");
+      setSuPassword("");
     } catch (err: unknown) {
       try {
         const errorMessage = err instanceof Error ? err.message : String(err);
         const parsed = JSON.parse(errorMessage);
-        toast.error(
-          `Signup failed: ${parsed.detail || JSON.stringify(parsed)}`,
-        );
+        const detail = parsed.detail || JSON.stringify(parsed);
+        if (typeof detail === "string" && detail.includes("northeastern")) {
+          toast.error("Invalid Email Domain", {
+            description: "Only @northeastern.edu email addresses are allowed.",
+          });
+        } else {
+          toast.error(`Signup failed: ${detail}`);
+        }
       } catch (_err: unknown) {
         toast.error("Signup failed");
       }

@@ -81,6 +81,25 @@ export default function ConflictView({
       conflicting_courses: rowsForActive.some((r: any) => Array.isArray(r.conflicting_courses) ? r.conflicting_courses.length > 0 : (r.conflicting_courses != null && String(r.conflicting_courses).trim() !== "")),
       size: rowsForActive.some((r: any) => r.size != null && String(r.size).trim() !== ""),
     };
+    
+    // Helper function to format block display with times
+    const formatBlockDisplay = (row: any): string => {
+      // For back-to-back conflicts, show times if available
+      if (Array.isArray(row.blocks) && row.blocks.length > 0) {
+        if (Array.isArray(row.block_times) && row.block_times.length > 0) {
+          // Show times for each block: "Time1, Time2"
+          return row.block_times.join(", ");
+        }
+        // Fallback: show block numbers if times not available
+        return row.blocks.join(", ");
+      }
+      // For single block conflicts, show block_time if available
+      if (row.block_time) {
+        return row.block_time;
+      }
+      // Fallback: show block number
+      return row.block?.toString() || "—";
+    };
 
     if (activeTabId === "large_course_not_early") {
       has.block = false;
@@ -90,7 +109,13 @@ export default function ConflictView({
     const columns: Array<{ key: string; label: string }> = [];
     if (has.entity) columns.push({ key: "entity", label: "Entity" });
     if (has.day) columns.push({ key: "day", label: "Day" });
-    if (has.block) columns.push({ key: "block", label: "Block" });
+    if (has.block) {
+      // For back-to-back conflicts, change label to show it's times
+      const isBackToBack = activeTabId === "back_to_back" || 
+                          activeTabId === "back_to_back_student" || 
+                          activeTabId === "back_to_back_instructor";
+      columns.push({ key: "block", label: isBackToBack ? "Time" : "Block" });
+    }
     if (has.course) columns.push({ key: "course", label: "Course" });
     if (has.crn) columns.push({ key: "crn", label: "CRN" });
     if (has.size) columns.push({ key: "size", label: "Size" });
@@ -112,9 +137,22 @@ export default function ConflictView({
                 {columns.map((c) => {
                   const key = c.key;
                   let cell: any = "—";
-                  if (key === "entity") cell = r.entity ?? r.student ?? "—";
+                  if (key === "entity") {
+                    // For instructor conflicts, prefer instructor_name if available
+                    const isInstructorConflict = activeTabId === "back_to_back_instructor" || 
+                                                 activeTabId === "instructor_double_book" ||
+                                                 activeTabId === "instructor_gt_max_per_day";
+                    if (isInstructorConflict && r.instructor_name) {
+                      cell = r.instructor_name;
+                    } else {
+                      cell = r.entity ?? r.student ?? r.instructor_name ?? "—";
+                    }
+                  }
                   else if (key === "day") cell = r.day ?? "—";
-                  else if (key === "block") cell = Array.isArray(r.blocks) ? r.blocks.join(", ") : (r.block ?? "—");
+                  else if (key === "block") {
+                    // Use the helper function to format block display with times
+                    cell = formatBlockDisplay(r);
+                  }
                   else if (key === "course") cell = r.course ?? "—";
                   else if (key === "crn") cell = r.crn ?? "—";
                   else if (key === "conflicting_courses") cell = (r.conflicting_courses || []).join ? (r.conflicting_courses || []).join(", ") : String(r.conflicting_courses ?? "—");

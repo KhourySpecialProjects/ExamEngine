@@ -49,7 +49,11 @@ export function useConflictDataSimple() {
   
   breakdown.forEach((c, idx) => {
     const conflictType = c.conflict_type || "unknown";
-    const entity = c.student_id || c.entity_id || c.instructor_id || "";
+    // For instructor conflicts, prefer instructor_name; for student conflicts, use student_id/entity_id
+    const isInstructorConflict = conflictType === "back_to_back_instructor" || conflictType === "instructor_double_book" || conflictType === "instructor_gt_max_per_day";
+    const entity = isInstructorConflict 
+      ? (c.instructor_name || c.entity_id || "")
+      : (c.student_id || c.entity_id || c.instructor_id || "");
     const day = c.day || "";
     const block = c.block?.toString() || c.block_time || "";
     

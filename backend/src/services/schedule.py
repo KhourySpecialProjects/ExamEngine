@@ -617,15 +617,37 @@ class ScheduleService:
         self, conflicts: list[dict], conflict_type: str, entity_key: str
     ) -> list[dict]:
         """Process back-to-back exam conflicts (student or instructor)."""
-        return [
-            {
-                entity_key: conflict.get(entity_key),
+        # Block to time mapping
+        block_time_map = {
+            0: "9AM-11AM",
+            1: "11:30AM-1:30PM",
+            2: "2PM-4PM",
+            3: "4:30PM-6:30PM",
+            4: "7PM-9PM",
+        }
+        
+        result = []
+        for conflict in conflicts:
+            blocks = conflict.get("blocks", [])
+            # Map block numbers to times
+            block_times = [block_time_map.get(block, f"Block {block}") for block in blocks]
+            
+            # For instructor conflicts, the JSON has "instructor_name" instead of "entity_id"
+            # For student conflicts, it has "student_id"
+            entity_value = conflict.get(entity_key)
+            if entity_value is None and entity_key == "entity_id":
+                # Try instructor_name as fallback for instructor conflicts
+                entity_value = conflict.get("instructor_name")
+            
+            result.append({
+                entity_key: entity_value,
+                "instructor_name": conflict.get("instructor_name") if entity_key == "entity_id" else None,  # Include instructor_name for instructor conflicts
                 "day": conflict.get("day"),
-                "blocks": conflict.get("blocks"),
+                "blocks": blocks,
+                "block_times": block_times,  # Add time strings for each block
                 "conflict_type": conflict_type,
-            }
-            for conflict in conflicts
-        ]
+            })
+        return result
 
     def _calculate_summary_stats(
         self, exam_assignments: list, calendar: dict, conflicts_data: dict

@@ -5,7 +5,6 @@ export interface DatasetState {
     datasets: DatasetMetadata[];
     selectedDatasetId: string | null;
     isLoading: boolean;
-    selectedDeleteDataset: DatasetMetadata | null;  // ← Add this line
     error: string | null;
 
     // Actions

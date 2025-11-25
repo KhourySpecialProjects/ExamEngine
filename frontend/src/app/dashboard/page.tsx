@@ -1,7 +1,7 @@
 "use client";
 
 import { Loader2 } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useEffect } from "react";
 import { toast } from "sonner";
 import { ScheduleListView } from "@/components/schedules/ScheduleListView";
 import { useSchedulesStore } from "@/lib/store/schedulesStore";
@@ -11,6 +11,7 @@ export default function DashboardPage() {
   const isLoadingList = useSchedulesStore((state) => state.isLoadingList);
   const error = useSchedulesStore((state) => state.error);
   const fetchSchedules = useSchedulesStore((state) => state.fetchSchedules);
+  const deleteSchedule = useSchedulesStore((state) => state.deleteSchedule);
 
   useEffect(() => {
     fetchSchedules().catch((err) => {
@@ -21,10 +22,17 @@ export default function DashboardPage() {
     });
   }, [fetchSchedules]);
 
-  const handleDelete = async (_scheduleId: string) => {
-    toast.info("Delete functionality", {
-      description: "Schedule deletion will be implemented soon",
-    });
+  const handleDelete = async (scheduleId: string) => {
+    const toastId = toast.loading("Deleting schedule...");
+    try {
+      await deleteSchedule(scheduleId);
+      toast.success("Schedule deleted", { id: toastId });
+    } catch (error) {
+      toast.error("Failed to delete schedule", {
+        id: toastId,
+        description: error instanceof Error ? error.message : "Unknown error",
+      });
+    }
   };
 
   return (

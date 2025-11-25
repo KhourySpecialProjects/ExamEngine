@@ -54,7 +54,9 @@ class DatasetRepo(BaseRepo[Datasets]):
     def dataset_exists(self, dataset_name: str, user_id: UUID) -> bool:
         """Check if dataset name is already taken by a specific user."""
         stmt = select(Datasets).where(
-            Datasets.dataset_name == dataset_name, Datasets.user_id == user_id
+            Datasets.dataset_name == dataset_name,
+            Datasets.deleted_at.is_(None),  # Only check non-deleted datasets
+            Datasets.user_id == user_id,
         )
         return self.db.execute(stmt).first() is not None
 

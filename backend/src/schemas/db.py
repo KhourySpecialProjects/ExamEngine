@@ -60,8 +60,12 @@ class Users(Base):
     invited_by: Mapped[uuid.UUID | None] = mapped_column(
         ForeignKey("users.user_id"), nullable=True
     )
-    invited_at: Mapped[datetime.datetime | None] = mapped_column(DateTime, nullable=True)
-    approved_at: Mapped[datetime.datetime | None] = mapped_column(DateTime, nullable=True)
+    invited_at: Mapped[datetime.datetime | None] = mapped_column(
+        DateTime, nullable=True
+    )
+    approved_at: Mapped[datetime.datetime | None] = mapped_column(
+        DateTime, nullable=True
+    )
     approved_by: Mapped[uuid.UUID | None] = mapped_column(
         ForeignKey("users.user_id"), nullable=True
     )

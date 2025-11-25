@@ -122,6 +122,7 @@ class DatasetService:
                 df = pd.read_csv(io.BytesIO(content))
 
                 missing_cols = validate_csv_schema(df, file_type)
+
                 if missing_cols:
                     validation_errors[file_type] = (
                         f"Missing columns: {', '.join(missing_cols)}"

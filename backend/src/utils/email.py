@@ -16,4 +16,3 @@ def is_northeastern_email(email: str) -> bool:
     if not email:
         return False
     return email.lower().strip().endswith("@northeastern.edu")
-

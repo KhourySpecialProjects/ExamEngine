@@ -1,6 +1,6 @@
 import { useMemo } from "react";
-import type { CalendarRow, Exam } from "@/lib/types/calendar.types";
 import { useSchedulesStore } from "@/lib/store/schedulesStore";
+import type { CalendarRow, Exam } from "@/lib/types/calendar.types";
 import type { CalendarExam } from "../api/schedules";
 
 /**
@@ -31,17 +31,14 @@ export function useScheduleData() {
   }, [allExams]);
 
   // Get stats
-  const stats = useMemo(
-    () => {
-      // Count unique conflicts from breakdown, not per-exam (to avoid double-counting)
-      const conflictCount = currentSchedule?.conflicts?.total || 0;
-      return {
-        totalExams: allExams.length,
-        totalConflicts: conflictCount,
-      };
-    },
-    [allExams, currentSchedule],
-  );
+  const stats = useMemo(() => {
+    // Count unique conflicts from breakdown, not per-exam (to avoid double-counting)
+    const conflictCount = currentSchedule?.conflicts?.total || 0;
+    return {
+      totalExams: allExams.length,
+      totalConflicts: conflictCount,
+    };
+  }, [allExams, currentSchedule]);
 
   return {
     // Transformed data
@@ -170,19 +167,19 @@ function convertToCalendarRows(
             conflictCRNs.some((ccrn: any) => String(ccrn) === String(exam.CRN))
           );
         });
-        
+
         // Use Valid flag (set by backend) or conflict breakdown check
         const hasConflict = !exam.Valid || isInConflict;
-        
+
         return {
           id: `${frontendDay}-${timeSlot}-${exam.CRN}-${examIndex}`,
           courseCode: exam.Course,
           section: exam.CRN,
-          department: exam.Course.split(" ")[0] || "MISC",
+          department: exam.Course || "MISC",
           instructor: exam.Instructor || "TBD",
           studentCount: exam.Size,
           room: exam.Room,
-          building: exam.Room.split(" ")[0] || "TBD",
+          building: exam.Room || "TBD",
           conflicts: hasConflict ? 1 : 0, // Show 1 if in conflict, 0 otherwise
           day: frontendDay,
           timeSlot,

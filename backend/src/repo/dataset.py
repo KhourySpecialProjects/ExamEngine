@@ -42,6 +42,15 @@ class DatasetRepo(BaseRepo[Datasets]):
             .limit(limit)
         )
         return list(self.db.execute(stmt).scalars().all())
+    
+    
+    def dataset_exists(self, dataset_name: str, user_id: UUID) -> bool:
+        """Check if schedule name is already taken by a specific user."""
+        stmt = (
+            select(Datasets).where(Datasets.dataset_name == dataset_name, Datasets.user_id == user_id)
+        )
+        return self.db.execute(stmt).first() is not None
+    
 
     def get_by_name_for_user(self, dataset_name: str, user_id: UUID) -> Datasets | None:
         """Find dataset by name for specific user."""

@@ -3,7 +3,7 @@ from uuid import UUID
 from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
 
 from src.api.deps import get_current_user, get_dataset_service
-from src.core.exceptions import DatasetNotFoundError, StorageError, ValidationError
+from src.core.exceptions import DatasetNotFoundError, StorageError, ValidationError, DatasetExistsError
 from src.schemas.db import Users
 from src.services.dataset import DatasetService
 
@@ -30,7 +30,11 @@ async def upload_dataset(
             user_id=current_user.user_id,
         )
         return results
-
+    except DatasetExistsError as e:
+        raise HTTPException(
+            status_code=400,
+            detail={"message": e.message},
+        ) from e
     except ValidationError as e:
         raise HTTPException(
             status_code=400,

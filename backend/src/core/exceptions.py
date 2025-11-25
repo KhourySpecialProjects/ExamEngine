@@ -12,6 +12,10 @@ class DatasetNotFoundError(AppException):
 
     pass
 
+class DatasetExistsError(AppException):
+    """Dataset of same name already exists"""
+    pass
+
 
 class ValidationError(AppException):
     """Input validation failed."""
@@ -39,5 +43,3 @@ class AuthenticationError(AppException):
 
 class AuthorizationError(AppException):
     """User lacks permission for operation."""
-
-    pass

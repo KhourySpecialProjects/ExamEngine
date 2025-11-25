@@ -14,7 +14,6 @@ interface DatasetState {
   // Actions
   fetchDatasets: () => Promise<void>;
   selectDataset: (datasetId: string | null) => void;
-  selectDeleteDataset: (dataset: DatasetMetadata | null) => void;
   deleteDataset: (datasetId: string) => Promise<void>;
   clearError: () => void;
   refreshDatasets: () => Promise<void>;
@@ -34,9 +33,6 @@ export const useDatasetStore = create<DatasetState>()(
       selectedDeleteDataset: null,
       error: null,
 
-      selectDeleteDataset: (dataset: DatasetMetadata | null) => {
-        set({ selectedDeleteDataset: dataset });
-      },
 
       // Fetch all datasets
       fetchDatasets: async () => {

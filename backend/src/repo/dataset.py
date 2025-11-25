@@ -51,6 +51,13 @@ class DatasetRepo(BaseRepo[Datasets]):
         )
         return self.db.execute(stmt).scalars().first()
 
+    def dataset_exists(self, dataset_name: str, user_id: UUID) -> bool:
+        """Check if dataset name is already taken by a specific user."""
+        stmt = select(Datasets).where(
+            Datasets.dataset_name == dataset_name, Datasets.user_id == user_id
+        )
+        return self.db.execute(stmt).first() is not None
+
     def soft_delete(self, dataset_id: UUID, user_id: UUID) -> bool:
         """
         Soft delete a dataset - marks as deleted in database only.

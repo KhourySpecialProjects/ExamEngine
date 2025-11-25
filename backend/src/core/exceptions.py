@@ -19,6 +19,12 @@ class ValidationError(AppException):
     pass
 
 
+class DatasetExistsError(AppException):
+    """Dataset of same name already exists"""
+
+    pass
+
+
 class StorageError(AppException):
     """S3 storage operation failed."""
 

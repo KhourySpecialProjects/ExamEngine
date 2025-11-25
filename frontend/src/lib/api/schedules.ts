@@ -196,6 +196,15 @@ export class SchedulesAPI extends BaseAPI {
     });
   }
 
+  async delete(id: string): Promise<{
+    message: string;
+    schedule_id: string;
+  }> {
+    return this.request(`/schedule/${id}`, {
+      method: "DELETE",
+    });
+  }
+
   async shareSchedule(
     scheduleId: string,
     userId: string,

@@ -19,6 +19,32 @@ export const useSchedulesStore = create<SchedulesState>((set, get) => ({
     max_days: 7,
   },
 
+  deleteSchedule: async (scheduleId: string) => {
+    set({ error: null });
+    try {
+      await apiClient.schedules.delete(scheduleId);
+      set((state) => {
+        const remaining = state.schedules.filter(
+          (schedule) => schedule.schedule_id !== scheduleId,
+        );
+        const currentSchedule =
+          state.currentSchedule?.schedule_id === scheduleId
+            ? null
+            : state.currentSchedule;
+        return {
+          schedules: remaining,
+          currentSchedule,
+        };
+      });
+    } catch (error) {
+      set({
+        error:
+          error instanceof Error ? error.message : "Failed to delete schedule",
+      });
+      throw error;
+    }
+  },
+
   // Load all schedules into the store
   fetchSchedules: async () => {
     set({ isLoadingList: true, error: null });

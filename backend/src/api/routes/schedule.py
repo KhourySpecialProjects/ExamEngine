@@ -5,6 +5,7 @@ from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
 from src.api.deps import get_current_user, get_db, get_schedule_service
+from src.core.exceptions import DatasetNotFoundError
 from src.repo.schedule import ScheduleRepo
 from src.repo.schedule_share import ScheduleShareRepo
 from src.schemas.db import Schedules, Users
@@ -145,6 +146,23 @@ async def get_schedule(
     except Exception as e:
         raise HTTPException(
             status_code=500, detail=f"Failed to retrieve schedule: {e}"
+        ) from e
+
+
+@router.delete("/{schedule_id}")
+async def delete_schedule(
+    schedule_id: UUID,
+    current_user: Users = Depends(get_current_user),
+    schedule_service: ScheduleService = Depends(get_schedule_service),
+):
+    """Delete a schedule owned by the current user."""
+    try:
+        return schedule_service.delete_schedule(schedule_id, current_user.user_id)
+    except DatasetNotFoundError as e:
+        raise HTTPException(status_code=404, detail=str(e)) from e
+    except Exception as e:
+        raise HTTPException(
+            status_code=500, detail=f"Failed to delete schedule: {e}"
         ) from e
 
 

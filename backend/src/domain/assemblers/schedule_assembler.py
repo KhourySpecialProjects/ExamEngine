@@ -8,8 +8,6 @@ class ScheduleAssembler:
     """
     Builds consistent API responses for schedule endpoints.
 
-    All formatting logic is centralized here to ensure consistent
-    response shapes across generate, list, and detail endpoints.
     """
 
     @staticmethod

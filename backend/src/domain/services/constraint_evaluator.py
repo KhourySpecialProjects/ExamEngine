@@ -1,5 +1,6 @@
 from collections import defaultdict
 
+from src.domain.constants import EARLY_WEEK_CUTOFF, LARGE_COURSE_THRESHOLD
 from src.domain.models import SchedulingDataset
 from src.domain.value_objects import SoftPenalty
 
@@ -10,9 +11,6 @@ class SoftConstraintEvaluator:
 
     Soft constraints are preferences we minimize but don't block placement.
     """
-
-    LARGE_COURSE_THRESHOLD = 100
-    EARLY_WEEK_CUTOFF = 3  # Days 0-2 (Mon-Wed) are "early week"
 
     def __init__(
         self,
@@ -37,8 +35,8 @@ class SoftConstraintEvaluator:
 
         enrollment = self.dataset.get_enrollment_count(crn)
         # 1. Large course late penalty
-        if enrollment >= self.LARGE_COURSE_THRESHOLD:
-            days_late = max(0, day - self.EARLY_WEEK_CUTOFF + 1)
+        if enrollment >= LARGE_COURSE_THRESHOLD:
+            days_late = max(0, day - EARLY_WEEK_CUTOFF + 1)
             penalty.large_course_late = days_late * self.weight_large_late
 
         # 2. Back-to-back students

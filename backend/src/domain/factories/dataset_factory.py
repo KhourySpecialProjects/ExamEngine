@@ -9,7 +9,7 @@ from src.domain.models import Course, Dataset, Enrollment, SchedulingDataset, St
 
 class DatasetFactory:
     """
-    Builds SchedulingDataset from raw DataFrames.
+    Builds SchedulingDataset and Dataset from raw DataFrames.
 
     This is the ONE place where DataFrames enter the domain layer.
     Uses the existing adapters and schema detection.

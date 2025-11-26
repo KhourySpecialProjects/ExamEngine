@@ -8,14 +8,14 @@ from src.algorithms.scheduler import Scheduler, ScheduleResult
 from src.core.exceptions import (
     DatasetNotFoundError,
     ScheduleGenerationError,
+    ValidationError,
 )
+from src.domain.assemblers import ConflictAssembler, ScheduleAssembler
 from src.domain.constants import (
     BLOCK_TIMES,
     DAY_NAMES,
 )
-from src.domain.services.conflict_formatter import ConflictFormatter
-from src.domain.services.dataset_builder import DatasetBuilder
-from src.domain.services.response_builder import ScheduleResponseBuilder
+from src.domain.factories import DatasetFactory
 from src.domain.services.schedule_analyzer import ScheduleAnalysis, ScheduleAnalyzer
 from src.repo.conflict_analyses import ConflictAnalysesRepo
 from src.repo.course import CourseRepo
@@ -42,7 +42,6 @@ class ScheduleService:
     Delegates to:
     - SchedulePermissionService: ownership/sharing checks
     - ScheduleResponseBuilder: API response formatting
-    - ConflictFormatter: conflict data enrichment
     - ScheduleAnalyzer: conflict analysis (domain)
     """
 
@@ -70,10 +69,6 @@ class ScheduleService:
         share_repo = ScheduleShareRepo(schedule_repo.db)
         self._permissions = SchedulePermissionService(share_repo)
 
-    # -------------------------------------------------------------------------
-    # Public API
-    # -------------------------------------------------------------------------
-
     async def generate_schedule(
         self,
         dataset_id: UUID,
@@ -86,6 +81,12 @@ class ScheduleService:
         prioritize_large_courses: bool = False,
     ) -> dict[str, Any]:
         """Generate complete exam schedule from dataset."""
+
+        if self.schedule_repo.name_exists(schedule_name, user_id):
+            raise ValidationError(
+                f"Schedule name '{schedule_name}' already exists",
+                detail={"field": "schedule_name"},
+            )
         parameters = {
             "student_max_per_day": student_max_per_day,
             "instructor_max_per_day": instructor_max_per_day,
@@ -114,7 +115,7 @@ class ScheduleService:
             room_mapping = self._ensure_rooms(dataset_id, files["rooms"])
 
             # 4. Build scheduling dataset and run algorithm
-            scheduling_dataset = DatasetBuilder.from_dataframes(
+            scheduling_dataset = DatasetFactory.from_dataframes_to_scheduling_dataset(
                 courses_df=files["courses"],
                 enrollment_df=files["enrollments"],
                 rooms_df=files["rooms"],
@@ -169,7 +170,7 @@ class ScheduleService:
         schedules = self.schedule_repo.get_all_for_user(user_id)
 
         return [
-            ScheduleResponseBuilder.build_list_item(
+            ScheduleAssembler.build_list_item(
                 schedule=s,
                 exam_count=self.schedule_repo.get_exam_assignments_count(s.schedule_id),
                 permissions=self._permissions.get_permissions(s, user_id),
@@ -194,7 +195,7 @@ class ScheduleService:
         course_map = {
             str(a.course.crn): a.course.course_subject_code for a in assignments
         }
-        formatter = ConflictFormatter(course_map)
+        formatter = ConflictAssembler(course_map)
         conflicting_crns = formatter.get_conflicting_crns(conflict_analysis)
 
         # Build schedule data
@@ -204,12 +205,12 @@ class ScheduleService:
         conflicts = formatter.format_conflicts(conflict_analysis)
         summary = self._calculate_summary_stats(assignments, conflicts)
 
-        return ScheduleResponseBuilder.build_full_response(
+        return ScheduleAssembler.build_full_response(
             schedule=schedule,
             dataset_name=schedule.run.dataset.dataset_name,
             summary=summary,
             conflicts=conflicts,
-            schedule_block=ScheduleResponseBuilder.build_schedule_block(
+            schedule_block=ScheduleAssembler.build_schedule_block(
                 complete_exams, calendar
             ),
             permissions=permissions,
@@ -226,10 +227,6 @@ class ScheduleService:
 
         return {"message": "Schedule deleted", "schedule_id": str(schedule_id)}
 
-    # -------------------------------------------------------------------------
-    # Private: Data Building
-    # -------------------------------------------------------------------------
-
     def _build_schedule_data(
         self,
         assignments: list,
@@ -245,7 +242,7 @@ class ScheduleService:
 
             # Full exam record for 'complete' list
             complete_exams.append(
-                ScheduleResponseBuilder.build_exam_record_from_assignment(
+                ScheduleAssembler.build_exam_record_from_assignment(
                     assignment, has_conflict
                 )
             )
@@ -254,7 +251,7 @@ class ScheduleService:
             day = assignment.time_slot.day.value
             slot_label = assignment.time_slot.slot_label
             calendar[day][slot_label].append(
-                ScheduleResponseBuilder.build_calendar_entry_from_assignment(
+                ScheduleAssembler.build_calendar_entry_from_assignment(
                     assignment, has_conflict
                 )
             )
@@ -276,7 +273,7 @@ class ScheduleService:
         # Estimate students (we don't have full enrollment data in assignments)
         total_enrollment = sum(a.course.enrollment_count for a in assignments)
 
-        return ScheduleResponseBuilder.build_summary(
+        return ScheduleAssembler.build_summary(
             num_classes=len(assignments),
             num_students=total_enrollment,  # Approximation
             num_rooms=len(unique_rooms),
@@ -312,7 +309,7 @@ class ScheduleService:
             instructors = result.instructors_by_crn.get(crn, set())
 
             schedule_list.append(
-                ScheduleResponseBuilder.build_exam_record(
+                ScheduleAssembler.build_exam_record(
                     crn=crn,
                     course_code=result.course_codes.get(crn, ""),
                     day=DAY_NAMES[day_idx],
@@ -331,7 +328,7 @@ class ScheduleService:
         # Get dataset info
         dataset_info = self.dataset_service.get_dataset_info(dataset_id, user_id)
 
-        summary = ScheduleResponseBuilder.build_summary(
+        summary = ScheduleAssembler.build_summary(
             num_classes=len(result.assignments),
             num_students=len(all_students),
             num_rooms=rooms_used,
@@ -340,7 +337,7 @@ class ScheduleService:
             unplaced_exams=len(result.unassigned),
         )
 
-        return ScheduleResponseBuilder.build_generation_response(
+        return ScheduleAssembler.build_generation_response(
             schedule=schedule,
             dataset_id=dataset_id,
             dataset_name=dataset_info["dataset_name"],
@@ -368,7 +365,7 @@ class ScheduleService:
             instructors = result.instructors_by_crn.get(crn, set())
 
             calendar[day_name][block_time].append(
-                ScheduleResponseBuilder.build_calendar_entry(
+                ScheduleAssembler.build_calendar_entry(
                     crn=crn,
                     course_code=result.course_codes.get(crn, ""),
                     room=room_name,
@@ -381,7 +378,6 @@ class ScheduleService:
         return calendar
 
     # Persistence
-
     def _ensure_courses(
         self, dataset_id: UUID, courses_df: pd.DataFrame, enrollment_df: pd.DataFrame
     ) -> dict[str, UUID]:

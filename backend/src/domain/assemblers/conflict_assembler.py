@@ -3,9 +3,9 @@ from typing import Any
 from src.domain.constants import BLOCK_TIMES
 
 
-class ConflictFormatter:
+class ConflictAssembler:
     """
-    Formats conflict analysis data for API responses.
+    Assemble conflict analysis data for API responses.
 
     Enriches raw conflict data with:
     - Block time labels (e.g., "9AM-11AM")

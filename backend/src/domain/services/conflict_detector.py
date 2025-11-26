@@ -1,19 +1,7 @@
 from collections import defaultdict
-from dataclasses import dataclass
 
 from src.domain.models import SchedulingDataset
-
-
-@dataclass(frozen=True)
-class Conflict:
-    """Represents a detected scheduling conflict."""
-
-    conflict_type: str
-    entity_id: str
-    crn: str
-    conflicting_crn: str | None
-    day: int
-    block: int
+from src.domain.value_objects import Conflict
 
 
 class ConflictDetector:

@@ -4,10 +4,9 @@ from uuid import UUID
 
 import pandas as pd
 
-from src.domain.adapters import (
-    DatasetBuilder,
-    DataValidationError,
-    SchemaDetectionError,
+from src.domain.exceptions import DataValidationError, SchemaDetectionError
+from src.domain.factories import (
+    DatasetFactory,
 )
 from src.domain.models import Dataset
 
@@ -116,7 +115,7 @@ class DatasetValidator:
 
         # Step 2: Build Dataset using adapters (validates schema automatically)
         try:
-            dataset = DatasetBuilder.from_dataframes(
+            dataset = DatasetFactory.from_dataframes_to_dataset(
                 dataset_id=dataset_id,
                 dataset_name=dataset_name,
                 course_df=dataframes["courses"],

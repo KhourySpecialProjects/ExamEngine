@@ -1,6 +1,6 @@
 from uuid import UUID
 
-from src.domain.services.response_builder import SchedulePermissions
+from src.domain.value_objects import SchedulePermissions
 from src.repo.schedule_share import ScheduleShareRepo
 from src.schemas.db import Schedules
 

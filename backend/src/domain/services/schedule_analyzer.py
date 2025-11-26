@@ -1,5 +1,4 @@
 from collections import defaultdict
-from dataclasses import dataclass, field
 
 from src.algorithms.scheduler import ScheduleResult
 from src.domain.constants import (
@@ -10,115 +9,12 @@ from src.domain.constants import (
 )
 from src.domain.models import SchedulingDataset
 from src.domain.services.conflict_detector import Conflict
-
-
-@dataclass
-class SoftConflicts:
-    """Soft constraint violations detected in a schedule."""
-
-    back_to_back_students: list[dict] = field(default_factory=list)
-    back_to_back_instructors: list[dict] = field(default_factory=list)
-    large_courses_not_early: list[dict] = field(default_factory=list)
-
-    @property
-    def total_count(self) -> int:
-        return (
-            len(self.back_to_back_students)
-            + len(self.back_to_back_instructors)
-            + len(self.large_courses_not_early)
-        )
-
-    def to_dict(self) -> dict:
-        return {
-            "back_to_back_students": self.back_to_back_students,
-            "back_to_back_instructors": self.back_to_back_instructors,
-            "large_courses_not_early": self.large_courses_not_early,
-        }
-
-
-@dataclass
-class HardConflicts:
-    """Hard constraint violations detected during scheduling."""
-
-    student_double_book: list[dict] = field(default_factory=list)
-    instructor_double_book: list[dict] = field(default_factory=list)
-    student_gt_max_per_day: list[dict] = field(default_factory=list)
-    instructor_gt_max_per_day: list[dict] = field(default_factory=list)
-
-    @property
-    def total_count(self) -> int:
-        return (
-            len(self.student_double_book)
-            + len(self.instructor_double_book)
-            + len(self.student_gt_max_per_day)
-            + len(self.instructor_gt_max_per_day)
-        )
-
-    def to_dict(self) -> dict:
-        return {
-            "student_double_book": self.student_double_book,
-            "instructor_double_book": self.instructor_double_book,
-            "student_gt_max_per_day": self.student_gt_max_per_day,
-            "instructor_gt_max_per_day": self.instructor_gt_max_per_day,
-        }
-
-
-@dataclass
-class ScheduleStatistics:
-    """Summary statistics for a schedule."""
-
-    num_classes: int = 0
-    num_students: int = 0
-    num_rooms: int = 0
-    slots_used: int = 0
-    unplaced_exams: int = 0
-    total_hard_conflicts: int = 0
-    total_soft_conflicts: int = 0
-
-
-@dataclass
-class ScheduleAnalysis:
-    """Complete analysis of a schedule."""
-
-    hard_conflicts: HardConflicts
-    soft_conflicts: SoftConflicts
-    statistics: ScheduleStatistics
-
-    def to_dict(self) -> dict:
-        return {
-            "hard_conflicts": self.hard_conflicts.to_dict(),
-            "soft_conflicts": self.soft_conflicts.to_dict(),
-            "statistics": {
-                "num_classes": self.statistics.num_classes,
-                "num_students": self.statistics.num_students,
-                "num_rooms": self.statistics.num_rooms,
-                "slots_used": self.statistics.slots_used,
-                "unplaced_exams": self.statistics.unplaced_exams,
-                "total_hard_conflicts": self.statistics.total_hard_conflicts,
-                "total_soft_conflicts": self.statistics.total_soft_conflicts,
-                "student_double_book_count": len(
-                    self.hard_conflicts.student_double_book
-                ),
-                "instructor_double_book_count": len(
-                    self.hard_conflicts.instructor_double_book
-                ),
-                "student_gt_max_per_day_count": len(
-                    self.hard_conflicts.student_gt_max_per_day
-                ),
-                "instructor_gt_max_per_day_count": len(
-                    self.hard_conflicts.instructor_gt_max_per_day
-                ),
-                "back_to_back_students_count": len(
-                    self.soft_conflicts.back_to_back_students
-                ),
-                "back_to_back_instructors_count": len(
-                    self.soft_conflicts.back_to_back_instructors
-                ),
-                "large_courses_not_early_count": len(
-                    self.soft_conflicts.large_courses_not_early
-                ),
-            },
-        }
+from src.domain.value_objects import (
+    HardConflicts,
+    ScheduleAnalysis,
+    ScheduleStatistics,
+    SoftConflicts,
+)
 
 
 class ScheduleAnalyzer:

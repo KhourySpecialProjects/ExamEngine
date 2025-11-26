@@ -1,7 +1,5 @@
-from collections import defaultdict
-
 from src.domain.models import SchedulingDataset
-from src.domain.value_objects import Conflict
+from src.domain.value_objects import Conflict, SchedulingState
 
 
 class ConflictDetector:
@@ -15,6 +13,7 @@ class ConflictDetector:
     def __init__(
         self,
         dataset: SchedulingDataset,
+        state: SchedulingState,
         student_max_per_day: int = 2,
         instructor_max_per_day: int = 2,
     ):
@@ -22,10 +21,7 @@ class ConflictDetector:
         self.student_max_per_day = student_max_per_day
         self.instructor_max_per_day = instructor_max_per_day
 
-        # INCREMENTAL STATE - these get updated by record_placement()
-        self.student_schedule: dict[str, list[tuple[int, int]]] = defaultdict(list)
-        self.instructor_schedule: dict[str, list[tuple[int, int]]] = defaultdict(list)
-        self.slot_to_crns: dict[tuple[int, int], list[str]] = defaultdict(list)
+        self.state = state
 
     def check_placement(self, crn: str, day: int, block: int) -> list[Conflict]:
         """
@@ -39,7 +35,7 @@ class ConflictDetector:
 
         # Check student conflicts
         for student_id in students:
-            student_slots = self.student_schedule[student_id]
+            student_slots = self.state.student_schedule[student_id]
 
             # Double-booking
             if (day, block) in student_slots:
@@ -73,7 +69,7 @@ class ConflictDetector:
 
         # Check instructor conflicts
         for instructor in instructors:
-            instr_slots = self.instructor_schedule[instructor]
+            instr_slots = self.state.instructor_schedule[instructor]
 
             if (day, block) in instr_slots:
                 conflicting = self._find_conflicting_crn(
@@ -105,23 +101,6 @@ class ConflictDetector:
 
         return conflicts
 
-    def record_placement(self, crn: str, day: int, block: int):
-        """
-        Record that CRN was placed at (day, block).
-
-        MUST be called after each placement to keep state synchronized.
-        This is what makes the algorithm O(n) instead of O(n²).
-        """
-        slot = (day, block)
-
-        for student_id in self.dataset.students_by_crn.get(crn, frozenset()):
-            self.student_schedule[student_id].append(slot)
-
-        for instructor in self.dataset.instructors_by_crn.get(crn, frozenset()):
-            self.instructor_schedule[instructor].append(slot)
-
-        self.slot_to_crns[slot].append(crn)
-
     def _find_conflicting_crn(
         self, entity_id: str, day: int, block: int, entity_type: str
     ) -> str | None:
@@ -132,7 +111,7 @@ class ConflictDetector:
             else self.dataset.instructors_by_crn
         )
 
-        for existing_crn in self.slot_to_crns[(day, block)]:
+        for existing_crn in self.state.slot_to_crns[(day, block)]:
             if entity_id in entity_by_crn.get(existing_crn, frozenset()):
                 return existing_crn
         return None

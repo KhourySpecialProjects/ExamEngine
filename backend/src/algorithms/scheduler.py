@@ -7,6 +7,7 @@ from src.domain.constants import BLOCKS_PER_DAY
 from src.domain.models import SchedulingDataset
 from src.domain.services.conflict_detector import Conflict, ConflictDetector
 from src.domain.services.constraint_evaluator import SoftConstraintEvaluator
+from src.domain.value_objects import SchedulingState
 
 
 @dataclass
@@ -63,13 +64,18 @@ class Scheduler:
     ):
         self.dataset = dataset
         self.max_days = max_days
+        self.state = SchedulingState()
 
         # Initialize focused services
         self.conflict_detector = ConflictDetector(
-            dataset, student_max_per_day, instructor_max_per_day
+            dataset, self.state, student_max_per_day, instructor_max_per_day
         )
         self.constraint_evaluator = SoftConstraintEvaluator(
-            dataset, weight_large_late, weight_b2b_student, weight_b2b_instructor
+            dataset,
+            self.state,
+            weight_large_late,
+            weight_b2b_student,
+            weight_b2b_instructor,
         )
 
         # Build available time slots
@@ -159,8 +165,7 @@ class Scheduler:
             self.assignments[crn] = best_slot
             self.conflicts.extend(slot_conflicts)
 
-            self.conflict_detector.record_placement(crn, *best_slot)
-            self.constraint_evaluator.record_placement(crn, *best_slot)
+            self.state.record_placement(crn, best_slot[0], best_slot[1], self.dataset)
 
     def _get_course_ordering(self, prioritize_large: bool) -> list[str]:
         if prioritize_large:

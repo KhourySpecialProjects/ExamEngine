@@ -1,8 +1,7 @@
-from collections import defaultdict
 
 from src.domain.constants import EARLY_WEEK_CUTOFF, LARGE_COURSE_THRESHOLD
 from src.domain.models import SchedulingDataset
-from src.domain.value_objects import SoftPenalty
+from src.domain.value_objects import SchedulingState, SoftPenalty
 
 
 class SoftConstraintEvaluator:
@@ -15,6 +14,7 @@ class SoftConstraintEvaluator:
     def __init__(
         self,
         dataset: SchedulingDataset,
+        state: SchedulingState,
         weight_large_late: int = 1,
         weight_b2b_student: int = 6,
         weight_b2b_instructor: int = 2,
@@ -23,12 +23,7 @@ class SoftConstraintEvaluator:
         self.weight_large_late = weight_large_late
         self.weight_b2b_student = weight_b2b_student
         self.weight_b2b_instructor = weight_b2b_instructor
-
-        # Track load statistics
-        self.student_schedule: dict[str, list[tuple[int, int]]] = defaultdict(list)
-        self.instructor_schedule: dict[str, list[tuple[int, int]]] = defaultdict(list)
-        self.slot_seat_load: dict[tuple[int, int], int] = defaultdict(int)
-        self.slot_exam_count: dict[tuple[int, int], int] = defaultdict(int)
+        self.state = state
 
     def evaluate(self, crn: str, day: int, block: int) -> SoftPenalty:
         penalty = SoftPenalty()
@@ -44,7 +39,9 @@ class SoftConstraintEvaluator:
         students = self.dataset.students_by_crn.get(crn, frozenset())
 
         for student_id in students:
-            day_blocks = [b for d, b in self.student_schedule[student_id] if d == day]
+            day_blocks = [
+                b for d, b in self.state.student_schedule[student_id] if d == day
+            ]
             if (block - 1 in day_blocks) or (block + 1 in day_blocks):
                 b2b_students += 1
         penalty.back_to_back_students = b2b_students * self.weight_b2b_student
@@ -55,7 +52,7 @@ class SoftConstraintEvaluator:
 
         for instructor in instructors:
             day_blocks = [
-                b for d, b in self.instructor_schedule[instructor] if d == day
+                b for d, b in self.state.instructor_schedule[instructor] if d == day
             ]
             if (block - 1 in day_blocks) or (block + 1 in day_blocks):
                 b2b_instructors += 1
@@ -65,31 +62,14 @@ class SoftConstraintEvaluator:
         instr_load = 0
         for instructor in instructors:
             day_count = sum(
-                1 for d, _ in self.instructor_schedule[instructor] if d == day
+                1 for d, _ in self.state.instructor_schedule[instructor] if d == day
             )
             instr_load += day_count
         penalty.instructor_load = instr_load
 
         # 5-6. Slot load
         slot = (day, block)
-        penalty.slot_seat_load = self.slot_seat_load[slot]
-        penalty.slot_exam_count = self.slot_exam_count[slot]
+        penalty.slot_seat_load = self.state.slot_seat_load[slot]
+        penalty.slot_exam_count = self.state.slot_exam_count[slot]
 
         return penalty
-
-    def record_placement(self, crn: str, day: int, block: int):
-        """Record placement and update internal state."""
-        slot = (day, block)
-        enrollment = self.dataset.get_enrollment_count(crn)
-
-        # Update student schedules
-        for student_id in self.dataset.students_by_crn.get(crn, frozenset()):
-            self.student_schedule[student_id].append(slot)
-
-        # Update instructor schedules
-        for instructor in self.dataset.instructors_by_crn.get(crn, frozenset()):
-            self.instructor_schedule[instructor].append(slot)
-
-        # Update slot load
-        self.slot_seat_load[slot] += enrollment
-        self.slot_exam_count[slot] += 1

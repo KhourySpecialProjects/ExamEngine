@@ -2,8 +2,6 @@ from collections import defaultdict
 from typing import Any
 from uuid import UUID
 
-import pandas as pd
-
 from src.algorithms.scheduler import Scheduler, ScheduleResult
 from src.core.exceptions import (
     DatasetNotFoundError,
@@ -16,6 +14,7 @@ from src.domain.constants import (
     DAY_NAMES,
 )
 from src.domain.factories import DatasetFactory
+from src.domain.models import Course, Room
 from src.domain.services.schedule_analyzer import ScheduleAnalysis, ScheduleAnalyzer
 from src.repo.conflict_analyses import ConflictAnalysesRepo
 from src.repo.course import CourseRepo
@@ -108,17 +107,21 @@ class ScheduleService:
             # 2. Load dataset files
             files = await self.dataset_service.get_dataset_files(dataset_id, user_id)
 
-            # 3. Ensure database records exist for courses/rooms
-            course_mapping = self._ensure_courses(
-                dataset_id, files["courses"], files["enrollments"]
-            )
-            room_mapping = self._ensure_rooms(dataset_id, files["rooms"])
-
-            # 4. Build scheduling dataset and run algorithm
+            # 3. Build scheduling dataset and run algorithm
             scheduling_dataset = DatasetFactory.from_dataframes_to_scheduling_dataset(
                 courses_df=files["courses"],
                 enrollment_df=files["enrollments"],
                 rooms_df=files["rooms"],
+            )
+
+            # 4. Ensure database records exist for courses/rooms
+            course_mapping = self._ensure_courses(
+                dataset_id,
+                scheduling_dataset.courses,
+            )
+            room_mapping = self._ensure_rooms(
+                dataset_id,
+                scheduling_dataset.rooms,
             )
 
             scheduler = Scheduler(
@@ -379,24 +382,26 @@ class ScheduleService:
 
     # Persistence
     def _ensure_courses(
-        self, dataset_id: UUID, courses_df: pd.DataFrame, enrollment_df: pd.DataFrame
+        self,
+        dataset_id: UUID,
+        courses: dict[str, Course],
     ) -> dict[str, UUID]:
         """Ensure course records exist, return CRN -> course_id mapping."""
         existing = self.course_repo.get_all_for_dataset(dataset_id)
         if existing:
             return {c.crn: c.course_id for c in existing}
-        return self.course_repo.bulk_create_from_dataframe(
-            dataset_id, courses_df, enrollment_df
-        )
+        return self.course_repo.bulk_create_from_domain(dataset_id, courses)
 
     def _ensure_rooms(
-        self, dataset_id: UUID, rooms_df: pd.DataFrame
+        self,
+        dataset_id: UUID,
+        rooms: list[Room],
     ) -> dict[str, UUID]:
         """Ensure room records exist, return room_name -> room_id mapping."""
         existing = self.room_repo.get_all_for_dataset(dataset_id)
         if existing:
             return {r.location: r.room_id for r in existing}
-        return self.room_repo.bulk_create_from_dataframe(dataset_id, rooms_df)
+        return self.room_repo.bulk_create_from_domain(dataset_id, rooms)
 
     async def _save_exam_assignments(
         self,

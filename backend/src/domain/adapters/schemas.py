@@ -87,6 +87,15 @@ def clean_instructor_name(value: Any) -> str | None:
     return result if result else None
 
 
+def clean_string(value: Any) -> str | None:
+    """Clean string, handling empty strings."""
+    if pd.isna(value):
+        return None
+
+    result = str(value).strip()
+    return result if result else None
+
+
 def parse_int(value: Any) -> int | None:
     """Parse integer value, returning None for invalid data."""
     if pd.isna(value):
@@ -132,7 +141,7 @@ class CourseSchema:
     V1_COLUMNS = [
         ColumnDefinition(
             canonical_name="crn",
-            aliases=["CRN", "Course Registration Number"],
+            aliases=["CRN", "Course Registration Number", "crn"],
             data_type=ColumnType.STRING,
             required=True,
             transformer=clean_crn,
@@ -140,7 +149,12 @@ class CourseSchema:
         ),
         ColumnDefinition(
             canonical_name="course_code",
-            aliases=["CourseID", "Course ID", "Course Code", "Subject + Number"],
+            aliases=[
+                "CourseID",
+                "Course ID",
+                "Course Code",
+                "course_subject_code",
+            ],
             data_type=ColumnType.STRING,
             required=True,
             transformer=lambda x: str(x).strip() if not pd.isna(x) else None,
@@ -148,11 +162,53 @@ class CourseSchema:
         ),
         ColumnDefinition(
             canonical_name="enrollment_count",
-            aliases=["num_students", "Enrollment", "Student Count", "Size"],
+            aliases=[
+                "num_students",
+                "Enrollment",
+                "Student Count",
+                "Size",
+                "enrollment_count",
+            ],
             data_type=ColumnType.INTEGER,
             required=True,
             transformer=parse_int,
             validator=validate_positive_int,
+        ),
+        ColumnDefinition(
+            canonical_name="instructor_name",
+            aliases=[
+                "Instructor Name",
+                "Instructor",
+                "Faculty Name",
+                "Professor",
+                "instructor_name",
+            ],
+            data_type=ColumnType.STRING,
+            required=True,
+            transformer=clean_instructor_name,
+            validator=None,
+        ),
+        ColumnDefinition(
+            canonical_name="examination_term",
+            aliases=[
+                "exam_term",
+                "examination_term",
+            ],
+            data_type=ColumnType.STRING,
+            required=True,
+            transformer=clean_string,
+            validator=None,
+        ),
+        ColumnDefinition(
+            canonical_name="department",
+            aliases=[
+                "department",
+                "dept",
+            ],
+            data_type=ColumnType.STRING,
+            required=True,
+            transformer=clean_string,
+            validator=None,
         ),
     ]
 
@@ -168,7 +224,14 @@ class EnrollmentSchema:
     V1_COLUMNS = [
         ColumnDefinition(
             canonical_name="student_id",
-            aliases=["Student_PIDM", "Student ID", "PIDM", "Student Number"],
+            aliases=[
+                "Student_PIDM",
+                "Student ID",
+                "PIDM",
+                "Student Number",
+                "student_id",
+                "student_pidm",
+            ],
             data_type=ColumnType.STRING,
             required=True,
             transformer=clean_student_id,
@@ -176,19 +239,11 @@ class EnrollmentSchema:
         ),
         ColumnDefinition(
             canonical_name="crn",
-            aliases=["CRN", "Course Registration Number"],
+            aliases=["CRN", "Course Registration Number", "crn"],
             data_type=ColumnType.STRING,
             required=True,
             transformer=clean_crn,
             validator=validate_non_empty_string,
-        ),
-        ColumnDefinition(
-            canonical_name="instructor_name",
-            aliases=["Instructor Name", "Instructor", "Faculty Name", "Professor"],
-            data_type=ColumnType.STRING,
-            required=False,  # Instructor might be optional
-            transformer=clean_instructor_name,
-            validator=None,
         ),
     ]
 

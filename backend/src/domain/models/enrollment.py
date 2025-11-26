@@ -12,7 +12,6 @@ class Enrollment:
 
     student_id: str
     crn: str
-    instructor_name: str | None = None
 
     def __post_init__(self):
         """Validate data."""

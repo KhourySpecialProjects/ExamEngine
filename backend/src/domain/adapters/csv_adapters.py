@@ -50,6 +50,9 @@ class CourseAdapter:
                 crn = row.get("crn")
                 course_code = row.get("course_code")
                 enrollment_count = row.get("enrollment_count")
+                instructor_name = row.get("instructor_name")
+                deparment = row.get("department")
+                examination_term = row.get("examination_term")
 
                 # Validate required fields are present
                 if crn is None:
@@ -61,6 +64,16 @@ class CourseAdapter:
                 if enrollment_count is None:
                     validation_errors.append(f"Row {idx}: Missing enrollment count")
                     continue
+                if examination_term is None:
+                    validation_errors.append(f"Row {idx}: Missing examination term")
+                    continue
+                if deparment is None:
+                    validation_errors.append(f"Row {idx}: Missing department")
+                    continue
+
+                instructor_names = set()
+                if instructor_name:
+                    instructor_names.add(instructor_name)
 
                 # Apply validators
                 for canonical_name, col_def in col_defs.items():
@@ -77,7 +90,9 @@ class CourseAdapter:
                     crn=crn,
                     course_code=course_code,
                     enrollment_count=enrollment_count,
-                    instructor_names=set(),  # Will be populated from enrollment data
+                    instructor_names=instructor_names,
+                    department=deparment,
+                    examination_term=examination_term,
                 )
 
                 courses[crn] = course
@@ -140,7 +155,6 @@ class EnrollmentAdapter:
                 enrollment = Enrollment(
                     student_id=row["student_id"],
                     crn=row["crn"],
-                    instructor_name=row["instructor_name"],
                 )
                 enrollments.append(enrollment)
             except ValueError:

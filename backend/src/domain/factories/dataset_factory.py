@@ -77,8 +77,6 @@ class DatasetFactory:
 
         for enrollment in enrollments:
             student_enrollments[enrollment.student_id].add(enrollment.crn)
-            if enrollment.instructor_name:
-                course_instructors[enrollment.crn].add(enrollment.instructor_name)
 
         students = {
             student_id: Student(student_id=student_id, enrolled_crns=frozenset(crns))
@@ -93,6 +91,8 @@ class DatasetFactory:
                 course_code=course.course_code,
                 enrollment_count=course.enrollment_count,
                 instructor_names=course_instructors.get(crn, set()),
+                department=course.department,
+                examination_term=course.examination_term,
             )
 
         # Build final dataset
@@ -128,9 +128,6 @@ class DatasetFactory:
 
             student_courses[enrollment.student_id].add(enrollment.crn)
             crn_students[enrollment.crn].add(enrollment.student_id)
-
-            if enrollment.instructor_name:
-                crn_instructors[enrollment.crn].add(enrollment.instructor_name)
 
         # Build Student domain objects
         students = {

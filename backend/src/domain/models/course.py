@@ -13,6 +13,8 @@ class Course:
     crn: str  # Course Registration Number (unique identifier)
     course_code: str  # e.g., "CS 4535"
     enrollment_count: int  # Number of students enrolled
+    department: str  # e.g., "EN"
+    examination_term: str  # e.g., "Fall 2025"
     instructor_names: set[str] = field(
         default_factory=set
     )  # May be multiple instructors

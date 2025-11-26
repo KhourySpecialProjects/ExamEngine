@@ -65,7 +65,10 @@ def validate_csv_schema(df: pd.DataFrame, file_type: str) -> list[str]:
 def get_file_statistics(
     df: pd.DataFrame, file_type: str, file_size: int, filename: str
 ) -> dict[str, Any]:
-    """Generate statistics for a validated CSV file."""
+    """
+    Generate statistics for a validated CSV file.
+
+    """
     stats = {
         "filename": filename,
         "rows": len(df),
@@ -73,22 +76,55 @@ def get_file_statistics(
         "size_bytes": file_size,
     }
 
+    # Detect schema and get column mapping (CSV column -> canonical name)
+    try:
+        _, column_mapping = CSVSchemaDetector.detect_schema_version(df, file_type)
+    except SchemaDetectionError:
+        # Schema detection failed, return basic stats only
+        return stats
+
+    # Invert mapping: canonical_name -> actual CSV column name
+    canonical_to_csv = {v: k for k, v in column_mapping.items()}
+
+    def get_column(canonical_name: str) -> str | None:
+        """Get actual CSV column name for a canonical name."""
+        return canonical_to_csv.get(canonical_name)
+
+    def safe_col(canonical_name: str) -> pd.Series | None:
+        """Safely get column data by canonical name."""
+        csv_col = get_column(canonical_name)
+        return df[csv_col] if csv_col and csv_col in df.columns else None
+
     if file_type == "courses":
-        stats["unique_crns"] = int(df["CRN"].nunique())
-        if "num_students" in df.columns:
-            stats["total_students"] = int(df["num_students"].sum())
-            stats["avg_class_size"] = float(df["num_students"].mean())
+        crn_col = safe_col("crn")
+        if crn_col is not None:
+            stats["unique_crns"] = int(crn_col.nunique())
+
+        enrollment_col = safe_col("enrollment_count")
+        if enrollment_col is not None:
+            stats["total_students"] = int(enrollment_col.sum())
+            stats["avg_class_size"] = round(float(enrollment_col.mean()), 2)
 
     elif file_type == "enrollments":
-        student_col = "Student_PIDM" if "Student_PIDM" in df.columns else "student_id"
-        stats["unique_students"] = int(df[student_col].nunique())
-        stats["unique_crns"] = int(df["CRN"].nunique())
+        student_col = safe_col("student_id")
+        if student_col is not None:
+            stats["unique_students"] = int(student_col.nunique())
+
+        crn_col = safe_col("crn")
+        if crn_col is not None:
+            stats["unique_crns"] = int(crn_col.nunique())
+
         stats["total_enrollments"] = len(df)
 
     elif file_type == "rooms":
-        stats["unique_rooms"] = int(df["room_name"].nunique())
-        stats["total_capacity"] = int(df["capacity"].sum())
-        stats["avg_capacity"] = float(df["capacity"].mean())
-        stats["max_capacity"] = int(df["capacity"].max())
+        room_col = safe_col("room_name")
+        if room_col is not None:
+            stats["unique_rooms"] = int(room_col.nunique())
+
+        capacity_col = safe_col("capacity")
+        if capacity_col is not None:
+            stats["total_capacity"] = int(capacity_col.sum())
+            stats["avg_capacity"] = round(float(capacity_col.mean()), 2)
+            stats["max_capacity"] = int(capacity_col.max())
 
     return stats

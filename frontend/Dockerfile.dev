@@ -1,0 +1,21 @@
+FROM node:20-bookworm-slim
+
+WORKDIR /app
+
+RUN apt-get update && apt-get install -y curl && rm -rf /var/lib/apt/lists/*
+
+# Copy only package.json first for dependency install
+COPY frontend/package.json ./
+
+# Install dependencies
+RUN npm install
+
+EXPOSE 3000
+ENV PORT=3000
+ENV HOSTNAME="0.0.0.0"
+ENV NODE_ENV=development
+
+HEALTHCHECK --interval=20s --timeout=5s --start-period=60s --retries=5 \
+  CMD curl -f http://localhost:3000 || exit 1
+
+CMD ["npm", "run", "dev"]

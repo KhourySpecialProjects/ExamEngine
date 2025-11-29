@@ -63,9 +63,7 @@ services:
   frontend-dev:
     build:
       context: .
-      dockerfile: frontend/Dockerfile
-      args:
-        - NODE_ENV=development
+      dockerfile: frontend/Dockerfile.dev
     container_name: exam_engine_frontend_dev
     profiles: ["dev"]
     ports:

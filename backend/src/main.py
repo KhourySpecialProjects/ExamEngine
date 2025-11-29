@@ -3,7 +3,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from src.api.routes import auth, datasets, schedule
+from src.api.routes import admin, auth, datasets, schedule
 from src.core.config import get_settings
 from src.core.database import init_db
 
@@ -35,6 +35,7 @@ app.add_middleware(
 app.include_router(schedule.router, prefix="/api")
 app.include_router(datasets.router, prefix="/api")
 app.include_router(auth.router, prefix="/api")
+app.include_router(admin.router, prefix="/api")
 
 
 @app.get("/")

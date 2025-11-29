@@ -19,12 +19,15 @@ import { Button } from "@/components/ui/button";
 import CompactView from "@/components/visualization/calendar/CompactView";
 import DensityView from "@/components/visualization/calendar/DensityView";
 import { ExamListDialog } from "@/components/visualization/calendar/ExamListDialog";
+import ConflictView from "@/components/visualization/list/ConflictView";
 import ListView from "@/components/visualization/list/ListView";
+import { ShareScheduleDialog } from "@/components/schedule/ShareScheduleDialog";
 import { useScheduleData } from "@/lib/hooks/useScheduleData";
 import { useSchedulesStore } from "@/lib/store/schedulesStore";
 import { exportScheduleRowsAsCsv } from "@/lib/utils";
+import { useAuthStore } from "@/lib/store/authStore";
 
-type ViewType = "density" | "compact" | "list" | "statistics";
+type ViewType = "density" | "compact" | "list" | "statistics" | "conflicts";
 
 export default function SchedulePage({
   params,
@@ -34,6 +37,7 @@ export default function SchedulePage({
   const { id: scheduleId } = use(params);
   const [activeView, setActiveView] = useState<ViewType>("density");
   const router = useRouter();
+  const { user } = useAuthStore();
 
   const fetchSchedule = useSchedulesStore((state) => state.fetchSchedule);
 
@@ -46,6 +50,9 @@ export default function SchedulePage({
   }, [scheduleId, fetchSchedule]);
 
   const { schedule } = useScheduleData();
+
+  // Check if user owns this schedule
+  const canShare = schedule?.is_owner ?? false;
 
   const handleExport = async () => {
     if (!schedule) {
@@ -102,9 +109,42 @@ export default function SchedulePage({
           </BreadcrumbList>
         </Breadcrumb>
       </div>
+      {schedule && (
+        <div className="flex items-center gap-4 text-sm text-muted-foreground">
+          {schedule.is_shared && schedule.shared_by_user_name ? (
+            <div className="flex items-center gap-2">
+              <span>Shared by</span>
+              <span className="font-medium text-foreground">
+                {schedule.shared_by_user_name}
+              </span>
+              <span className="mx-1">•</span>
+              <span>Created by</span>
+              <span className="font-medium text-foreground">
+                {schedule.created_by_user_name || "Unknown"}
+              </span>
+            </div>
+          ) : (
+            <div className="flex items-center gap-2">
+              <span>Created by</span>
+              <span className="font-medium text-foreground">
+                {schedule.created_by_user_name || "Unknown"}
+              </span>
+            </div>
+          )}
+        </div>
+      )}
       <div className="flex items-center justify-between">
         <ViewTabSwitcher activeView={activeView} onViewChange={setActiveView} />
         <div className="flex items-center gap-3">
+          {canShare && schedule && (
+            <ShareScheduleDialog
+              scheduleId={scheduleId}
+              scheduleName={schedule.schedule_name}
+              onShareUpdate={() => {
+                // Optionally refresh schedule data
+              }}
+            />
+          )}
           <Button
             onClick={handleExport}
             className="bg-black text-white hover:opacity-90 min-w-50"
@@ -120,6 +160,7 @@ export default function SchedulePage({
       {activeView === "compact" && <CompactView />}
       {activeView === "list" && <ListView />}
       {activeView === "statistics" && <StatisticsView />}
+      {activeView === "conflicts" && <ConflictView />}
 
       <ExamListDialog />
     </div>

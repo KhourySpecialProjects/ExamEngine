@@ -1,7 +1,7 @@
 "use client";
 import Image from "next/image";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import React from "react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -22,20 +22,48 @@ export default function Login() {
   const login = useAuthStore((state) => state.login);
   const signup = useAuthStore((state) => state.signup);
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const pathname = usePathname();
 
+  const [activeTab, setActiveTab] = React.useState<"signin" | "signup">(
+    "signin",
+  );
   const [email, setEmail] = React.useState("");
   const [password, setPassword] = React.useState("");
   const [suName, setSuName] = React.useState("");
   const [suEmail, setSuEmail] = React.useState("");
   const [suPassword, setSuPassword] = React.useState("");
-  const [activeTab, setActiveTab] = React.useState<"signin" | "signup">("signin")
+
+  React.useEffect(() => {
+    const hash =
+      searchParams.get("tab") || (pathname?.includes("signup") ? "signup" : "");
+    if (hash === "signup" || window.location.hash === "#signup") {
+      setActiveTab("signup");
+    }
+  }, [searchParams, pathname]);
+
   const handleLogin = async () => {
     try {
       await login(email, password);
       toast.success("Logged In");
       router.push("/dashboard");
-    } catch (_error) {
-      toast.error("Login Failed");
+    } catch (error) {
+      const errorMessage =
+        error instanceof Error ? error.message : "Login Failed";
+      // Check if it's a pending user error
+      if (errorMessage.includes("pending") || errorMessage.includes("approval")) {
+        toast.error("Account Pending Approval", {
+          description: "Your account is pending admin approval. Please wait for an administrator to approve your account.",
+        });
+      } else if (errorMessage.includes("rejected")) {
+        toast.error("Account Rejected", {
+          description: "Your account has been rejected. Please contact an administrator.",
+        });
+      } else {
+        toast.error("Login Failed", {
+          description: errorMessage,
+        });
+      }
     }
   };
 
@@ -51,15 +79,25 @@ export default function Login() {
 
     try {
       await signup(suName, suEmail, suPassword);
-      toast.success("Sign Up Successful");
-      setActiveTab("signin");
+      toast.success("Sign Up Successful", {
+        description: "Your account is pending admin approval. You will be able to login once an administrator approves your account.",
+      });
+      // Don't redirect - user needs to wait for approval
+      setSuName("");
+      setSuEmail("");
+      setSuPassword("");
     } catch (err: unknown) {
       try {
         const errorMessage = err instanceof Error ? err.message : String(err);
         const parsed = JSON.parse(errorMessage);
-        toast.error(
-          `Signup failed: ${parsed.detail || JSON.stringify(parsed)}`,
-        );
+        const detail = parsed.detail || JSON.stringify(parsed);
+        if (typeof detail === "string" && detail.includes("northeastern")) {
+          toast.error("Invalid Email Domain", {
+            description: "Only @northeastern.edu email addresses are allowed.",
+          });
+        } else {
+          toast.error(`Signup failed: ${detail}`);
+        }
       } catch (_err: unknown) {
         toast.error("Signup failed");
       }
@@ -85,7 +123,10 @@ export default function Login() {
       <main className="flex flex-1 items-start justify-center py-12 px-4">
         <div className="w-full max-w-3xl">
           <div className="mx-auto max-w-xl">
-            <Tabs  value={activeTab} onValueChange={(val) => setActiveTab(val as "signin" | "signup")}>
+            <Tabs
+              value={activeTab}
+              onValueChange={(val) => setActiveTab(val as "signin" | "signup")}
+            >
               <TabsList className="mb-4">
                 <TabsTrigger value="signin">Sign in</TabsTrigger>
                 <TabsTrigger value="signup">Sign up</TabsTrigger>

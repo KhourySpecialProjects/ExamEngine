@@ -5,6 +5,7 @@ export interface ScheduleParameters {
   instructor_max_per_day?: number;
   avoid_back_to_back?: boolean;
   max_days?: number;
+  prioritize_large_courses?: boolean;
 }
 
 export interface ConflictBreakdown {
@@ -92,6 +93,12 @@ export interface ScheduleResult {
   failures: ScheduleFailure[];
   schedule: ScheduleData;
   parameters: ScheduleParameters;
+  is_owner?: boolean;
+  is_shared?: boolean;
+  created_by_user_id?: string;
+  created_by_user_name?: string;
+  shared_by_user_id?: string | null;
+  shared_by_user_name?: string | null;
 }
 
 export interface ScheduleListItem {
@@ -103,6 +110,33 @@ export interface ScheduleListItem {
   status: "Running" | "Completed" | "Failed";
   dataset_id: string;
   total_exams: number;
+  is_shared?: boolean; // Whether this schedule is shared with the user
+  is_owner?: boolean; // Whether the user owns this schedule
+  created_by_user_id?: string;
+  created_by_user_name?: string;
+  shared_by_user_id?: string | null;
+  shared_by_user_name?: string | null;
+}
+
+export interface ScheduleShare {
+  share_id: string;
+  schedule_id: string;
+  shared_with_user_id: string;
+  shared_with_user_name: string;
+  shared_with_user_email: string;
+  permission: "view" | "edit";
+  shared_by_user_id: string;
+  shared_at: string;
+}
+
+export interface SharedSchedule {
+  share_id: string;
+  schedule_id: string;
+  schedule_name: string;
+  permission: "view" | "edit";
+  shared_by_user_id: string;
+  shared_by_user_name: string;
+  shared_at: string;
 }
 
 export class SchedulesAPI extends BaseAPI {
@@ -138,8 +172,14 @@ export class SchedulesAPI extends BaseAPI {
     if (parameters.max_days !== undefined) {
       queryParams.append("max_days", parameters.max_days.toString());
     }
+    if (parameters.prioritize_large_courses !== undefined) {
+      queryParams.append(
+        "prioritize_large_courses",
+        parameters.prioritize_large_courses.toString(),
+      );
+    }
     return this.request(
-      `/schedule/generate/${dataset_id}/${queryParams.toString() ? `?${queryParams}` : ""}`,
+      `/schedule/generate/${dataset_id}${queryParams.toString() ? `?${queryParams}` : ""}`,
       {
         method: "POST",
       },
@@ -152,6 +192,36 @@ export class SchedulesAPI extends BaseAPI {
   }
   async get(id: string): Promise<ScheduleResult> {
     return this.request(`/schedule/${id}`, {
+      method: "GET",
+    });
+  }
+
+  async shareSchedule(
+    scheduleId: string,
+    userId: string,
+    permission: "view" | "edit",
+  ): Promise<{ message: string; share_id: string }> {
+    return this.request(`/schedule/${scheduleId}/share`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ user_id: userId, permission }),
+    });
+  }
+
+  async getScheduleShares(scheduleId: string): Promise<ScheduleShare[]> {
+    return this.request(`/schedule/${scheduleId}/shares`, {
+      method: "GET",
+    });
+  }
+
+  async unshareSchedule(shareId: string): Promise<{ message: string }> {
+    return this.request(`/schedule/shares/${shareId}`, {
+      method: "DELETE",
+    });
+  }
+
+  async getSharedSchedules(): Promise<SharedSchedule[]> {
+    return this.request("/schedule/shared", {
       method: "GET",
     });
   }

@@ -1,5 +1,5 @@
 import { useMemo } from "react";
-import type { CalendarRow, Exam } from "@/lib/store/calendarStore";
+import type { CalendarRow, Exam } from "@/lib/types/calendar.types";
 import { useSchedulesStore } from "@/lib/store/schedulesStore";
 import type { CalendarExam } from "../api/schedules";
 
@@ -32,11 +32,15 @@ export function useScheduleData() {
 
   // Get stats
   const stats = useMemo(
-    () => ({
-      totalExams: allExams.length,
-      totalConflicts: allExams.reduce((sum, exam) => sum + exam.conflicts, 0),
-    }),
-    [allExams],
+    () => {
+      // Count unique conflicts from breakdown, not per-exam (to avoid double-counting)
+      const conflictCount = currentSchedule?.conflicts?.total || 0;
+      return {
+        totalExams: allExams.length,
+        totalConflicts: conflictCount,
+      };
+    },
+    [allExams, currentSchedule],
   );
 
   return {
@@ -156,32 +160,47 @@ function convertToCalendarRows(
       const examsInSlot = calendar[backendDay]?.[timeSlot] || [];
 
       // Use deterministic IDs instead of Math.random() to avoid hydration mismatch
-      const exams: Exam[] = examsInSlot.map((exam, examIndex) => ({
-        id: `${frontendDay}-${timeSlot}-${exam.CRN}-${examIndex}`,
-        courseCode: exam.Course,
-        section: exam.CRN,
-        department: exam.Course.split(" ")[0] || "MISC",
-        instructor: exam.Instructor || "TBD",
-        studentCount: exam.Size,
-        room: exam.Room,
-        building: exam.Room.split(" ")[0] || "TBD",
-        conflicts: exam.Valid ? 0 : 1,
-        day: frontendDay,
-        timeSlot,
-      }));
+      const exams: Exam[] = examsInSlot.map((exam, examIndex) => {
+        // Check if this exam (CRN) is involved in any conflicts
+        const isInConflict = conflictBreakdown.some((c) => {
+          const conflictCRN = c.crn || c.conflicting_crn;
+          const conflictCRNs = c.conflicting_crns || [];
+          return (
+            (conflictCRN && String(conflictCRN) === String(exam.CRN)) ||
+            conflictCRNs.some((ccrn: any) => String(ccrn) === String(exam.CRN))
+          );
+        });
+        
+        // Use Valid flag (set by backend) or conflict breakdown check
+        const hasConflict = !exam.Valid || isInConflict;
+        
+        return {
+          id: `${frontendDay}-${timeSlot}-${exam.CRN}-${examIndex}`,
+          courseCode: exam.Course,
+          section: exam.CRN,
+          department: exam.Course.split(" ")[0] || "MISC",
+          instructor: exam.Instructor || "TBD",
+          studentCount: exam.Size,
+          room: exam.Room,
+          building: exam.Room.split(" ")[0] || "TBD",
+          conflicts: hasConflict ? 1 : 0, // Show 1 if in conflict, 0 otherwise
+          day: frontendDay,
+          timeSlot,
+        };
+      });
 
-      // Count conflicts for this cell from both exam validity and actual conflict breakdown
+      // Count unique conflicts for this cell (not per-exam to avoid double-counting)
       // Extract time from timeSlot format "0 (9:00-11:00)" -> "9:00-11:00" to match conflict map
       const normalizedTimeSlot = extractTimeFromBlock(timeSlot);
       const cellConflictKey = `${frontendDay}-${normalizedTimeSlot}`;
-      const actualConflicts = conflictMap.get(cellConflictKey) || 0;
-      const invalidExams = exams.filter((e) => e.conflicts > 0).length;
+      // Use conflictMap count (unique conflicts per cell) instead of summing exam conflicts
+      const cellConflicts = conflictMap.get(cellConflictKey) || 0;
 
       return {
         day: frontendDay,
         timeSlot,
         examCount: exams.length,
-        conflicts: actualConflicts + invalidExams, // Combine both types
+        conflicts: cellConflicts, // Use unique conflict count from map
         exams,
       };
     }),

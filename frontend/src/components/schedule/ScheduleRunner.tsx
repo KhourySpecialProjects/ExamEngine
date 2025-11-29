@@ -1,6 +1,6 @@
 "use client";
 
-import { AlertCircle, Loader2, Play, Settings } from "lucide-react";
+import { AlertCircle, Loader2, ArrowRightCircle } from "lucide-react";
 import { toast } from "sonner";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
@@ -72,9 +72,9 @@ export function ScheduleRunner() {
   return (
     <Dialog>
       <DialogTrigger asChild>
-        <Button className="w-full" disabled={!selectedDatasetId}>
-          <Settings className="h-4 w-4" />
-          Optimize
+        <Button className="w-full bg-emerald-700 hover:bg-emerald-800 text-white" disabled={!selectedDatasetId}>
+          <ArrowRightCircle className="h-4 w-4" />
+          Generate Schedule
         </Button>
       </DialogTrigger>
 
@@ -212,6 +212,27 @@ export function ScheduleRunner() {
                 }}
               />
             </div>
+
+            <Separator />
+
+            {/* Large Class Priority */}
+            <div className="flex items-center justify-between">
+              <div className="space-y-1">
+                <Label>Prioritize Large Classes</Label>
+                <p className="text-xs text-muted-foreground">
+                  Schedule the highest-enrollment courses first to secure optimal
+                  time slots.
+                </p>
+              </div>
+              <Switch
+                checked={parameters.prioritize_large_courses ?? false}
+                onCheckedChange={(checked) => {
+                  if (isGenerating) return;
+                  setParameters({ prioritize_large_courses: checked });
+                }}
+                disabled={isGenerating}
+              />
+            </div>
           </div>
 
           {/* Action Buttons */}
@@ -219,7 +240,7 @@ export function ScheduleRunner() {
             <Button
               onClick={handleGenerate}
               disabled={isGenerateDisabled}
-              className="flex-1"
+              className="flex-1 bg-emerald-700 hover:bg-emerald-800 text-white"
             >
               {isGenerating ? (
                 <>
@@ -228,7 +249,7 @@ export function ScheduleRunner() {
                 </>
               ) : (
                 <>
-                  <Play className="h-4 w-4" />
+                  <ArrowRightCircle className="h-4 w-4" />
                   Generate Schedule
                 </>
               )}

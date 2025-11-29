@@ -76,6 +76,27 @@ def get_auth_service(db: Session = Depends(get_db)) -> AuthService:
     return AuthService(user_repo)
 
 
+def get_admin_user(current_user: Users = Depends(get_current_user)) -> Users:
+    """
+    Dependency to ensure current user is an admin.
+
+    Args:
+        current_user: Current authenticated user
+
+    Returns:
+        Admin user
+
+    Raises:
+        HTTPException: If user is not an admin
+    """
+    if current_user.role != "admin":
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Admin access required",
+        )
+    return current_user
+
+
 def get_dataset_service(db: Session = Depends(get_db)) -> DatasetService:
     """Dependency injection for DatasetService."""
     dataset_repo = DatasetRepo(db)

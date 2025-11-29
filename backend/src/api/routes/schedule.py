@@ -1,13 +1,17 @@
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, status
+from pydantic import BaseModel
+from sqlalchemy.orm import Session
 
-from src.api.deps import get_current_user, get_schedule_service
-from src.schemas.db import Users
+from src.api.deps import get_current_user, get_db, get_schedule_service
+from src.repo.schedule import ScheduleRepo
+from src.repo.schedule_share import ScheduleShareRepo
+from src.schemas.db import Schedules, Users
 from src.services.schedule import ScheduleService
 
 
-router = APIRouter(prefix="/schedule", tags=["Scheduling"])
+router = APIRouter(prefix="/schedule", tags=["schedule"])
 
 
 @router.post("/generate/{dataset_id}")
@@ -18,6 +22,7 @@ async def generate_schedule_from_dataset(
     instructor_max_per_day: int = 3,
     avoid_back_to_back: bool = True,
     max_days: int = 7,
+    prioritize_large_courses: bool = False,
     current_user: Users = Depends(get_current_user),
     schedule_service: ScheduleService = Depends(get_schedule_service),
 ):
@@ -36,6 +41,7 @@ async def generate_schedule_from_dataset(
             instructor_max_per_day,
             avoid_back_to_back,
             max_days,
+            prioritize_large_courses,
         )
         return result
     except Exception as e:
@@ -78,6 +84,34 @@ async def list_schedules(
         ) from e
 
 
+@router.get("/shared")
+async def get_shared_schedules(
+    current_user: Users = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Get all schedules shared with the current user."""
+    share_repo = ScheduleShareRepo(db)
+    shares = share_repo.get_shared_schedules_for_user(current_user.user_id)
+
+    result = []
+    for share in shares:
+        # Ensure relationships are loaded
+        if share.schedule is None or share.shared_by_user is None:
+            continue
+        result.append(
+            {
+                "share_id": str(share.share_id),
+                "schedule_id": str(share.schedule_id),
+                "schedule_name": share.schedule.schedule_name,
+                "permission": share.permission,
+                "shared_by_user_id": str(share.shared_by_user_id),
+                "shared_by_user_name": share.shared_by_user.name,
+                "shared_at": share.shared_at.isoformat(),
+            }
+        )
+    return result
+
+
 @router.get("/{schedule_id}")
 async def get_schedule(
     schedule_id: UUID,
@@ -112,3 +146,232 @@ async def get_schedule(
         raise HTTPException(
             status_code=500, detail=f"Failed to retrieve schedule: {e}"
         ) from e
+
+
+class ShareScheduleRequest(BaseModel):
+    """Request model for sharing a schedule."""
+
+    user_id: str
+    permission: str  # "view" or "edit"
+
+
+class ShareResponse(BaseModel):
+    """Response model for share operations."""
+
+    share_id: str
+    schedule_id: str
+    shared_with_user_id: str
+    shared_with_user_name: str
+    shared_with_user_email: str
+    permission: str
+    shared_by_user_id: str
+    shared_at: str
+
+
+@router.post("/{schedule_id}/share")
+async def share_schedule(
+    schedule_id: UUID,
+    share_data: ShareScheduleRequest,
+    current_user: Users = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """
+    Share a schedule with another user.
+
+    Only the schedule owner can share it.
+    """
+    schedule_repo = ScheduleRepo(db)
+    share_repo = ScheduleShareRepo(db)
+    from src.repo.user import UserRepo
+
+    # Verify user owns the schedule
+    schedule = schedule_repo.get_by_id_for_user(schedule_id, current_user.user_id)
+    if not schedule:
+        # Check if schedule exists at all
+        if not schedule_repo.get_by_id(schedule_id):
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND, detail="Schedule not found"
+            )
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Only schedule owners can share schedules",
+        )
+
+    # Check if user owns it (not just has share)
+    from sqlalchemy import select
+
+    from src.schemas.db import Runs
+
+    stmt = (
+        select(Schedules)
+        .join(Runs, Schedules.run_id == Runs.run_id)
+        .where(
+            Schedules.schedule_id == schedule.schedule_id,
+            Runs.user_id == current_user.user_id,
+        )
+    )
+    if not db.execute(stmt).scalars().first():
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Only schedule owners can share schedules",
+        )
+
+    # Validate permission
+    if share_data.permission not in ["view", "edit"]:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Permission must be 'view' or 'edit'",
+        )
+
+    # Validate user to share with
+    shared_with_user_id = UUID(share_data.user_id)
+    if shared_with_user_id == current_user.user_id:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Cannot share schedule with yourself",
+        )
+
+    user_repo = UserRepo(db)
+    shared_with_user = user_repo.get_by_id(shared_with_user_id)
+    if not shared_with_user:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="User not found"
+        )
+
+    # Check if share already exists
+    existing_share = share_repo.get_share_by_schedule_and_user(
+        schedule_id, shared_with_user_id
+    )
+    if existing_share:
+        # Update existing share
+        updated_share = share_repo.update_share_permission(
+            existing_share.share_id, share_data.permission
+        )
+        if updated_share:
+            return ShareResponse(
+                share_id=str(updated_share.share_id),
+                schedule_id=str(updated_share.schedule_id),
+                shared_with_user_id=str(updated_share.shared_with_user_id),
+                shared_with_user_name=shared_with_user.name,
+                shared_with_user_email=shared_with_user.email,
+                permission=updated_share.permission,
+                shared_by_user_id=str(updated_share.shared_by_user_id),
+                shared_at=updated_share.shared_at.isoformat(),
+            )
+
+    # Create new share
+    share = share_repo.create_share(
+        schedule_id=schedule_id,
+        shared_with_user_id=shared_with_user_id,
+        permission=share_data.permission,
+        shared_by_user_id=current_user.user_id,
+    )
+
+    return ShareResponse(
+        share_id=str(share.share_id),
+        schedule_id=str(share.schedule_id),
+        shared_with_user_id=str(share.shared_with_user_id),
+        shared_with_user_name=shared_with_user.name,
+        shared_with_user_email=shared_with_user.email,
+        permission=share.permission,
+        shared_by_user_id=str(share.shared_by_user_id),
+        shared_at=share.shared_at.isoformat(),
+    )
+
+
+@router.get("/{schedule_id}/shares")
+async def list_schedule_shares(
+    schedule_id: UUID,
+    current_user: Users = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """List all shares for a schedule (owner only)."""
+    schedule_repo = ScheduleRepo(db)
+    share_repo = ScheduleShareRepo(db)
+
+    # Verify user owns the schedule
+    schedule = schedule_repo.get_by_id_for_user(schedule_id, current_user.user_id)
+    if not schedule:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Schedule not found"
+        )
+
+    # Check ownership
+    from sqlalchemy import select
+
+    from src.schemas.db import Runs
+
+    stmt = (
+        select(Schedules)
+        .join(Runs, Schedules.run_id == Runs.run_id)
+        .where(
+            Schedules.schedule_id == schedule.schedule_id,
+            Runs.user_id == current_user.user_id,
+        )
+    )
+    if not db.execute(stmt).scalars().first():
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Only schedule owners can view shares",
+        )
+
+    shares = share_repo.get_shares_for_schedule(schedule_id)
+    return [
+        ShareResponse(
+            share_id=str(share.share_id),
+            schedule_id=str(share.schedule_id),
+            shared_with_user_id=str(share.shared_with_user_id),
+            shared_with_user_name=share.shared_with_user.name,
+            shared_with_user_email=share.shared_with_user.email,
+            permission=share.permission,
+            shared_by_user_id=str(share.shared_by_user_id),
+            shared_at=share.shared_at.isoformat(),
+        )
+        for share in shares
+    ]
+
+
+@router.delete("/shares/{share_id}")
+async def unshare_schedule(
+    share_id: UUID,
+    current_user: Users = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Remove a share (owner only)."""
+    share_repo = ScheduleShareRepo(db)
+    schedule_repo = ScheduleRepo(db)
+
+    share = share_repo.get_share(share_id)
+    if not share:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Share not found"
+        )
+
+    # Verify user owns the schedule
+    schedule = schedule_repo.get_by_id_for_user(share.schedule_id, current_user.user_id)
+    if not schedule:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Schedule not found"
+        )
+
+    # Check ownership
+    from sqlalchemy import select
+
+    from src.schemas.db import Runs
+
+    stmt = (
+        select(Schedules)
+        .join(Runs, Schedules.run_id == Runs.run_id)
+        .where(
+            Schedules.schedule_id == schedule.schedule_id,
+            Runs.user_id == current_user.user_id,
+        )
+    )
+    if not db.execute(stmt).scalars().first():
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Only schedule owners can remove shares",
+        )
+
+    share_repo.delete_share(share_id)
+    return {"message": "Share removed successfully"}

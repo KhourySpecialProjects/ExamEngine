@@ -1,15 +1,20 @@
-import { useSchedulesStore as useScheduleStore } from "@/lib/store/schedulesStore";
+// biome-ignore-all lint/suspicious/noExplicitAny: this file require conflict types definitions
+import { useSchedulesStore } from "@/lib/store/schedulesStore";
+import type { ScheduleConflicts, ScheduleData } from "../api/schedules";
 
+// Types
 export type ConflictType =
   | "student_double_book"
   | "instructor_double_book"
   | "student_gt3_per_day"
+  | "student_gt_max_per_day"
+  | "back_to_back"
   | "back_to_back_student"
   | "back_to_back_instructor"
   | "large_course_not_early"
   | string;
 
-export type ConflictRow = {
+export interface ConflictRow {
   id: string;
   type: ConflictType;
   entity: string;
@@ -18,150 +23,223 @@ export type ConflictRow = {
   course: string;
   crn: string;
   conflictingCourses: string[];
-  size?: number | null;
-  reason?: string | null;
-  [key: string]: any;
-};
+  size: number | null;
+  reason: string | null;
+}
 
-export type ConflictDataByType = Record<string, ConflictRow[]>;
+export type ConflictDataByType = Record<ConflictType, ConflictRow[]>;
 
-export function useConflictDataSimple() {
-  const currentSchedule = useScheduleStore((s) => s.currentSchedule);
-  const conflicts = currentSchedule?.conflicts ?? {};
-  const schedule = currentSchedule?.schedule;
-  
-  // Backend returns breakdown array, not rows
-  const breakdown: any[] = conflicts.breakdown ?? [];
-  
-  // Build a map of CRN to course name from the schedule for lookup
-  const crnToCourseMap = new Map<string, string>();
-  if (schedule?.complete) {
-    schedule.complete.forEach((exam: any) => {
-      if (exam.CRN && exam.Course) {
-        crnToCourseMap.set(String(exam.CRN), exam.Course);
-      }
+export interface ConflictMetrics {
+  hard_student_conflicts: number;
+  hard_instructor_conflicts: number;
+  student_gt3_per_day: number;
+  students_back_to_back: number;
+  instructors_back_to_back: number;
+  large_courses_not_early: number;
+}
+
+// Constants
+const INSTRUCTOR_CONFLICT_TYPES: ConflictType[] = [
+  "back_to_back_instructor",
+  "instructor_double_book",
+  "instructor_gt_max_per_day",
+];
+
+const MULTI_COURSE_CONFLICT_TYPES: ConflictType[] = [
+  "student_double_book",
+  "instructor_double_book",
+  "student_gt_max_per_day",
+  "student_gt3_per_day",
+];
+
+// Helper functions
+function buildCrnToCourseMap(schedule: ScheduleData): Map<string, string> {
+  const map = new Map<string, string>();
+  if (!schedule.complete) return map;
+
+  for (const exam of schedule.complete) {
+    if (exam.CRN && exam.Course) {
+      map.set(String(exam.CRN), exam.Course);
+    }
+  }
+  return map;
+}
+
+function getEntity(conflict: any, type: ConflictType): string {
+  const isInstructorConflict = INSTRUCTOR_CONFLICT_TYPES.includes(type);
+
+  if (isInstructorConflict) {
+    return conflict.instructor_name || conflict.entity_id || "";
+  }
+  return (
+    conflict.student_id || conflict.entity_id || conflict.instructor_id || ""
+  );
+}
+
+function getConflictingItems(conflict: any): {
+  courses: string[];
+  crns: string[];
+} {
+  const courses = [
+    ...(conflict.conflicting_course ? [conflict.conflicting_course] : []),
+    ...(conflict.conflicting_courses || []),
+  ];
+
+  const crns = [
+    ...(conflict.conflicting_crn ? [conflict.conflicting_crn] : []),
+    ...(conflict.conflicting_crns || []),
+  ].map(String);
+
+  return { courses, crns };
+}
+
+function createMultiCourseRows(
+  conflict: any,
+  idx: number,
+  type: ConflictType,
+  entity: string,
+  crnToCourseMap: Map<string, string>,
+): ConflictRow[] {
+  const { courses: conflictingCourses, crns: conflictingCrns } =
+    getConflictingItems(conflict);
+  const day = conflict.day || "";
+  const block = conflict.block?.toString() || conflict.block_time || "";
+
+  // Collect all courses involved
+  const allCourses: Array<{ course: string; crn: string }> = [];
+
+  // Add main course
+  if (conflict.course || conflict.crn) {
+    allCourses.push({
+      course: conflict.course || "",
+      crn: conflict.crn?.toString() || "",
     });
   }
-  
-  // Convert breakdown to ConflictRow format
-  // For conflicts involving multiple courses (double-book, >3/day), expand to show all courses
+
+  // Add conflicting courses
+  if (conflictingCourses.length > 0) {
+    conflictingCourses.forEach((course, i) => {
+      allCourses.push({
+        course,
+        crn: conflictingCrns[i] || "",
+      });
+    });
+  } else if (conflictingCrns.length > 0) {
+    conflictingCrns.forEach((crn) => {
+      allCourses.push({
+        course: crnToCourseMap.get(crn) || "",
+        crn,
+      });
+    });
+  }
+
+  // Create a row for each course
+  return allCourses.map((courseInfo, courseIdx) => {
+    const otherCourses = allCourses
+      .filter((_, i) => i !== courseIdx)
+      .map((c) => c.course || c.crn)
+      .filter(Boolean);
+
+    return {
+      id: `conflict-${idx}-course-${courseIdx}`,
+      type,
+      entity,
+      day,
+      block,
+      course: courseInfo.course,
+      crn: courseInfo.crn,
+      conflictingCourses: otherCourses,
+      size: conflict.size || null,
+      reason: conflict.reason || null,
+    };
+  });
+}
+
+function createSingleRow(
+  conflict: any,
+  idx: number,
+  type: ConflictType,
+  entity: string,
+): ConflictRow {
+  const { courses: conflictingCourses, crns: conflictingCrns } =
+    getConflictingItems(conflict);
+
+  return {
+    id: `conflict-${idx}`,
+    type,
+    entity,
+    day: conflict.day || "",
+    block: conflict.block?.toString() || conflict.block_time || "",
+    course: conflict.course || "",
+    crn: conflict.crn?.toString() || "",
+    conflictingCourses:
+      conflictingCourses.length > 0 ? conflictingCourses : conflictingCrns,
+    size: conflict.size || null,
+    reason: conflict.reason || null,
+  };
+}
+
+function convertBreakdownToRows(
+  breakdown: any[],
+  crnToCourseMap: Map<string, string>,
+): ConflictRow[] {
   const rows: ConflictRow[] = [];
-  
-  breakdown.forEach((c, idx) => {
-    const conflictType = c.conflict_type || "unknown";
-    // For instructor conflicts, prefer instructor_name; for student conflicts, use student_id/entity_id
-    const isInstructorConflict = conflictType === "back_to_back_instructor" || conflictType === "instructor_double_book" || conflictType === "instructor_gt_max_per_day";
-    const entity = isInstructorConflict 
-      ? (c.instructor_name || c.entity_id || "")
-      : (c.student_id || c.entity_id || c.instructor_id || "");
-    const day = c.day || "";
-    const block = c.block?.toString() || c.block_time || "";
-    
-    // Get all courses involved in this conflict
-    const mainCourse = c.course || "";
-    const mainCrn = c.crn?.toString() || "";
-    
-    // Handle both single conflicting_crn and array conflicting_crns
-    const conflictingCrn = c.conflicting_crn ? [c.conflicting_crn] : [];
-    const conflictingCrns = c.conflicting_crns || [];
-    const allConflictingCrns = [...conflictingCrn, ...conflictingCrns];
-    
-    // Handle both single conflicting_course and array conflicting_courses
-    const conflictingCourse = c.conflicting_course ? [c.conflicting_course] : [];
-    const conflictingCourses = c.conflicting_courses || [];
-    const allConflictingCourses = [...conflictingCourse, ...conflictingCourses];
-    
-    // For double-book and >3/day conflicts, create a row for each course involved
-    if (
-      (conflictType === "student_double_book" || 
-       conflictType === "instructor_double_book" ||
-       conflictType === "student_gt_max_per_day" ||
-       conflictType === "student_gt3_per_day") &&
-      (allConflictingCourses.length > 0 || allConflictingCrns.length > 0)
-    ) {
-      // Collect all courses involved (main + conflicting)
-      const allCourses: Array<{ course: string; crn: string }> = [];
-      
-      // Add main course if it exists
-      if (mainCourse || mainCrn) {
-        allCourses.push({ course: mainCourse, crn: mainCrn });
-      }
-      
-      // Add conflicting courses
-      if (allConflictingCourses.length > 0) {
-        allConflictingCourses.forEach((confCourse: string, i: number) => {
-          const confCrn = allConflictingCrns[i] ? String(allConflictingCrns[i]) : "";
-          allCourses.push({ course: confCourse, crn: confCrn });
-        });
-      } else if (allConflictingCrns.length > 0) {
-        allConflictingCrns.forEach((confCrn: any) => {
-          const crnStr = String(confCrn);
-          const courseName = crnToCourseMap.get(crnStr) || "";
-          allCourses.push({ course: courseName, crn: crnStr });
-        });
-      }
-      
-      // Create a row for each course, showing what it conflicts with
-      allCourses.forEach((courseInfo, courseIdx) => {
-        const otherCourses = allCourses
-          .filter((_, i) => i !== courseIdx)
-          .map((oc) => oc.course || oc.crn)
-          .filter((name) => name);
-        
-        rows.push({
-          id: `conflict-${idx}-course-${courseIdx}`,
-          type: conflictType,
-          entity: entity,
-          day: day,
-          block: block,
-          course: courseInfo.course,
-          crn: courseInfo.crn,
-          conflictingCourses: otherCourses,
-          size: c.size || null,
-          reason: c.reason || null,
-          ...c,
-          crn: courseInfo.crn,
-          course: courseInfo.course,
-        });
-      });
+
+  breakdown.forEach((conflict, idx) => {
+    const type: ConflictType = conflict.conflict_type || "unknown";
+    const entity = getEntity(conflict, type);
+    const { courses, crns } = getConflictingItems(conflict);
+    const hasConflictingItems = courses.length > 0 || crns.length > 0;
+
+    if (MULTI_COURSE_CONFLICT_TYPES.includes(type) && hasConflictingItems) {
+      rows.push(
+        ...createMultiCourseRows(conflict, idx, type, entity, crnToCourseMap),
+      );
     } else {
-      // For other conflict types, create single row
-      const allConflicting = allConflictingCourses.length > 0 
-        ? allConflictingCourses 
-        : allConflictingCrns.map((cc: any) => String(cc));
-      
-      rows.push({
-        id: `conflict-${idx}`,
-        type: conflictType,
-        entity: entity,
-        day: day,
-        block: block,
-        course: mainCourse,
-        crn: mainCrn,
-        conflictingCourses: allConflicting,
-        size: c.size || null,
-        reason: c.reason || null,
-        ...c,
-      });
+      rows.push(createSingleRow(conflict, idx, type, entity));
     }
   });
 
-  // Calculate metrics from breakdown
-  const metrics = {
-    hard_student_conflicts: breakdown.filter((c) => c.conflict_type === "student_double_book").length,
-    hard_instructor_conflicts: breakdown.filter((c) => c.conflict_type === "instructor_double_book").length,
-    student_gt3_per_day: breakdown.filter((c) => c.conflict_type === "student_gt_max_per_day").length,
-    students_back_to_back: breakdown.filter((c) => c.conflict_type === "back_to_back" || c.conflict_type === "back_to_back_student").length,
-    instructors_back_to_back: breakdown.filter((c) => c.conflict_type === "back_to_back_instructor").length,
-    large_courses_not_early: breakdown.filter((c) => c.conflict_type === "large_course_not_early").length,
+  return rows;
+}
+
+function calculateMetrics(breakdown: any[]): ConflictMetrics {
+  const countByType = (types: ConflictType[]) =>
+    breakdown.filter((c) => types.includes(c.conflict_type)).length;
+
+  return {
+    hard_student_conflicts: countByType(["student_double_book"]),
+    hard_instructor_conflicts: countByType(["instructor_double_book"]),
+    student_gt3_per_day: countByType(["student_gt_max_per_day"]),
+    students_back_to_back: countByType([
+      "back_to_back",
+      "back_to_back_student",
+    ]),
+    instructors_back_to_back: countByType(["back_to_back_instructor"]),
+    large_courses_not_early: countByType(["large_course_not_early"]),
   };
+}
 
-  const rowsByType: ConflictDataByType = {};
-  for (const r of rows) {
-    if (!rowsByType[r.type]) rowsByType[r.type] = [];
-    rowsByType[r.type].push(r);
-  }
+function groupRowsByType(rows: ConflictRow[]): ConflictDataByType {
+  return rows.reduce((acc, row) => {
+    if (!acc[row.type]) acc[row.type] = [];
+    acc[row.type].push(row);
+    return acc;
+  }, {} as ConflictDataByType);
+}
 
+export function useConflictDataSimple() {
+  const currentSchedule = useSchedulesStore((s) => s.currentSchedule);
+  const conflicts = currentSchedule?.conflicts ?? ({} as ScheduleConflicts);
+  const schedule = currentSchedule?.schedule;
+
+  const breakdown: any[] = conflicts.breakdown ?? [];
+  const crnToCourseMap = buildCrnToCourseMap(schedule as ScheduleData);
+
+  const rows = convertBreakdownToRows(breakdown, crnToCourseMap);
+  const metrics = calculateMetrics(breakdown);
+  const rowsByType = groupRowsByType(rows);
   const types = Object.keys(rowsByType);
+
   return { metrics, rowsByType, types };
 }

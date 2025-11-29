@@ -26,7 +26,6 @@ export function DatasetBar() {
     selectDataset,
     fetchDatasets,
     getSelectedDataset,
-    selectDeleteDataset,
     isLoading,
   } = useDatasetStore();
 
@@ -85,7 +84,6 @@ export function DatasetBar() {
                         key={dataset.dataset_id}
                         value={dataset.dataset_name}
                         onSelect={() => {
-                          selectDeleteDataset(dataset);
                           selectDataset(dataset.dataset_id);
                           setOpen(false);
                         }}

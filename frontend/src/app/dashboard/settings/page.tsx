@@ -1,27 +1,27 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
 import { MoveLeft, User, Users } from "lucide-react";
-import { Button } from "@/components/ui/button";
+import { useRouter, useSearchParams } from "next/navigation";
+import { Suspense, useEffect, useState } from "react";
+import { AdminUserManagement } from "@/components/admin/AdminUserManagement";
 import {
   Breadcrumb,
   BreadcrumbItem,
   BreadcrumbList,
   BreadcrumbPage,
 } from "@/components/ui/breadcrumb";
+import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { AdminUserManagement } from "@/components/admin/AdminUserManagement";
 import { apiClient } from "@/lib/api/client";
 import { useAuthStore } from "@/lib/store/authStore";
 
-export default function SettingsPage() {
+function SettingsContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const { user } = useAuthStore();
   const [isLoading, setIsLoading] = useState(true);
   const [isAdmin, setIsAdmin] = useState(false);
-  
+
   // Get initial tab from URL query parameter, default to "account"
   const initialTab = searchParams.get("tab") || "account";
 
@@ -32,7 +32,7 @@ export default function SettingsPage() {
         try {
           await apiClient.admin.getPendingUsers();
           setIsAdmin(true);
-        } catch (err) {
+        } catch (_err) {
           setIsAdmin(false);
         }
       }
@@ -121,3 +121,16 @@ export default function SettingsPage() {
   );
 }
 
+export default function SettingsPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="flex items-center justify-center py-12">
+          <p className="text-sm text-muted-foreground">Loading settings...</p>
+        </div>
+      }
+    >
+      <SettingsContent />
+    </Suspense>
+  );
+}

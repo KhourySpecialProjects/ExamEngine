@@ -44,6 +44,7 @@ function formatDate(dateString: string): string {
 
 export function createScheduleColumns(
   onDelete?: (scheduleId: string) => void,
+  // biome-ignore lint/suspicious/noExplicitAny: table types needs to be flexible
 ): ColumnDef<ScheduleListItem, any>[] {
   return [
     columnHelper.accessor("schedule_name", {

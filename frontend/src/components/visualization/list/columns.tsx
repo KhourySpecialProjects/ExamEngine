@@ -2,7 +2,7 @@ import { type ColumnDef, createColumnHelper } from "@tanstack/react-table";
 import { AlertCircle } from "lucide-react";
 import { SortableHeader } from "@/components/common/table/SortableHeader";
 import { Badge } from "@/components/ui/badge";
-import type { Exam } from "@/lib/store/calendarStore";
+import type { Exam } from "@/lib/types/calendar.types";
 
 const columnHelper = createColumnHelper<Exam>();
 

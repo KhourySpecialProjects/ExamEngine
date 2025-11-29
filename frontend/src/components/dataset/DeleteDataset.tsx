@@ -25,8 +25,8 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
-import type { DatasetMetadata } from "@/lib/api/datasets";
 import { useDatasetStore } from "@/lib/store/datasetStore";
+import type { DatasetMetadata } from "@/lib/types/datasets.api.types";
 
 export function DeleteDataset() {
   const { datasets, fetchDatasets } = useDatasetStore();

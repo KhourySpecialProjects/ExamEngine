@@ -1,7 +1,7 @@
-import * as React from "react";
 import { AlertCircle } from "lucide-react";
-import { Button } from "@/components/ui/button";
+import { useMemo } from "react";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 
 interface CourseProps {
   title: string;
@@ -13,8 +13,14 @@ interface CourseProps {
 
 const colors = ["red", "blue", "green"] as const;
 
-export function Course({ title, students, building, className, hasConflict = false }: CourseProps) {
-  const color = React.useMemo(() => {
+export function Course({
+  title,
+  students,
+  building,
+  className,
+  hasConflict = false,
+}: CourseProps) {
+  const color = useMemo(() => {
     return colors[Math.floor(Math.random() * colors.length)];
   }, []);
 

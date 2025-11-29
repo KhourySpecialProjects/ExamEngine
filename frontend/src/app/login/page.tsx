@@ -2,7 +2,7 @@
 import Image from "next/image";
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import React from "react";
+import React, { Suspense } from "react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import {
@@ -18,7 +18,7 @@ import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useAuthStore } from "@/lib/store/authStore";
 
-export default function Login() {
+function LoginContent() {
   const login = useAuthStore((state) => state.login);
   const signup = useAuthStore((state) => state.signup);
   const router = useRouter();
@@ -51,13 +51,18 @@ export default function Login() {
       const errorMessage =
         error instanceof Error ? error.message : "Login Failed";
       // Check if it's a pending user error
-      if (errorMessage.includes("pending") || errorMessage.includes("approval")) {
+      if (
+        errorMessage.includes("pending") ||
+        errorMessage.includes("approval")
+      ) {
         toast.error("Account Pending Approval", {
-          description: "Your account is pending admin approval. Please wait for an administrator to approve your account.",
+          description:
+            "Your account is pending admin approval. Please wait for an administrator to approve your account.",
         });
       } else if (errorMessage.includes("rejected")) {
         toast.error("Account Rejected", {
-          description: "Your account has been rejected. Please contact an administrator.",
+          description:
+            "Your account has been rejected. Please contact an administrator.",
         });
       } else {
         toast.error("Login Failed", {
@@ -80,7 +85,8 @@ export default function Login() {
     try {
       await signup(suName, suEmail, suPassword);
       toast.success("Sign Up Successful", {
-        description: "Your account is pending admin approval. You will be able to login once an administrator approves your account.",
+        description:
+          "Your account is pending admin approval. You will be able to login once an administrator approves your account.",
       });
       // Don't redirect - user needs to wait for approval
       setSuName("");
@@ -240,5 +246,18 @@ export default function Login() {
         </div>
       </footer>
     </div>
+  );
+}
+export default function LoginPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="flex items-center justify-center py-12">
+          <p className="text-sm text-muted-foreground">Loading login page...</p>
+        </div>
+      }
+    >
+      <LoginContent />
+    </Suspense>
   );
 }

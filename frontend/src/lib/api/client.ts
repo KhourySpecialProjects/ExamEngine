@@ -30,7 +30,6 @@ class ApiClient {
   public datasets: DatasetsAPI;
   public schedules: SchedulesAPI;
   public baseUrl: string;
-  public admin: AdminAPI;
 
   constructor(baseUrl?: string) {
     this.baseUrl = baseUrl || getApiBaseUrl();

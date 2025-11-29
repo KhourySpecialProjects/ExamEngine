@@ -151,6 +151,7 @@ services:
       dockerfile: frontend/Dockerfile
       args:
         - NODE_ENV=production
+        - NEXT_PUBLIC_API_URL=${NEXT_PUBLIC_API_URL}
     container_name: exam_engine_frontend
     profiles: ["prod"]
     ports:

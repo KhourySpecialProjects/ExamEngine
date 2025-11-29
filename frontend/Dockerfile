@@ -2,6 +2,11 @@ FROM node:20-bookworm-slim
 
 WORKDIR /app
 
+ARG NODE_ENV
+# Next.js pass environment variables at build time
+ARG NEXT_PUBLIC_API_URL 
+ENV NEXT_PUBLIC_API_URL=${NEXT_PUBLIC_API_URL}
+
 # Install system dependencies
 RUN apt-get update && apt-get install -y curl && rm -rf /var/lib/apt/lists/*
 
@@ -15,6 +20,9 @@ RUN npm install
 COPY frontend/ .
 
 RUN npm run build
+
+# Set Node.js environment to production
+ENV NODE_ENV=production
 
 EXPOSE 3000
 

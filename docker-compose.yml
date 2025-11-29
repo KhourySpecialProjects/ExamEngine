@@ -28,7 +28,7 @@ services:
   backend-dev:
     build:
       context: .
-      dockerfile: backend/Dockerfile
+      dockerfile: backend/Dockerfile.dev
       args:
         - ENVIRONMENT=development
     container_name: exam_engine_backend_dev

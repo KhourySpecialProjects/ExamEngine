@@ -161,11 +161,11 @@ class Scheduler:
 
         # Assign each course to best available slot
         for _idx, crn in enumerate(ordered_crns):
-            best_slot, slot_conflicts = self._find_best_slot(crn)
-            self.assignments[crn] = best_slot
+            (day, block), slot_conflicts = self._find_best_slot(crn)
+            self.assignments[crn] = (day, block)
             self.conflicts.extend(slot_conflicts)
 
-            self.state.record_placement(crn, best_slot[0], best_slot[1], self.dataset)
+            self.state.record_placement(crn, day, block, self.dataset)
 
     def _get_course_ordering(self, prioritize_large: bool) -> list[str]:
         if prioritize_large:

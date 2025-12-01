@@ -108,7 +108,7 @@ export default function DashboardPage() {
             </AlertDialogTitle>
             <AlertDialogDescription>
               This action cannot be undone.{" "}
-              <span className="font-semibold text-foreground">
+              <span className="font-semibold text-red-500">
                 {scheduleToDelete?.schedule_name ?? "This schedule"}
               </span>{" "}
               will be removed.

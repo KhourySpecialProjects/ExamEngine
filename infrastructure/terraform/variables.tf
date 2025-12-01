@@ -50,5 +50,35 @@ variable "db_username" {
 variable "db_password" {
   description = "Database password"
   type        = string
-  sensitive   = true # Won't show in logs
+  sensitive   = true #hidden in logs (same w all sensitive fields)
+}
+
+variable "database_url" {
+  description = "Database connection URL"
+  type        = string
+  sensitive   = true
+}
+
+variable "aws_access_key_id" {
+  description = "AWS Access Key ID"
+  type        = string
+  sensitive   = true
+}
+
+variable "aws_secret_access_key" {
+  description = "AWS Secret Access Key"
+  type        = string
+  sensitive   = true
+}
+
+variable "secret_key" {
+  description = "Secret key for backend application"
+  type        = string
+  sensitive   = true
+}
+
+variable "frontend_url" {
+  description = "Frontend URL for CORS configuration"
+  type        = string
+  default     = "" # Will be constructed from ALB if not provided
 }

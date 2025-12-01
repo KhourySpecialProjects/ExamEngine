@@ -9,10 +9,19 @@ export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
 }
 
-
-export function mapConflictsToConflictMap(breakdown: any[] = []): conflictMap[] {
-  const BACK_TO_BACK_TYPES = new Set(["back_to_back", "back_to_back_student", "back_to_back_instructor"]);
-  const OVER_MAX_TYPES = new Set(["student_gt_max_per_day", "student_gt3_per_day", "student_gt_max"]);
+export function mapConflictsToConflictMap(
+  breakdown: any[] = [],
+): conflictMap[] {
+  const BACK_TO_BACK_TYPES = new Set([
+    "back_to_back",
+    "back_to_back_student",
+    "back_to_back_instructor",
+  ]);
+  const OVER_MAX_TYPES = new Set([
+    "student_gt_max_per_day",
+    "student_gt3_per_day",
+    "student_gt_max",
+  ]);
 
   function getType(conf: any) {
     return conf.conflict_type ?? conf.violation ?? "unknown";
@@ -27,8 +36,16 @@ export function mapConflictsToConflictMap(breakdown: any[] = []): conflictMap[] 
   return (breakdown ?? []).map((conf) => {
     const type = getType(conf);
 
-    const instructorConflicts = getNumericOrFlag(conf, "instructor_conflicts", "instructor_id");
-    const studentConflicts = getNumericOrFlag(conf, "student_conflicts", "student_id");
+    const instructorConflicts = getNumericOrFlag(
+      conf,
+      "instructor_conflicts",
+      "instructor_id",
+    );
+    const studentConflicts = getNumericOrFlag(
+      conf,
+      "student_conflicts",
+      "student_id",
+    );
 
     return {
       conflictType: type,
@@ -45,7 +62,10 @@ export function mapConflictsToConflictMap(breakdown: any[] = []): conflictMap[] 
  * Build rows for ConflictView tables from backend breakdown and available exams.
  * Returns an object with backRows, largeRows and notScheduledRows arrays.
  */
-export function mapConflictsToRows(allExams: any[] = [], breakdown: any[] = []) {
+export function mapConflictsToRows(
+  allExams: any[] = [],
+  breakdown: any[] = [],
+) {
   const annotatedByCrn = new Map<string, any[]>();
   const annotatedByCourse = new Map<string, any[]>();
 
@@ -60,9 +80,16 @@ export function mapConflictsToRows(allExams: any[] = [], breakdown: any[] = []) 
   function buildAnnotatedMaps(exams: any[]) {
     for (const ex of exams ?? []) {
       const crn = (ex.crn ?? ex.CRN ?? ex.section ?? ex.id)?.toString?.();
-      const course = normalizeCourse(ex.course ?? ex.course_name ?? ex.course_ref ?? ex.title);
-      if (crn) annotatedByCrn.set(crn, (annotatedByCrn.get(crn) ?? []).concat(ex));
-      if (course) annotatedByCourse.set(course, (annotatedByCourse.get(course) ?? []).concat(ex));
+      const course = normalizeCourse(
+        ex.course ?? ex.course_name ?? ex.course_ref ?? ex.title,
+      );
+      if (crn)
+        annotatedByCrn.set(crn, (annotatedByCrn.get(crn) ?? []).concat(ex));
+      if (course)
+        annotatedByCourse.set(
+          course,
+          (annotatedByCourse.get(course) ?? []).concat(ex),
+        );
     }
   }
 
@@ -71,13 +98,16 @@ export function mapConflictsToRows(allExams: any[] = [], breakdown: any[] = []) 
     if (Array.isArray(identifier)) {
       for (const it of identifier) {
         const k = String(it);
-        if (annotatedByCrn.has(k)) matched.push(...(annotatedByCrn.get(k) ?? []));
+        if (annotatedByCrn.has(k))
+          matched.push(...(annotatedByCrn.get(k) ?? []));
         const norm = normalizeCourse(it);
-        if (norm && annotatedByCourse.has(norm)) matched.push(...(annotatedByCourse.get(norm) ?? []));
+        if (norm && annotatedByCourse.has(norm))
+          matched.push(...(annotatedByCourse.get(norm) ?? []));
       }
     } else {
       const norm = normalizeCourse(identifier);
-      if (norm && annotatedByCourse.has(norm)) matched.push(...(annotatedByCourse.get(norm) ?? []));
+      if (norm && annotatedByCourse.has(norm))
+        matched.push(...(annotatedByCourse.get(norm) ?? []));
     }
   }
 
@@ -89,26 +119,49 @@ export function mapConflictsToRows(allExams: any[] = [], breakdown: any[] = []) 
 
   for (const conf of breakdown ?? []) {
     const type = conf.conflict_type ?? conf.violation ?? "unknown";
-    const crn = conf.crn ?? (Array.isArray(conf.conflicting_crns) && conf.conflicting_crns[0]) ?? null;
-    const course = conf.course ?? conf.course_ref ?? conf.conflicting_course ?? null;
+    const crn =
+      conf.crn ??
+      (Array.isArray(conf.conflicting_crns) && conf.conflicting_crns[0]) ??
+      null;
+    const course =
+      conf.course ?? conf.course_ref ?? conf.conflicting_course ?? null;
     const normCourse = normalizeCourse(course);
 
     // collect matching exams (by CRN or normalized course)
     const matched: any[] = [];
-    if (crn && annotatedByCrn.has(String(crn))) matched.push(...(annotatedByCrn.get(String(crn)) ?? []));
-    if (normCourse && annotatedByCourse.has(normCourse)) matched.push(...(annotatedByCourse.get(normCourse) ?? []));
+    if (crn && annotatedByCrn.has(String(crn)))
+      matched.push(...(annotatedByCrn.get(String(crn)) ?? []));
+    if (normCourse && annotatedByCourse.has(normCourse))
+      matched.push(...(annotatedByCourse.get(normCourse) ?? []));
 
-    addMatchesForIdentifier(matched, conf.conflicting_courses ?? conf.conflicting_course ?? null);
-    addMatchesForIdentifier(matched, conf.conflicting_crns ?? conf.conflicting_crn ?? null);
+    addMatchesForIdentifier(
+      matched,
+      conf.conflicting_courses ?? conf.conflicting_course ?? null,
+    );
+    addMatchesForIdentifier(
+      matched,
+      conf.conflicting_crns ?? conf.conflicting_crn ?? null,
+    );
 
     const uniq = Array.from(new Set(matched));
 
     // Back-to-back rows: prefer explicit student id, otherwise use count heuristic
-    if (type === "back_to_back" || type === "back_to_back_student" || type === "back_to_back_instructor") {
+    if (
+      type === "back_to_back" ||
+      type === "back_to_back_student" ||
+      type === "back_to_back_instructor"
+    ) {
       const studentId = conf.entity_id ?? conf.student_id ?? null;
       const day = conf.day ?? conf.block_day ?? conf.block_time ?? "—";
-      const blocks = conf.blocks ?? (conf.block_time ? [conf.block_time] : undefined);
-      backRows.push({ student: studentId ? String(studentId) : `student(s): ${conf.count ?? 1}`, day, blocks });
+      const blocks =
+        conf.blocks ?? (conf.block_time ? [conf.block_time] : undefined);
+      backRows.push({
+        student: studentId
+          ? String(studentId)
+          : `student(s): ${conf.count ?? 1}`,
+        day,
+        blocks,
+      });
     }
 
     // Large courses not early: map to available exam records when possible
@@ -124,21 +177,33 @@ export function mapConflictsToRows(allExams: any[] = [], breakdown: any[] = []) 
           });
         }
       } else {
-        largeRows.push({ crn: conf.crn ?? "—", course: conf.course ?? "—", size: conf.size ?? "—", day: conf.day ?? "—", block: conf.block_time ?? "—" });
+        largeRows.push({
+          crn: conf.crn ?? "—",
+          course: conf.course ?? "—",
+          size: conf.size ?? "—",
+          day: conf.day ?? "—",
+          block: conf.block_time ?? "—",
+        });
       }
     }
 
     // Not scheduled: when conflict references courses not present in allExams or explicit not_scheduled flag
-    const unscheduled = conf.not_scheduled || conf.unscheduled_reason || (!uniq.length && (type === "unknown" || type === "course_not_scheduled"));
+    const unscheduled =
+      conf.not_scheduled ||
+      conf.unscheduled_reason ||
+      (!uniq.length && (type === "unknown" || type === "course_not_scheduled"));
     if (unscheduled && uniq.length === 0) {
-      notScheduledRows.push({ crn: conf.crn ?? conf.course ?? "—", course: conf.course ?? conf.conflicting_course ?? "—", size: conf.size ?? "—", reason: conf.unscheduled_reason ?? `Conflict: ${type}` });
+      notScheduledRows.push({
+        crn: conf.crn ?? conf.course ?? "—",
+        course: conf.course ?? conf.conflicting_course ?? "—",
+        size: conf.size ?? "—",
+        reason: conf.unscheduled_reason ?? `Conflict: ${type}`,
+      });
     }
   }
 
   return { backRows, largeRows, notScheduledRows };
 }
-
-
 
 export const generateSampleData = (): CalendarRow[] => {
   const days = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"];

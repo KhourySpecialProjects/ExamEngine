@@ -1,8 +1,9 @@
-from uuid import UUID
+from uuid import UUID, uuid4
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from src.domain.models import Room
 from src.schemas.db import Rooms
 
 from .base import BaseRepo
@@ -17,7 +18,8 @@ class RoomRepo(BaseRepo[Rooms]):
     def get_by_name(self, room_name: str, dataset_id: UUID) -> Rooms | None:
         """Find room by name within a dataset."""
         stmt = select(Rooms).where(
-            Rooms.location == room_name, Rooms.dataset_id == dataset_id
+            Rooms.location == room_name,
+            Rooms.dataset_id == dataset_id,
         )
         return self.db.execute(stmt).scalars().first()
 
@@ -26,27 +28,34 @@ class RoomRepo(BaseRepo[Rooms]):
         stmt = select(Rooms).where(Rooms.dataset_id == dataset_id)
         return list(self.db.execute(stmt).scalars().all())
 
-    def bulk_create_from_dataframe(self, dataset_id: UUID, rooms_df) -> dict[str, UUID]:
+    def bulk_create_from_domain(
+        self,
+        dataset_id: UUID,
+        rooms: list[Room],
+    ) -> dict[str, UUID]:
         """
-        Create room records from rooms DataFrame.
+        Create room records from domain Room objects.
 
-        Returns mapping of room_name -> room_id.
+        Args:
+            dataset_id: UUID of the dataset
+            rooms: List of Room domain objects
+
+        Returns:
+            Mapping of room_name -> room_id
         """
         room_objs = []
-        for _, row in rooms_df.iterrows():
-            room = Rooms(
-                location=row["room_name"],
-                capacity=int(row["capacity"]),
+
+        for room in rooms:
+            db_room = Rooms(
+                room_id=uuid4(),
+                location=room.name,
+                capacity=room.capacity,
                 dataset_id=dataset_id,
             )
-            room_objs.append(room)
+            room_objs.append(db_room)
 
-        self.db.bulk_save_objects(room_objs, return_defaults=True)
-        self.db.commit()
+        if room_objs:
+            self.db.bulk_save_objects(room_objs, return_defaults=True)
+            self.db.commit()
 
-        # Build mapping
-        mapping = {}
-        for obj in room_objs:
-            mapping[obj.location] = obj.room_id
-
-        return mapping
+        return {obj.location: obj.room_id for obj in room_objs}

@@ -60,8 +60,12 @@ class Users(Base):
     invited_by: Mapped[uuid.UUID | None] = mapped_column(
         ForeignKey("users.user_id"), nullable=True
     )
-    invited_at: Mapped[datetime.datetime | None] = mapped_column(DateTime, nullable=True)
-    approved_at: Mapped[datetime.datetime | None] = mapped_column(DateTime, nullable=True)
+    invited_at: Mapped[datetime.datetime | None] = mapped_column(
+        DateTime, nullable=True
+    )
+    approved_at: Mapped[datetime.datetime | None] = mapped_column(
+        DateTime, nullable=True
+    )
     approved_by: Mapped[uuid.UUID | None] = mapped_column(
         ForeignKey("users.user_id"), nullable=True
     )
@@ -154,6 +158,8 @@ class Courses(Base):
     crn: Mapped[str] = mapped_column(String(50), nullable=False)
     course_subject_code: Mapped[str] = mapped_column(String)
     instructor_name: Mapped[str | None] = mapped_column(String, nullable=True)
+    department: Mapped[str | None] = mapped_column(String, nullable=True)
+    examination_term: Mapped[str | None] = mapped_column(String, nullable=True)
     enrollment_count: Mapped[int] = mapped_column(Integer)
     dataset_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("datasets.dataset_id"))
     exam_assignments: Mapped[list["ExamAssignments"]] = relationship(

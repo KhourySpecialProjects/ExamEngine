@@ -1,7 +1,7 @@
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
+import type { DatasetState } from "@/lib/types/dataset.types";
 import { apiClient } from "../api/client";
-import type {DatasetState} from "@/lib/types/dataset.types"
 
 export const useDatasetStore = create<DatasetState>()(
   persist(
@@ -11,7 +11,6 @@ export const useDatasetStore = create<DatasetState>()(
       selectedDatasetId: null,
       isLoading: false,
       error: null,
-
 
       // Fetch all datasets
       fetchDatasets: async () => {

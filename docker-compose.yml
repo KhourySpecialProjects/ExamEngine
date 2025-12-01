@@ -43,7 +43,7 @@ services:
       - AWS_S3_BUCKET=${AWS_S3_BUCKET:-exam-engine-csvs}
       - SECRET_KEY=${SECRET_KEY:-dev-secret-key-change-in-production}
       - ENVIRONMENT=development
-      - DEBUG=true
+      - DEBUG=false
       - FRONTEND_URL=http://localhost:3000
     volumes:
       - ./backend:/app

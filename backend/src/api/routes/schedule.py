@@ -77,7 +77,7 @@ async def list_schedules(
         List of schedule summaries
     """
     try:
-        schedules = schedule_service.list_schedules_for_user(current_user.user_id)
+        schedules = await schedule_service.list_schedules_for_user(current_user.user_id)
         return schedules
     except Exception as e:
         raise HTTPException(

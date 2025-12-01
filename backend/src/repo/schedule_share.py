@@ -7,7 +7,7 @@ from uuid import UUID
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from src.schemas.db import ScheduleShares, Schedules
+from src.schemas.db import Schedules, ScheduleShares
 
 from .base import BaseRepo
 
@@ -50,9 +50,7 @@ class ScheduleShareRepo(BaseRepo[ScheduleShares]):
         stmt = select(ScheduleShares).where(ScheduleShares.share_id == share_id)
         return self.db.execute(stmt).scalars().first()
 
-    def get_shares_for_schedule(
-        self, schedule_id: UUID
-    ) -> list[ScheduleShares]:
+    def get_shares_for_schedule(self, schedule_id: UUID) -> list[ScheduleShares]:
         """Get all shares for a schedule."""
         stmt = (
             select(ScheduleShares)
@@ -61,17 +59,15 @@ class ScheduleShareRepo(BaseRepo[ScheduleShares]):
         )
         return list(self.db.execute(stmt).scalars().all())
 
-    def get_shared_schedules_for_user(
-        self, user_id: UUID
-    ) -> list[ScheduleShares]:
+    def get_shared_schedules_for_user(self, user_id: UUID) -> list[ScheduleShares]:
         """Get all schedules shared with a user."""
         from sqlalchemy.orm import joinedload
-        
+
         stmt = (
             select(ScheduleShares)
             .options(
                 joinedload(ScheduleShares.schedule),
-                joinedload(ScheduleShares.shared_by_user)
+                joinedload(ScheduleShares.shared_by_user),
             )
             .where(ScheduleShares.shared_with_user_id == user_id)
             .order_by(ScheduleShares.shared_at.desc())
@@ -116,9 +112,7 @@ class ScheduleShareRepo(BaseRepo[ScheduleShares]):
         self, schedule_id: UUID, shared_with_user_id: UUID
     ) -> bool:
         """Delete share for a specific schedule and user."""
-        share = self.get_share_by_schedule_and_user(
-            schedule_id, shared_with_user_id
-        )
+        share = self.get_share_by_schedule_and_user(schedule_id, shared_with_user_id)
         if share:
             self.delete(share)
             return True
@@ -164,4 +158,3 @@ class ScheduleShareRepo(BaseRepo[ScheduleShares]):
             return share.permission == "edit"
         else:
             return False
-

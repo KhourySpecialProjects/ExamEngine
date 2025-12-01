@@ -8,7 +8,12 @@ from uuid import UUID
 import pandas as pd
 from fastapi import UploadFile
 
-from src.core.exceptions import DatasetNotFoundError, StorageError, ValidationError
+from src.core.exceptions import (
+    DatasetExistsError,
+    DatasetNotFoundError,
+    StorageError,
+    ValidationError,
+)
 from src.repo.dataset import DatasetRepo
 from src.schemas.db import Datasets
 from src.services.storage import storage
@@ -34,6 +39,12 @@ class DatasetService:
 
         Orchestrates: validation → S3 upload → database record creation
         """
+
+        if self.dataset_repo.dataset_exists(dataset_name, user_id):
+            raise DatasetExistsError(
+                f"Dataset of name: {dataset_name} already exists",
+            )
+
         dataset_uuid = uuid.uuid4()
 
         uploaded_files = {

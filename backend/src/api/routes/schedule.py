@@ -11,7 +11,7 @@ from src.schemas.db import Schedules, Users
 from src.services.schedule import ScheduleService
 
 
-router = APIRouter(prefix="/schedule", tags=["Scheduling"])
+router = APIRouter(prefix="/schedule", tags=["schedule"])
 
 
 @router.post("/generate/{dataset_id}")

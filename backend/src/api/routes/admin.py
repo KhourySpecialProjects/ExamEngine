@@ -16,7 +16,7 @@ from src.schemas.db import Users
 from src.services.auth import AuthService
 
 
-router = APIRouter(prefix="/admin", tags=["Admin"])
+router = APIRouter(prefix="/admin", tags=["admin"])
 
 
 class UserInvite(BaseModel):

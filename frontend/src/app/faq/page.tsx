@@ -31,6 +31,46 @@ const faqs = [
     answer:
       "Each run keeps its parameters and conflict breakdown. Re-running with new settings creates a new schedule so you can compare outcomes.",
   },
+  {
+    question: "What columns are required in each CSV?",
+    answer:
+      "Courses: CRN, course_ref, num_students. Enrollment: student_id, CRN, instructor_name. Classrooms: room_name, capacity. Stick to these headers so validation passes.",
+  },
+  {
+    question: "Can I reuse datasets across runs?",
+    answer:
+      "Yes. Once uploaded, datasets stay in Datasets. You can generate multiple schedules from the same uploads without re-uploading files.",
+  },
+  {
+    question: "How do I adjust constraints?",
+    answer:
+      "In the scheduler panel, adjust max exams per student per day, toggle back-to-back avoidance, set max days, and prioritize large courses before running.",
+  },
+  {
+    question: "Can I export results?",
+    answer:
+      "Yes. Export CSVs from the schedule views. Shared users see the same schedule data you export.",
+  },
+  {
+    question: "Why might a run fail?",
+    answer:
+      "Common causes: missing required columns, malformed CSV headers, or no rooms with enough capacity. Check the conflict/summary and try again after fixing the input.",
+  },
+  {
+    question: "How do I interpret the conflict breakdown?",
+    answer:
+      "Use the density and list views: they show which CRNs, students, or instructors are involved so you can tweak parameters or room assignments.",
+  },
+  {
+    question: "Do I need to restart after changing parameters?",
+    answer:
+      "No. Adjust parameters and run again—each run is stored separately so you can compare outputs.",
+  },
+  {
+    question: "How do I remove a dataset?",
+    answer:
+      "Open Datasets in the dashboard and delete the upload. This removes the dataset but existing schedules that used it remain for reference.",
+  },
 ];
 
 export default function FaqPage() {

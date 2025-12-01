@@ -129,6 +129,10 @@ class DatasetFactory:
             student_courses[enrollment.student_id].add(enrollment.crn)
             crn_students[enrollment.crn].add(enrollment.student_id)
 
+        for crn, course in courses.items():
+            if course.instructor_names:
+                crn_instructors[crn] = set(course.instructor_names)
+
         # Build Student domain objects
         students = {
             sid: Student(student_id=sid, enrolled_crns=frozenset(crns))

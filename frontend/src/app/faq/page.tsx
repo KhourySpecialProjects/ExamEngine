@@ -1,3 +1,5 @@
+import Link from "next/link";
+
 const faqs = [
   {
     question: "What files do I need to upload?",
@@ -62,6 +64,34 @@ export default function FaqPage() {
             </article>
           ))}
         </section>
+
+        <footer className="border-t border-slate-200 bg-white">
+          <div className="mx-auto flex max-w-6xl flex-col gap-3 px-6 py-6 sm:flex-row sm:items-center sm:justify-between">
+            <span className="text-sm text-slate-500">
+              Powered by ExamEngine
+            </span>
+            <div className="flex flex-wrap items-center gap-3">
+              <Link
+                href="/login#signup"
+                className="rounded-full bg-slate-900 px-4 py-2 text-sm font-medium text-white transition hover:bg-slate-800"
+              >
+                Sign up
+              </Link>
+              <Link
+                href="/login"
+                className="rounded-full bg-slate-100 px-4 py-2 text-sm font-medium text-slate-900 transition hover:bg-slate-200"
+              >
+                Login
+              </Link>
+              <Link
+                href="/about"
+                className="rounded-full bg-slate-100 px-4 py-2 text-sm font-medium text-slate-900 transition hover:bg-slate-200"
+              >
+                About
+              </Link>
+            </div>
+          </div>
+        </footer>
       </div>
     </div>
   );

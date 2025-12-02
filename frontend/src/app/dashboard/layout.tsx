@@ -2,6 +2,11 @@
 
 import { DashboardHeader } from "@/components/layouts/DashboardHeader";
 import { DashboardSidebar } from "@/components/layouts/DashboardSidebar";
+import { OnbordaProvider, Onborda } from "onborda";
+import { TourCard } from "@/components/tour";
+import { steps } from "@/lib/steps/steps";
+
+
 
 export default function DashboardLayout({
   children,
@@ -9,6 +14,7 @@ export default function DashboardLayout({
   children: React.ReactNode;
 }) {
   return (
+    <OnbordaProvider>
     <div className="h-screen flex flex-col">
       {/* Header - Fixed at top */}
       <DashboardHeader />
@@ -25,6 +31,9 @@ export default function DashboardLayout({
           {children}
         </main>
       </div>
+      <Onborda steps={steps} cardComponent={TourCard} children={undefined} shadowOpacity="0.8"
+              cardTransition={{ type: "spring", stiffness: 100, damping: 10 }} />
     </div>
+    </OnbordaProvider>
   );
 }

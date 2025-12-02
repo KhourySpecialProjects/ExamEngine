@@ -1,5 +1,14 @@
 "use client";
 
+// Extend the Window interface to include the 'onborda' property
+declare global {
+  interface Window {
+    onborda?: {
+      start: (tourName: string) => void;
+    };
+  }
+}
+
 import { Bell, Settings } from "lucide-react";
 import Image from "next/image";
 import Link from "next/link";
@@ -16,6 +25,18 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { useAuthStore } from "@/lib/store/authStore";
+import { OnbordaProvider, Onborda, useOnborda } from "onborda";
+const steps = [
+  {
+    tour: "dashboard-tour", // tour ID    
+    steps: [
+      { target: "#upload-id", content: "Click here to upload your CSV files.", icon: "upload", title: "Upload CSV", selector: "#upload-id" },
+      { target: "#dataset-bar-id", content: "Select your dataset here.", icon: "dataset", title: "Dataset Selection", selector: "#dataset-bar-id" },
+      { target: "#schedule-list-id", content: "View and manage your schedules here.", icon: "schedule", title: "Schedules", selector: "#schedule-list-id" },
+      { target: "#settings-id", content: "Access your settings here.", icon: "settings", title: "Settings", selector: "#settings-id" },
+    ],
+  },
+];
 
 export function DashboardHeader() {
   const { user, logout } = useAuthStore();
@@ -31,6 +52,12 @@ export function DashboardHeader() {
     router.push("/login");
   };
 
+const { startOnborda } = useOnborda();
+  const handleStartOnborda = (tourName: string) => {
+    startOnborda(tourName);
+  };
+
+
   return (
     <header className="h-16 border-b bg-white flex items-center justify-between px-6 py-10">
       {/* Logo */}
@@ -38,8 +65,19 @@ export function DashboardHeader() {
         <Image src="/logo.svg" alt="icon" width={190} height={20} />
       </Link>
 
-      {/* Right Side - Notifications, Settings, User */}
+      {/* Right Side - Notifications, Settings, User, start tour */}
+      <OnbordaProvider>
+        <Onborda steps={steps} children={undefined} />
+      </OnbordaProvider>
       <div className="flex items-center gap-3">
+        {/* Start Tour */}
+        <Button
+          onClick={() => handleStartOnborda("tour1")}
+          className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition"
+        >
+          Start Tour
+        </Button>
+
         {/* Notifications */}
         <Button variant="ghost" size="icon">
           <Bell className="h-5 w-5" />

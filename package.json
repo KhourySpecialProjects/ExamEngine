@@ -47,5 +47,8 @@
 		"concurrently": "^8.2.2",
 		"husky": "^9.0.11",
 		"lint-staged": "^15.2.10"
+	},
+	"dependencies": {
+		"onborda": "^1.2.5"
 	}
 }

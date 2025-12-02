@@ -72,7 +72,7 @@ export function ScheduleRunner() {
   return (
     <Dialog>
       <DialogTrigger asChild>
-        <Button className="w-full bg-emerald-700 hover:bg-emerald-800 text-white" disabled={!selectedDatasetId}>
+        <Button id="generate-id" className="w-full bg-emerald-700 hover:bg-emerald-800 text-white" disabled={!selectedDatasetId}>
           <ArrowRightCircle className="h-4 w-4" />
           Generate Schedule
         </Button>

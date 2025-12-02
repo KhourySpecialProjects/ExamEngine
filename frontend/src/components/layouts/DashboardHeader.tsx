@@ -79,7 +79,7 @@ const { startOnborda } = useOnborda();
         </Button>
 
         {/* Notifications */}
-        <Button variant="ghost" size="icon">
+        <Button id="notifications-id" variant="ghost" size="icon">
           <Bell className="h-5 w-5" />
         </Button>
 

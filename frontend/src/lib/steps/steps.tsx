@@ -33,6 +33,16 @@ export const steps: any = [
         pointerPadding: 0,
         pointerRadius: 11,
       },
+      {
+        icon: <>🎉</>,
+        title: "Notifications",
+        content: <>Click here to see the notifications about who wants to share a schedule with you.</>,
+        selector: "#notifications-id",
+        side: "bottom",
+        showControls: true,
+        pointerPadding: 0,
+        pointerRadius: 11,
+      },
     ],
   },
 ];

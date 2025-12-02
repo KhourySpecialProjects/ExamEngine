@@ -9,7 +9,7 @@ declare global {
   }
 }
 
-import { Bell, Settings } from "lucide-react";
+import { Bell, Settings, CircleQuestionMark } from "lucide-react";
 import Image from "next/image";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -73,9 +73,10 @@ const { startOnborda } = useOnborda();
         {/* Start Tour */}
         <Button
           onClick={() => handleStartOnborda("tour1")}
-          className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition"
+          size="icon"
+          variant="ghost"
         >
-          Start Tour
+          <CircleQuestionMark className="h-5 w-5"></CircleQuestionMark>
         </Button>
 
         {/* Notifications */}

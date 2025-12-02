@@ -161,10 +161,10 @@ export default function AboutPage() {
         <div className="mx-auto flex max-w-5xl flex-col items-center px-6 py-20 text-center">
           <div className="mb-6 flex items-center gap-3 text-muted-foreground">
             <Image
-              src="/logo.svg"
+              src="/bigger_logo.svg"
               alt="ExamEngine logo"
-              width={180}
-              height={24}
+              width={350}
+              height={350}
             />
           </div>
           <div className="mb-6 inline-flex items-center gap-2 rounded-full border border-gray-200 bg-gray-50 px-4 py-1 text-xs font-medium uppercase tracking-[0.2em] text-gray-500">
@@ -411,8 +411,8 @@ export default function AboutPage() {
             </h2>
             <p className="mt-4 text-lg text-muted-foreground">
               ExamEngine is being built by Northeastern University students in
-              the Software Engineering for Consultants (CS 4535) course, guided by faculty
-              mentors and industry partners.
+              the Software Engineering for Consultants (CS 4535) course, guided
+              by faculty mentors and industry partners.
             </p>
           </div>
 

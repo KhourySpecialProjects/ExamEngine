@@ -212,6 +212,27 @@ export function ScheduleRunner() {
                 }}
               />
             </div>
+
+            <Separator />
+
+            {/* Large Class Priority */}
+            <div className="flex items-center justify-between">
+              <div className="space-y-1">
+                <Label>Prioritize Large Classes</Label>
+                <p className="text-xs text-muted-foreground">
+                  Schedule the highest-enrollment courses first to secure optimal
+                  time slots.
+                </p>
+              </div>
+              <Switch
+                checked={parameters.prioritize_large_courses ?? false}
+                onCheckedChange={(checked) => {
+                  if (isGenerating) return;
+                  setParameters({ prioritize_large_courses: checked });
+                }}
+                disabled={isGenerating}
+              />
+            </div>
           </div>
 
           {/* Action Buttons */}

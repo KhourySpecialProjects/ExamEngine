@@ -41,6 +41,7 @@ class Users(Base):
     User accounts for authentication and authorization.
 
     Owns datasets and runs - ensures users can only access their own data.
+    Supports role-based access (admin/user) and approval workflow.
     """
 
     __tablename__ = "users"
@@ -50,11 +51,42 @@ class Users(Base):
     name: Mapped[str] = mapped_column(String(255), nullable=False)
     email: Mapped[str] = mapped_column(String(255), unique=True, nullable=False)
     password_hash: Mapped[str] = mapped_column(String(255), nullable=False)
+    role: Mapped[str] = mapped_column(
+        String(20), default="user", nullable=False
+    )  # "admin" or "user"
+    status: Mapped[str] = mapped_column(
+        String(20), default="pending", nullable=False
+    )  # "pending", "approved", "rejected"
+    invited_by: Mapped[uuid.UUID | None] = mapped_column(
+        ForeignKey("users.user_id"), nullable=True
+    )
+    invited_at: Mapped[datetime.datetime | None] = mapped_column(
+        DateTime, nullable=True
+    )
+    approved_at: Mapped[datetime.datetime | None] = mapped_column(
+        DateTime, nullable=True
+    )
+    approved_by: Mapped[uuid.UUID | None] = mapped_column(
+        ForeignKey("users.user_id"), nullable=True
+    )
     datasets: Mapped[list["Datasets"]] = relationship(
         "Datasets", back_populates="user", lazy="select"
     )
     runs: Mapped[list["Runs"]] = relationship(
         "Runs", back_populates="user", lazy="select"
+    )
+    # Relationships for invitations and approvals
+    invited_users: Mapped[list["Users"]] = relationship(
+        "Users",
+        foreign_keys=[invited_by],
+        remote_side=[user_id],
+        lazy="select",
+    )
+    approved_users: Mapped[list["Users"]] = relationship(
+        "Users",
+        foreign_keys=[approved_by],
+        remote_side=[user_id],
+        lazy="select",
     )
 
 
@@ -126,6 +158,8 @@ class Courses(Base):
     crn: Mapped[str] = mapped_column(String(50), nullable=False)
     course_subject_code: Mapped[str] = mapped_column(String)
     instructor_name: Mapped[str | None] = mapped_column(String, nullable=True)
+    department: Mapped[str | None] = mapped_column(String, nullable=True)
+    examination_term: Mapped[str | None] = mapped_column(String, nullable=True)
     enrollment_count: Mapped[int] = mapped_column(Integer)
     dataset_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("datasets.dataset_id"))
     exam_assignments: Mapped[list["ExamAssignments"]] = relationship(
@@ -256,6 +290,12 @@ class Schedules(Base):
         cascade="all, delete-orphan",
         uselist=False,
     )
+    shares: Mapped[list["ScheduleShares"]] = relationship(
+        "ScheduleShares",
+        foreign_keys="[ScheduleShares.schedule_id]",
+        lazy="select",
+        cascade="all, delete-orphan",
+    )
 
 
 class ExamAssignments(Base):
@@ -346,4 +386,44 @@ class ConflictAnalyses(Base):
 
     schedule: Mapped["Schedules"] = relationship(
         "Schedules", lazy="select", back_populates="conflict_analyses"
+    )
+
+
+class ScheduleShares(Base):
+    """
+    Schedule sharing permissions.
+
+    Allows schedule owners to share schedules with other users
+    with either view (read-only) or edit (can modify) permissions.
+    """
+
+    __tablename__ = "schedule_shares"
+    share_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
+    )
+    schedule_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("schedules.schedule_id"), nullable=False
+    )
+    shared_with_user_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("users.user_id"), nullable=False
+    )
+    permission: Mapped[str] = mapped_column(
+        String(10), nullable=False
+    )  # "view" or "edit"
+    shared_by_user_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("users.user_id"), nullable=False
+    )
+    shared_at: Mapped[datetime.datetime] = mapped_column(
+        DateTime, default=datetime.datetime.now
+    )
+
+    # Relationships
+    schedule: Mapped["Schedules"] = relationship(
+        "Schedules", foreign_keys=[schedule_id], lazy="select"
+    )
+    shared_with_user: Mapped["Users"] = relationship(
+        "Users", foreign_keys=[shared_with_user_id], lazy="select"
+    )
+    shared_by_user: Mapped["Users"] = relationship(
+        "Users", foreign_keys=[shared_by_user_id], lazy="select"
     )

@@ -4,6 +4,8 @@ export interface User {
   id: string;
   email: string;
   name: string;
+  role?: string;
+  status?: string;
   avatar?: string;
 }
 
@@ -44,4 +46,18 @@ export class AuthAPI extends BaseAPI {
   async me(): Promise<User> {
     return this.request("/auth/me");
   }
+
+  async getApprovedUsers(): Promise<UserResponse[]> {
+    return this.request("/auth/users/approved", {
+      method: "GET",
+    });
+  }
+}
+
+export interface UserResponse {
+  user_id: string;
+  name: string;
+  email: string;
+  role: string;
+  status: string;
 }

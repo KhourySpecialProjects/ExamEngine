@@ -14,9 +14,10 @@ export const useAuthStore = create<AuthState>()(
         set({ isLoading: true });
         try {
           const response = await apiClient.auth.login(email, password);
-
+          // Fetch full user info including role and status
+          const fullUser = await apiClient.auth.me();
           set({
-            user: response.user,
+            user: { ...response.user, ...fullUser },
             isLoading: false,
           });
         } catch (error) {
@@ -29,13 +30,25 @@ export const useAuthStore = create<AuthState>()(
         set({ isLoading: true });
         try {
           const response = await apiClient.auth.signup(name, email, password);
+          // Fetch full user info including role and status
+          const fullUser = await apiClient.auth.me();
           set({
-            user: response.user,
+            user: { ...response.user, ...fullUser },
             isLoading: false,
           });
         } catch (error) {
           set({ isLoading: false });
           throw error;
+        }
+      },
+
+      fetchUser: async () => {
+        try {
+          const user = await apiClient.auth.me();
+          set({ user });
+        } catch (error) {
+          // If fetch fails, user might not be authenticated
+          set({ user: null });
         }
       },
 

@@ -44,6 +44,7 @@ function formatDate(dateString: string): string {
 
 export function createScheduleColumns(
   onDelete?: (scheduleId: string) => void,
+  // biome-ignore lint/suspicious/noExplicitAny: table types needs to be flexible
 ): ColumnDef<ScheduleListItem, any>[] {
   return [
     columnHelper.accessor("schedule_name", {
@@ -67,6 +68,31 @@ export function createScheduleColumns(
         <SortableHeader column={column} label="Created" />
       ),
       cell: (info) => formatDate(info.getValue()),
+    }),
+
+    columnHelper.display({
+      id: "created_by",
+      header: "Created by / Shared by",
+      cell: (info) => {
+        const schedule = info.row.original;
+        if (schedule.is_shared && schedule.shared_by_user_name) {
+          return (
+            <div className="flex flex-col">
+              <span className="text-sm font-medium">
+                Shared by {schedule.shared_by_user_name}
+              </span>
+              <span className="text-xs text-muted-foreground">
+                Created by {schedule.created_by_user_name || "Unknown"}
+              </span>
+            </div>
+          );
+        }
+        return (
+          <span className="text-sm">
+            {schedule.created_by_user_name || "Unknown"}
+          </span>
+        );
+      },
     }),
 
     columnHelper.accessor("total_exams", {

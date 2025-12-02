@@ -33,6 +33,7 @@ function examGlobalFilterFn(
     exam.building,
     exam.day,
     exam.timeSlot,
+    exam.studentCount?.toString(),
   ];
 
   return searchableFields.some(

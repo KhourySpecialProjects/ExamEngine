@@ -1,8 +1,7 @@
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
+import type { DatasetState } from "@/lib/types/dataset.types";
 import { apiClient } from "../api/client";
-import type { DatasetMetadata } from "@/lib/types/datasets.api.types";
-import type {DatasetState} from "@/lib/types/dataset.types"
 
 export const useDatasetStore = create<DatasetState>()(
   persist(
@@ -11,12 +10,7 @@ export const useDatasetStore = create<DatasetState>()(
       datasets: [],
       selectedDatasetId: null,
       isLoading: false,
-      selectedDeleteDataset: null,
       error: null,
-
-      selectDeleteDataset: (dataset: DatasetMetadata | null) => {
-        set({ selectedDeleteDataset: dataset });
-      },
 
       // Fetch all datasets
       fetchDatasets: async () => {

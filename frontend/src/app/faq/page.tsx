@@ -76,14 +76,29 @@ const faqs = [
     answer:
       "Open Datasets in the dashboard and delete the upload. This removes the dataset but existing schedules that used it remain for reference.",
   },
+  {
+    question: "Is there a tutorial or onboarding walkthrough?",
+    answer:
+      "Yes. After you log in, you’ll see a short guided walkthrough of uploads, parameters, and running schedules. You can replay it from the dashboard if you skip it.",
+  },
 ];
 
 export default function FaqPage() {
   const [openIndex, setOpenIndex] = useState<number | null>(null);
+  const [query, setQuery] = useState("");
 
   const toggle = (idx: number) => {
     setOpenIndex((current) => (current === idx ? null : idx));
   };
+
+  const filteredFaqs = faqs.filter((item) => {
+    const q = query.trim().toLowerCase();
+    if (!q) return true;
+    return (
+      item.question.toLowerCase().includes(q) ||
+      item.answer.toLowerCase().includes(q)
+    );
+  });
 
   return (
     <div className="min-h-screen bg-white px-6 py-16 text-slate-900">
@@ -106,10 +121,23 @@ export default function FaqPage() {
             generating schedules, handling conflicts, and sharing results with
             your team.
           </p>
+          <div className="pt-2">
+            <label className="sr-only" htmlFor="faq-search">
+              Search FAQs
+            </label>
+            <input
+              id="faq-search"
+              type="text"
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              placeholder="Search FAQs..."
+              className="w-full rounded-lg border border-slate-200 bg-white px-4 py-3 text-sm text-slate-900 shadow-sm outline-none transition focus:border-indigo-300 focus:ring-2 focus:ring-indigo-100"
+            />
+          </div>
         </header>
 
         <section className="grid gap-4">
-          {faqs.map((item, idx) => {
+          {filteredFaqs.map((item, idx) => {
             const isOpen = openIndex === idx;
             return (
               <article

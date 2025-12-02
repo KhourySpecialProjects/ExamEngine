@@ -5,7 +5,7 @@ export const steps: any = [
       {
         icon: <>👋</>,
         title: "Upload CSV",
-        content: <>Click here to upload your CSV files.</>,
+        content: <>Click here to upload your CSV files and name your dataset.</>,
         selector: "#upload-id",
         side: "right",
         showControls: true,
@@ -15,7 +15,7 @@ export const steps: any = [
       {
         icon: <>🪄</>,
         title: "Generate Schedule",
-        content: <>Click here to generate your schedule</>,
+        content: <>Click here to generate your schedule with parameters wanted</>,
         selector: "#generate-id",
         side: "right",
         showControls: true,

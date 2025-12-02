@@ -1,5 +1,7 @@
-import { useMemo, useState } from "react";
+// biome-ignore-all lint/suspicious/noExplicitAny: this file require conflict types definitions
+
 import { User, Users } from "lucide-react";
+import { useMemo, useState } from "react";
 import { EmptyScheduleState } from "@/components/common/EmptyScheduleState";
 import {
   Select,
@@ -81,15 +83,25 @@ export default function DensityView() {
     let total = 0;
     for (const ex of exams) {
       if (!ex) continue;
-      const n = ex.enrollment ?? ex.student_count ?? ex.studentCount ?? ex.num_students ?? ex.students?.length ?? ex.roster?.length ?? 0;
+      const n =
+        ex.enrollment ??
+        ex.student_count ??
+        ex.studentCount ??
+        ex.num_students ??
+        ex.students?.length ??
+        ex.roster?.length ??
+        0;
       total += Number(n || 0);
     }
     return total;
   };
 
+  // biome-ignore lint/correctness/useExhaustiveDependencies: cause rerender
   const thresholds = useMemo(() => {
     const counts = calendarRows.flatMap((row) =>
-      row.days.map((d: any) => (densityMode === "exams" ? d.examCount || 0 : getStudentCount(d))),
+      row.days.map((d: any) =>
+        densityMode === "exams" ? d.examCount || 0 : getStudentCount(d),
+      ),
     );
     return calculateThresholds(counts);
   }, [calendarRows, densityMode]);
@@ -102,6 +114,7 @@ export default function DensityView() {
   };
 
   // Build a map from frontendDay-normalizedTime -> array of conflict type strings
+  // biome-ignore lint/correctness/useExhaustiveDependencies: cause rerender
   const breakdownMap = useMemo(() => {
     const map = new Map<string, string[]>();
     const bd: any[] = schedule?.conflicts?.breakdown ?? [];
@@ -128,7 +141,12 @@ export default function DensityView() {
         if (rawBlock && /^\d+$/.test(String(rawBlock))) {
           const blockNum = String(rawBlock);
           // find a matching timeSlot in calendarRows
-          const matched = calendarRows.find((r) => String(r.timeSlot).startsWith(`${blockNum} `) || String(r.timeSlot).startsWith(`${blockNum}(`) || String(r.timeSlot) === blockNum);
+          const matched = calendarRows.find(
+            (r) =>
+              String(r.timeSlot).startsWith(`${blockNum} `) ||
+              String(r.timeSlot).startsWith(`${blockNum}(`) ||
+              String(r.timeSlot) === blockNum,
+          );
           if (matched) {
             rawBlock = matched.timeSlot;
           }
@@ -137,14 +155,13 @@ export default function DensityView() {
         const normalized = extractTimeFromBlock(rawBlock);
         if (!frontendDay || !normalized) continue;
         const key = `${frontendDay}-${normalized}`;
-        const t = conf.conflict_type || conf.type || conf.violation || String(conf);
+        const t =
+          conf.conflict_type || conf.type || conf.violation || String(conf);
         if (!t) continue;
         const arr = map.get(key) || [];
         arr.push(t);
         map.set(key, arr);
-      } catch (e) {
-        // ignore malformed entries
-      }
+      } catch (_e) {}
     }
 
     return map;
@@ -152,12 +169,15 @@ export default function DensityView() {
 
   // Compute how many conflicts are present in the schedule breakdown (total)
   // and how many are actually shown on the calendar cells (displayed).
+  // biome-ignore lint/correctness/useExhaustiveDependencies: cause rerender
   const conflictCounts = useMemo(() => {
     let totalStudent = 0;
     let totalInstructor = 0;
 
-    const isStudent = (s: string) => /double/i.test(s) || s.includes("student_double_book");
-    const isInstructor = (s: string) => /instructor/i.test(s) || s.includes("instructor_double_book");
+    const isStudent = (s: string) =>
+      /double/i.test(s) || s.includes("student_double_book");
+    const isInstructor = (s: string) =>
+      /instructor/i.test(s) || s.includes("instructor_double_book");
 
     // Count totals from schedule-level breakdown
     for (const arr of Array.from(breakdownMap.values())) {
@@ -176,12 +196,23 @@ export default function DensityView() {
       for (const d of row.days) {
         const dAny: any = d;
         const perCellList: any[] =
-          (dAny && (dAny.conflictList || dAny.conflicts_list || dAny.conflict_details || dAny.conflictDetails || dAny.conflicts_detail)) || [];
+          (dAny &&
+            (dAny.conflictList ||
+              dAny.conflicts_list ||
+              dAny.conflict_details ||
+              dAny.conflictDetails ||
+              dAny.conflicts_detail)) ||
+          [];
 
-        let conflictTypes: string[] = (perCellList || []).map((c: any) => (c && (c.conflict_type || c.type || c.violation || String(c)))).filter(Boolean);
+        let conflictTypes: string[] = (perCellList || [])
+          .map(
+            (c: any) =>
+              c && (c.conflict_type || c.type || c.violation || String(c)),
+          )
+          .filter(Boolean);
 
         if (conflictTypes.length === 0) {
-          const key = `${(dAny).day}-${extractTimeFromBlock((dAny).timeSlot)}`;
+          const key = `${dAny.day}-${extractTimeFromBlock(dAny.timeSlot)}`;
           const fromBd = breakdownMap.get(key) || [];
           conflictTypes = fromBd.slice();
         }
@@ -213,21 +244,24 @@ export default function DensityView() {
         </div>
         <div className="flex items-center gap-2">
           <Select value={theme} onValueChange={(val) => setTheme(val)}>
-          <SelectTrigger className="w-[180px]">
-            <SelectValue placeholder="Choose a Theme" />
-          </SelectTrigger>
-          <SelectContent>
-            {THEME_KEYS.map((k) => (
-              <SelectItem key={k} value={k}>
-                Theme: {k.charAt(0).toUpperCase() + k.slice(1)}
-              </SelectItem>
-            ))}
-          </SelectContent>
+            <SelectTrigger className="w-[180px]">
+              <SelectValue placeholder="Choose a Theme" />
+            </SelectTrigger>
+            <SelectContent>
+              {THEME_KEYS.map((k) => (
+                <SelectItem key={k} value={k}>
+                  Theme: {k.charAt(0).toUpperCase() + k.slice(1)}
+                </SelectItem>
+              ))}
+            </SelectContent>
           </Select>
 
           {/* Density mode selector: Exams | Students */}
-          <Select value={densityMode} onValueChange={(val) => setDensityMode(val as "exams" | "students")}>
-            <SelectTrigger className="w-[160px]">
+          <Select
+            value={densityMode}
+            onValueChange={(val) => setDensityMode(val as "exams" | "students")}
+          >
+            <SelectTrigger className="w-[180px]">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
@@ -248,16 +282,30 @@ export default function DensityView() {
         renderCell={(cell) => {
           const examCount = cell ? cell.examCount || 0 : 0;
           const themeColors = colorThemes[theme] || colorThemes.gray;
-          const displayCount = densityMode === "exams" ? examCount : getStudentCount(cell);
-          const { bg, color } = getDensityColor(displayCount, thresholds, themeColors);
+          const displayCount =
+            densityMode === "exams" ? examCount : getStudentCount(cell);
+          const { bg, color } = getDensityColor(
+            displayCount,
+            thresholds,
+            themeColors,
+          );
 
           // Only detect student double-book conflicts (ignore all other types)
           const cellAny = cell as any;
           const conflictListRaw: any[] =
-            (cellAny && (cellAny.conflictList || cellAny.conflicts_list || cellAny.conflict_details || cellAny.conflictDetails || cellAny.conflicts_detail)) || [];
+            (cellAny &&
+              (cellAny.conflictList ||
+                cellAny.conflicts_list ||
+                cellAny.conflict_details ||
+                cellAny.conflictDetails ||
+                cellAny.conflicts_detail)) ||
+            [];
 
           let conflictTypes: string[] = (conflictListRaw || [])
-            .map((c: any) => (c && (c.conflict_type || c.type || c.violation || String(c))))
+            .map(
+              (c: any) =>
+                c && (c.conflict_type || c.type || c.violation || String(c)),
+            )
             .filter(Boolean);
 
           if (conflictTypes.length === 0 && cell) {
@@ -267,10 +315,18 @@ export default function DensityView() {
           }
 
           // Filter to only student double-book identifiers (be permissive)
-          const doubleTypes = conflictTypes.filter((t) => /double/i.test(String(t)) || String(t).toLowerCase().includes("student_double_book"));
+          const doubleTypes = conflictTypes.filter(
+            (t) =>
+              /double/i.test(String(t)) ||
+              String(t).toLowerCase().includes("student_double_book"),
+          );
           const doubleCount = doubleTypes.length;
           // Detect instructor double-book identifiers as well
-          const instructorTypes = conflictTypes.filter((t) => /instructor/i.test(String(t)) || String(t).toLowerCase().includes("instructor_double_book"));
+          const instructorTypes = conflictTypes.filter(
+            (t) =>
+              /instructor/i.test(String(t)) ||
+              String(t).toLowerCase().includes("instructor_double_book"),
+          );
           const instructorCount = instructorTypes.length;
 
           // If backend provides a per-cell hard count for double books, prefer that (not typical)
@@ -281,56 +337,65 @@ export default function DensityView() {
             <div
               onClick={() => examCount > 0 && cell && selectCell(cell)}
               style={{ backgroundColor: bg, color }}
-              className={`w-full h-full flex items-center border border-gray-200 ${
-                examCount > 0
-                  ? "cursor-pointer hover:shadow-lg hover:z-10 relative transition-all duration-200"
-                  : "cursor-default relative"
-              }`}
+              className={`
+                w-full h-full flex border
+                ${
+                  examCount > 0
+                    ? "cursor-pointer hover:shadow-md hover:-translate-y-0.5 transition-all duration-200"
+                    : "cursor-default"
+                }
+                overflow-hidden p-3
+              `}
             >
-              {/* Compact double-book / instructor badge overlay (top-right) */}
-              {(displayDouble > 0 || displayInstructor > 0) && (
-                <div className="absolute top-2 right-2 z-20 flex items-center gap-1">
-                  {displayInstructor > 0 && (
-                    <span
-                      className="inline-flex items-center gap-1 bg-amber-600 text-white text-xs font-medium rounded-full px-2 py-0.5 shadow"
-                      title={`${displayInstructor} instructor double-book conflict${displayInstructor > 1 ? "s" : ""}`}
-                      aria-label={`${displayInstructor} instructor double-book conflict${displayInstructor > 1 ? "s" : ""}`}
-                    >
-                      <Users className="h-3 w-3" />
-                      {displayInstructor}
-                    </span>
-                  )}
-
-                  {displayDouble > 0 && (
-                    <span
-                      className="inline-flex items-center gap-1 bg-red-600 text-white text-xs font-medium rounded-full px-2 py-0.5 shadow"
-                      title={`${displayDouble} student double-book conflict${displayDouble > 1 ? "s" : ""}`}
-                      aria-label={`${displayDouble} student double-book conflict${displayDouble > 1 ? "s" : ""}`}
-                    >
-                      <User className="h-3 w-3" />
-                      {displayDouble}
-                    </span>
-                  )}
-                </div>
-              )}
-
-              <div className="flex flex-col items-start justify-start p-3 w-full h-full">
+              <div className="flex flex-col items-start">
                 {/* Density Count */}
                 <div className="text-base font-semibold leading-tight">
                   {displayCount === 0
                     ? `No ${densityMode === "exams" ? "Exams" : "Students"}`
-                    : `${displayCount} ${displayCount === 1 ? (densityMode === "exams" ? "Exam" : "Student") : (densityMode === "exams" ? "Exams" : "Students")}`}
+                    : `${displayCount} ${
+                        displayCount === 1
+                          ? densityMode === "exams"
+                            ? "Exam"
+                            : "Student"
+                          : densityMode === "exams"
+                            ? "Exams"
+                            : "Students"
+                      }`}
                 </div>
 
-                {/* Conflict Indicator: only student double-book */}
-                <div className="text-xs font-normal pt-1">
-                  {displayDouble > 0 ? (
-                    <div className="sr-only">
-                      {/* kept for screen-readers; visible badge is shown as overlay */}
-                      <span>{`${displayDouble} student double-book conflict${displayDouble > 1 ? "s" : ""}`}</span>
-                    </div>
-                  ) : null}
-                </div>
+                {/* Screen-reader only version */}
+                {displayDouble > 0 && (
+                  <div className="sr-only">
+                    <span>{`${displayDouble} student double-book conflict${
+                      displayDouble > 1 ? "s" : ""
+                    }`}</span>
+                  </div>
+                )}
+
+                {/* ⭐ Conflict badges — now placed BELOW density */}
+                {(displayDouble > 0 || displayInstructor > 0) && (
+                  <div className="flex flex-row flex-wrap gap-1 mt-2 justify-start">
+                    {displayInstructor > 0 && (
+                      <span
+                        className="inline-flex items-center gap-1 bg-amber-500 text-white text-[10px] font-semibold rounded-full px-2 py-0.5 shadow-sm"
+                        title={`${displayInstructor} instructor conflict${displayInstructor > 1 ? "s" : ""}`}
+                      >
+                        <Users className="h-3 w-3" />
+                        {displayInstructor} instructor
+                      </span>
+                    )}
+
+                    {displayDouble > 0 && (
+                      <span
+                        className="inline-flex items-center gap-1 bg-red-500 text-white text-[10px] font-semibold rounded-full px-2 py-0.5 shadow-sm"
+                        title={`${displayDouble} student conflict${displayDouble > 1 ? "s" : ""}`}
+                      >
+                        <User className="h-3 w-3" />
+                        {displayDouble} student
+                      </span>
+                    )}
+                  </div>
+                )}
               </div>
             </div>
           );
@@ -339,7 +404,9 @@ export default function DensityView() {
 
       {/* Legend (dynamic based on selected theme) */}
       <div className="bg-white rounded-lg shadow p-4">
-        <h3 className="font-semibold mb-3 text-sm">Density Legend ({densityMode === "exams" ? "Exams" : "Students"})</h3>
+        <h3 className="font-semibold mb-3 text-sm">
+          Density Legend ({densityMode === "exams" ? "Exams" : "Students"})
+        </h3>
         <div className="flex gap-3 items-center flex-wrap text-sm">
           {(() => {
             const themeColors = colorThemes[theme] || colorThemes.gray;
@@ -408,8 +475,17 @@ export default function DensityView() {
             const disp = conflictCounts.displayed;
             const tot = conflictCounts.total;
 
-            if (!disp.student && !disp.instructor && !tot.student && !tot.instructor) {
-              return <div className="text-sm text-muted-foreground">No double-book conflicts detected</div>;
+            if (
+              !disp.student &&
+              !disp.instructor &&
+              !tot.student &&
+              !tot.instructor
+            ) {
+              return (
+                <div className="text-sm text-muted-foreground">
+                  No double-book conflicts detected
+                </div>
+              );
             }
 
             const items: any[] = [];
@@ -419,12 +495,14 @@ export default function DensityView() {
                 <div key="student" className="flex items-center gap-2">
                   <div
                     className="w-8 h-8 border-2 rounded flex items-center justify-center"
-                    style={{ backgroundColor: "#ef4444", borderColor: "rgba(0,0,0,0.08)" }}
+                    style={{
+                      backgroundColor: "#ef4444",
+                      borderColor: "rgba(0,0,0,0.08)",
+                    }}
                   >
                     <User className="h-4 w-4 text-white" />
                   </div>
                   <span className="text-sm">Student Double-Book</span>
-                  <span className="text-sm text-muted-foreground">&nbsp;({`Displayed: ${disp.student} · Total: ${tot.student}`})</span>
                 </div>,
               );
             }
@@ -434,12 +512,14 @@ export default function DensityView() {
                 <div key="instructor" className="flex items-center gap-2">
                   <div
                     className="w-8 h-8 border-2 rounded flex items-center justify-center"
-                    style={{ backgroundColor: "#f97316", borderColor: "rgba(0,0,0,0.08)" }}
+                    style={{
+                      backgroundColor: "#f97316",
+                      borderColor: "rgba(0,0,0,0.08)",
+                    }}
                   >
                     <Users className="h-4 w-4 text-white" />
                   </div>
                   <span className="text-sm">Instructor Double-Book</span>
-                  <span className="text-sm text-muted-foreground">&nbsp;({`Displayed: ${disp.instructor} · Total: ${tot.instructor}`})</span>
                 </div>,
               );
             }

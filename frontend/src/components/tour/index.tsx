@@ -33,7 +33,7 @@ export const TourCard: React.FC<CardComponentProps> = ({
   }
 
   return (
-    <Card className="relative border-0 min-w-[300px] w-max max-w-full z-[999] bg-white border-none">
+    <Card className="relative border-0 min-w-[300px] sm:w-[350px] md:w-[400px] bg-white border-none">
       <CardHeader>
         <div className="flex items-start justify-between w-full space-x-4">
           <div className="flex flex-col space-y-2">

@@ -85,6 +85,7 @@ const { startOnborda } = useOnborda();
 
         {/* Settings */}
         <Button
+          id="settings-id"
           variant="ghost"
           size="icon"
           onClick={() => router.push("/dashboard/settings")}

@@ -22,6 +22,17 @@ export const steps: any = [
         pointerPadding: 0,
         pointerRadius: 11,
       },
+      {
+        icon: <>🎉</>,
+        title: "Settings",
+        content: <>Click here to check account information and for admin role to check 
+        which users are approved or who requested an access to use the system</>,
+        selector: "#settings-id",
+        side: "bottom",
+        showControls: true,
+        pointerPadding: 0,
+        pointerRadius: 11,
+      },
     ],
   },
 ];

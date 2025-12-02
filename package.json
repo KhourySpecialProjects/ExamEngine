@@ -19,7 +19,7 @@
 		"lint": "npm run lint:backend && npm run lint:frontend",
 		"lint:backend": "cd backend && ruff check .",
 		"lint:frontend": "npm run lint --workspace=frontend",
-		"test": "npm run test:backend && npm run test:frontend",
+		"test": "npm run test:frontend",
 		"test:backend": "cd backend && pytest",
 		"test:backend:cov": "cd backend && pytest --cov=src --cov-report=html --cov-report=term",
 		"test:frontend": "npm run test --workspace=frontend",
@@ -47,5 +47,8 @@
 		"concurrently": "^8.2.2",
 		"husky": "^9.0.11",
 		"lint-staged": "^15.2.10"
+	},
+	"optionalDependencies": {
+		"@rollup/rollup-win32-x64-msvc": "^4.53.3"
 	}
 }

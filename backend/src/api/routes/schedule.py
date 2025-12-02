@@ -157,7 +157,7 @@ async def delete_schedule(
 ):
     """Delete a schedule owned by the current user."""
     try:
-        return schedule_service.delete_schedule(schedule_id, current_user.user_id)
+        return await schedule_service.delete_schedule(schedule_id, current_user.user_id)
     except DatasetNotFoundError as e:
         raise HTTPException(status_code=404, detail=str(e)) from e
     except Exception as e:

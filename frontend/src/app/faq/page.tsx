@@ -1,4 +1,7 @@
+"use client";
+
 import Link from "next/link";
+import { useState } from "react";
 
 const faqs = [
   {
@@ -74,6 +77,12 @@ const faqs = [
 ];
 
 export default function FaqPage() {
+  const [openIndex, setOpenIndex] = useState<number | null>(null);
+
+  const toggle = (idx: number) => {
+    setOpenIndex((current) => (current === idx ? null : idx));
+  };
+
   return (
     <div className="min-h-screen bg-white px-6 py-16 text-slate-900">
       <div className="mx-auto flex max-w-4xl flex-col gap-10">
@@ -90,19 +99,36 @@ export default function FaqPage() {
         </header>
 
         <section className="grid gap-4">
-          {faqs.map((item) => (
-            <article
-              key={item.question}
-              className="rounded-xl border border-slate-200 bg-slate-50/60 p-5 shadow-sm"
-            >
-              <h2 className="text-lg font-semibold text-slate-900">
-                {item.question}
-              </h2>
-              <p className="mt-2 text-sm leading-relaxed text-slate-700">
-                {item.answer}
-              </p>
-            </article>
-          ))}
+          {faqs.map((item, idx) => {
+            const isOpen = openIndex === idx;
+            return (
+              <article
+                key={item.question}
+                className="rounded-xl border border-slate-200 bg-slate-50/60 shadow-sm"
+              >
+                <button
+                  type="button"
+                  onClick={() => toggle(idx)}
+                  className="flex w-full items-center justify-between gap-3 p-5 text-left"
+                  aria-expanded={isOpen}
+                >
+                  <h2 className="text-lg font-semibold text-slate-900">
+                    {item.question}
+                  </h2>
+                  <span className="text-sm text-slate-500">
+                    {isOpen ? "−" : "+"}
+                  </span>
+                </button>
+                {isOpen && (
+                  <div className="border-t border-slate-200 px-5 pb-4 pt-3">
+                    <p className="text-sm leading-relaxed text-slate-700">
+                      {item.answer}
+                    </p>
+                  </div>
+                )}
+              </article>
+            );
+          })}
         </section>
 
         <footer className="border-t border-slate-200 bg-white">

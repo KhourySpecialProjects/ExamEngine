@@ -104,12 +104,12 @@ export default function FaqPage() {
             return (
               <article
                 key={item.question}
-                className="rounded-xl border border-slate-200 bg-slate-50/60 shadow-sm"
+                className="rounded-xl border border-slate-200 bg-slate-50/60 shadow-sm transition hover:-translate-y-0.5 hover:border-slate-300 hover:bg-white"
               >
                 <button
                   type="button"
                   onClick={() => toggle(idx)}
-                  className="flex w-full items-center justify-between gap-3 p-5 text-left"
+                  className="flex w-full items-center justify-between gap-3 p-5 text-left transition"
                   aria-expanded={isOpen}
                 >
                   <h2 className="text-lg font-semibold text-slate-900">

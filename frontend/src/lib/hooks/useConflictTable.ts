@@ -1,4 +1,7 @@
-// frontend/src/lib/hooks/useExamTable.ts
+// frontend/src/lib/hooks/useConflictTable.ts
+// Custom hook for managing conflict-related table data and TanStack table wiring.
+// This consolidates conflict-specific table logic and provides a memoized
+// list of exams that have conflicts (conflictExams).
 import {
   getCoreRowModel,
   getFilteredRowModel,
@@ -10,30 +13,32 @@ import {
 } from "@tanstack/react-table";
 import { useMemo, useState } from "react";
 import { createExamColumns } from "@/components/visualization/list/columns";
-import { useScheduleData } from "./useScheduleData";
+import { useScheduleData } from "@/lib/hooks/useScheduleData";
 
 /**
- * Custom hook for managing exam table state and logic
- *
- * Handles:
- * - Table state (sorting, filtering, visibility)
- * - TanStack Table configuration
- * - Performance optimization with memoization
+ * useConflictTable
+ * - provides a TanStack `table` configured for conflict-related exam rows
+ * - returns `conflictExams` (memoized) and `allExams` for callers that need full data
  */
 export function useConflictTable() {
-  const { allExams } = useScheduleData();
-  const conflict_exams = allExams.filter((e) => e.conflicts > 0)
+  const { allExams = [] } = useScheduleData();
 
-  // Table state management
+  const conflictExams = useMemo(() => {
+    if (!Array.isArray(allExams)) return [];
+    return allExams.filter((e: any) => {
+      const n = e?.conflicts ?? e?.conflict_count ?? e?.conflicts_count ?? 0;
+      return Number(n || 0) > 0;
+    });
+  }, [allExams]);
+
+  // Table state
   const [sorting, setSorting] = useState<SortingState>([]);
   const [columnVisibility, setColumnVisibility] = useState<VisibilityState>({});
 
-  // Memoize columns to prevent recreation on every render
   const columns = useMemo(() => createExamColumns(), []);
 
-  // Configure TanStack Table
   const table = useReactTable({
-    data: allExams,
+    data: conflictExams,
     columns,
     state: {
       sorting,
@@ -46,17 +51,11 @@ export function useConflictTable() {
     getFilteredRowModel: getFilteredRowModel(),
     getPaginationRowModel: getPaginationRowModel(),
     initialState: {
-      pagination: {
-        pageSize: 10,
-      },
+      pagination: { pageSize: 10 },
     },
-    // Performance optimizations
     autoResetPageIndex: false,
     enableRowSelection: false,
   });
 
-  return {
-    table,
-    allExams,
-  };
+  return { table, allExams, conflictExams };
 }

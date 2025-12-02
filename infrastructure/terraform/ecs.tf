@@ -163,3 +163,107 @@ resource "aws_cloudwatch_log_group" "frontend_logs" {
         ManagedBy   = "Terraform"
     }
 }
+
+resource "aws_security_group" "ecs_tasks" {
+    name        = "examengine-ecs-tasks-${var.environment}"
+    description = "Security group for ECS tasks"
+    vpc_id      = data.aws_vpc.default.id
+
+    ingress {
+        description     = "Frontend from ALB"
+        from_port       = 3000
+        to_port         = 3000
+        protocol        = "tcp"
+        security_groups = [aws_security_group.alb.id]
+    }
+
+    ingress {
+        description     = "Backend from ALB"
+        from_port       = 8000
+        to_port         = 8000
+        protocol        = "tcp"
+        security_groups = [aws_security_group.alb.id]
+    }
+
+    egress {
+        description = "All outbound traffic"
+        from_port   = 0
+        to_port     = 0
+        protocol    = "-1"
+        cidr_blocks = ["0.0.0.0/0"]
+    }
+
+    tags = {
+        Name        = "examengine-ecs-tasks-${var.environment}"
+        Environment = var.environment
+        ManagedBy   = "Terraform"
+    }
+}
+
+# ECS Service for Frontend
+resource "aws_ecs_service" "frontend" {
+    name            = "examengine-frontend-service-${var.environment}"
+    cluster         = aws_ecs_cluster.cluster.id
+    task_definition = aws_ecs_task_definition.frontend-task.arn
+    desired_count   = 1
+    launch_type     = "FARGATE"
+
+    network_configuration {
+        subnets          = data.aws_subnets.default.ids
+        security_groups  = [aws_security_group.ecs_tasks.id]
+        assign_public_ip = true
+    }
+
+    load_balancer {
+        target_group_arn = aws_lb_target_group.frontend.arn
+        container_name   = "frontend-repo"
+        container_port   = 3000
+    }
+
+    health_check_grace_period_seconds = 60
+
+    depends_on = [
+        aws_lb_listener.http,
+        aws_iam_role_policy_attachment.ecs_exec_policy_attach
+    ]
+
+    tags = {
+        Name        = "examengine-frontend-service-${var.environment}"
+        Environment = var.environment
+        ManagedBy   = "Terraform"
+    }
+}
+
+# ECS Service for Backend
+resource "aws_ecs_service" "backend" {
+    name            = "examengine-backend-service-${var.environment}"
+    cluster         = aws_ecs_cluster.cluster.id
+    task_definition = aws_ecs_task_definition.backend-task.arn
+    desired_count   = 1
+    launch_type     = "FARGATE"
+
+    network_configuration {
+        subnets          = data.aws_subnets.default.ids
+        security_groups  = [aws_security_group.ecs_tasks.id]
+        assign_public_ip = true
+    }
+
+    load_balancer {
+        target_group_arn = aws_lb_target_group.backend.arn
+        container_name   = "backend-repo"
+        container_port   = 8000
+    }
+
+    health_check_grace_period_seconds = 60
+
+    depends_on = [
+        aws_lb_listener.http,
+        aws_iam_role_policy_attachment.ecs_exec_policy_attach
+    ]
+
+    tags = {
+        Name        = "examengine-backend-service-${var.environment}"
+        Environment = var.environment
+        ManagedBy   = "Terraform"
+    }
+}

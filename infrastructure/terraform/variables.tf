@@ -16,24 +16,6 @@ variable "bucket_name" {
   type        = string
 }
 
-# EC2
-variable "ec2_instance_type" {
-  description = "EC2 instance type"
-  type        = string
-  default     = "t3.small"
-}
-
-variable "key_name" {
-  description = "SSH key pair name"
-  type        = string
-}
-
-variable "ssh_allowed_cidr" {
-  description = "CIDR block allowed to SSH"
-  type        = string
-  default     = "0.0.0.0/0" # Restrict this in production!
-}
-
 # RDS
 variable "db_instance_class" {
   description = "RDS instance class"

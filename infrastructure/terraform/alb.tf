@@ -23,12 +23,16 @@ data "aws_vpc" "default" {
   default = true
 }
 
-# Target group for backend (port 8000)
 resource "aws_lb_target_group" "backend" {
-  name     = "examengine-backend-${var.environment}"
-  port     = 8000
-  protocol = "HTTP"
-  vpc_id   = data.aws_vpc.default.id
+  name        = "examengine-backend-ip-${var.environment}"
+  port        = 8000
+  protocol    = "HTTP"
+  vpc_id      = data.aws_vpc.default.id
+  target_type = "ip"  # Required for ECS Fargate with awsvpc network mode
+
+  lifecycle {
+    create_before_destroy = true
+  }
 
   health_check {
     path                = "/docs"
@@ -46,12 +50,16 @@ resource "aws_lb_target_group" "backend" {
   }
 }
 
-# Target group for frontend (port 3000)
 resource "aws_lb_target_group" "frontend" {
-  name     = "examengine-frontend-${var.environment}"
-  port     = 3000
-  protocol = "HTTP"
-  vpc_id   = data.aws_vpc.default.id
+  name        = "examengine-frontend-ip-${var.environment}"
+  port        = 3000
+  protocol    = "HTTP"
+  vpc_id      = data.aws_vpc.default.id
+  target_type = "ip" 
+
+  lifecycle {
+    create_before_destroy = true
+  }
 
   health_check {
     path                = "/"
@@ -69,21 +77,9 @@ resource "aws_lb_target_group" "frontend" {
   }
 }
 
-# Register EC2 with backend target group
-resource "aws_lb_target_group_attachment" "backend" {
-  target_group_arn = aws_lb_target_group.backend.arn
-  target_id        = aws_instance.examengine.id
-  port             = 8000
-}
+# Note: Target group attachments are now handled by ECS services
+# EC2 target group attachments removed - ECS services will register tasks automatically
 
-# Register EC2 with frontend target group
-resource "aws_lb_target_group_attachment" "frontend" {
-  target_group_arn = aws_lb_target_group.frontend.arn
-  target_id        = aws_instance.examengine.id
-  port             = 3000
-}
-
-# ALB Listener on port 80
 resource "aws_lb_listener" "http" {
   load_balancer_arn = aws_lb.examengine.arn
   port              = 80

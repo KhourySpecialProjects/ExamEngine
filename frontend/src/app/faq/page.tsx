@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import Link from "next/link";
 import { useState } from "react";
 
@@ -87,9 +88,17 @@ export default function FaqPage() {
     <div className="min-h-screen bg-white px-6 py-16 text-slate-900">
       <div className="mx-auto flex max-w-4xl flex-col gap-10">
         <header className="space-y-3">
-          <p className="text-xs uppercase tracking-[0.2em] text-slate-500">
-            FAQ
-          </p>
+          <div className="flex items-center gap-3">
+            <Image
+              src="/logo.svg"
+              alt="ExamEngine logo"
+              width={140}
+              height={28}
+            />
+            <span className="text-xs uppercase tracking-[0.2em] text-slate-500">
+              FAQ
+            </span>
+          </div>
           <h1 className="text-3xl font-semibold">Frequently asked questions</h1>
           <p className="max-w-2xl text-slate-600">
             Quick answers to common questions about uploading datasets,

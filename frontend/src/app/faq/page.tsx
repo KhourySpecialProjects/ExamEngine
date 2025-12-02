@@ -1,5 +1,6 @@
 "use client";
 
+import { ChevronDown } from "lucide-react";
 import Image from "next/image";
 import Link from "next/link";
 import { useState } from "react";
@@ -113,7 +114,9 @@ export default function FaqPage() {
             return (
               <article
                 key={item.question}
-                className="rounded-xl border border-slate-200 bg-slate-50/60 shadow-sm transition hover:-translate-y-0.5 hover:border-slate-300 hover:bg-white"
+                className={`rounded-xl border bg-slate-50/60 shadow-sm transition hover:-translate-y-0.5 hover:border-indigo-200 hover:bg-indigo-50 ${
+                  isOpen ? "border-indigo-200 bg-indigo-50" : "border-slate-200"
+                }`}
               >
                 <button
                   type="button"
@@ -124,9 +127,11 @@ export default function FaqPage() {
                   <h2 className="text-lg font-semibold text-slate-900">
                     {item.question}
                   </h2>
-                  <span className="text-sm text-slate-500">
-                    {isOpen ? "−" : "+"}
-                  </span>
+                  <ChevronDown
+                    className={`h-5 w-5 text-indigo-500 transition-transform ${
+                      isOpen ? "rotate-180" : ""
+                    }`}
+                  />
                 </button>
                 {isOpen && (
                   <div className="border-t border-slate-200 px-5 pb-4 pt-3">

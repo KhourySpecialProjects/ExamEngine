@@ -1,6 +1,12 @@
-// "use client";
-
 // biome-ignore-all lint/suspicious/noExplicitAny: this file require conflict types definitions
+import {
+  AlertTriangle,
+  Briefcase,
+  Calendar,
+  Clock,
+  GraduationCap,
+  UserX,
+} from "lucide-react";
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -232,6 +238,53 @@ export default function ConflictView({
     student_gt3_per_day: backendMetrics?.student_gt3_per_day ?? 0,
   };
 
+  const summaryCards = [
+    {
+      label: "Student Conflicts",
+      value: finalMerged.hard_student_conflicts,
+      subtitle: "Students with overlapping exams",
+      icon: <UserX className="h-4 w-4" />,
+      variant:
+        finalMerged.hard_student_conflicts > 0 ? "destructive" : "success",
+    },
+    {
+      label: "Instructor Conflicts",
+      value: finalMerged.hard_instructor_conflicts,
+      subtitle: "Instructors with overlapping exams",
+      icon: <Briefcase className="h-4 w-4" />,
+      variant:
+        finalMerged.hard_instructor_conflicts > 0 ? "destructive" : "success",
+    },
+    {
+      label: "Overloaded Students",
+      value: finalMerged.student_gt3_per_day,
+      subtitle: "Students with 3+ exams in one day",
+      icon: <Calendar className="h-4 w-4" />,
+      variant: finalMerged.student_gt3_per_day > 0 ? "destructive" : "success",
+    },
+    {
+      label: "Student Back-to-Back",
+      value: finalMerged.students_back_to_back,
+      subtitle: "Consecutive exams without breaks",
+      icon: <Clock className="h-4 w-4" />,
+      variant: finalMerged.students_back_to_back > 0 ? "warning" : "success",
+    },
+    {
+      label: "Instructor Back-to-Back",
+      value: finalMerged.instructors_back_to_back,
+      subtitle: "Consecutive proctoring duties",
+      icon: <GraduationCap className="h-4 w-4" />,
+      variant: finalMerged.instructors_back_to_back > 0 ? "warning" : "success",
+    },
+    {
+      label: "Late Large Courses",
+      value: finalMerged.large_courses_not_early,
+      subtitle: "100+ enrollment scheduled late",
+      icon: <AlertTriangle className="h-4 w-4" />,
+      variant: finalMerged.large_courses_not_early > 0 ? "warning" : "success",
+    },
+  ] as const;
+
   const dynamicTabEntries =
     types && types.length > 0
       ? types.map((t) => ({ id: t, label: conflictTypeMap[t] ?? t }))
@@ -256,49 +309,18 @@ export default function ConflictView({
     effectiveTabs[0]?.id ?? "back_to_back",
   );
 
-  const summaryCards = [
-    {
-      label: "Student Double-Book",
-      value: finalMerged.hard_student_conflicts,
-      variant: "destructive",
-    },
-    {
-      label: "Instructor Double-Book",
-      value: finalMerged.hard_instructor_conflicts,
-      variant: "destructive",
-    },
-    {
-      label: "Student >3/day",
-      value: finalMerged.student_gt3_per_day,
-      variant: "destructive",
-    },
-    {
-      label: "Students Back-to-Back",
-      value: finalMerged.students_back_to_back,
-      badgeClassName: "bg-amber-600 text-white",
-    },
-    {
-      label: "Instructors Back-to-Back",
-      value: finalMerged.instructors_back_to_back,
-      badgeClassName: "bg-amber-600 text-white",
-    },
-    {
-      label: "Large Course Not Early",
-      value: finalMerged.large_courses_not_early,
-      badgeClassName: "bg-amber-600 text-white",
-    },
-  ];
-
   const rowsForActive = conflictTypeRows[activeTab] ?? [];
   const page = getPage(activeTab);
 
   return (
     <section className="space-y-4">
-      <div>
-        <h1 className="text-2xl font-bold">Conflict View</h1>
-        <p className="text-sm text-muted-foreground mt-1">
-          Quick overview of schedule conflicts
-        </p>
+      <div className="flex items-center justify-between gap-2">
+        <div className="pl-2">
+          <h1 className="text-2xl font-bold">Conflict View</h1>
+          <p className="text-muted-foreground">
+            Quick overview of schedule conflicts
+          </p>
+        </div>
       </div>
 
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-6">
@@ -307,8 +329,9 @@ export default function ConflictView({
             key={c.label}
             label={c.label}
             value={c.value}
-            variant={(c as any).variant}
-            badgeClassName={(c as any).badgeClassName}
+            icon={c.icon}
+            subtitle={c.subtitle}
+            variant={c.variant}
           />
         ))}
       </div>

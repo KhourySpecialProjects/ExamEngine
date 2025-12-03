@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import { DashboardHeader } from "@/components/layouts/DashboardHeader";
 import { DashboardSidebar } from "@/components/layouts/DashboardSidebar";
 import { OnbordaProvider, Onborda } from "onborda";
@@ -13,6 +14,8 @@ export default function DashboardLayout({
 }: {
   children: React.ReactNode;
 }) {
+  const [isSidebarOpen, setIsSidebarOpen] = useState(true);
+
   return (
     <OnbordaProvider>
     <div className="h-screen flex flex-col">
@@ -20,10 +23,17 @@ export default function DashboardLayout({
       <DashboardHeader />
 
       {/* Main Content - Sidebar + Content */}
-      <div className="flex-1 flex overflow-hidden">
+      <div className="relative flex-1 flex overflow-hidden">
         {/* Sidebar - Fixed width, scrollable */}
-        <aside className="w-80 border-r bg-white overflow-y-auto">
-          <DashboardSidebar />
+        <aside
+          className={`border-r bg-white overflow-hidden transition-[width] duration-200 ${
+            isSidebarOpen ? "w-80" : "w-16"
+          }`}
+        >
+          <DashboardSidebar
+            isOpen={isSidebarOpen}
+            onToggle={() => setIsSidebarOpen((open) => !open)}
+          />
         </aside>
 
         {/* Main Content Area - Flexible, scrollable */}

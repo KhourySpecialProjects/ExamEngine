@@ -4,14 +4,13 @@ import {
   Building,
   Calendar,
   Database,
+  FileStack,
   Menu,
   PanelLeftClose,
-  Shield,
   SlidersHorizontal,
   Users,
 } from "lucide-react";
 import { useEffect } from "react";
-import { useAuthStore } from "@/lib/store/authStore";
 import { useDatasetStore } from "@/lib/store/datasetStore";
 import { getTimeAgo } from "@/lib/utils";
 import { DatasetBar } from "../dataset/DatasetBar";
@@ -25,15 +24,7 @@ type SidebarProps = {
 };
 
 export function DashboardSidebar({ isOpen = true, onToggle }: SidebarProps) {
-  const {
-    datasets,
-    selectedDatasetId,
-    selectDataset,
-    fetchDatasets,
-    getSelectedDataset,
-    isLoading,
-  } = useDatasetStore();
-  const { user } = useAuthStore();
+  const { datasets, fetchDatasets, getSelectedDataset } = useDatasetStore();
 
   const selectedDataset = getSelectedDataset();
   useEffect(() => {
@@ -50,9 +41,11 @@ export function DashboardSidebar({ isOpen = true, onToggle }: SidebarProps) {
           isOpen ? "justify-between px-3" : "justify-center px-1"
         }`}
       >
-        <div className={`${isOpen ? "flex items-center gap-2" : "hidden"}`}>
+        <div
+          className={`${isOpen ? "flex items-center gap-2 px-1" : "hidden"}`}
+        >
           <Database className="text-green-800" />
-          <h2 className="font-semibold text-sm">Data Management</h2>
+          <h2 className="font-semibold text-sm">Controls Center</h2>
         </div>
         {onToggle && (
           <Button
@@ -80,6 +73,10 @@ export function DashboardSidebar({ isOpen = true, onToggle }: SidebarProps) {
       >
         <div className="space-y-6">
           <section>
+            <div className="flex items-center gap-2 mb-3">
+              <FileStack />
+              <h2 className="font-semibold text-sm">Datasets Controls</h2>
+            </div>
             {/*Select & Delete Components*/}
             <DatasetBar />
             {/* Upload Button */}

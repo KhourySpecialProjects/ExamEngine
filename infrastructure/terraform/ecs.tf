@@ -24,7 +24,7 @@ resource "aws_ecs_task_definition" "frontend-task" {
                 },
                 {
                     name  = "NEXT_PUBLIC_API_URL"
-                    value = var.frontend_url != "" ? "${var.frontend_url}/api" : "http://${aws_lb.examengine.dns_name}/api"
+                    value = var.frontend_url != "" ? "${var.frontend_url}api" : "http://${aws_lb.examengine.dns_name}api"
                 }
             ]
             portMappings = [

@@ -1,8 +1,10 @@
 "use client";
-import React from "react";
+
+// Icons
+import { X } from "lucide-react";
 import type { CardComponentProps } from "onborda";
 import { useOnborda } from "onborda";
-
+import type React from "react";
 // Shadcn
 import { Button } from "@/components/ui/button";
 import {
@@ -13,9 +15,6 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-
-// Icons
-import { X } from "lucide-react";
 export const TourCard: React.FC<CardComponentProps> = ({
   step,
   currentStep,
@@ -33,14 +32,14 @@ export const TourCard: React.FC<CardComponentProps> = ({
   }
 
   return (
-    <Card className="relative border-0 min-w-[300px] sm:w-[350px] md:w-[400px] bg-white border-none">
+    <Card className="relative border-0 min-w-[300px]  bg-white">
       <CardHeader>
-        <div className="flex items-start justify-between w-full space-x-4">
+        <div className="flex items-start justify-between w-full ">
           <div className="flex flex-col space-y-2">
             <CardDescription className="text-black/50">
               {currentStep + 1} of {totalSteps}
             </CardDescription>
-            <CardTitle className="mb-2 text-lg text-black">
+            <CardTitle className=" text-lg text-black">
               {step.icon} {step.title}
             </CardTitle>
           </div>
@@ -75,7 +74,7 @@ export const TourCard: React.FC<CardComponentProps> = ({
           )}
           {currentStep + 1 === totalSteps && (
             <Button
-            onClick={handleClose}
+              onClick={handleClose}
               className="bg-zinc-900 hover:bg-zinc-800 text-white hover:text-white ml-auto"
             >
               🎉 Finish!

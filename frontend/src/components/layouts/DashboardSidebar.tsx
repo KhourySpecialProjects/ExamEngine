@@ -35,7 +35,7 @@ export function DashboardSidebar({ isOpen = true, onToggle }: SidebarProps) {
   }, [fetchDatasets, datasets.length]);
 
   return (
-    <div className="h-full flex flex-col">
+    <div id="control-center" className="h-full flex flex-col">
       <div
         className={`flex items-center border-b py-3 ${
           isOpen ? "justify-between px-3" : "justify-center px-1"

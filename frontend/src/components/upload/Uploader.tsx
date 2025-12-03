@@ -100,7 +100,7 @@ export function Uploader() {
   return (
     <Dialog>
       <DialogTrigger asChild>
-        <Button className="w-full">
+        <Button id="upload-id" className="w-full">
           <HardDriveDownload className="h-4" />
           Upload CSV
         </Button>

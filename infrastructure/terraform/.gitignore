@@ -22,5 +22,5 @@ override.tf.json
 .terraformrc
 terraform.rc
 
-# Lock file (optional - some teams commit this)
-# .terraform.lock.hcl
+# Lock file 
+.terraform.lock.hcl

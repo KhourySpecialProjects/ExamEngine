@@ -28,7 +28,7 @@ resource "aws_lb_target_group" "backend" {
   port        = 8000
   protocol    = "HTTP"
   vpc_id      = data.aws_vpc.default.id
-  target_type = "ip"  # Required for ECS Fargate with awsvpc network mode
+  target_type = "ip" # Required for ECS Fargate with awsvpc network mode
 
   lifecycle {
     create_before_destroy = true
@@ -55,7 +55,7 @@ resource "aws_lb_target_group" "frontend" {
   port        = 3000
   protocol    = "HTTP"
   vpc_id      = data.aws_vpc.default.id
-  target_type = "ip" 
+  target_type = "ip"
 
   lifecycle {
     create_before_destroy = true
@@ -89,6 +89,36 @@ resource "aws_lb_listener" "http" {
   default_action {
     type             = "forward"
     target_group_arn = aws_lb_target_group.frontend.arn
+  }
+}
+
+# HTTPS Listener
+resource "aws_lb_listener" "https" {
+  load_balancer_arn = aws_lb.examengine.arn
+  port              = 443
+  protocol          = "HTTPS"
+  ssl_policy        = "ELBSecurityPolicy-TLS13-1-2-2021-06"
+  certificate_arn   = data.aws_acm_certificate.examengine.arn
+
+  default_action {
+    type             = "forward"
+    target_group_arn = aws_lb_target_group.frontend.arn
+  }
+}
+
+resource "aws_lb_listener_rule" "api_https" {
+  listener_arn = aws_lb_listener.https.arn
+  priority     = 100
+
+  action {
+    type             = "forward"
+    target_group_arn = aws_lb_target_group.backend.arn
+  }
+
+  condition {
+    path_pattern {
+      values = ["/api/*"]
+    }
   }
 }
 

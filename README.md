@@ -150,14 +150,42 @@ This is the easiest way to run the entire application stack.
 
 2. **Set up environment variables:**
    
-   **Backend:**
+   **Important:** Docker Compose reads environment variables from a `.env` file in the **root directory** (same location as `docker-compose.yml`), not from `backend/.env`.
+   
+   **Create root `.env` file:**
    ```bash
-   cd backend
-   cp .env.example .env
-   # Edit .env and fill in your AWS credentials and other settings
+   # Create .env in the root directory (ExamEngine-5/.env)
+   # Copy from backend/.env.example or create manually with:
    ```
    
-   **Frontend:**
+   **Required variables for root `.env`:**
+   ```env
+   # AWS Configuration (Required for S3 file storage)
+   AWS_ACCESS_KEY_ID=your_aws_access_key_id
+   AWS_SECRET_ACCESS_KEY=your_aws_secret_access_key
+   AWS_REGION=us-east-1
+   AWS_S3_BUCKET=your-s3-bucket-name
+   
+   # Database Configuration
+   POSTGRES_USER=postgres
+   POSTGRES_PASSWORD=postgres
+   POSTGRES_DB=exam_engine_db
+   
+   # Backend Configuration
+   SECRET_KEY=your_secret_key_here_change_in_production
+   FRONTEND_URL=http://localhost:3000
+   
+   # Frontend Configuration
+   NEXT_PUBLIC_API_URL=http://localhost:8000
+   
+   # Admin Configuration (Optional - for add_admin.py script)
+   ADMIN_EMAIL=theadmin@northeastern.edu
+   ADMIN_PASSWORD=admin
+   ```
+   
+   **Note:** The backend application also reads from `backend/.env` for local development (without Docker), but Docker Compose uses the root `.env` file.
+   
+   **Frontend (optional):**
    ```bash
    cd frontend
    cp .env.example .env.local
@@ -165,15 +193,22 @@ This is the easiest way to run the entire application stack.
    ```
 
 3. **Start all services:**
+   
+   **For Development:**
    ```bash
-   docker-compose up -d
+   docker-compose --profile dev up -d
+   ```
+   
+   **For Production:**
+   ```bash
+   docker-compose --profile prod up -d
    ```
    
    This will start:
-   - PostgreSQL database (port 5432)
+   - PostgreSQL database (port 5432) - dev only
    - Backend API (port 8000)
    - Frontend application (port 3000)
-   - Nginx reverse proxy (port 80)
+   - Nginx reverse proxy (port 80) - dev only
 
 4. **Verify services are running:**
    ```bash
@@ -182,7 +217,40 @@ This is the easiest way to run the entire application stack.
    
    All services should show as "healthy" or "running".
 
-5. **Access the application:**
+5. **Create the first admin user:**
+   
+   After the services are running, create the initial admin account:
+   ```bash
+   # For development
+   docker-compose exec backend-dev python script/add_admin.py
+   
+   # For production
+   docker-compose exec backend python script/add_admin.py
+   ```
+   
+   **Admin credentials:**
+   The script reads admin credentials from environment variables. You can set them in:
+   - **Root `.env` file** (recommended for Docker): `ADMIN_EMAIL` and `ADMIN_PASSWORD`
+   - **`backend/.env` file** (for local development)
+   - **Command line** (temporary): Use `-e` flags as shown below
+   
+   **Default values** (if not set in .env):
+   - Email: `theadmin@northeastern.edu`
+   - Password: `admin`
+   
+   **Custom admin credentials:**
+   Option 1: Set in root `.env` file:
+   ```env
+   ADMIN_EMAIL=your-email@northeastern.edu
+   ADMIN_PASSWORD=your-secure-password
+   ```
+   
+   Option 2: Set via command line (temporary):
+   ```bash
+   docker-compose exec -e ADMIN_EMAIL=your-email@northeastern.edu -e ADMIN_PASSWORD=your-password backend-dev python script/add_admin.py
+   ```
+
+6. **Access the application:**
    - Frontend: http://localhost:3000
    - Backend API: http://localhost:8000
    - API Documentation: http://localhost:8000/docs
@@ -234,19 +302,24 @@ cp .env.example .env.local
 
 ## Environment Variables
 
-### Backend Environment Variables (`backend/.env`)
+### Backend Environment Variables
 
-Create `backend/.env` from `backend/.env.example`:
+**For Docker Compose:** Create a `.env` file in the **root directory** (same location as `docker-compose.yml`).
+
+**For Local Development:** Create `backend/.env` from `backend/.env.example`.
+
+**Required variables:**
 
 ```bash
 # Database Configuration
 DATABASE_URL=postgresql://postgres:postgres@localhost:5432/exam_engine_db
+# Note: For Docker, DATABASE_URL is auto-generated from POSTGRES_* variables
 
 # AWS Configuration (Required for S3 file storage)
 AWS_ACCESS_KEY_ID=your_aws_access_key_id
 AWS_SECRET_ACCESS_KEY=your_aws_secret_access_key
 AWS_REGION=us-east-1
-AWS_S3_BUCKET=exam-engine-csvs
+AWS_S3_BUCKET=your-s3-bucket-name
 
 # Security Settings
 SECRET_KEY=your_secret_key_here_change_in_production
@@ -260,10 +333,20 @@ FRONTEND_URL=http://localhost:3000
 DEBUG=True
 ENVIRONMENT=development
 
+# Admin Configuration (Optional - for add_admin.py script)
+ADMIN_EMAIL=theadmin@northeastern.edu
+ADMIN_PASSWORD=admin
+
 # Database Connection Pool Settings (Optional)
 DB_POOL_SIZE=5
 DB_MAX_OVERFLOW=10
 ```
+
+**Important Notes:**
+- **Docker Compose** reads from the **root `.env`** file
+- **Local development** (without Docker) reads from `backend/.env`
+- Make sure your AWS credentials are valid and have access to the S3 bucket
+- The `ADMIN_EMAIL` and `ADMIN_PASSWORD` variables are used by the `add_admin.py` script
 
 ### Frontend Environment Variables (`frontend/.env.local`)
 
@@ -294,7 +377,7 @@ NODE_ENV=development
 
 ```bash
 # Start all services in development mode
-docker-compose up -d
+docker-compose --profile dev up -d
 
 # View logs
 docker-compose logs -f
@@ -399,8 +482,11 @@ The project includes a `docker-compose.yml` file that orchestrates all services:
 ### Useful Docker Commands
 
 ```bash
-# Start all services
-docker-compose up -d
+# Start all services (development)
+docker-compose --profile dev up -d
+
+# Start all services (production)
+docker-compose --profile prod up -d
 
 # Stop all services
 docker-compose down
@@ -655,122 +741,6 @@ The system uses 5 time blocks per day:
 - Block 4: 7:00 PM - 9:00 PM
 
 Days are configurable (default: Monday through Sunday, 7 days total).
-
----
-
-## Troubleshooting
-
-### Common Issues
-
-#### Port Conflicts
-**Problem**: Services fail to start due to port conflicts
-
-**Solution**:
-```bash
-# Check what's using the ports
-# On macOS/Linux:
-lsof -i :3000
-lsof -i :8000
-lsof -i :5432
-
-# On Windows:
-netstat -ano | findstr :3000
-netstat -ano | findstr :8000
-netstat -ano | findstr :5432
-
-# Stop conflicting services or change ports in docker-compose.yml
-```
-
-#### Database Connection Errors
-**Problem**: Backend cannot connect to database
-
-**Solution**:
-- Verify PostgreSQL is running: `docker-compose ps db`
-- Check `DATABASE_URL` in `backend/.env`
-- Ensure database exists: `docker-compose exec db psql -U postgres -c "\l"`
-- Reset database: `docker-compose down -v && docker-compose up -d db`
-
-#### AWS S3 Access Denied
-**Problem**: Dataset upload fails with AWS errors
-
-**Solution**:
-- Verify AWS credentials in `backend/.env`
-- Check S3 bucket name and region
-- Ensure IAM user has S3 read/write permissions
-- Verify bucket exists: `aws s3 ls s3://your-bucket-name`
-
-#### Environment Variables Not Loading
-**Problem**: Application uses wrong configuration
-
-**Solution**:
-- Verify `.env` files exist (not just `.env.example`)
-- Check file names: `backend/.env`, `frontend/.env.local`
-- Restart services: `docker-compose restart`
-- Check logs: `docker-compose logs backend`
-
-#### Frontend Cannot Connect to Backend
-**Problem**: API calls fail with connection errors
-
-**Solution**:
-- Verify `NEXT_PUBLIC_API_URL` in `frontend/.env.local`
-- Check backend is running: `docker-compose ps backend`
-- Verify CORS settings in `backend/.env`: `FRONTEND_URL`
-- Check browser console for CORS errors
-
-#### Docker Build Failures
-**Problem**: `docker-compose up` fails during build
-
-**Solution**:
-- Clear Docker cache: `docker-compose build --no-cache`
-- Check Docker has enough resources (memory, disk)
-- Verify Dockerfile syntax
-- Check logs: `docker-compose logs [service_name]`
-
-### Performance Tips
-
-- **Use smaller test datasets** for initial testing
-- **Monitor memory usage** with large enrollment files
-- **Increase Docker resources** if processing large datasets
-- **Use database indexes** for faster queries (automatically created)
-- **Enable connection pooling** (configured in `backend/.env`)
-
-### Debugging
-
-#### View Logs
-```bash
-# All services
-docker-compose logs -f
-
-# Specific service
-docker-compose logs -f backend
-docker-compose logs -f frontend
-docker-compose logs -f db
-
-# Last 100 lines
-docker-compose logs --tail=100 backend
-```
-
-#### Access Container Shell
-```bash
-# Backend
-docker-compose exec backend bash
-
-# Frontend
-docker-compose exec frontend sh
-
-# Database
-docker-compose exec db psql -U postgres -d exam_engine_db
-```
-
-#### Check Service Health
-```bash
-# Service status
-docker-compose ps
-
-# Health checks
-docker-compose exec backend python -c "import requests; print(requests.get('http://localhost:8000/').status_code)"
-docker-compose exec frontend curl http://localhost:3000
-```
 
 ---
 

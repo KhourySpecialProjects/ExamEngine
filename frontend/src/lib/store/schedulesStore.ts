@@ -1,6 +1,7 @@
 import { create } from "zustand";
 import { apiClient } from "@/lib/api/client";
 import type { SchedulesState } from "@/lib/types/schedule.types";
+import { useAuthStore } from "./authStore";
 
 export const useSchedulesStore = create<SchedulesState>((set, get) => ({
   // List state
@@ -73,6 +74,7 @@ export const useSchedulesStore = create<SchedulesState>((set, get) => ({
           schedule_id: tempId,
           schedule_name: name,
           created_at: new Date().toISOString(),
+          created_by_user_name: useAuthStore.getState().user?.name || "You",
           algorithm: "DSATUR",
           parameters: params,
           status: "Running",

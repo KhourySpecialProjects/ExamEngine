@@ -8,7 +8,7 @@ def sample_census_data():
     return pd.DataFrame(
         {
             "CRN": ["1001", "1002", "1003", "1004", "1005", "1006", "1007", "1008"],
-            "course_ref": [
+            "CourseID": [
                 "CS101",
                 "MATH201",
                 "PHYS301",
@@ -19,6 +19,18 @@ def sample_census_data():
                 "PHYS302",
             ],
             "num_students": [30, 25, 40, 20, 35, 28, 22, 45],
+            "Instructor Name": [
+                "Dr. Smith",
+                "Dr. Smith",
+                "Dr. Jones",
+                "Dr. Brown",
+                "Dr. Brown",
+                "Dr. Wilson",
+                "Dr. Wilson",
+                "Dr. Davis",
+            ],
+            "examination_term": ["Fall 2025"] * 8,
+            "department": ["CS", "MATH", "PHYS", "CHEM", "BIO", "CS", "MATH", "PHYS"],
         }
     )
 
@@ -28,7 +40,7 @@ def sample_enrollment_data():
     """Sample enrollment data for testing."""
     return pd.DataFrame(
         {
-            "student_id": [
+            "Student_PIDM": [
                 "S001",
                 "S001",
                 "S001",  # Student S001 takes 3 courses
@@ -68,26 +80,6 @@ def sample_enrollment_data():
                 "1001",
                 "1002",  # S008's courses
             ],
-            "instructor_name": [
-                "Dr. Smith",
-                "Dr. Smith",
-                "Dr. Jones",  # S001's instructors
-                "Dr. Smith",
-                "Dr. Brown",
-                "Dr. Brown",  # S002's instructors
-                "Dr. Smith",
-                "Dr. Wilson",  # S003's instructors
-                "Dr. Jones",
-                "Dr. Wilson",  # S004's instructors
-                "Dr. Brown",
-                "Dr. Davis",  # S005's instructors
-                "Dr. Brown",
-                "Dr. Wilson",  # S006's instructors
-                "Dr. Wilson",
-                "Dr. Davis",  # S007's instructors
-                "Dr. Smith",
-                "Dr. Smith",  # S008's instructors
-            ],
         }
     )
 
@@ -109,8 +101,18 @@ def large_census_data():
     crns = [f"{1000 + i}" for i in range(100)]
     courses = [f"CS{100 + i}" for i in range(100)]
     sizes = [20 + (i % 50) for i in range(100)]  # Sizes between 20-69
+    instructors = [f"Dr. Instructor{(i % 20) + 1}" for i in range(100)]
+    terms = ["Fall 2025"] * 100
+    depts = ["CS"] * 100
 
-    return pd.DataFrame({"CRN": crns, "course_ref": courses, "num_students": sizes})
+    return pd.DataFrame({
+        "CRN": crns,
+        "CourseID": courses,
+        "num_students": sizes,
+        "Instructor Name": instructors,
+        "examination_term": terms,
+        "department": depts,
+    })
 
 
 @pytest.fixture(scope="session")
@@ -129,9 +131,8 @@ def large_enrollment_data(large_census_data):
         for _i in range(course_size):
             enrollments.append(
                 {
-                    "student_id": f"S{student_id:04d}",
+                    "Student_PIDM": f"S{student_id:04d}",
                     "CRN": crn,
-                    "instructor_name": f"Dr. Instructor{(student_id % 20) + 1}",
                 }
             )
             student_id += 1

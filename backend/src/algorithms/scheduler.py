@@ -144,8 +144,13 @@ class Scheduler:
 
     def _color_graph(self):
         """Apply DSATUR graph coloring."""
-        if self.graph is None or self.graph.number_of_nodes() == 0:
+        if self.graph is None:
             raise RuntimeError("Build graph before coloring")
+        
+        # Handle empty graph (no courses)
+        if self.graph.number_of_nodes() == 0:
+            self.colors = {}
+            return
 
         # https://networkx.org/documentation/stable/reference/algorithms/generated/networkx.algorithms.coloring.greedy_color.html#networkx.algorithms.coloring.greedy_color
         # TODO dynamic strategy?
@@ -154,7 +159,9 @@ class Scheduler:
     def _assign_time_slots(self, prioritize_large: bool):
         """Assign each course to a time slot."""
         if not self.colors:
-            raise RuntimeError("Color graph before scheduling")
+            # Empty dataset - no courses to schedule
+            self.assignments = {}
+            return
 
         # Get the ordering
         ordered_crns = self._get_course_ordering(prioritize_large)

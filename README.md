@@ -744,6 +744,149 @@ Days are configurable (default: Monday through Sunday, 7 days total).
 
 ---
 
+## Troubleshooting
+
+### Common Issues
+
+#### Port Conflicts
+
+**Problem:** Services fail to start due to port conflicts
+
+**Solution:**
+
+```bash
+# Check what's using the ports
+# On macOS/Linux:
+lsof -i :3000
+lsof -i :8000
+lsof -i :5432
+
+# On Windows:
+netstat -ano | findstr :3000
+netstat -ano | findstr :8000
+netstat -ano | findstr :5432
+
+# Stop conflicting services or change ports in docker-compose.yml
+```
+
+#### Database Connection Errors
+
+**Problem:** Backend cannot connect to database
+
+**Solution:**
+
+```bash
+# Verify PostgreSQL is running
+docker-compose ps db
+
+# Check DATABASE_URL in backend/.env
+# Ensure database exists
+docker-compose exec db psql -U postgres -c "\l"
+
+# Reset database
+docker-compose down -v && docker-compose up -d db
+```
+
+#### AWS S3 Access Denied
+
+**Problem:** Dataset upload fails with AWS errors
+
+**Solution:**
+
+- Verify AWS credentials in root `.env` file (for Docker) or `backend/.env` (for local)
+- Check S3 bucket name and region
+- Ensure IAM user has S3 read/write permissions
+- Verify bucket exists: `aws s3 ls s3://your-bucket-name`
+
+#### Environment Variables Not Loading
+
+**Problem:** Application uses wrong configuration
+
+**Solution:**
+
+- Verify `.env` files exist (not just `.env.example`)
+- Check file names: root `.env` (for Docker), `backend/.env` (for local backend), `frontend/.env.local` (for frontend)
+- Restart services: `docker-compose restart`
+- Check logs: `docker-compose logs backend`
+
+#### Frontend Cannot Connect to Backend
+
+**Problem:** API calls fail with connection errors
+
+**Solution:**
+
+- Verify `NEXT_PUBLIC_API_URL` in `frontend/.env.local`
+- Check backend is running: `docker-compose ps backend`
+- Verify CORS settings in root `.env`: `FRONTEND_URL`
+- Check browser console for CORS errors
+
+#### Docker Build Failures
+
+**Problem:** `docker-compose up` fails during build
+
+**Solution:**
+
+```bash
+# Clear Docker cache
+docker-compose build --no-cache
+
+# Check Docker has enough resources (memory, disk)
+# Verify Dockerfile syntax
+# Check logs
+docker-compose logs [service_name]
+```
+
+### Performance Tips
+
+- Use smaller test datasets for initial testing
+- Monitor memory usage with large enrollment files
+- Increase Docker resources if processing large datasets
+- Use database indexes for faster queries (automatically created)
+- Enable connection pooling (configured in `backend/.env`)
+
+### Debugging
+
+#### View Logs
+
+```bash
+# All services
+docker-compose logs -f
+
+# Specific service
+docker-compose logs -f backend
+docker-compose logs -f frontend
+docker-compose logs -f db
+
+# Last 100 lines
+docker-compose logs --tail=100 backend
+```
+
+#### Access Container Shell
+
+```bash
+# Backend
+docker-compose exec backend-dev bash
+
+# Frontend
+docker-compose exec frontend-dev sh
+
+# Database
+docker-compose exec db psql -U postgres -d exam_engine_db
+```
+
+#### Check Service Health
+
+```bash
+# Service status
+docker-compose ps
+
+# Health checks
+docker-compose exec backend-dev python -c "import requests; print(requests.get('http://localhost:8000/').status_code)"
+docker-compose exec frontend-dev curl http://localhost:3000
+```
+
+---
+
 ## Contributing
 
 We welcome contributions! Please follow these steps:

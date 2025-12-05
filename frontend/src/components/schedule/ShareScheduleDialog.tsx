@@ -132,7 +132,7 @@ export function ShareScheduleDialog({
   return (
     <Dialog open={isOpen} onOpenChange={setIsOpen}>
       <DialogTrigger asChild>
-        <Button variant="outline" size="sm">
+        <Button variant="outline">
           <Share2 className="mr-2 h-4 w-4" />
           Share
         </Button>

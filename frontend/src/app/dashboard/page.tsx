@@ -4,6 +4,16 @@ import { Loader2 } from "lucide-react";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { ScheduleListView } from "@/components/schedules/ScheduleListView";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { useSchedulesStore } from "@/lib/store/schedulesStore";
 
 export default function DashboardPage() {
@@ -11,6 +21,14 @@ export default function DashboardPage() {
   const isLoadingList = useSchedulesStore((state) => state.isLoadingList);
   const error = useSchedulesStore((state) => state.error);
   const fetchSchedules = useSchedulesStore((state) => state.fetchSchedules);
+  const deleteSchedule = useSchedulesStore((state) => state.deleteSchedule);
+
+  const [pendingDeleteId, setPendingDeleteId] = useState<string | null>(null);
+  const [isConfirmOpen, setIsConfirmOpen] = useState(false);
+
+  const scheduleToDelete = pendingDeleteId
+    ? schedules.find((s) => s.schedule_id === pendingDeleteId)
+    : undefined;
 
   useEffect(() => {
     fetchSchedules().catch((err) => {
@@ -21,14 +39,31 @@ export default function DashboardPage() {
     });
   }, [fetchSchedules]);
 
-  const handleDelete = async (_scheduleId: string) => {
-    toast.info("Delete functionality", {
-      description: "Schedule deletion will be implemented soon",
-    });
+  const requestDelete = (scheduleId: string) => {
+    setPendingDeleteId(scheduleId);
+    setIsConfirmOpen(true);
+  };
+
+  const handleDelete = async () => {
+    if (!pendingDeleteId) return;
+
+    const toastId = toast.loading("Deleting schedule...");
+    try {
+      await deleteSchedule(pendingDeleteId);
+      toast.success("Schedule deleted", { id: toastId });
+    } catch (error) {
+      toast.error("Failed to delete schedule", {
+        id: toastId,
+        description: error instanceof Error ? error.message : "Unknown error",
+      });
+    } finally {
+      setIsConfirmOpen(false);
+      setPendingDeleteId(null);
+    }
   };
 
   return (
-    <div className="space-y-6 p-6">
+    <div id="schedule-view" className="space-y-6 p-6">
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold">Manage Your Schedules</h1>
@@ -56,8 +91,35 @@ export default function DashboardPage() {
       )}
 
       {!isLoadingList && !error && (
-        <ScheduleListView schedules={schedules} onDelete={handleDelete} />
+        <ScheduleListView schedules={schedules} onDelete={requestDelete} />
       )}
+
+      <AlertDialog
+        open={isConfirmOpen}
+        onOpenChange={(open) => {
+          setIsConfirmOpen(open);
+          if (!open) setPendingDeleteId(null);
+        }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>
+              Delete this schedule permanently?
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              This action cannot be undone.{" "}
+              <span className="font-semibold text-red-500">
+                {scheduleToDelete?.schedule_name ?? "This schedule"}
+              </span>{" "}
+              will be removed.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={handleDelete}>Delete</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

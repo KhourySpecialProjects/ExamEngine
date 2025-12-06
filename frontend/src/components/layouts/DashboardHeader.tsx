@@ -1,9 +1,19 @@
 "use client";
 
-import { Bell, Settings } from "lucide-react";
+// Extend the Window interface to include the 'onborda' property
+declare global {
+  interface Window {
+    onborda?: {
+      start: (tourName: string) => void;
+    };
+  }
+}
+
+import { CircleQuestionMark, Settings } from "lucide-react";
 import Image from "next/image";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { Onborda, OnbordaProvider, useOnborda } from "onborda";
 import { useEffect, useState } from "react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
@@ -16,6 +26,42 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { useAuthStore } from "@/lib/store/authStore";
+
+const steps = [
+  {
+    tour: "dashboard-tour", // tour ID
+    steps: [
+      {
+        target: "#upload-id",
+        content: "Click here to upload your CSV files.",
+        icon: "upload",
+        title: "Upload CSV",
+        selector: "#upload-id",
+      },
+      {
+        target: "#dataset-bar-id",
+        content: "Select your dataset here.",
+        icon: "dataset",
+        title: "Dataset Selection",
+        selector: "#dataset-bar-id",
+      },
+      {
+        target: "#schedule-list-id",
+        content: "View and manage your schedules here.",
+        icon: "schedule",
+        title: "Schedules",
+        selector: "#schedule-list-id",
+      },
+      {
+        target: "#settings-id",
+        content: "Access your settings here.",
+        icon: "settings",
+        title: "Settings",
+        selector: "#settings-id",
+      },
+    ],
+  },
+];
 
 export function DashboardHeader() {
   const { user, logout } = useAuthStore();
@@ -31,22 +77,41 @@ export function DashboardHeader() {
     router.push("/login");
   };
 
+  const { startOnborda } = useOnborda();
+  const handleStartOnborda = (tourName: string) => {
+    startOnborda(tourName);
+  };
+
   return (
     <header className="h-16 border-b bg-white flex items-center justify-between px-6 py-10">
       {/* Logo */}
-      <Link href="/dashboard" className="flex items-center gap-3 hover:opacity-80 transition-opacity">
+      <Link
+        href="/dashboard"
+        className="flex items-center gap-3 hover:opacity-80 transition-opacity"
+      >
         <Image src="/logo.svg" alt="icon" width={190} height={20} />
       </Link>
 
-      {/* Right Side - Notifications, Settings, User */}
+      {/* Right Side - Notifications, Settings, User, start tour */}
+      <OnbordaProvider>
+        <Onborda steps={steps}>
+          {/** biome-ignore lint/complexity/noUselessFragments: <explanation> */}
+          <></>
+        </Onborda>
+      </OnbordaProvider>
       <div className="flex items-center gap-3">
-        {/* Notifications */}
-        <Button variant="ghost" size="icon">
-          <Bell className="h-5 w-5" />
+        {/* Start Tour */}
+        <Button
+          onClick={() => handleStartOnborda("tour1")}
+          size="icon"
+          variant="ghost"
+        >
+          <CircleQuestionMark className="h-5 w-5"></CircleQuestionMark>
         </Button>
 
         {/* Settings */}
         <Button
+          id="settings-id"
           variant="ghost"
           size="icon"
           onClick={() => router.push("/dashboard/settings")}
@@ -84,7 +149,9 @@ export function DashboardHeader() {
               </div>
             </DropdownMenuLabel>
             <DropdownMenuSeparator />
-            <DropdownMenuItem onClick={() => router.push("/dashboard/settings")}>
+            <DropdownMenuItem
+              onClick={() => router.push("/dashboard/settings")}
+            >
               <Settings className="mr-2 h-4 w-4" />
               Settings
             </DropdownMenuItem>

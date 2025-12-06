@@ -1,26 +1,24 @@
-from uuid import UUID
+from uuid import UUID, uuid4
 
-import pandas as pd
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from src.domain.models import Course
 from src.schemas.db import Courses
 
 from .base import BaseRepo
 
 
 class CourseRepo(BaseRepo[Courses]):
-    """Repository for course operations."""
+    """Repository for course data access."""
 
     def __init__(self, db: Session):
         super().__init__(Courses, db)
 
-    def get_by_subject_code(
-        self, course_subject_code: str, dataset_id: UUID
-    ) -> Courses | None:
-        """Find course by subject code within a dataset."""
+    def get_by_crn(self, crn: str, dataset_id: UUID) -> Courses | None:
+        """Find course by CRN within a dataset."""
         stmt = select(Courses).where(
-            Courses.course_subject_code == course_subject_code,
+            Courses.crn == crn,
             Courses.dataset_id == dataset_id,
         )
         return self.db.execute(stmt).scalars().first()
@@ -30,88 +28,40 @@ class CourseRepo(BaseRepo[Courses]):
         stmt = select(Courses).where(Courses.dataset_id == dataset_id)
         return list(self.db.execute(stmt).scalars().all())
 
-    def bulk_create_from_dataframe(
-        self, dataset_id: UUID, courses_df, enrollment_df=None
+    def bulk_create_from_domain(
+        self,
+        dataset_id: UUID,
+        courses: dict[str, Course],
     ) -> dict[str, UUID]:
         """
-        Create course records from census DataFrame.
+        Create course records from domain Course objects.
 
-        Returns mapping of course_ref -> course_id for assignment creation.
+        Args:
+            dataset_id: UUID of the dataset
+            courses: Dict mapping CRN to Course domain objects
+
+        Returns:
+            Mapping of crn -> course_id
         """
-        instructor_map = _build_instructor_map(enrollment_df)
-
         course_objs = []
-        for _, row in courses_df.iterrows():
-            crn = _clean_crn(row.get("CRN"))
 
-            course = Courses(
-                course_subject_code=str(row.get("CourseID", "")),
-                crn=crn,
-                enrollment_count=int(row.get("num_students", 0)),
-                instructor_name=instructor_map.get(crn),
+        for _crn, course in courses.items():
+            db_course = Courses(
+                course_id=uuid4(),
+                crn=course.crn,
+                course_subject_code=course.course_code,
+                enrollment_count=course.enrollment_count,
+                instructor_name="; ".join(sorted(course.instructor_names))
+                if course.instructor_names
+                else None,
+                department=course.department,
+                examination_term=course.examination_term,
                 dataset_id=dataset_id,
             )
-            course_objs.append(course)
+            course_objs.append(db_course)
 
-        self.db.bulk_save_objects(course_objs, return_defaults=True)
-        self.db.commit()
+        if course_objs:
+            self.db.bulk_save_objects(course_objs, return_defaults=True)
+            self.db.commit()
 
-        # Build mapping: crn -> course_id
-        mapping = {}
-        for obj in course_objs:
-            mapping[obj.crn] = obj.course_id
-
-        return mapping
-
-
-# Temporary solution until we change the csv
-def _clean_crn(value) -> str | None:
-    """
-    Normalize CRN values to consistent string format.
-
-    Handles various input formats:
-    - Float: 11310.0 -> "11310"
-    - String: "11310" -> "11310"
-    - NaN/None: -> None
-    """
-    try:
-        if pd.isna(value):
-            return None
-        return str(int(float(value))).strip()
-    except (ValueError, TypeError):
-        return str(value).strip() if value else None
-
-
-def _build_instructor_map(enrollment_df: pd.DataFrame) -> dict[str, str]:
-    """
-    Build mapping of CRN -> instructor names from enrollment data.
-
-    Returns:
-        Dictionary mapping cleaned CRNs to semicolon-separated instructor names
-    """
-    if enrollment_df is None or enrollment_df.empty:
-        return {}
-
-    enroll = enrollment_df.copy()
-    if "Instructor Name" in enroll.columns:
-        enroll = enroll.rename(columns={"Instructor Name": "instructor_name"})
-
-    if "instructor_name" not in enroll.columns or "CRN" not in enroll.columns:
-        return {}
-
-    enroll["CRN"] = enroll["CRN"].apply(_clean_crn)
-
-    instructor_map = (
-        enroll[enroll["instructor_name"].notna()]
-        .groupby("CRN")["instructor_name"]
-        .apply(
-            lambda names: "; ".join(
-                sorted(
-                    {str(name).strip() for name in names if name and str(name).strip()}
-                )
-            )
-        )
-        .to_dict()
-    )
-
-    return instructor_map
+        return {obj.crn: obj.course_id for obj in course_objs}

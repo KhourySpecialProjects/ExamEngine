@@ -1,4 +1,4 @@
-class AppException(Exception):
+class AppExceptionError(Exception):
     """Base exception for all application errors."""
 
     def __init__(self, message: str, detail: dict | None = None):
@@ -7,43 +7,43 @@ class AppException(Exception):
         super().__init__(self.message)
 
 
-class DatasetNotFoundError(AppException):
+class DatasetNotFoundError(AppExceptionError):
     """Dataset doesn't exist or user lacks access."""
 
     pass
 
 
-class ValidationError(AppException):
+class ValidationError(AppExceptionError):
     """Input validation failed."""
 
     pass
 
 
-class DatasetExistsError(AppException):
+class DatasetExistsError(AppExceptionError):
     """Dataset of same name already exists"""
 
     pass
 
 
-class StorageError(AppException):
+class StorageError(AppExceptionError):
     """S3 storage operation failed."""
 
     pass
 
 
-class ScheduleGenerationError(AppException):
+class ScheduleGenerationError(AppExceptionError):
     """Schedule generation algorithm failed."""
 
     pass
 
 
-class AuthenticationError(AppException):
+class AuthenticationError(AppExceptionError):
     """User authentication failed."""
 
     pass
 
 
-class AuthorizationError(AppException):
+class AuthorizationError(AppExceptionError):
     """User lacks permission for operation."""
 
     pass

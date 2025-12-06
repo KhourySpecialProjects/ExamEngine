@@ -93,7 +93,6 @@ export const useSchedulesStore = create<SchedulesState>((set, get) => ({
       );
 
       set((state) => ({
-        currentSchedule: result,
         scheduleName: "",
         isGenerating: false,
         schedules: state.schedules.map((schedule) =>

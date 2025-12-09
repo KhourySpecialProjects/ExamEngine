@@ -2,7 +2,6 @@ from collections import defaultdict
 from typing import Any
 from uuid import UUID
 
-from src.algorithms.scheduler import Scheduler, ScheduleResult
 from src.core.exceptions import (
     DatasetNotFoundError,
     ScheduleGenerationError,
@@ -16,6 +15,7 @@ from src.domain.constants import (
 from src.domain.factories import DatasetFactory
 from src.domain.models import Course, Room
 from src.domain.services.schedule_analyzer import ScheduleAnalysis, ScheduleAnalyzer
+from src.domain.services.scheduler import Scheduler, ScheduleResult
 from src.repo.conflict_analyses import ConflictAnalysesRepo
 from src.repo.course import CourseRepo
 from src.repo.exam_assignment import ExamAssignmentRepo

@@ -4,7 +4,7 @@ AWS deployment and Terraform configuration for ExamEngine.
 
 ## Architecture Overview
 
-<img src="figures/aws_infra.svg" alt="AWS Infrastructure Diagram" width="500"/>
+<img src="figures/aws_infra.svg" alt="AWS Infrastructure Diagram" width="1000"/>
 
 ## AWS Resources
 

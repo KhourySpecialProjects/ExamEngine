@@ -12,17 +12,14 @@ vi.mock("@/lib/store/datasetStore", () => ({
   useDatasetStore: () => useDatasetStoreMock(),
 }));
 
-// Mock ScheduleRunner
 vi.mock("../schedule/ScheduleRunner", () => ({
   ScheduleRunner: () => <div>Schedule Runner</div>,
 }));
 
-// Mock Uploader
 vi.mock("../upload/Uploader", () => ({
   Uploader: () => <div>Uploader</div>,
 }));
 
-// Mock getTimeAgo
 vi.mock("@/lib/utils", () => ({
   getTimeAgo: vi.fn(() => "2 days ago"),
   cn: (...args: any[]) => args.filter(Boolean).join(" "),
@@ -33,7 +30,6 @@ const mockSelectDataset = vi.fn();
 const mockFetchDatasets = vi.fn();
 const mockGetSelectedDataset = vi.fn();
 
-// Zustand store mock
 vi.mock("@/lib/store/datasetStore", () => ({
   useDatasetStore: () => ({
     datasets: [],
@@ -57,10 +53,6 @@ beforeEach(() => {
     isLoading: false,
   });
 });
-
-
-// Import AFTER mocks
-import { useDatasetStore } from "@/lib/store/datasetStore";
 
 /* ------------------ TEST DATA ------------------ */
 

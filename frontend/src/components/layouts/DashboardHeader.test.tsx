@@ -2,14 +2,12 @@ import { render, screen, fireEvent } from "@testing-library/react";
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { DashboardHeader } from "./DashboardHeader";
 
-// ✅ Mock Next.js Image
 vi.mock("next/image", () => ({
   default: (props: any) => {
     return <img {...props} />;
   },
 }));
 
-// ✅ Mock Router
 const pushMock = vi.fn();
 
 vi.mock("next/navigation", () => ({
@@ -18,7 +16,6 @@ vi.mock("next/navigation", () => ({
   }),
 }));
 
-// ✅ Mock Auth Store
 const logoutMock = vi.fn();
 
 vi.mock("@/lib/store/authStore", () => ({
@@ -70,10 +67,6 @@ describe("DashboardHeader", () => {
 
     const buttons = screen.getAllByRole("button");
 
-    // At least:
-    // - Notification
-    // - Settings
-    // - User menu
     expect(buttons.length).toBeGreaterThanOrEqual(3);
   });
 });

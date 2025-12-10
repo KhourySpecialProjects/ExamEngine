@@ -58,18 +58,63 @@ cd frontend && npm run dev
 
 ## Environment Variables
 
+### Root (.env)
+
+```env
+# Database (dev uses these, prod uses DATABASE_URL)
+POSTGRES_USER=postgres
+POSTGRES_PASSWORD=postgres
+POSTGRES_DB=exam_engine_db
+
+# Production database (ignored in dev)
+# DATABASE_URL=postgresql+psycopg2://user:pass@rds-host:5432/exam_engine_db
+
+# Ports
+DB_PORT=5432
+BACKEND_PORT=8000
+FRONTEND_PORT=3000
+NGINX_PORT=80
+
+# AWS
+AWS_ACCESS_KEY_ID=your_aws_access_key
+AWS_SECRET_ACCESS_KEY=your_aws_secret_key
+AWS_REGION=us-east-1
+AWS_S3_BUCKET=exam-engine-csvs
+
+# Security
+SECRET_KEY=dev-secret-key-change-in-production
+
+# URLs
+FRONTEND_URL=http://localhost:3000
+NEXT_PUBLIC_API_URL=http://localhost:8000
+```
+
 ### Backend (`backend/.env`)
 
 ```env
-DATABASE_URL=postgresql://user:password@localhost:5432/examengine
-AWS_ACCESS_KEY_ID=your_key
-AWS_SECRET_ACCESS_KEY=your_secret
+# Database
+DATABASE_URL=postgresql+psycopg2://postgres:postgres@localhost:5432/exam_engine_db
+
+# AWS Credentials (Get these from AWS IAM)
+AWS_ACCESS_KEY_ID=your_aws_access_key_here
+AWS_SECRET_ACCESS_KEY=your_aws_secret_key_here
 AWS_REGION=us-east-1
-S3_BUCKET_NAME=examengine-datasets
-JWT_SECRET_KEY=your_secret_key
+AWS_S3_BUCKET=exam-engine-csvs
+
+# Security
+SECRET_KEY=generate_a_secure_random_string_here
+
+# Application
+ENVIRONMENT=development
+DEBUG=True
+FRONTEND_URL=http://localhost:3000
+
+# Admin
+ADMIN_PASSWORD=password
+ADMIN_EMAIL=email
 ```
 
-### Frontend (`frontend/.env.local`)
+### Frontend (`frontend/.env`)
 
 ```env
 NEXT_PUBLIC_API_URL=http://localhost:8000

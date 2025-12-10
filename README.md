@@ -3,7 +3,7 @@
   <p align="center"><em>Schedule Smarter</em></p>
 </p>
 
-An intelligent exam scheduling system that uses the DSATUR graph coloring algorithm to automatically generate conflict-free exam schedules. Built for Northeastern University's Office of the Vice Provost to replace manual scheduling processes.
+An intelligent exam scheduling system that uses the DSATUR graph coloring algorithm to automatically generate conflict-free exam schedules. Built for Northeastern University's Office of the Vice Provost to assist final exam scheduling processes.
 
 ## Quick Links
 

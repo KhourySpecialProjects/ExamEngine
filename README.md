@@ -12,7 +12,7 @@ An intelligent exam scheduling system that uses the DSATUR graph coloring algori
 | [Development Guide](./docs/DEVELOPMENT.md) | Local setup, running the app, code style    |
 | [Infrastructure](./docs/INFRASTRUCTURE.md) | AWS deployment, Terraform, production setup |
 | [Testing](./docs/TESTING.md)               | Running tests, CI/CD workflows              |
-| Data Guide](./docs/DATA.md)                | CSV formats, validation, database schema    |
+| [Data Guide](./docs/DATA.md)                | CSV formats, validation, database schema    |
 | [Algorithm](./docs/ALGORITHM.md)           | DSATUR implementation details               |
 
 ## Overview

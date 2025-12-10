@@ -20,10 +20,36 @@ export function useScheduleData() {
     );
   }, [currentSchedule]);
 
-  // Flatten to exam list
+  // Flatten to exam list from calendar AND include unscheduled exams
   const allExams = useMemo(() => {
-    return calendarRows.flatMap((row) => row.days.flatMap((day) => day.exams));
-  }, [calendarRows]);
+    const scheduledExams = calendarRows.flatMap((row) => row.days.flatMap((day) => day.exams));
+    
+    // Get unscheduled exams from schedule.complete (those without Day or Room)
+    const unscheduledExams: Exam[] = [];
+    if (currentSchedule?.schedule?.complete) {
+      currentSchedule.schedule.complete.forEach((exam) => {
+        // If exam has no Day or Room, it's unscheduled
+        if (!exam.Day || !exam.Room) {
+          unscheduledExams.push({
+            id: `unscheduled-${exam.CRN}`,
+            courseCode: exam.Course,
+            section: exam.CRN,
+            department: exam.Course || "MISC",
+            instructor: exam.Instructor || "TBD",
+            studentCount: exam.Size,
+            room: "",
+            building: "",
+            conflicts: 0,
+            day: "",
+            timeSlot: "",
+            isUnscheduled: true,
+          });
+        }
+      });
+    }
+    
+    return [...scheduledExams, ...unscheduledExams];
+  }, [calendarRows, currentSchedule]);
 
   // Get departments
   const departments = useMemo(() => {

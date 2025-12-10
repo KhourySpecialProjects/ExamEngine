@@ -4,9 +4,10 @@ import { ExamCard } from "./ExamCard";
 
 interface ExamListProps {
   exams: Exam[];
+  isMerged?: (crn: string) => boolean;
 }
 
-export function ExamList({ exams }: ExamListProps) {
+export function ExamList({ exams, isMerged }: ExamListProps) {
   if (exams.length === 0) {
     return (
       <div className="text-center py-12 text-muted-foreground">
@@ -19,7 +20,11 @@ export function ExamList({ exams }: ExamListProps) {
   return (
     <div className="flex-1 overflow-y-auto space-y-3 pr-2">
       {exams.map((exam) => (
-        <ExamCard key={exam.id} exam={exam} />
+        <ExamCard 
+          key={exam.id} 
+          exam={exam} 
+          isMerged={isMerged ? isMerged(exam.section) : false}
+        />
       ))}
     </div>
   );

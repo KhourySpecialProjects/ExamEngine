@@ -4,6 +4,7 @@ import { useScheduleData } from "@/lib/hooks/useScheduleData";
 import { useCalendarStore } from "@/lib/store/calendarStore";
 import { Course } from "../Course";
 import { CalendarGrid } from "./CalendarGrid";
+import { useCourseMerges } from "@/lib/hooks/useCourseMerges";
 
 const DAYS = [
   "Monday",
@@ -22,8 +23,9 @@ const DAYS = [
  * Shows "+X more" button when there are additional exams.
  */
 export default function CompactView() {
-  const { hasData, isLoading, calendarRows } = useScheduleData();
+  const { hasData, isLoading, calendarRows, schedule } = useScheduleData();
   const selectCell = useCalendarStore((state) => state.selectCell);
+  const { isMerged } = useCourseMerges(schedule?.dataset_id);
   if (!hasData) return <EmptyScheduleState isLoading={isLoading} />;
 
   return (
@@ -53,6 +55,7 @@ export default function CompactView() {
                   students={exam.studentCount.toString()}
                   building={exam.building}
                   hasConflict={exam.conflicts > 0}
+                  isMerged={isMerged(exam.section)}
                 />
               ))}
 

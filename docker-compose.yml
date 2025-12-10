@@ -45,6 +45,8 @@ services:
       - ENVIRONMENT=development
       - DEBUG=false
       - FRONTEND_URL=http://localhost:3000
+      - ADMIN_EMAIL=${ADMIN_EMAIL:-theadmin@northeastern.edu}
+      - ADMIN_PASSWORD=${ADMIN_PASSWORD:-admin}
     volumes:
       - ./backend:/app
     depends_on:
@@ -54,7 +56,7 @@ services:
       - exam_engine_network
     command: uvicorn src.main:app --host 0.0.0.0 --port 8000 --reload
     healthcheck:
-      test: ["CMD-SHELL", "curl -f http://localhost:8000 || exit 1"]
+      test: ["CMD-SHELL", "curl -f --max-time 5 http://localhost:8000/ || exit 1"]
       interval: 30s
       timeout: 10s
       start_period: 15s
@@ -128,6 +130,8 @@ services:
       - ENVIRONMENT=production
       - DEBUG=false
       - FRONTEND_URL=${FRONTEND_URL}
+      - ADMIN_EMAIL=${ADMIN_EMAIL:-theadmin@northeastern.edu}
+      - ADMIN_PASSWORD=${ADMIN_PASSWORD:-admin}
     networks:
       - exam_engine_network
     healthcheck:

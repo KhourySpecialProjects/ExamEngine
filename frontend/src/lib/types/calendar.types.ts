@@ -10,6 +10,7 @@ export interface Exam {
   conflicts: number;
   day: string;
   timeSlot: string;
+  isUnscheduled?: boolean; // True if exam has no time slot or room assignment
 }
 
 export interface CalendarCell {

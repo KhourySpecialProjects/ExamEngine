@@ -450,25 +450,13 @@ class ScheduleService:
         """Save conflicts to database and return formatted response."""
         conflict_payload = analysis.to_dict()
 
-        print(f"[DEBUG] Saving conflicts for schedule {schedule_id}", flush=True)
-        print(
-            f"[DEBUG] Hard conflicts: {analysis.statistics.total_hard_conflicts}",
-            flush=True,
-        )
-        print(
-            f"[DEBUG] Soft conflicts: {analysis.statistics.total_soft_conflicts}",
-            flush=True,
-        )
-
         try:
             self.conflict_analyses_repo.create_analysis(
                 schedule_id=schedule_id,
                 conflicts_data=conflict_payload,
             )
-            print("[DEBUG] Conflicts saved successfully", flush=True)
         except Exception as e:
-            print(f"[ERROR] Failed to save conflicts: {e}", flush=True)
-            raise
+            raise e
 
         return {
             "total_hard": analysis.statistics.total_hard_conflicts,

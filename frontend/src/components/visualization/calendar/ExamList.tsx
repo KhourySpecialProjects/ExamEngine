@@ -1,5 +1,5 @@
 import { Calendar } from "lucide-react";
-import type { Exam } from "@/lib/store/calendarStore";
+import type { Exam } from "@/lib/types/calendar.types";
 import { ExamCard } from "./ExamCard";
 
 interface ExamListProps {

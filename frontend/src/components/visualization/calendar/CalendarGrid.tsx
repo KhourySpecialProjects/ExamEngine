@@ -6,7 +6,7 @@ import {
   useReactTable,
 } from "@tanstack/react-table";
 import { type ReactNode, useMemo } from "react";
-import type { CalendarRow, Exam } from "@/lib/store/calendarStore";
+import type { CalendarRow, Exam } from "@/lib/types/calendar.types";
 
 interface CalendarGridProps {
   /**

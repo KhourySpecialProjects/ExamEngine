@@ -3,9 +3,12 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from src.api.routes import auth, datasets, schedule
+from src.api.routes import admin, auth, datasets, schedule
 from src.core.config import get_settings
 from src.core.database import init_db
+
+
+settings = get_settings()
 
 
 @asynccontextmanager
@@ -20,21 +23,19 @@ async def lifespan(app: FastAPI):
 # Create app with lifespan
 app = FastAPI(title="Exam Scheduler API", version="1.0", lifespan=lifespan)
 
-# Get settings
-settings = get_settings()
-
 # CORS
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[settings.frontend_url, "http://127.0.0.1:3000"],
+    allow_origins=[settings.frontend_url],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
-app.include_router(schedule.router)
-app.include_router(datasets.router)
-app.include_router(auth.router)
+app.include_router(schedule.router, prefix="/api")
+app.include_router(datasets.router, prefix="/api")
+app.include_router(auth.router, prefix="/api")
+app.include_router(admin.router, prefix="/api")
 
 
 @app.get("/")

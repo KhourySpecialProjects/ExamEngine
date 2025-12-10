@@ -1,96 +1,180 @@
+# Usage:
+#   Development: docker-compose --profile dev up
+#   Production:  docker-compose --profile prod up
+
 services:
-  # Postgres SQL Database
+  ##### DEV ONLY SERVICES #####
+  
   db:
     image: postgres:15-alpine
     container_name: exam_engine_db
+    profiles: ["dev"]
     environment:
-      POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: postgres
-      POSTGRES_DB: exam_engine_db
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+      POSTGRES_DB: ${POSTGRES_DB:-exam_engine_db}
     ports:
-      - "5432:5432"
+      - "${DB_PORT:-5432}:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
     networks:
       - exam_engine_network
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-postgres} -d ${POSTGRES_DB:-exam_engine_db}"]
       interval: 5s
       timeout: 5s
       retries: 5
 
-  # Backend API Service
-  backend:
+  backend-dev:
     build:
       context: .
-      dockerfile: backend/Dockerfile
-    env_file:
-      - ./backend/.env 
-    container_name: exam_engine_backend
+      dockerfile: backend/Dockerfile.dev
+      args:
+        - ENVIRONMENT=development
+    container_name: exam_engine_backend_dev
+    profiles: ["dev"]
     ports:
-      - "8000:8000"
+      - "${BACKEND_PORT:-8000}:8000"
     environment:
-      - AWS_ACCESS_KEY_ID
-      - AWS_SECRET_ACCESS_KEY
-      - AWS_REGION
-      - DATABASE_URL=postgresql://postgres:postgres@db:5432/exam_engine_db
+      - DATABASE_URL=postgresql+psycopg2://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@db:5432/${POSTGRES_DB:-exam_engine_db}
+      - AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID:-}
+      - AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY:-}
+      - AWS_REGION=${AWS_REGION:-us-east-1}
+      - AWS_S3_BUCKET=${AWS_S3_BUCKET:-exam-engine-csvs}
+      - SECRET_KEY=${SECRET_KEY:-dev-secret-key-change-in-production}
+      - ENVIRONMENT=development
+      - DEBUG=false
+      - FRONTEND_URL=http://localhost:3000
     volumes:
       - ./backend:/app
     depends_on:
-      - db
+      db:
+        condition: service_healthy
     networks:
       - exam_engine_network
     command: uvicorn src.main:app --host 0.0.0.0 --port 8000 --reload
     healthcheck:
-      test: ["CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://localhost:8000/', timeout=2)\""]
+      test: ["CMD-SHELL", "curl -f http://localhost:8000 || exit 1"]
       interval: 30s
       timeout: 10s
-      start_period: 10s
+      start_period: 15s
       retries: 3
 
-  # Frontend React/Next.js Service
-  frontend:
+  frontend-dev:
     build:
       context: .
-      dockerfile: frontend/Dockerfile
-    container_name: exam_engine_frontend
+      dockerfile: frontend/Dockerfile.dev
+    container_name: exam_engine_frontend_dev
+    profiles: ["dev"]
     ports:
-      - "3000:3000"
-    volumes:
-      - ./frontend:/app
-      - /app/node_modules
-      - /app/.next         
-    env_file:
-      - ./frontend/.env.local
+      - "${FRONTEND_PORT:-3000}:3000"
     environment:
       - NODE_ENV=development
-      - API_URL=http://backend:8000
-      - NEXT_PUBLIC_API_URL=http://localhost:8000
+      - API_URL=http://backend-dev:8000
+      - NEXT_PUBLIC_API_URL=${NEXT_PUBLIC_API_URL:-http://localhost:8000}
+    volumes:
+      - ./frontend:/app
+      - /app/.next
+      - /app/node_modules
+    depends_on:
+      backend-dev:
+        condition: service_healthy
     networks:
       - exam_engine_network
+    command: npm run dev
     healthcheck:
-      test: ["CMD-SHELL", "node -e \"require('http').get('http://localhost:3000', r => process.exit(r.statusCode===200?0:1)).on('error', ()=>process.exit(1))\""]
+      test: ["CMD-SHELL", "curl -f http://localhost:3000 || exit 1"]
       interval: 20s
       timeout: 5s
       start_period: 60s
       retries: 5
 
-  # Nginx Reverse Proxy
   webserver:
     image: nginx:alpine
     container_name: exam_engine_nginx
-    ports: 
-      - "80:80"
+    profiles: ["dev"]
+    ports:
+      - "${NGINX_PORT:-80}:80"
     volumes:
       - ./nginx.conf:/etc/nginx/nginx.conf:ro
     depends_on:
-      frontend:
+      frontend-dev:
         condition: service_healthy
-      backend:
+      backend-dev:
         condition: service_healthy
     networks:
       - exam_engine_network
     restart: on-failure
+
+  ##### PROD ONLY SERVICES #####
+
+  backend:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+      args:
+        - ENVIRONMENT=production
+    container_name: exam_engine_backend
+    profiles: ["prod"]
+    ports:
+      - "${BACKEND_PORT:-8000}:8000"
+    environment:
+      - DATABASE_URL=${DATABASE_URL}
+      - AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID:-}
+      - AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY:-}
+      - AWS_REGION=${AWS_REGION:-us-east-1}
+      - AWS_S3_BUCKET=${AWS_S3_BUCKET:-exam-engine-csvs}
+      - SECRET_KEY=${SECRET_KEY}
+      - ENVIRONMENT=production
+      - DEBUG=false
+      - FRONTEND_URL=${FRONTEND_URL}
+    networks:
+      - exam_engine_network
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:8000/ || exit 1"]
+      interval: 30s
+      timeout: 10s
+      start_period: 15s
+      retries: 3
+    restart: unless-stopped
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  frontend:
+    build:
+      context: .
+      dockerfile: frontend/Dockerfile
+      args:
+        - NODE_ENV=production
+        - NEXT_PUBLIC_API_URL=${NEXT_PUBLIC_API_URL}
+    container_name: exam_engine_frontend
+    profiles: ["prod"]
+    ports:
+      - "${FRONTEND_PORT:-3000}:3000"
+    environment:
+      - NODE_ENV=production
+      - API_URL=http://backend:8000
+      - NEXT_PUBLIC_API_URL=${NEXT_PUBLIC_API_URL}
+    depends_on:
+      backend:
+        condition: service_healthy
+    networks:
+      - exam_engine_network
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:3000 || exit 1"]
+      interval: 20s
+      timeout: 5s
+      start_period: 60s
+      retries: 5
+    restart: unless-stopped
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
 
 volumes:
   postgres_data:

@@ -48,12 +48,17 @@ export function Course({
       <div className="flex items-center justify-between w-full">
         <div className="flex items-center gap-2">
           <span className="font-bold">{title}</span>
-          {isMerged && (
-            <Badge variant="outline" className="gap-1 text-xs px-1.5 py-0.5 border-blue-300 text-blue-700 bg-blue-50/50 flex items-center" title="Merged course">
-              <GitMerge className="h-3 w-3" />
-            </Badge>
-          )}
         </div>
+
+        {isMerged && (
+          <Badge
+            variant="outline"
+            className="gap-1 border-blue-300 text-blue-700 bg-blue-50/50 ml-2"
+            title="Merged course"
+          >
+            <GitMerge className="h-3 w-3" />
+          </Badge>
+        )}
         {hasConflict && (
           <Badge variant="destructive" className="gap-1 ml-2">
             <AlertCircle className="h-3 w-3" />

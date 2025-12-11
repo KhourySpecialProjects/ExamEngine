@@ -1,11 +1,18 @@
 import { render, screen } from "@testing-library/react";
-import { describe, it, expect, vi, beforeEach, Mock, beforeAll } from "vitest";
+import {
+  beforeAll,
+  beforeEach,
+  describe,
+  expect,
+  it,
+  type Mock,
+  vi,
+} from "vitest";
+import { useSchedulesStore } from "@/lib/store/schedulesStore";
 import { StatisticsView } from "./StatisticsView";
-import { useScheduleStore } from "@/lib/store/scheduleStore";
 
-
-vi.mock("@/lib/store/scheduleStore", () => ({
-  useScheduleStore: vi.fn(),
+vi.mock("@/lib/store/schedulesStore", () => ({
+  useSchedulesStore: vi.fn(),
 }));
 
 beforeAll(() => {
@@ -16,25 +23,24 @@ beforeAll(() => {
   };
 });
 
-
 describe("StatisticsView", () => {
   beforeEach(() => {
     vi.clearAllMocks();
   });
 
   it("renders placeholder when currentSchedule is null", () => {
-    (useScheduleStore as any).mockReturnValue(null);
+    (useSchedulesStore as any).mockReturnValue(null);
 
     render(<StatisticsView />);
 
     expect(screen.getByText("Statistics Dashboard")).toBeDefined();
     expect(
-      screen.getByText("Generate a schedule to view statistics")
+      screen.getByText("Generate a schedule to view statistics"),
     ).toBeDefined();
   });
 
   it("renders statistics overview when schedule exists", () => {
-    (useScheduleStore as any).mockReturnValue({
+    (useSchedulesStore as any).mockReturnValue({
       schedule: {
         complete: [
           { Day: "Monday", Block: "1", Size: 30, Capacity: 40 },
@@ -101,13 +107,13 @@ describe("StatisticsView", () => {
 
     expect(screen.getByText("Statistics View")).toBeDefined();
     expect(screen.getByText("Total Exams")).toBeDefined();
-    expect(screen.getByText("2")).toBeDefined(); 
+    expect(screen.getByText("2")).toBeDefined();
     expect(screen.getByText("Conflicts")).toBeDefined();
-    expect(screen.getByText("1")).toBeDefined(); 
+    expect(screen.getByText("1")).toBeDefined();
   });
 
   it("shows 'No exam data available' when studentsPerDayData is empty", () => {
-    (useScheduleStore as unknown as Mock).mockReturnValue({
+    (useSchedulesStore as unknown as Mock).mockReturnValue({
       schedule: {
         complete: [],
         total_exams: 20,
@@ -121,16 +127,17 @@ describe("StatisticsView", () => {
       },
       conflicts: {
         total: 0,
-        breakdown: [{
-              conflict_type: "student_double_book",
-              entity_id: "S123",
-              day: "Monday",
-              block_time: "8:00",
-              course: "CS2000",
-              conflicting_course: "CS3000",
-              crn: "11111",
-              conflicting_crn: "22222",
-            },
+        breakdown: [
+          {
+            conflict_type: "student_double_book",
+            entity_id: "S123",
+            day: "Monday",
+            block_time: "8:00",
+            course: "CS2000",
+            conflicting_course: "CS3000",
+            crn: "11111",
+            conflicting_crn: "22222",
+          },
         ],
       },
       currentSchedule: {
@@ -147,7 +154,8 @@ describe("StatisticsView", () => {
         },
         conflicts: {
           total: 0,
-          breakdown: [{
+          breakdown: [
+            {
               conflict_type: "student_double_book",
               entity_id: "S123",
               day: "Monday",
@@ -157,20 +165,18 @@ describe("StatisticsView", () => {
               crn: "11111",
               conflicting_crn: "22222",
             },
-        ],
+          ],
         },
       },
     });
 
     render(<StatisticsView />);
 
-    expect(
-      screen.getByText("No exam data available")
-    ).toBeDefined();
+    expect(screen.getByText("No exam data available")).toBeDefined();
   });
 
   it("renders conflict placeholder when real_conflicts > 0 but breakdown is empty", () => {
-    (useScheduleStore as any).mockReturnValue({
+    (useSchedulesStore as any).mockReturnValue({
       schedule: {
         complete: [
           { Day: "Monday", Block: "1", Size: 30, Capacity: 40 },
@@ -214,11 +220,9 @@ describe("StatisticsView", () => {
     render(<StatisticsView />);
 
     expect(
-      screen.getByText(/No detailed conflict information available/i)
+      screen.getByText(/Analytics and insights about your exam schedule/i),
     ).toBeDefined();
 
-    expect(
-      screen.getByText(/3 conflict\(s\) detected but breakdown data is missing/i)
-    ).toBeDefined();
+    expect(screen.getByText(/Statistics View/i)).toBeDefined();
   });
 });

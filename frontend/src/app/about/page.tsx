@@ -18,7 +18,7 @@ import Link from "next/link";
 import { Button } from "@/components/ui/button";
 
 const heroStats = [
-  { label: "Exams scheduled", value: "4,042" },
+  { label: "Exams scheduled", value: "1,061" },
   { label: "DSATUR runtime", value: "< 2 min" },
   { label: "Hard conflicts", value: "0 recorded" },
 ];

@@ -2,7 +2,6 @@ from collections import defaultdict
 from typing import Any
 from uuid import UUID
 
-from src.algorithms.scheduler import Scheduler, ScheduleResult
 from src.core.exceptions import (
     DatasetNotFoundError,
     ScheduleGenerationError,
@@ -16,6 +15,7 @@ from src.domain.constants import (
 from src.domain.factories import DatasetFactory
 from src.domain.models import Course, Room
 from src.domain.services.schedule_analyzer import ScheduleAnalysis, ScheduleAnalyzer
+from src.domain.services.scheduler import Scheduler, ScheduleResult
 from src.repo.conflict_analyses import ConflictAnalysesRepo
 from src.repo.course import CourseRepo
 from src.repo.exam_assignment import ExamAssignmentRepo
@@ -514,25 +514,13 @@ class ScheduleService:
         """Save conflicts to database and return formatted response."""
         conflict_payload = analysis.to_dict()
 
-        print(f"[DEBUG] Saving conflicts for schedule {schedule_id}", flush=True)
-        print(
-            f"[DEBUG] Hard conflicts: {analysis.statistics.total_hard_conflicts}",
-            flush=True,
-        )
-        print(
-            f"[DEBUG] Soft conflicts: {analysis.statistics.total_soft_conflicts}",
-            flush=True,
-        )
-
         try:
             self.conflict_analyses_repo.create_analysis(
                 schedule_id=schedule_id,
                 conflicts_data=conflict_payload,
             )
-            print("[DEBUG] Conflicts saved successfully", flush=True)
         except Exception as e:
-            print(f"[ERROR] Failed to save conflicts: {e}", flush=True)
-            raise
+            raise e
 
         return {
             "total_hard": analysis.statistics.total_hard_conflicts,

@@ -1,6 +1,5 @@
 from collections import defaultdict
 
-from src.algorithms.scheduler import ScheduleResult
 from src.domain.constants import (
     BLOCK_TIMES,
     DAY_NAMES,
@@ -9,6 +8,7 @@ from src.domain.constants import (
 )
 from src.domain.models import SchedulingDataset
 from src.domain.services.conflict_detector import Conflict
+from src.domain.services.scheduler import ScheduleResult
 from src.domain.value_objects import (
     HardConflicts,
     ScheduleAnalysis,

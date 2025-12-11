@@ -13,7 +13,7 @@ export const steps = [
           </>
         ),
         selector: "#control-center",
-        side: "right",
+        side: "right" as const,
         showControls: true,
         pointerPadding: 5,
         pointerRadius: 11,
@@ -29,7 +29,7 @@ export const steps = [
           </>
         ),
         selector: "#upload-id",
-        side: "right",
+        side: "right" as const,
         showControls: true,
         pointerPadding: 5,
         pointerRadius: 11,
@@ -45,7 +45,7 @@ export const steps = [
           </>
         ),
         selector: "#generate-id",
-        side: "right",
+        side: "right" as const,
         showControls: true,
         pointerPadding: 5,
         pointerRadius: 11,
@@ -61,7 +61,7 @@ export const steps = [
           </>
         ),
         selector: "#schedule-view",
-        side: "bottom",
+        side: "bottom" as const,
         showControls: true,
         pointerPadding: 5,
         pointerRadius: 11,
@@ -77,7 +77,7 @@ export const steps = [
           </>
         ),
         selector: "#settings-id",
-        side: "bottom",
+        side: "bottom" as const,
         showControls: true,
         pointerPadding: 5,
         pointerRadius: 11,

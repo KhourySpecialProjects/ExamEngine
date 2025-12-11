@@ -241,7 +241,7 @@ export function MergeCoursesDialog() {
     }
   };
 
-  if (!selectedDataset) {
+  if (!selectedDataset || !mounted) {
     return null;
   }
 

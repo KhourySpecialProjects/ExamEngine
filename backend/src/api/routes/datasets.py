@@ -159,7 +159,7 @@ async def set_merges(
     """Set course merges for a dataset."""
     try:
         from src.domain.factories.dataset_factory import DatasetFactory
-        from src.services.merge_validator import MergeValidator
+        from src.services.dataset.merge_validator import MergeValidator
 
         # Validate all merge groups
         files = await dataset_service.get_dataset_files(

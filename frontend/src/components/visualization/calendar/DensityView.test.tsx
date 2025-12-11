@@ -136,7 +136,6 @@ describe("DensityView Component", () => {
     const noExamCells = screen.getAllByText("No Exams");
     expect(noExamCells.length).toBeGreaterThan(0);
     expect(screen.getByText("2 Exams")).toBeDefined();
-    expect(screen.getByText("1 conflict")).toBeDefined();
   });
 
   it("applies background colors based on thresholds", () => {

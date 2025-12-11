@@ -25,7 +25,7 @@ from src.repo.schedule import ScheduleRepo
 from src.repo.schedule_share import ScheduleShareRepo
 from src.repo.time_slot import TimeSlotRepo
 from src.schemas.db import StatusEnum
-from src.services.dataset import DatasetService
+from src.services.dataset.service import DatasetService
 from src.services.schedule.permissions import SchedulePermissionService
 
 
@@ -144,7 +144,12 @@ class ScheduleService:
 
             # 6. Persist results
             await self._save_exam_assignments(
-                schedule.schedule_id, dataset_id, result, course_mapping, room_mapping, merges
+                schedule.schedule_id,
+                dataset_id,
+                result,
+                course_mapping,
+                room_mapping,
+                merges,
             )
             conflicts_response = await self._save_and_format_conflicts(
                 schedule.schedule_id, analysis
@@ -252,17 +257,19 @@ class ScheduleService:
 
             if is_unscheduled:
                 # Build unscheduled exam record (no Day, Block, or Room)
-                complete_exams.append({
-                    "CRN": crn,
-                    "Course": assignment.course.course_subject_code,
-                    "Day": "",  # Empty for unscheduled
-                    "Block": "",  # Empty for unscheduled
-                    "Room": "",  # Empty for unscheduled
-                    "Capacity": 0,
-                    "Size": assignment.course.enrollment_count,
-                    "Valid": not has_conflict,
-                    "Instructor": assignment.course.instructor_name or "",
-                })
+                complete_exams.append(
+                    {
+                        "CRN": crn,
+                        "Course": assignment.course.course_subject_code,
+                        "Day": "",  # Empty for unscheduled
+                        "Block": "",  # Empty for unscheduled
+                        "Room": "",  # Empty for unscheduled
+                        "Capacity": 0,
+                        "Size": assignment.course.enrollment_count,
+                        "Valid": not has_conflict,
+                        "Instructor": assignment.course.instructor_name or "",
+                    }
+                )
             else:
                 # Full exam record for 'complete' list
                 complete_exams.append(
@@ -298,9 +305,11 @@ class ScheduleService:
 
         # Estimate students (we don't have full enrollment data in assignments)
         total_enrollment = sum(a.course.enrollment_count for a in assignments)
-        
+
         # Count unscheduled exams
-        unscheduled_count = sum(1 for a in assignments if a.time_slot is None or a.room is None)
+        unscheduled_count = sum(
+            1 for a in assignments if a.time_slot is None or a.room is None
+        )
 
         return ScheduleAssembler.build_summary(
             num_classes=len(assignments),
@@ -350,7 +359,7 @@ class ScheduleService:
                     has_conflict=False,  # Conflicts tracked separately
                 )
             )
-        
+
         # Add unscheduled merge exams to complete list
         for merge_id in result.unscheduled_merges:
             crns = merges.get(merge_id, [])
@@ -358,17 +367,21 @@ class ScheduleService:
                 if crn in scheduling_dataset.courses:
                     course = scheduling_dataset.courses[crn]
                     instructors = result.instructors_by_crn.get(crn, set())
-                    schedule_list.append({
-                        "CRN": crn,
-                        "Course": result.course_codes.get(crn, course.course_code),
-                        "Day": "",  # Empty for unscheduled
-                        "Block": "",  # Empty for unscheduled
-                        "Room": "",  # Empty for unscheduled
-                        "Capacity": 0,
-                        "Size": result.course_sizes.get(crn, course.enrollment_count),
-                        "Valid": True,
-                        "Instructor": ", ".join(instructors) if instructors else "",
-                    })
+                    schedule_list.append(
+                        {
+                            "CRN": crn,
+                            "Course": result.course_codes.get(crn, course.course_code),
+                            "Day": "",  # Empty for unscheduled
+                            "Block": "",  # Empty for unscheduled
+                            "Room": "",  # Empty for unscheduled
+                            "Capacity": 0,
+                            "Size": result.course_sizes.get(
+                                crn, course.enrollment_count
+                            ),
+                            "Valid": True,
+                            "Instructor": ", ".join(instructors) if instructors else "",
+                        }
+                    )
 
         # Build calendar
         calendar = self._build_calendar_from_result(result)
@@ -495,7 +508,7 @@ class ScheduleService:
                 course_id = course_mapping.get(crn)
                 if not course_id:
                     continue
-                
+
                 # Create assignment without time_slot_id or room_id
                 assignments_to_create.append(
                     {

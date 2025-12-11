@@ -37,6 +37,7 @@ class ScheduleResult:
 
     # Unplaced courses (empty if all placed)
     unassigned: set[str] = field(default_factory=set)
+    unscheduled_merges: set[str] = field(default_factory=set)  # merge_group_ids
 
 
 class Scheduler:
@@ -81,7 +82,7 @@ class Scheduler:
         self.max_days = max_days
         self.state = SchedulingState()
         self.merges = merges or {}
-        
+
         # Build reverse mapping: CRN -> merge_group_id (for quick lookup)
         self.crn_to_merge_group: dict[str, str] = {}
         for merge_id, crns in self.merges.items():
@@ -89,7 +90,7 @@ class Scheduler:
                 if crn in self.crn_to_merge_group:
                     raise ValueError(f"CRN {crn} appears in multiple merge groups")
                 self.crn_to_merge_group[crn] = merge_id
-        
+
         # Track merges without suitable rooms (will not be scheduled)
         self.unscheduled_merges: set[str] = set()
         self._identify_unscheduled_merges()
@@ -116,16 +117,16 @@ class Scheduler:
         self.colors: dict[str, int] = {}
         self.assignments: dict[str, tuple[int, int]] = {}
         self.conflicts: list[Conflict] = []
-    
+
     def _identify_unscheduled_merges(self):
         """Identify merge groups that don't have suitable rooms."""
         if not self.dataset.rooms:
             # No rooms available - mark all merges as unscheduled
             self.unscheduled_merges = set(self.merges.keys())
             return
-        
+
         max_room_capacity = max(room.capacity for room in self.dataset.rooms)
-        
+
         for merge_id, crns in self.merges.items():
             # Calculate total enrollment for this merge group
             total_enrollment = sum(
@@ -133,7 +134,7 @@ class Scheduler:
                 for crn in crns
                 if crn in self.dataset.courses
             )
-            
+
             # If enrollment exceeds max room capacity, mark as unscheduled
             if total_enrollment > max_room_capacity:
                 self.unscheduled_merges.add(merge_id)
@@ -194,7 +195,7 @@ class Scheduler:
 
         # Step 4: Force edges between merged CRNs (ensure they get same color)
         # All CRNs in a merge group must be scheduled together, so they need edges
-        for merge_id, crns in self.merges.items():
+        for _merge_id, crns in self.merges.items():
             # Add edges between all pairs in the merge group
             for i in range(len(crns)):
                 for j in range(i + 1, len(crns)):
@@ -203,7 +204,9 @@ class Scheduler:
                     if crn1 in self.dataset.courses and crn2 in self.dataset.courses:
                         # Use high weight to ensure they're strongly connected
                         if not self.graph.has_edge(crn1, crn2):
-                            self.graph.add_edge(crn1, crn2, weight=9999)  # High weight for merged courses
+                            self.graph.add_edge(
+                                crn1, crn2, weight=9999
+                            )  # High weight for merged courses
                         else:
                             # Increase existing edge weight
                             current_weight = self.graph[crn1][crn2].get("weight", 1)
@@ -217,20 +220,20 @@ class Scheduler:
         # https://networkx.org/documentation/stable/reference/algorithms/generated/networkx.algorithms.coloring.greedy_color.html#networkx.algorithms.coloring.greedy_color
         # TODO dynamic strategy?
         self.colors = nx.coloring.greedy_color(self.graph, strategy="DSATUR")
-        
+
         # Ensure all merged CRNs have the same color
         # (They should already due to forced edges, but enforce it explicitly)
-        for merge_id, crns in self.merges.items():
+        for _merge_id, crns in self.merges.items():
             # Get colors for all CRNs in this merge group
             merge_colors = {
                 crn: self.colors.get(crn)
                 for crn in crns
                 if crn in self.colors and crn in self.dataset.courses
             }
-            
+
             if not merge_colors:
                 continue
-            
+
             # Use the color of the first CRN for all merged CRNs
             # (or the most common color if they differ)
             if merge_colors:
@@ -239,7 +242,7 @@ class Scheduler:
                 for color in merge_colors.values():
                     color_counts[color] = color_counts.get(color, 0) + 1
                 target_color = max(color_counts.items(), key=lambda x: x[1])[0]
-                
+
                 # Assign same color to all merged CRNs
                 for crn in crns:
                     if crn in self.dataset.courses:
@@ -262,17 +265,17 @@ class Scheduler:
             merge_group = self.crn_to_merge_group.get(crn)
             if merge_group and merge_group in assigned_merge_groups:
                 continue  # Already assigned as part of merge group
-            
+
             # Skip merges without suitable rooms (they won't be scheduled)
             if merge_group and merge_group in self.unscheduled_merges:
                 continue  # Will be saved as unscheduled
-            
+
             (day, block), slot_conflicts = self._find_best_slot(crn)
             self.assignments[crn] = (day, block)
             self.conflicts.extend(slot_conflicts)
 
             self.state.record_placement(crn, day, block, self.dataset)
-            
+
             # If this CRN is part of a merge group, assign all others in the group to the same slot
             if merge_group:
                 assigned_merge_groups.add(merge_group)
@@ -285,14 +288,14 @@ class Scheduler:
     def _get_course_ordering(self, prioritize_large: bool) -> list[str]:
         """
         Get ordering of courses for scheduling.
-        
+
         For merged courses, only include one representative CRN per merge group
         (the others will be assigned automatically).
         """
         # Filter out CRNs that are part of merge groups (except the first one)
         crns_to_order = []
         seen_merge_groups: set[str] = set()
-        
+
         for crn in self.colors.keys():
             merge_group = self.crn_to_merge_group.get(crn)
             if merge_group:
@@ -304,7 +307,7 @@ class Scheduler:
             else:
                 # Not part of a merge group, include it
                 crns_to_order.append(crn)
-        
+
         if prioritize_large:
             ordered_crns = sorted(
                 crns_to_order,
@@ -338,7 +341,7 @@ class Scheduler:
             ordered_crns.extend(crns)
 
         return ordered_crns
-    
+
     def _get_total_enrollment(self, crn: str) -> int:
         """Get total enrollment for a CRN, including merged CRNs if applicable."""
         merge_group = self.crn_to_merge_group.get(crn)
@@ -359,17 +362,20 @@ class Scheduler:
         if merge_group:
             # Check all CRNs in the merge group
             crns_to_check = [
-                m_crn for m_crn in self.merges[merge_group]
+                m_crn
+                for m_crn in self.merges[merge_group]
                 if m_crn in self.dataset.courses
             ]
-        
+
         candidates = []
 
         for day, block in self.available_slots:
             # Check conflicts for all CRNs in the merge group
             all_conflicts = []
             for check_crn in crns_to_check:
-                conflicts = self.conflict_detector.check_placement(check_crn, day, block)
+                conflicts = self.conflict_detector.check_placement(
+                    check_crn, day, block
+                )
                 all_conflicts.extend(conflicts)
 
             # Use the first CRN for penalty evaluation (enrollment will be summed in room assignment)
@@ -398,13 +404,13 @@ class Scheduler:
             merge_group = self.crn_to_merge_group.get(crn)
             if merge_group and merge_group in assigned_merge_groups:
                 continue  # Room already assigned to this merge group
-            
+
             # Skip merges without suitable rooms (they won't get room assignments)
             if merge_group and merge_group in self.unscheduled_merges:
                 continue  # Will be saved without room assignment
-            
+
             slot = (day, block)
-            
+
             # Calculate enrollment: sum for merged courses, single for others
             if merge_group:
                 # Sum enrollment for all CRNs in merge group
@@ -446,7 +452,7 @@ class Scheduler:
                         room_assignments[m_crn] = room.name
             else:
                 room_assignments[crn] = room.name
-            
+
             used_rooms[slot].add(room.name)
 
         return room_assignments

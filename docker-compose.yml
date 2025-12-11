@@ -73,7 +73,7 @@ services:
     environment:
       - NODE_ENV=development
       - API_URL=http://backend-dev:8000
-      - NEXT_PUBLIC_API_URL=${NEXT_PUBLIC_API_URL:-http://localhost:8000}
+      - NEXT_PUBLIC_API_URL=${NEXT_PUBLIC_API_URL:-http://localhost:8000/api}
     volumes:
       - ./frontend:/app
       - /app/.next

@@ -24,7 +24,9 @@ class MergeValidationRequest(BaseModel):
         """Get CRNs from either field name."""
         result = self.crns_to_merge or self.crns or []
         if not result:
-            raise ValueError("Either 'crns_to_merge' or 'crns' must be provided with at least one CRN")
+            raise ValueError(
+                "Either 'crns_to_merge' or 'crns' must be provided with at least one CRN"
+            )
         return result
 
 
@@ -121,7 +123,8 @@ async def validate_merge(
         crns = request.get_crns()
         if not crns:
             raise HTTPException(
-                status_code=400, detail="No CRNs provided for validation. Please provide 'crns_to_merge' or 'crns' field."
+                status_code=400,
+                detail="No CRNs provided for validation. Please provide 'crns_to_merge' or 'crns' field.",
             )
         result = await dataset_service.validate_merge(
             dataset_id, current_user.user_id, crns
@@ -130,10 +133,12 @@ async def validate_merge(
         warning_type = None
         if not result.get("is_valid"):
             warning_type = "room_capacity_exceeded"
-        
+
         return {
             "is_valid": result.get("is_valid", False),
-            "message": result.get("warning_message") or result.get("suggested_action") or "Merge is valid",
+            "message": result.get("warning_message")
+            or result.get("suggested_action")
+            or "Merge is valid",
             "warning_type": warning_type,
             "total_enrollment": result.get("total_enrollment"),
             "max_room_capacity": result.get("max_room_capacity"),
@@ -157,7 +162,9 @@ async def set_merges(
         from src.services.merge_validator import MergeValidator
 
         # Validate all merge groups
-        files = await dataset_service.get_dataset_files(dataset_id, current_user.user_id)
+        files = await dataset_service.get_dataset_files(
+            dataset_id, current_user.user_id
+        )
         scheduling_dataset = DatasetFactory.from_dataframes_to_scheduling_dataset(
             courses_df=files["courses"],
             enrollment_df=files["enrollments"],

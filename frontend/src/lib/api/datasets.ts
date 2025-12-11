@@ -1,13 +1,13 @@
-import { BaseAPI } from "./base";
 import type { DatasetMetadata } from "../types/datasets.api.types";
+import { BaseAPI } from "./base";
 
 export class DatasetsAPI extends BaseAPI {
   async list(): Promise<DatasetMetadata[]> {
-    return this.request("/api/datasets");
+    return this.request("/datasets");
   }
 
   async deleteDataset(datasetId: string): Promise<void> {
-    return this.request(`/api/datasets/${datasetId}`, { method: "DELETE" });
+    return this.request(`/datasets/${datasetId}`, { method: "DELETE" });
   }
 
   async upload(
@@ -22,7 +22,7 @@ export class DatasetsAPI extends BaseAPI {
       formData.append("dataset_name", datasetName.trim());
     }
 
-    return this.request("/api/datasets/upload", {
+    return this.request("/datasets/upload", {
       method: "POST",
       body: formData,
     });
@@ -31,18 +31,25 @@ export class DatasetsAPI extends BaseAPI {
   async deleteById(
     datasetId: string,
   ): Promise<{ message: string; dataset_id: string }> {
-    return this.request(`/api/datasets/${datasetId}`, { method: "DELETE" });
+    return this.request(`/datasets/${datasetId}`, { method: "DELETE" });
   }
 
   async getCourseMerges(datasetId: string): Promise<Record<string, string[]>> {
-    return this.request(`/api/datasets/${datasetId}/merges`);
+    return this.request(`/datasets/${datasetId}/merges`);
   }
 
   async validateCourseMerge(
     datasetId: string,
     crns: string[],
-  ): Promise<{ is_valid: boolean; has_suitable_room?: boolean; message: string; warning_type?: string; total_enrollment?: number; max_room_capacity?: number }> {
-    return this.request(`/api/datasets/${datasetId}/merges/validate`, {
+  ): Promise<{
+    is_valid: boolean;
+    has_suitable_room?: boolean;
+    message: string;
+    warning_type?: string;
+    total_enrollment?: number;
+    max_room_capacity?: number;
+  }> {
+    return this.request(`/datasets/${datasetId}/merges/validate`, {
       method: "POST",
       body: JSON.stringify({ crns: crns }),
     });
@@ -52,16 +59,14 @@ export class DatasetsAPI extends BaseAPI {
     datasetId: string,
     merges: Record<string, string[]>,
   ): Promise<{ message: string; validation: Record<string, any> }> {
-    return this.request(`/api/datasets/${datasetId}/merges`, {
+    return this.request(`/datasets/${datasetId}/merges`, {
       method: "POST",
       body: JSON.stringify({ merges }),
     });
   }
 
-  async clearCourseMerges(
-    datasetId: string,
-  ): Promise<{ message: string }> {
-    return this.request(`/api/datasets/${datasetId}/merges`, {
+  async clearCourseMerges(datasetId: string): Promise<{ message: string }> {
+    return this.request(`/datasets/${datasetId}/merges`, {
       method: "DELETE",
     });
   }

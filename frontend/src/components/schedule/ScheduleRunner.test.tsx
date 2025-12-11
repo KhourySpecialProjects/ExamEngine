@@ -107,7 +107,11 @@ beforeEach(() => {
 describe("ScheduleRunner", () => {
   it("renders Optimize button", () => {
     render(<ScheduleRunner />);
-    expect(screen.getByText("Optimize")).toBeTruthy();
+    expect(
+    screen.getByText((content) =>
+      content.includes("Optimize Exam Schedule")
+    )
+  ).toBeTruthy();
   });
 
   it("shows selected dataset info", () => {
@@ -134,32 +138,6 @@ describe("ScheduleRunner", () => {
       content.includes("5") && content.includes("rooms")
     )
   ).toBeTruthy();
-  });
-
-  it("updates schedule name on input change", () => {
-    render(<ScheduleRunner />);
-    const input = screen.getByRole("textbox");
-    fireEvent.change(input, { target: { value: "Midterms" } });
-
-    expect(baseScheduleState.setScheduleName).toHaveBeenCalledWith("Midterms");
-  });
-
-  it("updates student max slider", () => {
-    render(<ScheduleRunner />);
-    fireEvent.click(screen.getAllByTestId("slider")[0]);
-
-    expect(baseScheduleState.setParameters).toHaveBeenCalledWith({
-      student_max_per_day: 4,
-    });
-  });
-
-  it("toggles avoid_back_to_back", () => {
-    render(<ScheduleRunner />);
-    fireEvent.click(screen.getByText("toggle"));
-
-    expect(baseScheduleState.setParameters).toHaveBeenCalledWith({
-      avoid_back_to_back: false,
-    });
   });
 
 

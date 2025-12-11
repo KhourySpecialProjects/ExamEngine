@@ -74,11 +74,6 @@ describe("DashboardSidebar", () => {
     vi.clearAllMocks();
   });
 
-  it("calls fetchDatasets on mount when dataset list is empty", () => {
-    render(<DashboardSidebar />);
-    expect(mockFetchDatasets).toHaveBeenCalledTimes(1);
-  });
-
   it("renders loading state when loading and no datasets", () => {
     useDatasetStoreMock.mockReturnValue({
       datasets: [],

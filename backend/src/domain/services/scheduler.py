@@ -145,6 +145,16 @@ class Scheduler:
 
         Returns ScheduleResult with all assignments and detected conflicts.
         """
+        # Handle empty dataset
+        if not self.dataset.courses:
+            return ScheduleResult(
+                assignments={},
+                room_assignments={},
+                conflicts=[],
+                colors={},
+                unscheduled_merges=self.unscheduled_merges,
+            )
+        
         self._build_conflict_graph()
         self._color_graph()
         self._assign_time_slots(prioritize_large_courses)

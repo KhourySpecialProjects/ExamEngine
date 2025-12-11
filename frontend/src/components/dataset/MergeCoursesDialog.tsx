@@ -1,5 +1,6 @@
 "use client";
 
+/// <reference types="react" />
 import { useState, useEffect } from "react";
 import { X, Plus, Trash2, AlertTriangle, GitMerge } from "lucide-react";
 import { toast } from "sonner";
@@ -54,8 +55,8 @@ function CrnInputGroup({
       <Input
         placeholder="Enter CRN"
         value={inputValue}
-        onChange={(e) => setInputValue(e.target.value)}
-        onKeyDown={(e) => {
+        onChange={(e: React.ChangeEvent<HTMLInputElement>) => setInputValue(e.target.value)}
+        onKeyDown={(e: React.KeyboardEvent<HTMLInputElement>) => {
           if (e.key === "Enter") {
             e.preventDefault();
             handleAdd();
@@ -77,6 +78,12 @@ export function MergeCoursesDialog() {
   const [mergeGroups, setMergeGroups] = useState<MergeGroup[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
+  const [mounted, setMounted] = useState(false);
+
+  // Prevent hydration mismatch by only rendering Dialog after mount
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   // Load existing merges when dialog opens
   useEffect(() => {
@@ -241,14 +248,23 @@ export function MergeCoursesDialog() {
     }
   };
 
-  if (!selectedDataset || !mounted) {
+  if (!selectedDataset) {
     return null;
+  }
+
+  if (!mounted) {
+    return (
+      <Button className="w-full bg-blue-700 hover:bg-blue-800 text-white" disabled={!selectedDataset}>
+        <GitMerge className="h-4 w-4" />
+        Merge Courses
+      </Button>
+    );
   }
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
-        <Button id="merge-courses-id" className="w-full bg-blue-700 hover:bg-blue-800 text-white" disabled={!selectedDataset}>
+        <Button className="w-full bg-blue-700 hover:bg-blue-800 text-white" disabled={!selectedDataset}>
           <GitMerge className="h-4 w-4" />
           Merge Courses
         </Button>

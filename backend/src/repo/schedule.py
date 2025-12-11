@@ -27,14 +27,30 @@ class ScheduleRepo(BaseRepo[Schedules]):
         """
         Get schedule with authorization check.
 
-        Joins through Runs to verify user owns this schedule.
+        Checks if user owns the schedule OR has a share with view/edit permission.
         """
+        from src.schemas.db import ScheduleShares
+
+        # Check if user owns the schedule
         stmt = (
             select(Schedules)
             .join(Runs, Schedules.run_id == Runs.run_id)
             .where(Schedules.schedule_id == schedule_id, Runs.user_id == user_id)
         )
-        return self.db.execute(stmt).scalars().first()
+        schedule = self.db.execute(stmt).scalars().first()
+        if schedule:
+            return schedule
+
+        # Check if user has a share
+        share_stmt = (
+            select(Schedules)
+            .join(ScheduleShares, Schedules.schedule_id == ScheduleShares.schedule_id)
+            .where(
+                Schedules.schedule_id == schedule_id,
+                ScheduleShares.shared_with_user_id == user_id,
+            )
+        )
+        return self.db.execute(share_stmt).scalars().first()
 
     def get_with_run_details(
         self, schedule_id: UUID, user_id: UUID
@@ -42,31 +58,75 @@ class ScheduleRepo(BaseRepo[Schedules]):
         """
         Get schedule with run metadata eagerly loaded.
 
+        Checks if user owns the schedule OR has a share with view/edit permission.
         Efficient single query that loads schedule + run data.
         """
+        from src.schemas.db import ScheduleShares
+
+        # Check if user owns the schedule
         stmt = (
             select(Schedules)
             .join(Runs)
-            .options(joinedload(Schedules.run))
+            .options(joinedload(Schedules.run).joinedload(Runs.user))
             .where(Schedules.schedule_id == schedule_id, Runs.user_id == user_id)
         )
-        return self.db.execute(stmt).scalars().first()
+        schedule = self.db.execute(stmt).scalars().first()
+        if schedule:
+            return schedule
+
+        # Check if user has a share
+        share_stmt = (
+            select(Schedules)
+            .join(ScheduleShares, Schedules.schedule_id == ScheduleShares.schedule_id)
+            .join(Runs, Schedules.run_id == Runs.run_id)
+            .options(joinedload(Schedules.run).joinedload(Runs.user))
+            .where(
+                Schedules.schedule_id == schedule_id,
+                ScheduleShares.shared_with_user_id == user_id,
+            )
+        )
+        return self.db.execute(share_stmt).scalars().first()
 
     def get_all_for_user(self, user_id: UUID) -> list[Schedules]:
-        """Get all schedules for user with pagination."""
-        stmt = (
+        """
+        Get all schedules for user (owned + shared).
+
+        Returns schedules where user is owner or has been shared with.
+        """
+        from src.schemas.db import ScheduleShares
+
+        # Get owned schedules
+        owned_stmt = (
             select(Schedules)
             .join(Runs)
-            .options(joinedload(Schedules.run))
+            .options(joinedload(Schedules.run).joinedload(Runs.user))
             .where(Runs.user_id == user_id)
-            .order_by(Schedules.created_at.desc())
         )
-        return list(self.db.execute(stmt).scalars().unique().all())
 
-    def name_exists(self, schedule_name: str) -> bool:
-        """Check if schedule name is already taken."""
-        stmt = select(Schedules.schedule_id).where(
-            Schedules.schedule_name == schedule_name
+        # Get shared schedules
+        shared_stmt = (
+            select(Schedules)
+            .join(ScheduleShares, Schedules.schedule_id == ScheduleShares.schedule_id)
+            .options(joinedload(Schedules.run).joinedload(Runs.user))
+            .where(ScheduleShares.shared_with_user_id == user_id)
+        )
+
+        # Combine results
+        owned = list(self.db.execute(owned_stmt).scalars().unique().all())
+        shared = list(self.db.execute(shared_stmt).scalars().unique().all())
+
+        # Remove duplicates (in case user owns and has share)
+        all_schedules = {s.schedule_id: s for s in owned + shared}
+        result = list(all_schedules.values())
+        result.sort(key=lambda s: s.created_at, reverse=True)
+        return result
+
+    def name_exists(self, schedule_name: str, user_id: UUID) -> bool:
+        """Check if schedule name is already taken by a specific user."""
+        stmt = (
+            select(Schedules.schedule_id)
+            .join(Runs, Schedules.run_id == Runs.run_id)
+            .where(Schedules.schedule_name == schedule_name, Runs.user_id == user_id)
         )
         return self.db.execute(stmt).first() is not None
 

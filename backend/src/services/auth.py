@@ -7,6 +7,7 @@ from jose import JWTError, jwt
 from src.core.config import get_settings
 from src.repo.user import UserRepo
 from src.schemas.db import Users
+from src.utils.email import is_northeastern_email
 from src.utils.password import get_password_hash, verify_password
 
 
@@ -39,7 +40,7 @@ class AuthService:
             User object if authenticated, None otherwise
 
         Raises:
-            HTTPException: If username is ambiguous
+            HTTPException: If username is ambiguous, user is pending, or user is rejected
         """
         # Use repository to find user
         user, is_ambiguous = self.user_repo.get_by_email_or_name(username)
@@ -56,9 +57,24 @@ class AuthService:
         if not verify_password(password, user.password_hash):
             return None
 
+        # Check user approval status
+        if user.status == "pending":
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Your account is pending approval. Please wait for an admin to approve your account.",
+            )
+
+        if user.status == "rejected":
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Your account has been rejected. Please contact an administrator.",
+            )
+
         return user
 
-    def register_user(self, name: str, email: str, password: str) -> Users:
+    def register_user(
+        self, name: str, email: str, password: str, invited_by: UUID | None = None
+    ) -> Users:
         """
         Register new user with validation and password hashing.
 
@@ -66,13 +82,21 @@ class AuthService:
             name: User's display name
             email: User's email address
             password: Plain text password
+            invited_by: Optional user ID who invited this user
 
         Returns:
             Newly created User
 
         Raises:
-            HTTPException: If email already exists
+            HTTPException: If email already exists or email is not from Northeastern
         """
+        # Validate Northeastern email
+        if not is_northeastern_email(email):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Only Northeastern University email addresses (@northeastern.edu) are allowed",
+            )
+
         # Check email availability
         if self.user_repo.email_exists(email):
             raise HTTPException(
@@ -83,9 +107,14 @@ class AuthService:
         # Hash password
         password_hash = get_password_hash(password)
 
-        # Create user
+        # Create user with pending status
         return self.user_repo.create_user(
-            name=name, email=email, password_hash=password_hash
+            name=name,
+            email=email,
+            password_hash=password_hash,
+            role="user",
+            status="pending",
+            invited_by=invited_by,
         )
 
     def create_access_token(

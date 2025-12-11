@@ -10,7 +10,7 @@ import {
 } from "@tanstack/react-table";
 import { useMemo, useState } from "react";
 import { createExamColumns } from "@/components/visualization/list/columns";
-import type { Exam } from "../store/calendarStore";
+import type { Exam } from "../types/calendar.types";
 import { useScheduleData } from "./useScheduleData";
 
 /**
@@ -33,6 +33,7 @@ function examGlobalFilterFn(
     exam.building,
     exam.day,
     exam.timeSlot,
+    exam.studentCount?.toString(),
   ];
 
   return searchableFields.some(

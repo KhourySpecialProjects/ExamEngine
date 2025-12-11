@@ -1,3 +1,4 @@
+from datetime import datetime
 from uuid import UUID
 
 from sqlalchemy import select
@@ -36,7 +37,7 @@ class DatasetRepo(BaseRepo[Datasets]):
         """Get all datasets for a user with pagination."""
         stmt = (
             select(Datasets)
-            .where(Datasets.user_id == user_id)
+            .where(Datasets.user_id == user_id, Datasets.deleted_at.is_(None))
             .order_by(Datasets.upload_date.desc())
             .offset(skip)
             .limit(limit)
@@ -49,3 +50,33 @@ class DatasetRepo(BaseRepo[Datasets]):
             Datasets.dataset_name == dataset_name, Datasets.user_id == user_id
         )
         return self.db.execute(stmt).scalars().first()
+
+    def dataset_exists(self, dataset_name: str, user_id: UUID) -> bool:
+        """Check if dataset name is already taken by a specific user."""
+        stmt = select(Datasets).where(
+            Datasets.dataset_name == dataset_name,
+            Datasets.deleted_at.is_(None),  # Only check non-deleted datasets
+            Datasets.user_id == user_id,
+        )
+        return self.db.execute(stmt).first() is not None
+
+    def soft_delete(self, dataset_id: UUID, user_id: UUID) -> bool:
+        """
+        Soft delete a dataset - marks as deleted in database only.
+        """
+        # Check if the dataset exists
+        stmt = select(Datasets).where(
+            Datasets.dataset_id == dataset_id,
+            Datasets.user_id == user_id,
+            Datasets.deleted_at.is_(None),  # Only delete non-deleted datasets
+        )
+        dataset = self.db.execute(stmt).scalars().first()
+
+        if not dataset:
+            return False
+
+        dataset.deleted_at = datetime.now()
+        self.db.commit()
+        self.db.refresh(dataset)
+
+        return True

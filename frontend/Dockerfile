@@ -11,7 +11,8 @@ ENV NEXT_PUBLIC_API_URL=${NEXT_PUBLIC_API_URL}
 RUN apt-get update && apt-get install -y curl && rm -rf /var/lib/apt/lists/*
 
 # Copy package files
-COPY frontend/package*.json ./
+COPY frontend/package.json ./
+COPY frontend/package-lock.json ./
 
 # Install dependencies directly (this will create package-lock.json automatically)
 RUN npm ci

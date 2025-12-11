@@ -5,7 +5,7 @@ Unit tests for merge validation service.
 import pytest
 
 from src.domain.models import Course, Room, SchedulingDataset, Student
-from src.services.merge_validator import MergeValidator, MergeValidationResult
+from src.services.dataset.merge_validator import MergeValidator, MergeValidationResult
 
 
 @pytest.fixture

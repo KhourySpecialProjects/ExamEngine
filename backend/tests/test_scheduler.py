@@ -13,7 +13,7 @@ Tests cover:
 
 import pytest
 
-from src.algorithms.scheduler import Scheduler
+from src.domain.services.scheduler import Scheduler
 from src.domain.factories.dataset_factory import DatasetFactory
 
 

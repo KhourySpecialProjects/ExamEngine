@@ -1,9 +1,17 @@
-import { Link, Sparkles } from "lucide-react";
+"use client";
+import { Sparkles } from "lucide-react";
 import Image from "next/image";
+import { useRouter } from "next/navigation";
+import { Button } from "@/components/ui/button";
 
 export default function NotFound() {
+  const router = useRouter();
+
+  const handleClick = () => {
+    router.push("/dashboard");
+  };
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="bg-gray-50">
       <section className="relative isolate overflow-hidden bg-white text-gray-900">
         <div className="mx-auto flex max-w-5xl flex-col items-center px-6 py-20 text-center">
           <div className="mb-6 flex items-center gap-3 text-muted-foreground">
@@ -11,7 +19,7 @@ export default function NotFound() {
               src="/logo.svg"
               alt="ExamEngine logo"
               width={300}
-              height={70}
+              height={100}
             />
           </div>
           <div className="mb-6 inline-flex items-center gap-2 rounded-full border border-gray-200 bg-gray-50 px-4 py-1 text-xs font-medium uppercase tracking-[0.2em] text-gray-500">
@@ -19,12 +27,7 @@ export default function NotFound() {
             Sorry! The page you are looking for does not exist.
           </div>
 
-          <Link
-            href="/dashboard"
-            className="rounded-md border px-4 py-2 text-sm font-medium hover:bg-gray-100"
-          >
-            Go back to the Dashboard.
-          </Link>
+          <Button onClick={handleClick}>Go back!</Button>
         </div>
       </section>
     </div>

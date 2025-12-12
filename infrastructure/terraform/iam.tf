@@ -104,6 +104,19 @@ data "aws_iam_policy_document" "cicd_ecr_policy_doc" {
       data.aws_ecr_repository.backend_repo.arn
     ]
   }
+
+  statement {
+    sid = "UpdateService"
+    effect = "Allow"
+    actions = [
+      "ecs:UpdateService"
+    ]
+    resources = [
+      data.aws_ecs_service.examengine_frontend_service.arn,
+      data.aws_ecs_service.examengine_backend_service.arn,
+      data.aws_ecs_cluster.cluster.arn
+    ]
+  }
 }
 
 resource "aws_iam_policy" "cicd_ecr_policy" {

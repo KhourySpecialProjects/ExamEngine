@@ -10,8 +10,8 @@ export default function NotFound() {
             <Image
               src="/logo.svg"
               alt="ExamEngine logo"
-              width={180}
-              height={24}
+              width={300}
+              height={70}
             />
           </div>
           <div className="mb-6 inline-flex items-center gap-2 rounded-full border border-gray-200 bg-gray-50 px-4 py-1 text-xs font-medium uppercase tracking-[0.2em] text-gray-500">
@@ -20,7 +20,7 @@ export default function NotFound() {
           </div>
 
           <Link
-            href="/contact"
+            href="/dashboard"
             className="rounded-md border px-4 py-2 text-sm font-medium hover:bg-gray-100"
           >
             Go back to the Dashboard.

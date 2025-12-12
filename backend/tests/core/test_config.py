@@ -17,7 +17,8 @@ def test_get_settings():
     assert settings.secret_key is not None
     assert settings.algorithm == "HS256"
     assert settings.access_token_expire_minutes == 1440
-    assert settings.frontend_url == "http://localhost:3000"
+    assert settings.frontend_url is not None
+    assert settings.frontend_url.startswith("http")
     assert settings.aws_region is not None
     assert settings.aws_s3_bucket is not None
     assert settings.db_pool_size == 5

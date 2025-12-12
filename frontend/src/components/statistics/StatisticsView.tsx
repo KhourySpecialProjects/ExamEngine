@@ -23,7 +23,8 @@ import {
 } from "@/components/ui/card";
 import { useSchedulesStore } from "@/lib/store/schedulesStore";
 import { useDatasetStore } from "@/lib/store/datasetStore";
-import { BookOpen, AlertTriangle, Building2, TrendingUp } from "lucide-react";
+import { useCourseMerges } from "@/lib/hooks/useCourseMerges";
+import { BookOpen, AlertTriangle, Building2, TrendingUp, GitMerge } from "lucide-react";
 
 const COLORS = {
   primary: "#3b82f6",
@@ -41,6 +42,7 @@ interface ConflictData {
 export function StatisticsView() {
   const currentSchedule = useSchedulesStore((state) => state.currentSchedule);
   const datasets = useDatasetStore((state) => state.datasets);
+  const { merges, isMerged } = useCourseMerges(currentSchedule?.dataset_id);
   
   const stats = useMemo(() => {
     if (!currentSchedule) return null;
@@ -52,17 +54,50 @@ export function StatisticsView() {
     // Try to get unique student count from dataset if available
     const dataset = datasets.find((d) => d.dataset_id === currentSchedule.dataset_id);
     const uniqueStudents = dataset?.files?.enrollments?.unique_students || null;
+    
+    // Calculate merge statistics
+    const mergeGroups = Object.values(merges || {});
+    const mergeGroupCount = mergeGroups.length;
+    const mergedCrns = new Set<string>();
+    mergeGroups.forEach((group) => {
+      if (Array.isArray(group)) {
+        group.forEach((crn) => mergedCrns.add(String(crn).trim()));
+      }
+    });
+    const mergedCourseCount = mergedCrns.size;
+    
+    // Calculate total students in merged courses
+    let mergedStudents = 0;
+    schedule.complete.forEach((exam) => {
+      if (isMerged(exam.CRN)) {
+        mergedStudents += exam.Size || 0;
+      }
+    });
+    
+    // Calculate average merge group size
+    const avgMergeGroupSize = mergeGroupCount > 0 
+      ? mergedCourseCount / mergeGroupCount 
+      : 0;
 
     // Calculate exams per day
     const examsPerDay: Record<string, number> = {};
     const studentsPerDay: Record<string, number> = {};
     const timeBlocks: Record<string, number> = {};
 
+    let unscheduledCount = 0;
+    let unscheduledStudents = 0;
+    
     schedule.complete.forEach((exam) => {
-      examsPerDay[exam.Day] = (examsPerDay[exam.Day] || 0) + 1;
-      studentsPerDay[exam.Day] =
-        (studentsPerDay[exam.Day] || 0) + (exam.Size || 0);
-      timeBlocks[exam.Block] = (timeBlocks[exam.Block] || 0) + 1;
+      // Track unscheduled exams (no Day or Room)
+      if (!exam.Day || !exam.Room) {
+        unscheduledCount += 1;
+        unscheduledStudents += exam.Size || 0;
+      } else {
+        examsPerDay[exam.Day] = (examsPerDay[exam.Day] || 0) + 1;
+        studentsPerDay[exam.Day] =
+          (studentsPerDay[exam.Day] || 0) + (exam.Size || 0);
+        timeBlocks[exam.Block] = (timeBlocks[exam.Block] || 0) + 1;
+      }
     });
 
     // Calculate room utilization - average across all exam-room assignments
@@ -221,13 +256,19 @@ export function StatisticsView() {
         totalRooms: summary.num_rooms,
         slotsUsed: summary.slots_used,
         backToBackWarnings: totalBackToBackWarnings,
+        unscheduledExams: unscheduledCount,
+        unscheduledStudents: unscheduledStudents,
+        mergeGroups: mergeGroupCount,
+        mergedCourses: mergedCourseCount,
+        mergedStudents: mergedStudents,
+        avgMergeGroupSize: Math.round(avgMergeGroupSize * 10) / 10,
       },
       dayData,
       blockData,
       conflictBreakdown,
       studentsPerDayData,
     };
-  }, [currentSchedule, datasets]);
+  }, [currentSchedule, datasets, merges, isMerged]);
 
   if (!currentSchedule || !stats) {
     return (
@@ -320,6 +361,79 @@ export function StatisticsView() {
           </CardContent>
         </Card>
       </div>
+
+      {/* Merge Statistics Card */}
+      {stats.overview.mergeGroups > 0 && (
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium flex items-center gap-2">
+              <GitMerge className="h-4 w-4 text-blue-600" />
+              Merged Courses
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-3">
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <div className="text-2xl font-bold text-blue-600">
+                    {stats.overview.mergeGroups}
+                  </div>
+                  <p className="text-xs text-muted-foreground">Merge Groups</p>
+                </div>
+                <div>
+                  <div className="text-2xl font-bold text-blue-600">
+                    {stats.overview.mergedCourses}
+                  </div>
+                  <p className="text-xs text-muted-foreground">Courses Merged</p>
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-4 pt-2 border-t">
+                <div>
+                  <div className="text-lg font-semibold text-blue-600">
+                    {stats.overview.mergedStudents}
+                  </div>
+                  <p className="text-xs text-muted-foreground">Students in Merges</p>
+                </div>
+                <div>
+                  <div className="text-lg font-semibold text-blue-600">
+                    {stats.overview.avgMergeGroupSize}
+                  </div>
+                  <p className="text-xs text-muted-foreground">Avg. Group Size</p>
+                </div>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Unscheduled Merges Alert */}
+      {stats.overview.unscheduledExams > 0 && (
+        <Card className="border-orange-200 bg-orange-50">
+          <CardHeader>
+            <CardTitle className="text-sm font-medium flex items-center gap-2">
+              <AlertTriangle className="h-4 w-4 text-orange-600" />
+              Unscheduled Merges
+            </CardTitle>
+            <CardDescription>
+              Some merged courses could not be scheduled due to room capacity constraints
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-2">
+              <div className="text-2xl font-bold text-orange-700">
+                {stats.overview.unscheduledExams}
+              </div>
+              <p className="text-xs text-muted-foreground">
+                {stats.overview.unscheduledStudents} students affected
+              </p>
+              <p className="text-xs text-muted-foreground mt-2">
+                These exams appear in the list view without a day, time, or room assignment.
+                Consider splitting these merge groups or adding larger rooms to your dataset.
+              </p>
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Charts Grid */}
       <div className="grid gap-4 md:grid-cols-2">

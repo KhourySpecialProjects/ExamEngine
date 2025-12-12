@@ -14,6 +14,7 @@ import { useEffect } from "react";
 import { useDatasetStore } from "@/lib/store/datasetStore";
 import { getTimeAgo } from "@/lib/utils";
 import { DatasetBar } from "../dataset/DatasetBar";
+import { MergeCoursesDialog } from "../dataset/MergeCoursesDialog";
 import { ScheduleRunner } from "../schedule/ScheduleRunner";
 import { Button } from "../ui/button";
 import { Uploader } from "../upload/Uploader";
@@ -129,6 +130,11 @@ export function DashboardSidebar({ isOpen = true, onToggle }: SidebarProps) {
                 )}
               </div>
             )}
+            
+            {/* Merge Courses Button */}
+            <div className="w-full mt-6">
+              <MergeCoursesDialog />
+            </div>
           </section>
 
           <section>

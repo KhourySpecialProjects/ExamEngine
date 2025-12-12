@@ -119,6 +119,11 @@ class Datasets(Base):
     deleted_at: Mapped[datetime.datetime | None] = mapped_column(
         DateTime, nullable=True, default=None
     )
+    # Course merges: dict mapping merge_group_id to list of CRNs
+    # Format: {"merge_group_1": ["CRN1", "CRN2"], "merge_group_2": ["CRN3", "CRN4"]}
+    course_merges: Mapped[dict[str, list[str]] | None] = mapped_column(
+        MutableDict.as_mutable(JSONB), nullable=True, default=None
+    )
     courses: Mapped[list["Courses"]] = relationship(
         "Courses",
         back_populates="dataset",
@@ -317,10 +322,12 @@ class ExamAssignments(Base):
         UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
     )
     course_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("courses.course_id"))
-    time_slot_id: Mapped[uuid.UUID] = mapped_column(
-        ForeignKey("time_slots.time_slot_id")
+    time_slot_id: Mapped[uuid.UUID | None] = mapped_column(
+        ForeignKey("time_slots.time_slot_id"), nullable=True
     )
-    room_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("rooms.room_id"))
+    room_id: Mapped[uuid.UUID | None] = mapped_column(
+        ForeignKey("rooms.room_id"), nullable=True
+    )
     schedule_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("schedules.schedule_id"))
     course: Mapped["Courses"] = relationship(
         "Courses",

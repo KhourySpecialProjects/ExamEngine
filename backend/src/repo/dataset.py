@@ -80,3 +80,43 @@ class DatasetRepo(BaseRepo[Datasets]):
         self.db.refresh(dataset)
 
         return True
+
+    def set_merges(
+        self, dataset_id: UUID, merges: dict[str, list[str]]
+    ) -> Datasets | None:
+        """
+        Set course merges for a dataset.
+
+        Args:
+            dataset_id: Dataset ID
+            merges: Dictionary mapping merge_group_id to list of CRNs
+
+        Returns:
+            Updated dataset object or None if not found
+        """
+        dataset = self.get_by_id(dataset_id)
+        if not dataset:
+            return None
+
+        dataset.course_merges = merges
+        self.db.commit()
+        self.db.refresh(dataset)
+        return dataset
+
+    def clear_merges(self, dataset_id: UUID) -> bool:
+        """
+        Clear all course merges for a dataset.
+
+        Args:
+            dataset_id: Dataset ID
+
+        Returns:
+            True if successful, False if dataset not found
+        """
+        dataset = self.get_by_id(dataset_id)
+        if not dataset:
+            return False
+
+        dataset.course_merges = None
+        self.db.commit()
+        return True

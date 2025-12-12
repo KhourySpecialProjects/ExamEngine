@@ -290,3 +290,73 @@ class DatasetService:
             raise ValidationError(
                 f"Failed to parse {file_type}", detail={"error": str(e)}
             ) from e
+
+    async def validate_merge(
+        self, dataset_id: UUID, user_id: UUID, crns: list[str]
+    ) -> dict[str, Any]:
+        """
+        Validate if merging multiple CRNs is feasible.
+
+        Args:
+            dataset_id: Dataset ID
+            user_id: User ID for authorization
+            crns: List of CRNs to merge
+
+        Returns:
+            Validation result dictionary
+        """
+        from src.domain.factories.dataset_factory import DatasetFactory
+        from src.services.dataset.merge_validator import MergeValidator
+
+        # Load dataset files
+        files = await self.get_dataset_files(dataset_id, user_id)
+
+        # Build SchedulingDataset for validation
+        scheduling_dataset = DatasetFactory.from_dataframes_to_scheduling_dataset(
+            courses_df=files["courses"],
+            enrollment_df=files["enrollments"],
+            rooms_df=files["rooms"],
+        )
+
+        # Validate merge
+        validator = MergeValidator(scheduling_dataset)
+        result = validator.validate_merge(crns)
+
+        return result.to_dict()
+
+    def get_merges(self, dataset_id: UUID, user_id: UUID) -> dict[str, list[str]] | None:
+        """Get course merges for a dataset."""
+        dataset = self.dataset_repo.get_by_id_for_user(dataset_id, user_id)
+        if not dataset:
+            raise DatasetNotFoundError(f"Dataset {dataset_id} not found")
+        return dataset.course_merges
+
+    def set_merges(
+        self, dataset_id: UUID, user_id: UUID, merges: dict[str, list[str]]
+    ) -> dict[str, Any]:
+        """
+        Set course merges for a dataset.
+
+        Args:
+            dataset_id: Dataset ID
+            user_id: User ID for authorization
+            merges: Dictionary mapping merge_group_id to list of CRNs
+
+        Returns:
+            Updated merges dictionary
+        """
+        dataset = self.dataset_repo.get_by_id_for_user(dataset_id, user_id)
+        if not dataset:
+            raise DatasetNotFoundError(f"Dataset {dataset_id} not found")
+
+        updated = self.dataset_repo.set_merges(dataset_id, merges)
+        return updated.course_merges if updated else None
+
+    def clear_merges(self, dataset_id: UUID, user_id: UUID) -> dict[str, Any]:
+        """Clear all course merges for a dataset."""
+        dataset = self.dataset_repo.get_by_id_for_user(dataset_id, user_id)
+        if not dataset:
+            raise DatasetNotFoundError(f"Dataset {dataset_id} not found")
+
+        success = self.dataset_repo.clear_merges(dataset_id)
+        return {"success": success, "message": "Merges cleared"}

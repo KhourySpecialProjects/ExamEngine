@@ -21,7 +21,7 @@ jobs:
   build-and-push:
     name: Build and Push Docker Images
     runs-on: ubuntu-latest
-    
+
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -66,7 +66,9 @@ jobs:
             ${{ env.ECR_REGISTRY }}/${{ env.BACKEND_REPOSITORY }}:${{ github.sha }}
           build-args: |
             ENVIRONMENT=production
-            FRONTEND_URL =${{secrets.FRONTEND_URL}}
+            FRONTEND_URL=${{secrets.FRONTEND_URL}}
+            AWS_ACCESS_KEY_ID=${{secrets.AWS_ACCESS_KEY_ID}}
+            AWS_SECRET_ACCESS_KEY=${{secrets.AWS_SECRET_ACCESS_KEY}}
 
           cache-from: type=gha
           cache-to: type=gha,mode=max
@@ -84,7 +86,6 @@ jobs:
             --force-new-deployment \
             --region ${{ env.AWS_REGION }}
 
-
       - name: Force new deployment on backend Service
         run: |
           aws ecs update-service \
@@ -92,3 +93,4 @@ jobs:
             --service ${{ env.BACKEND_SERVICE }} \
             --force-new-deployment \
             --region ${{ env.AWS_REGION }}
+

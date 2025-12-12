@@ -9,6 +9,8 @@ on:
 env:
   AWS_REGION: us-east-1
   ECR_REGISTRY: ${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.us-east-1.amazonaws.com
+  FRONTEND_URL: ${{secrets.FRONTEND_URL}}
+  NEXT_PUBLIC_API_URL: ${{secrets.NEXT_PUBLIC_API_URL}}
   FRONTEND_REPOSITORY: next-web
   BACKEND_REPOSITORY: fastapi-backend
   FRONTEND_SERVICE: examengine-frontend-service-dev
@@ -64,6 +66,8 @@ jobs:
             ${{ env.ECR_REGISTRY }}/${{ env.BACKEND_REPOSITORY }}:${{ github.sha }}
           build-args: |
             ENVIRONMENT=production
+            FRONTEND_URL =${{secrets.FRONTEND_URL}}
+
           cache-from: type=gha
           cache-to: type=gha,mode=max
 

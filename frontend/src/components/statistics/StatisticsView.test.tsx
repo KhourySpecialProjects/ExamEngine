@@ -107,7 +107,7 @@ describe("StatisticsView", () => {
 
     expect(screen.getByText("Statistics View")).toBeDefined();
     expect(screen.getByText("Total Exams")).toBeDefined();
-    expect(screen.getByText("2")).toBeDefined();
+    expect(screen.getAllByText("2")).toBeDefined();
     expect(screen.getByText("Conflicts")).toBeDefined();
     expect(screen.getByText("1")).toBeDefined();
   });

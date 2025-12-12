@@ -56,6 +56,11 @@ jobs:
           cache-to: type=gha,mode=max
 
       - name: Build and push backend image
+        env:
+          ENVIRONMENT: production
+          FRONTEND_URL: ${{secrets.FRONTEND_URL}}
+          AWS_ACCESS_KEY_ID: ${{secrets.AWS_ACCESS_KEY_ID}}
+          AWS_SECRET_ACCESS_KEY: ${{secrets.AWS_SECRET_ACCESS_KEY}}
         uses: docker/build-push-action@v5
         with:
           context: .
@@ -67,8 +72,8 @@ jobs:
           build-args: |
             ENVIRONMENT=production
             FRONTEND_URL=${{secrets.FRONTEND_URL}}
-            aws_access_key_id=${{secrets.AWS_ACCESS_KEY_ID}}
-            aws_secret_access_key=${{secrets.AWS_SECRET_ACCESS_KEY}}
+            AWS_ACCESS_KEY_ID=${{secrets.AWS_ACCESS_KEY_ID}}
+            AWS_SECRET_ACCESS_KEY=${{secrets.AWS_SECRET_ACCESS_KEY}}
 
           cache-from: type=gha
           cache-to: type=gha,mode=max

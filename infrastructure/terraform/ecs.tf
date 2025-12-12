@@ -282,6 +282,22 @@ data "aws_ecr_repository" "backend_repo" {
   name = "fastapi-backend"
 }
 
+#Fetching both frontend/backend services
+data "aws_ecs_service" "examengine_frontend_service" {
+  service_name = "examengine-frontend-service-dev"
+  cluster_arn  = aws_ecs_cluster.cluster.arn
+}
+
+
+data "aws_ecs_service" "examengine_backend_service" {
+  service_name = "examengine-backend-service-dev"
+  cluster_arn  = aws_ecs_cluster.cluster.arn
+}
+
+data "aws_ecs_cluster" "cluster" {
+  cluster_name = "ee-cluster"
+}
+
 # CloudWatch Log Groups
 resource "aws_cloudwatch_log_group" "backend_logs" {
   name              = "/ecs/examengine-backend-${var.environment}"

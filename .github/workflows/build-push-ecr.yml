@@ -11,6 +11,9 @@ env:
   ECR_REGISTRY: ${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.us-east-1.amazonaws.com
   FRONTEND_REPOSITORY: next-web
   BACKEND_REPOSITORY: fastapi-backend
+  FRONTEND_SERVICE: examengine-frontend-service-dev
+  BACKEND_SERVICE: examengine-backend-service-dev
+  ECS_CLUSTER: ee-cluster
 
 jobs:
   build-and-push:
@@ -69,3 +72,19 @@ jobs:
           echo "Frontend image: ${{ env.ECR_REGISTRY }}/${{ env.FRONTEND_REPOSITORY }}:${{ github.sha }}"
           echo "Backend image: ${{ env.ECR_REGISTRY }}/${{ env.BACKEND_REPOSITORY }}:${{ github.sha }}"
 
+      - name: Force new deployment on frontend Service
+        run: |
+          aws ecs update-service \
+            --cluster ${{ env.ECS_CLUSTER }} \
+            --service ${{ env.FRONTEND_SERVICE }} \
+            --force-new-deployment \
+            --region ${{ env.AWS_REGION }}
+
+
+      - name: Force new deployment on backend Service
+        run: |
+          aws ecs update-service \
+            --cluster ${{ env.ECS_CLUSTER }} \
+            --service ${{ env.BACKEND_SERVICE }} \
+            --force-new-deployment \
+            --region ${{ env.AWS_REGION }}

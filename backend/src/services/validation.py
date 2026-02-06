@@ -96,32 +96,32 @@ def get_file_statistics(
         return df[csv_col] if csv_col and csv_col in df.columns else None
 
     if file_type == "courses":
-        crn_col = safe_col("crn")
+        crn_col = safe_col("Course_Reference_Number")
         if crn_col is not None:
             stats["unique_crns"] = int(crn_col.nunique())
 
-        enrollment_col = safe_col("enrollment_count")
+        enrollment_col = safe_col("Total_Enrollment")
         if enrollment_col is not None:
             stats["total_students"] = int(enrollment_col.sum())
             stats["avg_class_size"] = round(float(enrollment_col.mean()), 2)
 
     elif file_type == "enrollments":
-        student_col = safe_col("student_id")
+        student_col = safe_col("Student_PIDM")
         if student_col is not None:
             stats["unique_students"] = int(student_col.nunique())
 
-        crn_col = safe_col("crn")
+        crn_col = safe_col("Course_Reference_Number")
         if crn_col is not None:
             stats["unique_crns"] = int(crn_col.nunique())
 
         stats["total_enrollments"] = len(df)
 
     elif file_type == "rooms":
-        room_col = safe_col("room_name")
+        room_col = safe_col("Location Name")
         if room_col is not None:
             stats["unique_rooms"] = int(room_col.nunique())
 
-        capacity_col = safe_col("capacity")
+        capacity_col = safe_col("Capacity")
         if capacity_col is not None:
             stats["total_capacity"] = int(capacity_col.sum())
             stats["avg_capacity"] = round(float(capacity_col.mean()), 2)

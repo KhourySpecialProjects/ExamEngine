@@ -140,16 +140,17 @@ class CourseSchema:
     # Version 1: Original Northeastern format
     V1_COLUMNS = [
         ColumnDefinition(
-            canonical_name="crn",
-            aliases=["CRN", "Course Registration Number", "crn"],
+            canonical_name="Course_Reference_Number",
+            aliases=["crn", "CRN", "Course Registration Number"],
             data_type=ColumnType.STRING,
             required=True,
             transformer=clean_crn,
             validator=validate_non_empty_string,
         ),
         ColumnDefinition(
-            canonical_name="course_code",
+            canonical_name="Course_Identification",
             aliases=[
+                "course_code",
                 "CourseID",
                 "Course ID",
                 "Course Code",
@@ -161,13 +162,14 @@ class CourseSchema:
             validator=validate_non_empty_string,
         ),
         ColumnDefinition(
-            canonical_name="enrollment_count",
+            canonical_name="Total_Enrollment",
             aliases=[
+                "enrollment_count",
                 "num_students",
                 "Enrollment",
                 "Student Count",
                 "Size",
-                "enrollment_count",
+                "UG_Enrollment",
             ],
             data_type=ColumnType.INTEGER,
             required=True,
@@ -175,13 +177,13 @@ class CourseSchema:
             validator=validate_positive_int,
         ),
         ColumnDefinition(
-            canonical_name="instructor_name",
+            canonical_name="Primary_Instructor_PIDM",
             aliases=[
+                "instructor_name",
                 "Instructor Name",
                 "Instructor",
                 "Faculty Name",
                 "Professor",
-                "instructor_name",
             ],
             data_type=ColumnType.STRING,
             required=True,
@@ -189,10 +191,11 @@ class CourseSchema:
             validator=None,
         ),
         ColumnDefinition(
-            canonical_name="examination_term",
+            canonical_name="Academic_Period_NUFreeze",
             aliases=[
                 "exam_term",
                 "examination_term",
+                "Academic_Period",
             ],
             data_type=ColumnType.STRING,
             required=True,
@@ -200,10 +203,11 @@ class CourseSchema:
             validator=None,
         ),
         ColumnDefinition(
-            canonical_name="department",
+            canonical_name="Course_Department_Code",
             aliases=[
                 "department",
                 "dept",
+                "Course_Department_Desc",
             ],
             data_type=ColumnType.STRING,
             required=True,
@@ -223,9 +227,8 @@ class EnrollmentSchema:
 
     V1_COLUMNS = [
         ColumnDefinition(
-            canonical_name="student_id",
+            canonical_name="Student_PIDM",
             aliases=[
-                "Student_PIDM",
                 "Student ID",
                 "PIDM",
                 "Student Number",
@@ -238,8 +241,8 @@ class EnrollmentSchema:
             validator=validate_non_empty_string,
         ),
         ColumnDefinition(
-            canonical_name="crn",
-            aliases=["CRN", "Course Registration Number", "crn"],
+            canonical_name="Course_Reference_Number",
+            aliases=["crn", "CRN", "Course Registration Number"],
             data_type=ColumnType.STRING,
             required=True,
             transformer=clean_crn,
@@ -258,16 +261,23 @@ class RoomSchema:
 
     V1_COLUMNS = [
         ColumnDefinition(
-            canonical_name="room_name",
-            aliases=["room_name", "Room", "Room Name", "Location", "Building + Room"],
+            canonical_name="Location Name",
+            aliases=[
+                "room_name",
+                "Room",
+                "Room Name",
+                "Location",
+                "Building + Room",
+                "Location Formal Name",
+            ],
             data_type=ColumnType.STRING,
             required=True,
             transformer=lambda x: str(x).strip() if not pd.isna(x) else None,
             validator=validate_non_empty_string,
         ),
         ColumnDefinition(
-            canonical_name="capacity",
-            aliases=["capacity", "Capacity", "Seats", "Max Capacity"],
+            canonical_name="Capacity",
+            aliases=["capacity", "Seats", "Max Capacity"],
             data_type=ColumnType.INTEGER,
             required=True,
             transformer=parse_capacity,

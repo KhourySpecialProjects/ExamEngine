@@ -131,6 +131,7 @@ class DatasetService:
                     continue
 
                 df = pd.read_csv(io.BytesIO(content))
+                print(df.head())
 
                 missing_cols = validate_csv_schema(df, file_type)
 

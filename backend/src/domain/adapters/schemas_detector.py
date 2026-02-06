@@ -63,12 +63,41 @@ class CSVSchemaDetector:
         mapping = {}
 
         for col_def in schema:
-            # Find matching CSV column
+            # Find matching CSV column.
+            #
+            # IMPORTANT: prefer an exact (case-insensitive) match to the canonical
+            # name over any alias match. This avoids nondeterministic matches when
+            # both canonical and alias columns are present in the same CSV.
+            canonical_lower = col_def.canonical_name.strip().lower()
+            exact_matches = [
+                csv_col
+                for csv_col in csv_columns
+                if csv_col.strip().lower() == canonical_lower
+            ]
+
             matched_csv_col = None
-            for csv_col in csv_columns:
-                if col_def.matches(csv_col):
-                    matched_csv_col = csv_col
-                    break
+            if exact_matches:
+                # Prefer exact string equality if present, otherwise first exact match.
+                matched_csv_col = (
+                    col_def.canonical_name
+                    if col_def.canonical_name in exact_matches
+                    else exact_matches[0]
+                )
+            else:
+                # Fall back to alias matches (case-insensitive), in the order
+                # aliases are declared on the schema.
+                for alias in col_def.aliases:
+                    alias_lower = alias.strip().lower()
+                    alias_matches = [
+                        csv_col
+                        for csv_col in csv_columns
+                        if csv_col.strip().lower() == alias_lower
+                    ]
+                    if alias_matches:
+                        matched_csv_col = (
+                            alias if alias in alias_matches else alias_matches[0]
+                        )
+                        break
 
             # If required column not found, this schema doesn't match
             if col_def.required and matched_csv_col is None:

@@ -47,12 +47,12 @@ class CourseAdapter:
         for idx, row in df_normalized.iterrows():
             try:
                 # Extract required fields
-                crn = row.get("crn")
-                course_code = row.get("course_code")
-                enrollment_count = row.get("enrollment_count")
-                instructor_name = row.get("instructor_name")
-                deparment = row.get("department")
-                examination_term = row.get("examination_term")
+                crn = row.get("Course_Reference_Number")
+                course_code = row.get("Course_Identification")
+                enrollment_count = row.get("Total_Enrollment")
+                instructor_name = row.get("Primary_Instructor_PIDM")
+                department = row.get("Course_Department_Code")
+                examination_term = row.get("Academic_Period_NUFreeze")
 
                 # Validate required fields are present
                 if crn is None:
@@ -67,7 +67,7 @@ class CourseAdapter:
                 if examination_term is None:
                     validation_errors.append(f"Row {idx}: Missing examination term")
                     continue
-                if deparment is None:
+                if department is None:
                     validation_errors.append(f"Row {idx}: Missing department")
                     continue
 
@@ -91,7 +91,7 @@ class CourseAdapter:
                     course_code=course_code,
                     enrollment_count=enrollment_count,
                     instructor_names=instructor_names,
-                    department=deparment,
+                    department=department,
                     examination_term=examination_term,
                 )
 
@@ -145,7 +145,7 @@ class EnrollmentAdapter:
                 )
 
         # Remove rows with missing required fields
-        df_clean = df_normalized.dropna(subset=["student_id", "crn"])
+        df_clean = df_normalized.dropna(subset=["Student_PIDM", "Course_Reference_Number"])
 
         # Build Enrollment objects
         enrollments = []
@@ -153,8 +153,8 @@ class EnrollmentAdapter:
         for _, row in df_clean.iterrows():
             try:
                 enrollment = Enrollment(
-                    student_id=row["student_id"],
-                    crn=row["crn"],
+                    student_id=row["Student_PIDM"],
+                    crn=row["Course_Reference_Number"],
                 )
                 enrollments.append(enrollment)
             except ValueError:
@@ -199,7 +199,7 @@ class RoomAdapter:
                 )
 
         # Remove rows with missing required fields
-        df_clean = df_normalized.dropna(subset=["room_name", "capacity"])
+        df_clean = df_normalized.dropna(subset=["Location Name", "Capacity"])
 
         # Build Room objects
         rooms = []
@@ -207,7 +207,7 @@ class RoomAdapter:
 
         for idx, row in df_clean.iterrows():
             try:
-                room = Room(name=row["room_name"], capacity=row["capacity"])
+                room = Room(name=row["Location Name"], capacity=row["Capacity"])
                 rooms.append(room)
             except ValueError as e:
                 validation_errors.append(f"Row {idx}: {str(e)}")

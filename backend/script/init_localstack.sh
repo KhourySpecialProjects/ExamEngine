@@ -49,7 +49,7 @@ aws --endpoint-url=http://localstack:4566 \
     s3 mb s3://exam-engine-csvs 2>&1 | grep -v "BucketAlreadyOwnedByYou" || true
 
 # Verify bucket exists
-echo "📋 Verifying S3 bucket:"
+echo "Verifying S3 bucket:"
 if aws --endpoint-url=http://localstack:4566 s3 ls 2>/dev/null | grep -q exam-engine-csvs; then
     echo "Bucket 'exam-engine-csvs' exists"
 else

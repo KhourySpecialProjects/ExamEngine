@@ -24,11 +24,25 @@ if [ $ATTEMPT -eq $MAX_ATTEMPTS ]; then
     exit 1
 fi
 
-# Now wait a bit more for S3 to initialize
-echo "Giving S3 service time to initialize..."
-sleep 10
+# Wait for S3 service to be actually usable
+echo "Waiting for S3 service to be ready..."
+S3_READY=false
+for i in $(seq 1 30); do
+    if aws --endpoint-url=http://localstack:4566 s3 ls >/dev/null 2>&1; then
+        echo "S3 service is ready!"
+        S3_READY=true
+        break
+    fi
+    echo "S3 not ready yet, attempt $i/30..."
+    sleep 2
+done
 
-# Try to create bucket (will succeed if bucket doesn't exist, or error if it does - both are ok)
+if [ "$S3_READY" = "false" ]; then
+    echo "S3 service failed to become ready"
+    exit 1
+fi
+
+# Try to create bucket
 echo "Creating S3 bucket: exam-engine-csvs"
 aws --endpoint-url=http://localstack:4566 \
     --region=us-east-1 \

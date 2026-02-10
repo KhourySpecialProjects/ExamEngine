@@ -1,4 +1,4 @@
-from pydantic import Field
+from pydantic import Field, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -25,12 +25,10 @@ class Settings(BaseSettings):
         description="AWS endpoint URL (use http://localstack:4566 for local dev with LocalStack)"
     )
     aws_access_key_id: str = Field(
-        default="test",
-        description="AWS access key (use 'test' for LocalStack, real key for production)"
+        description="AWS access key (REQUIRED: use 'test' for LocalStack, real key for production)"
     )
     aws_secret_access_key: str = Field(
-        default="test",
-        description="AWS secret key (use 'test' for LocalStack, real key for production)"
+        description="AWS secret key (REQUIRED: use 'test' for LocalStack, real key for production)"
     )
     aws_region: str = Field(
         default="us-east-1",

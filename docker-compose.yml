@@ -82,9 +82,9 @@ services:
       - "${BACKEND_PORT:-8000}:8000"
     environment:
       - DATABASE_URL=postgresql+psycopg2://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@db:5432/${POSTGRES_DB:-exam_engine_db}
-      - AWS_ENDPOINT_URL=http://localstack:4566  # Point to LocalStack locally
-      - AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID:-}
-      - AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY:-}
+      - AWS_ENDPOINT_URL=http://localstack:4566
+      - AWS_ACCESS_KEY_ID=test
+      - AWS_SECRET_ACCESS_KEY=test
       - AWS_REGION=${AWS_REGION:-us-east-1}
       - AWS_S3_BUCKET=${AWS_S3_BUCKET:-exam-engine-csvs}
       - SECRET_KEY=${SECRET_KEY:-dev-secret-key-change-in-production}
@@ -100,6 +100,8 @@ services:
         condition: service_healthy
       localstack:
         condition: service_healthy
+      localstack-init:
+        condition: service_completed_successfully
     networks:
       - exam_engine_network
     command: uvicorn src.main:app --host 0.0.0.0 --port 8000 --reload

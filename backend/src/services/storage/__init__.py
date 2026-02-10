@@ -11,4 +11,5 @@ setting = get_settings()
 storage = S3(
     bucket_name=setting.aws_s3_bucket,
     region=setting.aws_region,
+    endpoint_url=setting.aws_endpoint_url,  # None for AWS, URL for LocalStack (http://localstack:4566)
 )

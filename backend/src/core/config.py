@@ -19,12 +19,26 @@ class Settings(BaseSettings):
     database_url: str = Field(description="PostgreSQL connection string")
 
     # AWS Configuration
-    # All REQUIRED - no defaults
-    aws_access_key_id: str = Field(description="AWS access key for S3 operations")
-    aws_secret_access_key: str = Field(description="AWS secret access key")
-    aws_region: str = Field(default="us-east-1", description="AWS region for S3 bucket")
+    # LocalStack Support: Use endpoint_url for local development
+    aws_endpoint_url: str | None = Field(
+        default=None,
+        description="AWS endpoint URL (use http://localstack:4566 for local dev with LocalStack)"
+    )
+    aws_access_key_id: str = Field(
+        default="test",
+        description="AWS access key (use 'test' for LocalStack, real key for production)"
+    )
+    aws_secret_access_key: str = Field(
+        default="test",
+        description="AWS secret key (use 'test' for LocalStack, real key for production)"
+    )
+    aws_region: str = Field(
+        default="us-east-1",
+        description="AWS region for S3 bucket"
+    )
     aws_s3_bucket: str = Field(
-        default="exam-engine-csvs", description="S3 bucket name for dataset storage"
+        default="exam-engine-csvs",
+        description="S3 bucket name for dataset storage"
     )
 
     # Security Settings

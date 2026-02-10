@@ -6,19 +6,29 @@ from .interface import IStorage
 
 class S3(IStorage):
     """
-    AWS S3 storage implementation
+    AWS S3 storage implementation.
+
+    Supports both real AWS S3 and LocalStack for local development.
+    When endpoint_url is provided, it will use LocalStack.
+    When endpoint_url is None, it uses real AWS S3.
     """
 
     def __init__(
         self,
         bucket_name: str,
         region: str = "us-east-1",
+        endpoint_url: str | None = None,
     ) -> None:
         super().__init__()
         self.bucket_name = bucket_name
         self.region = region
+        self.endpoint_url = endpoint_url
 
-        self.client = boto3.client("s3", region_name=self.region)
+        self.client = boto3.client(
+            "s3",
+            region_name=self.region,
+            endpoint_url=endpoint_url,  # None for real AWS, URL for LocalStack
+        )
 
     async def upload_file(
         self, file_content: bytes, key: str, content_type: str = "text/csv"

@@ -4,7 +4,52 @@
 
 services:
   ##### DEV ONLY SERVICES #####
-  
+
+  # LocalStack - Local AWS Cloud Emulator
+  localstack:
+    image: localstack/localstack:latest
+    container_name: exam_engine_localstack
+    profiles: ["dev"]
+    ports:
+      - "4566:4566"  # S3 API endpoint
+      - "4571:4571"  # LocalStack dashboard
+    environment:
+      - SERVICES=s3
+      - DEBUG=1
+      - AWS_ACCESS_KEY_ID=test
+      - AWS_SECRET_ACCESS_KEY=test
+      - AWS_DEFAULT_REGION=us-east-1
+      - DATA_DIR=/tmp/localstack/data
+    volumes:
+      - ./localstack-data:/var/lib/localstack  # Persist S3 data locally
+      - /var/run/docker.sock:/var/run/docker.sock
+    networks:
+      - exam_engine_network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:4566/_localstack/health"]
+      interval: 5s
+      timeout: 10s
+      retries: 10
+      start_period: 30s
+
+  # Initialize LocalStack - Create S3 bucket
+  localstack-init:
+    image: amazon/aws-cli
+    container_name: exam_engine_localstack_init
+    profiles: ["dev"]
+    depends_on:
+      localstack:
+        condition: service_healthy
+    environment:
+      - AWS_ACCESS_KEY_ID=test
+      - AWS_SECRET_ACCESS_KEY=test
+      - AWS_DEFAULT_REGION=us-east-1
+    volumes:
+      - ./backend/script:/scripts
+    networks:
+      - exam_engine_network
+    entrypoint: ["/bin/sh", "/scripts/init_localstack.sh"]
+
   db:
     image: postgres:15-alpine
     container_name: exam_engine_db
@@ -37,8 +82,9 @@ services:
       - "${BACKEND_PORT:-8000}:8000"
     environment:
       - DATABASE_URL=postgresql+psycopg2://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@db:5432/${POSTGRES_DB:-exam_engine_db}
-      - AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID:-}
-      - AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY:-}
+      - AWS_ENDPOINT_URL=http://localstack:4566
+      - AWS_ACCESS_KEY_ID=test
+      - AWS_SECRET_ACCESS_KEY=test
       - AWS_REGION=${AWS_REGION:-us-east-1}
       - AWS_S3_BUCKET=${AWS_S3_BUCKET:-exam-engine-csvs}
       - SECRET_KEY=${SECRET_KEY:-dev-secret-key-change-in-production}
@@ -52,6 +98,10 @@ services:
     depends_on:
       db:
         condition: service_healthy
+      localstack:
+        condition: service_healthy
+      localstack-init:
+        condition: service_completed_successfully
     networks:
       - exam_engine_network
     command: uvicorn src.main:app --host 0.0.0.0 --port 8000 --reload

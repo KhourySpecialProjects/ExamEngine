@@ -3,6 +3,9 @@ node_modules/
 /data
 /Data/*.csv
 
+# LocalStack data
+localstack-data/
+
 # Test output files
 backend/test_*.csv
 backend/tests/test_*.csv

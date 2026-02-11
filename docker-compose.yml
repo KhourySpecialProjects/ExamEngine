@@ -70,6 +70,28 @@ services:
       timeout: 5s
       retries: 5
 
+  # pgAdmin - Database Management UI
+  pgadmin:
+    image: dpage/pgadmin4:latest
+    container_name: exam_engine_pgadmin
+    profiles: ["dev"]
+    environment:
+      PGADMIN_DEFAULT_EMAIL: ${PGADMIN_EMAIL:-admin@example.com}
+      PGADMIN_DEFAULT_PASSWORD: ${PGADMIN_PASSWORD:-admin}
+      PGADMIN_CONFIG_SERVER_MODE: 'False'
+      PGADMIN_CONFIG_MASTER_PASSWORD_REQUIRED: 'False'
+    ports:
+      - "${PGADMIN_PORT:-5050}:80"
+    volumes:
+      - pgadmin_data:/var/lib/pgadmin
+      - ./pgadmin/servers.json:/pgadmin4/servers.json:ro
+    networks:
+      - exam_engine_network
+    depends_on:
+      db:
+        condition: service_healthy
+    restart: unless-stopped
+
   backend-dev:
     build:
       context: .
@@ -232,6 +254,7 @@ services:
 
 volumes:
   postgres_data:
+  pgadmin_data:
 
 networks:
   exam_engine_network:

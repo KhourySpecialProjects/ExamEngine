@@ -3,7 +3,7 @@ resource "aws_lb" "examengine" {
   internal           = false
   load_balancer_type = "application"
   security_groups    = [aws_security_group.alb.id]
-  subnets            = data.aws_subnets.default.ids
+  subnets            = aws_subnet.public[*].id
 
   tags = {
     Name        = "examengine-${var.environment}"
@@ -12,22 +12,11 @@ resource "aws_lb" "examengine" {
   }
 }
 
-data "aws_subnets" "default" {
-  filter {
-    name   = "default-for-az"
-    values = ["true"]
-  }
-}
-
-data "aws_vpc" "default" {
-  default = true
-}
-
 resource "aws_lb_target_group" "backend" {
   name        = "examengine-backend-ip-${var.environment}"
   port        = 8000
   protocol    = "HTTP"
-  vpc_id      = data.aws_vpc.default.id
+  vpc_id      = aws_vpc.main.id
   target_type = "ip" # Required for ECS Fargate with awsvpc network mode
 
   lifecycle {
@@ -54,7 +43,7 @@ resource "aws_lb_target_group" "frontend" {
   name        = "examengine-frontend-ip-${var.environment}"
   port        = 3000
   protocol    = "HTTP"
-  vpc_id      = data.aws_vpc.default.id
+  vpc_id      = aws_vpc.main.id
   target_type = "ip"
 
   lifecycle {

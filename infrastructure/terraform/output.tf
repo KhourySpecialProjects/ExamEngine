@@ -29,3 +29,35 @@ output "aws_account_id" {
   description = "AWS Account ID (add to GitHub Secrets as AWS_ACCOUNT_ID)"
   value       = data.aws_caller_identity.current.account_id
 }
+
+# VPC Outputs
+output "vpc_id" {
+  description = "ID of the VPC"
+  value       = aws_vpc.main.id
+}
+
+output "public_subnet_ids" {
+  description = "IDs of public subnets (ALB)"
+  value       = aws_subnet.public[*].id
+}
+
+output "private_app_subnet_ids" {
+  description = "IDs of private app subnets (ECS)"
+  value       = aws_subnet.private_app[*].id
+}
+
+output "private_db_subnet_ids" {
+  description = "IDs of private DB subnets (RDS)"
+  value       = aws_subnet.private_db[*].id
+}
+
+output "nat_gateway_ips" {
+  description = "Elastic IPs of NAT Gateways"
+  value       = aws_eip.nat[*].public_ip
+}
+
+# DNS Output
+output "website_url" {
+  description = "URL of the application"
+  value       = "https://theexameengine.nunext.dev"
+}

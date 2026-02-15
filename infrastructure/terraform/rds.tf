@@ -16,9 +16,20 @@ resource "aws_db_instance" "examengine" {
   password = var.db_password
 
   # Network
+  db_subnet_group_name   = aws_db_subnet_group.main.name
   vpc_security_group_ids = [aws_security_group.rds.id]
   publicly_accessible    = false
-  skip_final_snapshot    = var.environment != "prod"
+
+  # Backups
+  backup_retention_period = 7
+  skip_final_snapshot     = false
+  final_snapshot_identifier = "examengine-final-${var.environment}-${formatdate("YYYY-MM-DD-hhmm", timestamp())}"
+
+  # Migration safety: Create new RDS before destroying old one
+  lifecycle {
+    create_before_destroy = true
+    ignore_changes = [final_snapshot_identifier]
+  }
 
   tags = {
     Name        = "examengine-db-${var.environment}"

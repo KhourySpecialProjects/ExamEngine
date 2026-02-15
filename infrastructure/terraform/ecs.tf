@@ -324,7 +324,7 @@ resource "aws_cloudwatch_log_group" "frontend_logs" {
 resource "aws_security_group" "ecs_tasks" {
   name        = "examengine-ecs-tasks-${var.environment}"
   description = "Security group for ECS tasks"
-  vpc_id      = data.aws_vpc.default.id
+  vpc_id      = aws_vpc.main.id  # Use new VPC
 
   ingress {
     description     = "Frontend from ALB"
@@ -366,9 +366,9 @@ resource "aws_ecs_service" "frontend" {
   launch_type     = "FARGATE"
 
   network_configuration {
-    subnets          = data.aws_subnets.default.ids
+    subnets          = aws_subnet.private_app[*].id
     security_groups  = [aws_security_group.ecs_tasks.id]
-    assign_public_ip = true
+    assign_public_ip = false  # No public IPs - use NAT Gateway for outbound
   }
 
   load_balancer {
@@ -400,9 +400,9 @@ resource "aws_ecs_service" "backend" {
   launch_type     = "FARGATE"
 
   network_configuration {
-    subnets          = data.aws_subnets.default.ids
+    subnets          = aws_subnet.private_app[*].id  # Private app subnets
     security_groups  = [aws_security_group.ecs_tasks.id]
-    assign_public_ip = true
+    assign_public_ip = false  # No public IPs - use NAT Gateway for outbound
   }
 
   load_balancer {

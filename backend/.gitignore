@@ -22,3 +22,4 @@ coverage.xml
 
 .ruff_cache/
 *.egg-info/
+uv.lock

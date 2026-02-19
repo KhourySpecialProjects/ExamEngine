@@ -332,7 +332,7 @@ class ScheduleService:
         scheduling_dataset,
         conflicts_response: dict,
         parameters: dict,
-        merges: dict[str, list[str]],
+        merges: dict[str, list[str]] = None,
     ) -> dict[str, Any]:
         """Build response for generate_schedule endpoint."""
         # Count unique students

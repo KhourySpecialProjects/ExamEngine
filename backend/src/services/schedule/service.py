@@ -111,7 +111,7 @@ class ScheduleService:
             merges = self.dataset_service.get_merges(dataset_id, user_id) or {}
 
             # 3.5 Drop zero-enrollment courses and get updated merges
-            merges = self.dataset_service.drop_zero_enrollment(dataset_id, user_id)
+            files = await self.dataset_service.drop_zero_enrollment(dataset_id, user_id)
 
             # 4. Build scheduling dataset and run algorithm
             scheduling_dataset = DatasetFactory.from_dataframes_to_scheduling_dataset(
@@ -332,6 +332,7 @@ class ScheduleService:
         scheduling_dataset,
         conflicts_response: dict,
         parameters: dict,
+        merges: dict[str, list[str]],
     ) -> dict[str, Any]:
         """Build response for generate_schedule endpoint."""
         # Count unique students

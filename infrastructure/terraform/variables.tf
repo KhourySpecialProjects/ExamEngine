@@ -50,5 +50,5 @@ variable "secret_key" {
 variable "frontend_url" {
   description = "Frontend URL for CORS configuration"
   type        = string
-  default     = "" # Will be constructed from ALB if not provided
+  default     = "" # Will be constructed from ALB DNS (https) if not provided
 }

@@ -88,7 +88,7 @@ resource "aws_ecs_task_definition" "backend-task" {
         },
         {
           name  = "FRONTEND_URL"
-          value = var.frontend_url != "" ? var.frontend_url : "http://${aws_lb.examengine.dns_name}"
+          value = var.frontend_url != "" ? var.frontend_url : "https://${aws_lb.examengine.dns_name}"
         }
       ]
       # Sensitive credentials from Secrets Manager
@@ -165,7 +165,7 @@ resource "aws_ecs_task_definition" "backend-add-admin-task" {
         },
         {
           name  = "FRONTEND_URL"
-          value = var.frontend_url != "" ? var.frontend_url : "http://${aws_lb.examengine.dns_name}"
+          value = var.frontend_url != "" ? var.frontend_url : "https://${aws_lb.examengine.dns_name}"
         }
       ]
       secrets = [

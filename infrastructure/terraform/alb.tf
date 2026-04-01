@@ -74,10 +74,14 @@ resource "aws_lb_listener" "http" {
   port              = 80
   protocol          = "HTTP"
 
-  # Default - send to frontend
+  # Redirect all HTTP traffic to HTTPS
   default_action {
-    type             = "forward"
-    target_group_arn = aws_lb_target_group.frontend.arn
+    type = "redirect"
+    redirect {
+      port        = "443"
+      protocol    = "HTTPS"
+      status_code = "HTTP_301"
+    }
   }
 }
 
@@ -97,23 +101,6 @@ resource "aws_lb_listener" "https" {
 
 resource "aws_lb_listener_rule" "api_https" {
   listener_arn = aws_lb_listener.https.arn
-  priority     = 100
-
-  action {
-    type             = "forward"
-    target_group_arn = aws_lb_target_group.backend.arn
-  }
-
-  condition {
-    path_pattern {
-      values = ["/api/*"]
-    }
-  }
-}
-
-# Rule for /api/* - send to backend
-resource "aws_lb_listener_rule" "api" {
-  listener_arn = aws_lb_listener.http.arn
   priority     = 100
 
   action {

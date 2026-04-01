@@ -11,6 +11,7 @@ crash.*.log
 
 # Secret variables file (contains passwords!)
 terraform.tfvars
+**/terraform.tfvars
 
 # Override files
 override.tf

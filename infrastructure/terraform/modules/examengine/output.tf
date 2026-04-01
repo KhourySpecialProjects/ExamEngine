@@ -53,7 +53,7 @@ output "nat_gateway_ips" {
 # DNS Output
 output "website_url" {
   description = "URL of the application"
-  value       = "https://theexameengine.nunext.dev"
+  value       = "https://${var.domain_name}"
 }
 
 # Secrets Manager Outputs

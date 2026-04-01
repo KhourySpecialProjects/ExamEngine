@@ -1,4 +1,4 @@
 data "aws_acm_certificate" "examengine" {
-  domain   = "theexameengine.nunext.dev"
+  domain   = var.domain_name
   statuses = ["ISSUED"]
 }

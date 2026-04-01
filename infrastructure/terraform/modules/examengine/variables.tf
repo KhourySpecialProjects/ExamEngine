@@ -57,3 +57,8 @@ variable "domain_name" {
   description = "Domain name for ACM certificate and application URL"
   type        = string
 }
+
+variable "deploy_branch" {
+  description = "GitHub branch allowed to assume the OIDC deploy role (e.g. main, staging)"
+  type        = string
+}

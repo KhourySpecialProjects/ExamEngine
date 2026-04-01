@@ -55,3 +55,9 @@ variable "frontend_url" {
   type        = string
   default     = ""
 }
+
+variable "deploy_branch" {
+  description = "GitHub branch allowed to assume the OIDC deploy role"
+  type        = string
+  default     = "main"
+}

@@ -25,6 +25,7 @@ module "examengine" {
   aws_region        = var.aws_region
   environment       = var.environment
   domain_name       = var.domain_name
+  deploy_branch     = var.deploy_branch
   bucket_name       = var.bucket_name
   db_instance_class = var.db_instance_class
   db_username       = var.db_username

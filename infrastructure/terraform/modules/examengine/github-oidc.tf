@@ -39,8 +39,7 @@ resource "aws_iam_role" "github_actions" {
             "token.actions.githubusercontent.com:aud" = "sts.amazonaws.com"
           }
           StringLike = {
-            # Replace with your repo: "repo:ORG/REPO:*"
-            "token.actions.githubusercontent.com:sub" = "repo:KhourySpecialProjects/ExamEngine:*"
+            "token.actions.githubusercontent.com:sub" = "repo:KhourySpecialProjects/ExamEngine:ref:refs/heads/${var.deploy_branch}"
           }
         }
       }

@@ -21,17 +21,22 @@ jobs:
   build-and-push:
     name: Build and Push Docker Images
     runs-on: ubuntu-latest
+    
+    # OIDC permissions - allows GitHub to get temporary AWS credentials
+    permissions:
+      id-token: write   # Required for OIDC
+      contents: read    # Required to checkout code
 
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Configure AWS credentials
+      - name: Configure AWS credentials via OIDC
         uses: aws-actions/configure-aws-credentials@v4
         with:
-          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
-          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          role-to-assume: ${{ secrets.AWS_GITHUB_ACTIONS_ROLE_ARN }}
           aws-region: ${{ env.AWS_REGION }}
+          # No access keys needed! GitHub gets temporary credentials via OIDC
 
       - name: Login to Amazon ECR
         id: login-ecr
@@ -56,11 +61,6 @@ jobs:
           cache-to: type=gha,mode=max
 
       - name: Build and push backend image
-        env:
-          ENVIRONMENT: production
-          FRONTEND_URL: ${{secrets.FRONTEND_URL}}
-          AWS_ACCESS_KEY_ID: ${{secrets.AWS_ACCESS_KEY_ID}}
-          AWS_SECRET_ACCESS_KEY: ${{secrets.AWS_SECRET_ACCESS_KEY}}
         uses: docker/build-push-action@v5
         with:
           context: .
@@ -71,9 +71,8 @@ jobs:
             ${{ env.ECR_REGISTRY }}/${{ env.BACKEND_REPOSITORY }}:${{ github.sha }}
           build-args: |
             ENVIRONMENT=production
-            FRONTEND_URL=${{secrets.FRONTEND_URL}}
-            AWS_ACCESS_KEY_ID=${{secrets.AWS_ACCESS_KEY_ID}}
-            AWS_SECRET_ACCESS_KEY=${{secrets.AWS_SECRET_ACCESS_KEY}}
+          # NOTE: AWS credentials removed - ECS uses IAM roles for S3 access
+          # Secrets (DATABASE_URL, SECRET_KEY) pulled from Secrets Manager at runtime
 
           cache-from: type=gha
           cache-to: type=gha,mode=max

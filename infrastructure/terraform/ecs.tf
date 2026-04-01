@@ -68,11 +68,8 @@ resource "aws_ecs_task_definition" "backend-task" {
       name      = "backend-repo"
       image     = "${data.aws_ecr_repository.backend_repo.repository_url}:latest"
       essential = true
+      # Non-sensitive environment variables
       environment = [
-        {
-          name  = "DATABASE_URL"
-          value = var.database_url
-        },
         {
           name  = "AWS_REGION"
           value = var.aws_region
@@ -80,10 +77,6 @@ resource "aws_ecs_task_definition" "backend-task" {
         {
           name  = "AWS_S3_BUCKET"
           value = var.bucket_name
-        },
-        {
-          name  = "SECRET_KEY"
-          value = var.secret_key
         },
         {
           name  = "ENVIRONMENT"
@@ -96,6 +89,17 @@ resource "aws_ecs_task_definition" "backend-task" {
         {
           name  = "FRONTEND_URL"
           value = var.frontend_url != "" ? var.frontend_url : "http://${aws_lb.examengine.dns_name}"
+        }
+      ]
+      # Sensitive credentials from Secrets Manager
+      secrets = [
+        {
+          name      = "DATABASE_URL"
+          valueFrom = aws_secretsmanager_secret.database_url.arn
+        },
+        {
+          name      = "SECRET_KEY"
+          valueFrom = aws_secretsmanager_secret.secret_key.arn
         }
       ]
       portMappings = [
@@ -144,20 +148,12 @@ resource "aws_ecs_task_definition" "backend-add-admin-task" {
 
       environment = [
         {
-          name  = "DATABASE_URL"
-          value = var.database_url
-        },
-        {
           name  = "AWS_REGION"
           value = var.aws_region
         },
         {
           name  = "AWS_S3_BUCKET"
           value = var.bucket_name
-        },
-        {
-          name  = "SECRET_KEY"
-          value = var.secret_key
         },
         {
           name  = "ENVIRONMENT"
@@ -170,6 +166,16 @@ resource "aws_ecs_task_definition" "backend-add-admin-task" {
         {
           name  = "FRONTEND_URL"
           value = var.frontend_url != "" ? var.frontend_url : "http://${aws_lb.examengine.dns_name}"
+        }
+      ]
+      secrets = [
+        {
+          name      = "DATABASE_URL"
+          valueFrom = aws_secretsmanager_secret.database_url.arn
+        },
+        {
+          name      = "SECRET_KEY"
+          valueFrom = aws_secretsmanager_secret.secret_key.arn
         }
       ]
 
@@ -206,17 +212,18 @@ resource "aws_ecs_task_definition" "backend-reset-db-task" {
 
       environment = [
         {
-          name  = "DATABASE_URL"
-          value = var.database_url
-        },
-        # Ensure Python can import `db` module from src/schemas
-        {
           name  = "PYTHONPATH"
           value = "/app/src/schemas"
         },
         {
           name  = "AWS_REGION"
           value = var.aws_region
+        }
+      ]
+      secrets = [
+        {
+          name      = "DATABASE_URL"
+          valueFrom = aws_secretsmanager_secret.database_url.arn
         }
       ]
 
@@ -256,8 +263,14 @@ resource "aws_ecs_task_definition" "backend-drop-conflicts-table-task" {
 
       environment = [
         {
-          name  = "DATABASE_URL"
-          value = var.database_url
+          name  = "AWS_REGION"
+          value = var.aws_region
+        }
+      ]
+      secrets = [
+        {
+          name      = "DATABASE_URL"
+          valueFrom = aws_secretsmanager_secret.database_url.arn
         }
       ]
 

@@ -13,16 +13,10 @@ output "alb_dns_name" {
   value = aws_lb.examengine.dns_name
 }
 
-output "cicd_user_access_key_id" {
-  description = "Access Key ID for CI/CD user (add to GitHub Secrets as AWS_ACCESS_KEY_ID)"
-  value       = aws_iam_access_key.cicd_user_key.id
-  sensitive   = false
-}
-
-output "cicd_user_secret_access_key" {
-  description = "Secret Access Key for CI/CD user (add to GitHub Secrets as AWS_SECRET_ACCESS_KEY)"
-  value       = aws_iam_access_key.cicd_user_key.secret
-  sensitive   = true
+# GitHub OIDC Role (replaces access keys)
+output "github_actions_role_arn" {
+  description = "ARN of IAM role for GitHub Actions OIDC (add to GitHub repo settings)"
+  value       = aws_iam_role.github_actions.arn
 }
 
 output "aws_account_id" {
@@ -60,4 +54,15 @@ output "nat_gateway_ips" {
 output "website_url" {
   description = "URL of the application"
   value       = "https://theexameengine.nunext.dev"
+}
+
+# Secrets Manager Outputs
+output "database_secret_arn" {
+  description = "ARN of database URL secret in Secrets Manager"
+  value       = aws_secretsmanager_secret.database_url.arn
+}
+
+output "secret_key_arn" {
+  description = "ARN of application secret key in Secrets Manager"
+  value       = aws_secretsmanager_secret.secret_key.arn
 }

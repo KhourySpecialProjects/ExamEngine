@@ -10,7 +10,7 @@ data "aws_iam_policy_document" "ecs_task_assume_role" {
         actions = ["sts:AssumeRole"]
         principals {
             type = "Service"
-            identifiers = ["ecs-tasks.amazonaws.com"]      
+            identifiers = ["ecs-tasks.amazonaws.com"]
         }
     }
 }
@@ -61,7 +61,7 @@ data "aws_iam_policy_document" "app_read_policy_doc" {
     condition {
         test     = "StringEquals"
         variable = "rds-db:externalId"
-        values   = ["postgres"] 
+        values   = ["postgres"]
     }
   }
 }
@@ -74,78 +74,4 @@ resource "aws_iam_policy" "app_read_policy" {
 resource "aws_iam_role_policy_attachment" "app_policy_attach" {
   role       = aws_iam_role.ecs_task_role.name
   policy_arn = aws_iam_policy.app_read_policy.arn
-}
-
-# --- CI/CD IAM User for GitHub Actions ---
-data "aws_iam_policy_document" "cicd_ecr_policy_doc" {
-  statement {
-    sid    = "ECRGetAuthorizationToken"
-    effect = "Allow"
-    actions = [
-      "ecr:GetAuthorizationToken"
-    ]
-    resources = ["*"]
-  }
-
-  statement {
-    sid    = "ECRPushPullImages"
-    effect = "Allow"
-    actions = [
-      "ecr:BatchCheckLayerAvailability",
-      "ecr:GetDownloadUrlForLayer",
-      "ecr:BatchGetImage",
-      "ecr:PutImage",
-      "ecr:InitiateLayerUpload",
-      "ecr:UploadLayerPart",
-      "ecr:CompleteLayerUpload"
-    ]
-    resources = [
-      data.aws_ecr_repository.frontend_repo.arn,
-      data.aws_ecr_repository.backend_repo.arn
-    ]
-  }
-
-  statement {
-    sid = "UpdateService"
-    effect = "Allow"
-    actions = [
-      "ecs:UpdateService"
-    ]
-    resources = [
-      data.aws_ecs_service.examengine_frontend_service.arn,
-      data.aws_ecs_service.examengine_backend_service.arn,
-      data.aws_ecs_cluster.cluster.arn
-    ]
-  }
-}
-
-resource "aws_iam_policy" "cicd_ecr_policy" {
-  name        = "examengine-cicd-ecr-policy-${var.environment}"
-  description = "Policy for CI/CD to push/pull images to ECR"
-  policy      = data.aws_iam_policy_document.cicd_ecr_policy_doc.json
-
-  tags = {
-    Name        = "examengine-cicd-ecr-policy-${var.environment}"
-    Environment = var.environment
-    ManagedBy   = "Terraform"
-  }
-}
-
-resource "aws_iam_user" "cicd_user" {
-  name = "examengine-cicd-${var.environment}"
-
-  tags = {
-    Name        = "examengine-cicd-${var.environment}"
-    Environment = var.environment
-    ManagedBy   = "Terraform"
-  }
-}
-
-resource "aws_iam_user_policy_attachment" "cicd_ecr_policy_attach" {
-  user       = aws_iam_user.cicd_user.name
-  policy_arn = aws_iam_policy.cicd_ecr_policy.arn
-}
-
-resource "aws_iam_access_key" "cicd_user_key" {
-  user = aws_iam_user.cicd_user.name
 }

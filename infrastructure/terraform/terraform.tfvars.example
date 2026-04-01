@@ -1,8 +1,22 @@
+# AWS Configuration
 aws_region        = "us-east-1"
 environment       = "dev"
-bucket_name       = "examengine-datasets-terraform"
-ec2_instance_type = "t3.small"
-key_name          = "your-key-name"
+
+# S3 Storage
+bucket_name       = "examengine-datasets-dev"
+
+# RDS Database
 db_instance_class = "db.t3.micro"
 db_username       = "postgres"
-db_password       = "CHANGE_ME"  # Set a strong password!
+db_password       = "CHANGE_ME_STRONG_PASSWORD"  # Set a strong password!
+database_url      = "postgresql+psycopg2://postgres:CHANGE_ME_STRONG_PASSWORD@examengine-dev.xxx.us-east-1.rds.amazonaws.com:5432/exam_engine_db"
+
+# Application Secrets
+secret_key        = "CHANGE_ME_RANDOM_STRING"  # Generate with: openssl rand -hex 32
+
+# Frontend URL (optional - defaults to ALB DNS)
+frontend_url      = "https://theexameengine.nunext.dev"
+
+# Note: AWS access keys are NOT needed as input variables
+# - ECS uses IAM roles for S3 access (automatic)
+# - CI/CD uses GitHub Actions OIDC (add github_actions_role_arn output to GitHub repo secrets)

@@ -20,6 +20,9 @@ resource "aws_db_instance" "examengine" {
   vpc_security_group_ids = [aws_security_group.rds.id]
   publicly_accessible    = false
 
+  # Encryption
+  storage_encrypted = true
+
   # Backups
   backup_retention_period = 7
   skip_final_snapshot     = false

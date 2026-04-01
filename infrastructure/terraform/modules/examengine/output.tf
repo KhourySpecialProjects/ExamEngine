@@ -56,6 +56,11 @@ output "website_url" {
   value       = "https://${var.domain_name}"
 }
 
+output "route53_nameservers" {
+  description = "Route53 nameservers — add these as NS records in Porkbun for ${var.domain_name}"
+  value       = aws_route53_zone.main.name_servers
+}
+
 # Secrets Manager Outputs
 output "database_secret_arn" {
   description = "ARN of database URL secret in Secrets Manager"

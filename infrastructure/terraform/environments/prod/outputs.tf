@@ -1,3 +1,8 @@
+output "route53_nameservers" {
+  description = "Add these as NS records in Porkbun"
+  value       = module.examengine.route53_nameservers
+}
+
 output "website_url" {
   description = "URL of the application"
   value       = module.examengine.website_url

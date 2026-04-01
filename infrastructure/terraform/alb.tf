@@ -24,7 +24,7 @@ resource "aws_lb_target_group" "backend" {
   }
 
   health_check {
-    path                = "/docs"
+    path                = "/health"
     port                = "8000"
     healthy_threshold   = 2
     unhealthy_threshold = 5

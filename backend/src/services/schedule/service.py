@@ -274,18 +274,33 @@ class ScheduleService:
             crn = str(assignment.course.crn)
             has_conflict = crn in conflicting_crns
 
-            # Check if assignment is unscheduled (no time_slot or room)
-            is_unscheduled = assignment.time_slot is None or assignment.room is None
+            is_truly_unscheduled = assignment.time_slot is None
+            is_unroomed = assignment.time_slot is not None and assignment.room is None
 
-            if is_unscheduled:
-                # Build unscheduled exam record (no Day, Block, or Room)
+            if is_truly_unscheduled:
+                # No slot and no room (e.g. unscheduled merge group)
                 complete_exams.append(
                     {
                         "CRN": crn,
                         "Course": assignment.course.course_subject_code,
-                        "Day": "",  # Empty for unscheduled
-                        "Block": "",  # Empty for unscheduled
-                        "Room": "",  # Empty for unscheduled
+                        "Day": "",
+                        "Block": "",
+                        "Room": "",
+                        "Capacity": 0,
+                        "Size": assignment.course.enrollment_count,
+                        "Valid": not has_conflict,
+                        "Instructor": assignment.course.instructor_name or "",
+                    }
+                )
+            elif is_unroomed:
+                # Has a slot but no room (all rooms were blocked at that slot)
+                complete_exams.append(
+                    {
+                        "CRN": crn,
+                        "Course": assignment.course.course_subject_code,
+                        "Day": assignment.time_slot.day.value,
+                        "Block": assignment.time_slot.slot_label,
+                        "Room": "",
                         "Capacity": 0,
                         "Size": assignment.course.enrollment_count,
                         "Valid": not has_conflict,
@@ -363,10 +378,13 @@ class ScheduleService:
         slots_used = len(set(result.assignments.values()))
         rooms_used = len(set(result.room_assignments.values()))
 
-        # Build schedule list (scheduled exams only)
+        # Build schedule list
         schedule_list = []
         for crn, (day_idx, block_idx) in result.assignments.items():
-            room_name = result.room_assignments.get(crn, "TBD")
+            if crn in result.unassigned:
+                # Has a slot but no room — added separately below
+                continue
+            room_name = result.room_assignments.get(crn, "")
             instructors = result.instructors_by_crn.get(crn, set())
 
             schedule_list.append(
@@ -379,8 +397,28 @@ class ScheduleService:
                     capacity=result.room_capacities.get(room_name, 0),
                     size=result.course_sizes.get(crn, 0),
                     instructor=", ".join(instructors) if instructors else "",
-                    has_conflict=False,  # Conflicts tracked separately
+                    has_conflict=False,
                 )
+            )
+
+        # Add unroomed exams (have a slot but no room due to blockouts)
+        for crn in result.unassigned:
+            if crn not in result.assignments:
+                continue
+            day_idx, block_idx = result.assignments[crn]
+            instructors = result.instructors_by_crn.get(crn, set())
+            schedule_list.append(
+                {
+                    "CRN": crn,
+                    "Course": result.course_codes.get(crn, ""),
+                    "Day": DAY_NAMES[day_idx],
+                    "Block": f"{block_idx} ({BLOCK_TIMES.get(block_idx, '')})",
+                    "Room": "",  # No room assigned
+                    "Capacity": 0,
+                    "Size": result.course_sizes.get(crn, 0),
+                    "Valid": True,
+                    "Instructor": ", ".join(instructors) if instructors else "",
+                }
             )
 
         # Add unscheduled merge exams to complete list
@@ -445,6 +483,10 @@ class ScheduleService:
         calendar: dict[str, dict[str, list]] = {}
 
         for crn, (day_idx, block_idx) in result.assignments.items():
+            if crn in result.unassigned:
+                # Has a slot but no room — excluded from the calendar view
+                continue
+
             day_name = DAY_NAMES[day_idx]
             block_time = BLOCK_TIMES.get(block_idx, f"Block {block_idx}")
 
@@ -453,7 +495,7 @@ class ScheduleService:
             if block_time not in calendar[day_name]:
                 calendar[day_name][block_time] = []
 
-            room_name = result.room_assignments.get(crn, "TBD")
+            room_name = result.room_assignments.get(crn, "")
             instructors = result.instructors_by_crn.get(crn, set())
 
             calendar[day_name][block_time].append(
@@ -529,6 +571,25 @@ class ScheduleService:
                     "course_id": course_id,
                     "time_slot_id": time_slot.time_slot_id,
                     "room_id": room_id,
+                }
+            )
+
+        # Save unroomed assignments (have a time slot but no room due to blockouts)
+        for crn in result.unassigned:
+            course_id = course_mapping.get(crn)
+            if not course_id or crn not in result.assignments:
+                continue
+            day_idx, block_idx = result.assignments[crn]
+            time_slot = self.time_slot_repo.get_or_create_slot(
+                dataset_id=dataset_id,
+                day=DAY_NAMES[day_idx],
+                block_index=block_idx,
+            )
+            assignments_to_create.append(
+                {
+                    "course_id": course_id,
+                    "time_slot_id": time_slot.time_slot_id,
+                    "room_id": None,
                 }
             )
 

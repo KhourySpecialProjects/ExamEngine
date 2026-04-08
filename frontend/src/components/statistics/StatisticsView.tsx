@@ -97,12 +97,18 @@ export function StatisticsView() {
 
     let unscheduledCount = 0;
     let unscheduledStudents = 0;
+    let unroomedCount = 0;
+    let unroomedStudents = 0;
 
     schedule.complete.forEach((exam) => {
-      // Track unscheduled exams (no Day or Room)
-      if (!exam.Day || !exam.Room) {
+      if (!exam.Day && !exam.Room) {
+        // Truly unscheduled — no slot, no room
         unscheduledCount += 1;
         unscheduledStudents += exam.Size || 0;
+      } else if (exam.Day && !exam.Room) {
+        // Has a slot but no room (blocked out)
+        unroomedCount += 1;
+        unroomedStudents += exam.Size || 0;
       } else {
         examsPerDay[exam.Day] = (examsPerDay[exam.Day] || 0) + 1;
         studentsPerDay[exam.Day] =
@@ -276,6 +282,8 @@ export function StatisticsView() {
         backToBackWarnings: totalBackToBackWarnings,
         unscheduledExams: unscheduledCount,
         unscheduledStudents: unscheduledStudents,
+        unroomedExams: unroomedCount,
+        unroomedStudents: unroomedStudents,
         mergeGroups: mergeGroupCount,
         mergedCourses: mergedCourseCount,
         mergedStudents: mergedStudents,
@@ -487,6 +495,37 @@ export function StatisticsView() {
                 These exams appear in the list view without a day, time, or room
                 assignment. Consider splitting these merge groups or adding
                 larger rooms to your dataset.
+              </p>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Unroomed Exams Alert */}
+      {stats.overview.unroomedExams > 0 && (
+        <Card className="border-orange-200 bg-orange-50">
+          <CardHeader>
+            <CardTitle className="text-sm font-medium flex items-center gap-2">
+              <Ban className="h-4 w-4 text-orange-600" />
+              Unroomed Exams
+            </CardTitle>
+            <CardDescription>
+              Some exams have a scheduled time slot but no room — every
+              available room was blocked at their assigned slot
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-2">
+              <div className="text-2xl font-bold text-orange-700">
+                {stats.overview.unroomedExams}
+              </div>
+              <p className="text-xs text-muted-foreground">
+                {stats.overview.unroomedStudents} students affected
+              </p>
+              <p className="text-xs text-muted-foreground mt-2">
+                These exams appear in the list view with their day and time but
+                no room. Consider reducing blockout entries or adding more rooms
+                to your dataset.
               </p>
             </div>
           </CardContent>

@@ -66,6 +66,7 @@ export interface ScheduleSummary {
   real_conflicts: number;
   num_rooms: number;
   slots_used: number;
+  unplaced_exams: number;
 }
 
 export interface ScheduleConflicts {

@@ -73,7 +73,7 @@ class CourseAdapter:
 
                 instructor_names = set()
                 if instructor_name:
-                    instructor_names.add(instructor_name)
+                    instructor_names.add(str(instructor_name))
 
                 # Apply validators
                 for canonical_name, col_def in col_defs.items():
@@ -145,7 +145,9 @@ class EnrollmentAdapter:
                 )
 
         # Remove rows with missing required fields
-        df_clean = df_normalized.dropna(subset=["Student_PIDM", "Course_Reference_Number"])
+        df_clean = df_normalized.dropna(
+            subset=["Student_PIDM", "Course_Reference_Number"]
+        )
 
         # Build Enrollment objects
         enrollments = []

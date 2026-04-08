@@ -9,7 +9,7 @@ ATTEMPT=0
 
 while [ $ATTEMPT -lt $MAX_ATTEMPTS ]; do
     if curl -sf http://localstack:4566/_localstack/health >/dev/null 2>&1; then
-        echo "✓ LocalStack is responding!"
+        echo "LocalStack is responding!"
         break
     fi
     ATTEMPT=$((ATTEMPT + 1))

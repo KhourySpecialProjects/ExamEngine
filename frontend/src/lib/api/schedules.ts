@@ -93,6 +93,8 @@ export interface ScheduleResult {
   failures: ScheduleFailure[];
   schedule: ScheduleData;
   parameters: ScheduleParameters;
+  /** Per-slot blocked room counts: {day_name: {block_time: n_rooms_blocked}} */
+  blockouts?: Record<string, Record<string, number>>;
   is_owner?: boolean;
   is_shared?: boolean;
   created_by_user_id?: string;

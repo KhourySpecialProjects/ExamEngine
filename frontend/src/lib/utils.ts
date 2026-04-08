@@ -9,6 +9,17 @@ export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
 }
 
+/**
+ * Extract the bare time string from a block label.
+ * Handles both plain time strings ("9AM-11AM") and "N (9AM-11AM)" format.
+ */
+export function extractTimeFromBlock(blockStr: string): string {
+  if (!blockStr) return "";
+  if (!blockStr.includes("(")) return blockStr;
+  const match = blockStr.match(/\(([^)]+)\)/);
+  return match ? match[1] : blockStr;
+}
+
 export function mapConflictsToConflictMap(
   breakdown: any[] = [],
 ): conflictMap[] {

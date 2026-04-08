@@ -13,9 +13,13 @@ resource "aws_secretsmanager_secret" "database_url" {
   }
 }
 
+locals {
+  database_url = "postgresql+psycopg2://${var.db_username}:${var.db_password}@${aws_db_instance.examengine.endpoint}/exam_engine_db"
+}
+
 resource "aws_secretsmanager_secret_version" "database_url" {
   secret_id     = aws_secretsmanager_secret.database_url.id
-  secret_string = var.database_url
+  secret_string = local.database_url
 }
 
 # Application Secret Key (JWT signing)

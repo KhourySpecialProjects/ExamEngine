@@ -35,12 +35,6 @@ variable "db_password" {
   sensitive   = true #hidden in logs (same w all sensitive fields)
 }
 
-variable "database_url" {
-  description = "Database connection URL"
-  type        = string
-  sensitive   = true
-}
-
 variable "secret_key" {
   description = "Secret key for backend application"
   type        = string

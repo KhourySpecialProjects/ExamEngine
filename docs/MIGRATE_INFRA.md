@@ -35,7 +35,7 @@ The changes fall into four areas:
 **Infrastructure management** — Terraform restructured from a flat layout into a reusable module (`modules/examengine/`) with separate environment roots (`environments/prod/`, `environments/staging/`), each with its own S3 state backend. Route53 and ACM are now managed by Terraform with automated DNS certificate validation. SSM Parameter Store populated with the values CI/CD needs (cluster name, service names, ECR URIs, domain), so those aren't hardcoded anywhere.
 
 **Application fixes** — Two bugs resolved: the Dockerfile healthcheck pointed to `/docs` which is disabled in production (would cause containers to fail their healthcheck and restart-loop); and the backend required `AWS_ACCESS_KEY_ID`/`AWS_SECRET_ACCESS_KEY` as required config fields that were never used, which would have caused startup failures on ECS.
-j
+
 **What to be careful about:** RDS encryption cannot be enabled in-place — Terraform will destroy and recreate the instance, which means data loss if the database already has content. The VPC change forces recreation of the ALB, ECS services, and RDS (new subnets, new VPC). The Terraform restructure changes all resource addresses to `module.examengine.*` — if there is existing state, it must be migrated or Terraform will destroy and recreate everything.
 
 ---
@@ -84,12 +84,11 @@ bucket_name       = "examengine-datasets-prod"
 db_instance_class = "db.t3.small"
 db_username       = "postgres"
 db_password       = "strong-password-here"
-database_url      = "postgresql+psycopg2://postgres:strong-password-here@PLACEHOLDER:5432/exam_engine_db"
 secret_key        = "<run: openssl rand -hex 32>"
 deploy_branch     = "main"
 ```
 
-> `database_url` uses `PLACEHOLDER` for now — the RDS endpoint isn't known until after apply. You'll update it in Step 4.
+> `database_url` is not a variable — Terraform constructs it automatically from `db_username`, `db_password`, and the RDS endpoint after the instance is created.
 
 ### Step 2 — Apply Infrastructure
 
@@ -117,25 +116,7 @@ aws acm describe-certificate \
   --query 'Certificate.Status'
 ```
 
-### Step 4 — Update database_url with Real RDS Endpoint
-
-```bash
-terraform output rds_endpoint
-```
-
-Update `terraform.tfvars`:
-
-```hcl
-database_url = "postgresql+psycopg2://postgres:strong-password-here@<rds_endpoint>:5432/exam_engine_db"
-```
-
-Then apply again to push the correct value into Secrets Manager:
-
-```bash
-terraform apply
-```
-
-### Step 5 — Add GitHub Repository Secrets
+### Step 4 — Add GitHub Repository Secrets
 
 ```bash
 terraform output github_actions_role_arn
@@ -146,14 +127,14 @@ In GitHub → Repository Settings → Secrets and Variables → Actions:
 | Secret | Value |
 |--------|-------|
 | `AWS_GITHUB_ACTIONS_ROLE_ARN_PROD` | Output from prod `terraform output github_actions_role_arn` |
-| `AWS_GITHUB_ACTIONS_ROLE_ARN_STAGING` | Output from staging environment (repeat steps 1–4 for staging) |
+| `AWS_GITHUB_ACTIONS_ROLE_ARN_STAGING` | Output from staging environment (repeat steps 1–3 for staging) |
 
 Remove any old secrets if they exist:
 - `AWS_ACCESS_KEY_ID`
 - `AWS_SECRET_ACCESS_KEY`
 - `FRONTEND_URL` (now comes from SSM)
 
-### Step 6 — Trigger First Deployment
+### Step 5 — Trigger First Deployment
 
 Push to `main` to trigger `deploy-prod.yml`:
 
@@ -174,7 +155,7 @@ aws logs tail /ecs/examengine-backend-prod --follow
 aws logs tail /ecs/examengine-frontend-prod --follow
 ```
 
-### Step 7 — Verify
+### Step 6 — Verify
 
 ```bash
 # Check ECS services are stable

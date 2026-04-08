@@ -28,6 +28,13 @@ const INITIAL_SLOTS: FileSlot[] = [
     description: "Upload CSV with: room_name, capacity",
     file: null,
   },
+  {
+    id: "room_blockouts",
+    label: "Room Blockouts",
+    description: "Optional — Upload CSV with: Room, Day, Block",
+    file: null,
+    optional: true,
+  },
 ];
 
 export const useUploadStore = create<UploadState>((set, get) => ({
@@ -95,9 +102,11 @@ export const useUploadStore = create<UploadState>((set, get) => ({
       throw new Error("Name for the dataset is required");
     }
 
-    if (filesToUpload.length !== 3) {
+    const requiredSlots = state.slots.filter((s) => !s.optional);
+    const missingRequired = requiredSlots.filter((s) => s.file === null);
+    if (missingRequired.length > 0) {
       throw new Error(
-        "All three files are required (courses, enrollments, rooms)",
+        "Required files are missing (courses, enrollments, rooms)",
       );
     }
 
@@ -113,6 +122,7 @@ export const useUploadStore = create<UploadState>((set, get) => ({
       const coursesSlot = state.slots.find((s) => s.id === "courses");
       const enrollmentsSlot = state.slots.find((s) => s.id === "enrollments");
       const roomsSlot = state.slots.find((s) => s.id === "rooms");
+      const blockoutsSlot = state.slots.find((s) => s.id === "room_blockouts");
 
       if (!coursesSlot?.file || !enrollmentsSlot?.file || !roomsSlot?.file) {
         throw new Error("Missing required files");
@@ -123,6 +133,9 @@ export const useUploadStore = create<UploadState>((set, get) => ({
         courses: coursesSlot.file.file,
         enrollments: enrollmentsSlot.file.file,
         rooms: roomsSlot.file.file,
+        ...(blockoutsSlot?.file
+          ? { room_blockouts: blockoutsSlot.file.file }
+          : {}),
       });
 
       // Refresh datasetStore
@@ -141,6 +154,11 @@ export const useUploadStore = create<UploadState>((set, get) => ({
       get().updateSlotStatus("rooms", "success", {
         rowCount: result.files.rooms.rows,
       });
+      if (blockoutsSlot?.file) {
+        get().updateSlotStatus("room_blockouts", "success", {
+          rowCount: result.files.room_blockouts?.rows,
+        });
+      }
 
       return result;
     } catch (error) {

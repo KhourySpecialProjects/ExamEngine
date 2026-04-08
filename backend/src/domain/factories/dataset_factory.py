@@ -3,7 +3,12 @@ from typing import Any
 
 import pandas as pd
 
-from src.domain.adapters import CourseAdapter, EnrollmentAdapter, RoomAdapter
+from src.domain.adapters import (
+    CourseAdapter,
+    EnrollmentAdapter,
+    RoomAdapter,
+    RoomBlockoutAdapter,
+)
 from src.domain.models import Course, Dataset, Enrollment, SchedulingDataset, Student
 
 
@@ -20,12 +25,16 @@ class DatasetFactory:
         courses_df: pd.DataFrame,
         enrollment_df: pd.DataFrame,
         rooms_df: pd.DataFrame,
+        blockouts_df: pd.DataFrame | None = None,
     ) -> SchedulingDataset:
         """
         Convert raw CSVs to a complete SchedulingDataset.
 
         All column name variations, data cleaning, and validation
         happen here through the adapter layer.
+
+        Args:
+            blockouts_df: Optional blockouts CSV (parsed via RoomBlockoutAdapter).
         """
         # Use existing adapters—they handle schema detection
         courses = CourseAdapter.from_dataframe(courses_df)
@@ -37,12 +46,18 @@ class DatasetFactory:
             DatasetFactory._build_relationships(courses, enrollments)
         )
 
+        room_blockouts: dict[str, frozenset[tuple[int, int]]] = {}
+        if blockouts_df is not None:
+            raw = RoomBlockoutAdapter.from_dataframe(blockouts_df)
+            room_blockouts = {room: frozenset(slots) for room, slots in raw.items()}
+
         return SchedulingDataset(
             courses=courses,
             students=students,
             rooms=rooms,
             students_by_crn=students_by_crn,
             instructors_by_crn=instructors_by_crn,
+            room_blockouts=room_blockouts,
         )
 
     @staticmethod

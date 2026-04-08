@@ -6,6 +6,66 @@ from src.domain.models import Course, Enrollment, Room
 from .schemas_detector import CSVSchemaDetector
 
 
+class RoomBlockoutAdapter:
+    """Converts room blockout CSV to a dict mapping room name to blocked (day, block) pairs."""
+
+    @staticmethod
+    def from_dataframe(df: pd.DataFrame) -> dict[str, set[tuple[int, int]]]:
+        """
+        Convert blockout DataFrame to dict of room_name -> set of (day_idx, block_idx).
+
+        Args:
+            df: Blockout data from CSV
+
+        Returns:
+            Dict mapping room name to a set of (day_idx, block_idx) tuples
+        """
+        schema, column_mapping = CSVSchemaDetector.detect_schema_version(
+            df, "room_blockouts"
+        )
+
+        col_defs = {cd.canonical_name: cd for cd in schema}
+        df_normalized = df.rename(columns=column_mapping)
+
+        for canonical_name, col_def in col_defs.items():
+            if canonical_name in df_normalized.columns and col_def.transformer:
+                df_normalized[canonical_name] = df_normalized[canonical_name].apply(
+                    col_def.transformer
+                )
+
+        df_clean = df_normalized.dropna(subset=["Room", "Day", "Block"])
+
+        blockouts: dict[str, set[tuple[int, int]]] = {}
+
+        for _, row in df_clean.iterrows():
+            try:
+                room = row["Room"]
+                day = int(row["Day"])
+                block = int(row["Block"])
+
+                # Validate each field using schema validators (consistent with other adapters)
+                valid = True
+                for canonical_name, value in [
+                    ("Room", room),
+                    ("Day", day),
+                    ("Block", block),
+                ]:
+                    col_def = col_defs.get(canonical_name)
+                    if col_def and col_def.validator and not col_def.validator(value):
+                        valid = False
+                        break
+                if not valid:
+                    continue
+
+                if room not in blockouts:
+                    blockouts[room] = set()
+                blockouts[room].add((day, block))
+            except (ValueError, TypeError):
+                continue
+
+        return blockouts
+
+
 class CourseAdapter:
     """Converts course CSV data to Course domain objects."""
 
@@ -63,12 +123,6 @@ class CourseAdapter:
                     continue
                 if enrollment_count is None:
                     validation_errors.append(f"Row {idx}: Missing enrollment count")
-                    continue
-                if examination_term is None:
-                    validation_errors.append(f"Row {idx}: Missing examination term")
-                    continue
-                if department is None:
-                    validation_errors.append(f"Row {idx}: Missing department")
                     continue
 
                 instructor_names = set()

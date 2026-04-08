@@ -93,6 +93,14 @@ export function UploaderSlot({
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 mb-1">
             <h4 className="font-medium text-sm">{slot.label}</h4>
+            {slot.optional && !slot.file && (
+              <Badge
+                variant="outline"
+                className="text-xs text-muted-foreground"
+              >
+                Optional
+              </Badge>
+            )}
             {getStatusBadge()}
           </div>
 

@@ -186,7 +186,7 @@ class CourseSchema:
                 "Professor",
             ],
             data_type=ColumnType.STRING,
-            required=True,
+            required=False,
             transformer=clean_instructor_name,
             validator=None,
         ),
@@ -198,7 +198,7 @@ class CourseSchema:
                 "Academic_Period",
             ],
             data_type=ColumnType.STRING,
-            required=True,
+            required=False,
             transformer=clean_string,
             validator=None,
         ),
@@ -210,7 +210,7 @@ class CourseSchema:
                 "Course_Department_Desc",
             ],
             data_type=ColumnType.STRING,
-            required=True,
+            required=False,
             transformer=clean_string,
             validator=None,
         ),
@@ -291,12 +291,101 @@ class RoomSchema:
         return [cls.V1_COLUMNS]
 
 
+_DAY_NAME_TO_INDEX = {
+    name.lower(): idx
+    for idx, name in enumerate(
+        ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]
+    )
+}
+_BLOCK_TIME_TO_INDEX = {
+    "9am-11am": 0,
+    "11:30am-1:30pm": 1,
+    "2pm-4pm": 2,
+    "4:30pm-6:30pm": 3,
+    "7pm-9pm": 4,
+}
+
+
+def parse_day(value: Any) -> int | None:
+    """Parse day value: accepts 0-6 integer or day name string."""
+    if pd.isna(value):
+        return None
+    s = str(value).strip().lower()
+    if s in _DAY_NAME_TO_INDEX:
+        return _DAY_NAME_TO_INDEX[s]
+    try:
+        idx = int(float(s))
+        return idx if 0 <= idx <= 6 else None
+    except (ValueError, TypeError):
+        return None
+
+
+def parse_block(value: Any) -> int | None:
+    """Parse block value: accepts 0-4 integer or time string like '9AM-11AM'."""
+    if pd.isna(value):
+        return None
+    s = str(value).strip().lower().replace(" ", "")
+    if s in _BLOCK_TIME_TO_INDEX:
+        return _BLOCK_TIME_TO_INDEX[s]
+    try:
+        idx = int(float(s))
+        return idx if 0 <= idx <= 4 else None
+    except (ValueError, TypeError):
+        return None
+
+
+class RoomBlockoutSchema:
+    """Schema for room blockout CSV files.
+
+    Expected CSV format:
+        Room,Day,Block
+        Shillman 105,0,2
+        West Village H 212,Monday,9AM-11AM
+
+    Day accepts 0-6 (Mon=0) or full day names.
+    Block accepts 0-4 or time strings (e.g. '9AM-11AM').
+    """
+
+    V1_COLUMNS = [
+        ColumnDefinition(
+            canonical_name="Room",
+            aliases=["room", "Location Name", "Location", "Room Name", "room_name"],
+            data_type=ColumnType.STRING,
+            required=True,
+            transformer=lambda x: str(x).strip() if not pd.isna(x) else None,
+            validator=validate_non_empty_string,
+        ),
+        ColumnDefinition(
+            canonical_name="Day",
+            aliases=["day", "day_index", "Day Index", "Weekday"],
+            data_type=ColumnType.INTEGER,
+            required=True,
+            transformer=parse_day,
+            validator=lambda x: x is not None and 0 <= x <= 6,
+        ),
+        ColumnDefinition(
+            canonical_name="Block",
+            aliases=["block", "block_index", "Block Index", "Time Block"],
+            data_type=ColumnType.INTEGER,
+            required=True,
+            transformer=parse_block,
+            validator=lambda x: x is not None and 0 <= x <= 4,
+        ),
+    ]
+
+    @classmethod
+    def get_all_versions(cls) -> list[list[ColumnDefinition]]:
+        """Return all known schema versions."""
+        return [cls.V1_COLUMNS]
+
+
 # SCHEMA REGISTRY
 
 SCHEMA_REGISTRY = {
     "courses": CourseSchema,
     "enrollments": EnrollmentSchema,
     "rooms": RoomSchema,
+    "room_blockouts": RoomBlockoutSchema,
 }
 
 

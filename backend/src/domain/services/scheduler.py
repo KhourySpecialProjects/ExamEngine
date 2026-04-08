@@ -7,7 +7,7 @@ from src.domain.constants import BLOCKS_PER_DAY
 from src.domain.models import SchedulingDataset
 from src.domain.services.conflict_detector import Conflict, ConflictDetector
 from src.domain.services.constraint_evaluator import SoftConstraintEvaluator
-from src.domain.value_objects import SchedulingState
+from src.domain.value_objects import SchedulingState, SoftPenalty
 
 
 @dataclass
@@ -154,11 +154,11 @@ class Scheduler:
                 colors={},
                 unscheduled_merges=self.unscheduled_merges,
             )
-        
+
         self._build_conflict_graph()
         self._color_graph()
         self._assign_time_slots(prioritize_large_courses)
-        room_assignments = self._assign_rooms()
+        room_assignments, unroomed = self._assign_rooms()
 
         return ScheduleResult(
             assignments=dict(self.assignments),
@@ -166,6 +166,7 @@ class Scheduler:
             conflicts=list(self.conflicts),
             colors=dict(self.colors),
             unscheduled_merges=self.unscheduled_merges,
+            unassigned=unroomed,
         )
 
     def _build_conflict_graph(self):
@@ -203,60 +204,80 @@ class Scheduler:
         for (crn1, crn2), weight in edge_weights.items():
             self.graph.add_edge(crn1, crn2, weight=weight)
 
-        # Step 4: Force edges between merged CRNs (ensure they get same color)
-        # All CRNs in a merge group must be scheduled together, so they need edges
-        for _merge_id, crns in self.merges.items():
-            # Add edges between all pairs in the merge group
-            for i in range(len(crns)):
-                for j in range(i + 1, len(crns)):
-                    crn1, crn2 = crns[i], crns[j]
-                    # Only add edge if both CRNs exist in dataset
-                    if crn1 in self.dataset.courses and crn2 in self.dataset.courses:
-                        # Use high weight to ensure they're strongly connected
-                        if not self.graph.has_edge(crn1, crn2):
-                            self.graph.add_edge(
-                                crn1, crn2, weight=9999
-                            )  # High weight for merged courses
-                        else:
-                            # Increase existing edge weight
-                            current_weight = self.graph[crn1][crn2].get("weight", 1)
-                            self.graph[crn1][crn2]["weight"] = max(current_weight, 9999)
+    def _contract_for_coloring(self) -> tuple[nx.Graph, dict[str, str]]:
+        """
+        Contract each merge group into a single virtual node before graph coloring.
+
+        In graph coloring an edge means "must be different colors". Merged courses
+        need the opposite guarantee — same color — so they must NOT appear as
+        separate nodes connected by edges. Instead we replace each merge group with
+        one virtual node that inherits the union of all members' external edges.
+        Self-loops (edges between members of the same group) are dropped.
+
+        Returns:
+            contracted: copy of the conflict graph with merge groups collapsed
+            virtual_node_map: virtual_node_id -> merge_group_id (for color expansion)
+        """
+        contracted = self.graph.copy()
+        virtual_node_map: dict[str, str] = {}
+
+        for merge_id, crns in self.merges.items():
+            valid_crns = [crn for crn in crns if crn in contracted.nodes]
+            if not valid_crns:
+                continue
+
+            # Unique virtual node id — prefix avoids collision with CRN strings
+            virtual_id = f"__vmerge__{merge_id}"
+            virtual_node_map[virtual_id] = merge_id
+
+            # Union of external edges: for each neighbor outside the group keep
+            # the maximum edge weight seen from any member.
+            external_edges: dict[str, int] = {}
+            for crn in valid_crns:
+                for neighbor, data in contracted[crn].items():
+                    if neighbor not in valid_crns:
+                        weight = data.get("weight", 1)
+                        external_edges[neighbor] = max(
+                            external_edges.get(neighbor, 0), weight
+                        )
+
+            # Remove individual CRN nodes (and their edges) from the graph.
+            contracted.remove_nodes_from(valid_crns)
+
+            # Add the virtual node with combined enrollment metadata.
+            total_size = sum(
+                self.dataset.get_enrollment_count(crn) for crn in valid_crns
+            )
+            contracted.add_node(virtual_id, size=total_size)
+
+            # Wire the virtual node to all external neighbors.
+            for neighbor, weight in external_edges.items():
+                if neighbor in contracted.nodes:
+                    contracted.add_edge(virtual_id, neighbor, weight=weight)
+
+        return contracted, virtual_node_map
 
     def _color_graph(self):
-        """Apply DSATUR graph coloring."""
+        """Apply DSATUR graph coloring via node contraction for merge groups."""
         if self.graph is None or self.graph.number_of_nodes() == 0:
             raise RuntimeError("Build graph before coloring")
 
-        # https://networkx.org/documentation/stable/reference/algorithms/generated/networkx.algorithms.coloring.greedy_color.html#networkx.algorithms.coloring.greedy_color
-        # TODO dynamic strategy?
-        self.colors = nx.coloring.greedy_color(self.graph, strategy="DSATUR")
+        # Contract merge groups so DSATUR sees each group as a single atomic node.
+        # We let DSATUR color the contracted graph natively and then expand the result.
+        contracted, virtual_node_map = self._contract_for_coloring()
 
-        # Ensure all merged CRNs have the same color
-        # (They should already due to forced edges, but enforce it explicitly)
-        for _merge_id, crns in self.merges.items():
-            # Get colors for all CRNs in this merge group
-            merge_colors = {
-                crn: self.colors.get(crn)
-                for crn in crns
-                if crn in self.colors and crn in self.dataset.courses
-            }
+        # https://networkx.org/documentation/stable/reference/algorithms/generated/networkx.algorithms.coloring.greedy_color.html
+        contracted_colors = nx.coloring.greedy_color(contracted, strategy="DSATUR")
 
-            if not merge_colors:
-                continue
-
-            # Use the color of the first CRN for all merged CRNs
-            # (or the most common color if they differ)
-            if merge_colors:
-                # Find most common color, or use first
-                color_counts = {}
-                for color in merge_colors.values():
-                    color_counts[color] = color_counts.get(color, 0) + 1
-                target_color = max(color_counts.items(), key=lambda x: x[1])[0]
-
-                # Assign same color to all merged CRNs
-                for crn in crns:
+        # Expand: virtual node color → all CRNs in its merge group; others → themselves.
+        for node, color in contracted_colors.items():
+            if node in virtual_node_map:
+                merge_id = virtual_node_map[node]
+                for crn in self.merges[merge_id]:
                     if crn in self.dataset.courses:
-                        self.colors[crn] = target_color
+                        self.colors[crn] = color
+            else:
+                self.colors[node] = color
 
     def _assign_time_slots(self, prioritize_large: bool):
         """Assign each course to a time slot."""
@@ -388,23 +409,41 @@ class Scheduler:
                 )
                 all_conflicts.extend(conflicts)
 
-            # Use the first CRN for penalty evaluation (enrollment will be summed in room assignment)
-            penalty = self.constraint_evaluator.evaluate(crn, day, block)
+            # Sum soft-constraint penalties across every CRN in the group so that
+            # back-to-back and instructor-load costs are accounted for all members,
+            # not just the representative CRN.
+            combined = SoftPenalty()
+            for check_crn in crns_to_check:
+                p = self.constraint_evaluator.evaluate(check_crn, day, block)
+                combined.large_course_late += p.large_course_late
+                combined.back_to_back_students += p.back_to_back_students
+                combined.back_to_back_instructors += p.back_to_back_instructors
+                combined.instructor_load += p.instructor_load
+                combined.slot_seat_load += p.slot_seat_load
+                combined.slot_exam_count += p.slot_exam_count
 
-            key = (len(all_conflicts), penalty.as_tuple(day, block))
+            key = (len(all_conflicts), combined.as_tuple(day, block))
             candidates.append((key, day, block, all_conflicts))
 
         _, day, block, conflicts = min(candidates, key=lambda x: x[0])
 
         return (day, block), conflicts
 
-    def _assign_rooms(self) -> dict[str, str]:
-        """Assign rooms to courses based on capacity."""
+    def _assign_rooms(self) -> tuple[dict[str, str], set[str]]:
+        """Assign rooms to courses based on capacity.
+
+        Returns:
+            room_assignments: CRN → room_name for all placed courses
+            unroomed: CRNs that have a time slot but could not be assigned any room
+                      (e.g. every available room is blocked at their slot)
+        """
         room_assignments = {}
+        unroomed: set[str] = set()
         used_rooms: dict[tuple[int, int], set[str]] = defaultdict(set)
 
         # Sort rooms by capacity
         rooms_by_capacity = sorted(self.dataset.rooms, key=lambda r: r.capacity)
+        blockouts = self.dataset.room_blockouts
 
         # Track which merge groups have been assigned rooms
         assigned_merge_groups: set[str] = set()
@@ -433,26 +472,36 @@ class Scheduler:
             else:
                 enrollment = self.dataset.get_enrollment_count(crn)
 
-            # Find smallest room that fits and is available
+            # Find smallest room that fits, is available, and not blocked
             room = None
             for r in rooms_by_capacity:
-                if r.capacity >= enrollment and r.name not in used_rooms[slot]:
+                if (
+                    r.capacity >= enrollment
+                    and r.name not in used_rooms[slot]
+                    and (day, block) not in blockouts.get(r.name, frozenset())
+                ):
                     room = r
                     break
 
-            # Fallback: largest available room
+            # Fallback: largest available, non-blocked room
             if room is None:
                 for r in reversed(rooms_by_capacity):
-                    if r.name not in used_rooms[slot]:
+                    if r.name not in used_rooms[slot] and (
+                        day,
+                        block,
+                    ) not in blockouts.get(r.name, frozenset()):
                         room = r
                         break
 
-            # Last resort: reuse largest room
             if room is None:
-                room = rooms_by_capacity[-1] if rooms_by_capacity else None
-
-            if room is None:
-                # No rooms available (shouldn't happen, but handle gracefully)
+                # Every room is either at capacity or blocked at this slot.
+                # Track as unroomed so the caller can surface this to the user.
+                affected = (
+                    [m for m in self.merges[merge_group] if m in self.dataset.courses]
+                    if merge_group
+                    else [crn]
+                )
+                unroomed.update(affected)
                 continue
 
             # Assign room to this CRN and all others in its merge group
@@ -465,4 +514,4 @@ class Scheduler:
 
             used_rooms[slot].add(room.name)
 
-        return room_assignments
+        return room_assignments, unroomed

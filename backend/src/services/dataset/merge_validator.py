@@ -83,9 +83,7 @@ class MergeValidator:
             raise ValueError(f"CRNs not found in dataset: {missing_crns}")
 
         # Calculate total enrollment
-        total_enrollment = sum(
-            self.dataset.get_enrollment_count(crn) for crn in crns
-        )
+        total_enrollment = sum(self.dataset.get_enrollment_count(crn) for crn in crns)
 
         # Find maximum room capacity
         max_room_capacity = (
@@ -96,7 +94,9 @@ class MergeValidator:
 
         # Check if merge fits
         is_valid = total_enrollment <= max_room_capacity
-        has_suitable_room = max_room_capacity > 0 and total_enrollment <= max_room_capacity
+        has_suitable_room = (
+            max_room_capacity > 0 and total_enrollment <= max_room_capacity
+        )
 
         # Generate warning message if needed
         warning_message = None
@@ -105,9 +105,11 @@ class MergeValidator:
         if not has_suitable_room:
             if max_room_capacity == 0:
                 warning_message = (
-                    f"No rooms available in dataset. Merged courses cannot be scheduled."
+                    "No rooms available in dataset. Merged courses cannot be scheduled."
                 )
-                suggested_action = "Add rooms to the dataset or remove this merge group."
+                suggested_action = (
+                    "Add rooms to the dataset or remove this merge group."
+                )
             else:
                 warning_message = (
                     f"Merged courses require room with {total_enrollment} capacity, "
@@ -158,4 +160,3 @@ class MergeValidator:
                     can_proceed=False,
                 )
         return results
-

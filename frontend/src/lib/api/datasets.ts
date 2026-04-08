@@ -12,12 +12,20 @@ export class DatasetsAPI extends BaseAPI {
 
   async upload(
     datasetName: string,
-    files: { courses: File; enrollments: File; rooms: File },
+    files: {
+      courses: File;
+      enrollments: File;
+      rooms: File;
+      room_blockouts?: File;
+    },
   ): Promise<DatasetMetadata> {
     const formData = new FormData();
     formData.append("courses", files.courses);
     formData.append("enrollments", files.enrollments);
     formData.append("rooms", files.rooms);
+    if (files.room_blockouts) {
+      formData.append("room_blockouts", files.room_blockouts);
+    }
     if (datasetName?.trim()) {
       formData.append("dataset_name", datasetName.trim());
     }

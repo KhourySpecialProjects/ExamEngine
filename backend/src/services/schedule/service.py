@@ -1,3 +1,4 @@
+import asyncio
 from collections import defaultdict
 from typing import Any
 from uuid import UUID
@@ -113,11 +114,31 @@ class ScheduleService:
             # 3.5 Drop zero-enrollment courses and get updated merges
             files = await self.dataset_service.drop_zero_enrollment(dataset_id, user_id)
 
-            # 4. Build scheduling dataset and run algorithm
-            scheduling_dataset = DatasetFactory.from_dataframes_to_scheduling_dataset(
-                courses_df=files["courses"],
-                enrollment_df=files["enrollments"],
-                rooms_df=files["rooms"],
+            # 4. Build scheduling dataset and run algorithm (CPU-bound — run in thread)
+            def _run_algorithm() -> tuple:
+                dataset = DatasetFactory.from_dataframes_to_scheduling_dataset(
+                    courses_df=files["courses"],
+                    enrollment_df=files["enrollments"],
+                    rooms_df=files["rooms"],
+                    blockouts_df=files.get("room_blockouts"),
+                )
+                sched = Scheduler(
+                    dataset=dataset,
+                    max_days=max_days,
+                    student_max_per_day=student_max_per_day,
+                    instructor_max_per_day=instructor_max_per_day,
+                    merges=merges,
+                )
+                sched_result = sched.schedule(
+                    prioritize_large_courses=prioritize_large_courses
+                )
+                sched_analysis = ScheduleAnalyzer(dataset).analyze(
+                    schedule=sched_result
+                )
+                return dataset, sched_result, sched_analysis
+
+            scheduling_dataset, result, analysis = await asyncio.to_thread(
+                _run_algorithm
             )
 
             # 5. Ensure database records exist for courses/rooms
@@ -129,21 +150,6 @@ class ScheduleService:
                 dataset_id,
                 scheduling_dataset.rooms,
             )
-
-            scheduler = Scheduler(
-                dataset=scheduling_dataset,
-                max_days=max_days,
-                student_max_per_day=student_max_per_day,
-                instructor_max_per_day=instructor_max_per_day,
-                merges=merges,  # Pass merges to scheduler
-            )
-            result = scheduler.schedule(
-                prioritize_large_courses=prioritize_large_courses
-            )
-
-            # 5. Analyze results
-            analyzer = ScheduleAnalyzer(scheduling_dataset)
-            analysis = analyzer.analyze(schedule=result)
 
             # 6. Persist results
             await self._save_exam_assignments(
@@ -220,6 +226,18 @@ class ScheduleService:
         conflicts = formatter.format_conflicts(conflict_analysis)
         summary = self._calculate_summary_stats(assignments, conflicts)
 
+        # Load blockout slots for calendar visualisation (if blockouts were uploaded)
+        # blockout_slots is precomputed at upload time and stored in file_paths metadata
+        blockout_slots: dict[str, dict[str, int]] = {}
+        file_paths = schedule.run.dataset.file_paths or []
+        blockout_entry = next(
+            (f for f in file_paths if f["type"] == "room_blockouts"), None
+        )
+        if blockout_entry:
+            blockout_slots = blockout_entry.get("metadata", {}).get(
+                "blockout_slots", {}
+            )
+
         return ScheduleAssembler.build_full_response(
             schedule=schedule,
             dataset_name=schedule.run.dataset.dataset_name,
@@ -229,6 +247,7 @@ class ScheduleService:
                 complete_exams, calendar
             ),
             permissions=permissions,
+            blockouts=blockout_slots,
         )
 
     async def delete_schedule(self, schedule_id: UUID, user_id: UUID) -> dict[str, Any]:
@@ -393,6 +412,13 @@ class ScheduleService:
         # Get dataset info
         dataset_info = self.dataset_service.get_dataset_info(dataset_id, user_id)
 
+        # Read blockout slots from precomputed metadata (same source as get_schedule)
+        blockout_slots: dict[str, dict[str, int]] = (
+            dataset_info.get("files", {})
+            .get("room_blockouts", {})
+            .get("blockout_slots", {})
+        )
+
         summary = ScheduleAssembler.build_summary(
             num_classes=len(result.assignments),
             num_students=len(all_students),
@@ -411,6 +437,7 @@ class ScheduleService:
             summary=summary,
             conflicts=conflicts_response["conflicts"],
             parameters=parameters,
+            blockouts=blockout_slots,
         )
 
     def _build_calendar_from_result(self, result: ScheduleResult) -> dict:

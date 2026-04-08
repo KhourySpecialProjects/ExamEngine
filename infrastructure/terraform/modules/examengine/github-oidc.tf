@@ -106,6 +106,16 @@ resource "aws_iam_role_policy" "github_actions_policy" {
         Resource = [
           aws_ecs_cluster.cluster.arn
         ]
+      },
+      {
+        Sid    = "SSMGetParameters"
+        Effect = "Allow"
+        Action = [
+          "ssm:GetParameter"
+        ]
+        Resource = [
+          "arn:aws:ssm:${var.aws_region}:${data.aws_caller_identity.current.account_id}:parameter/examengine/${var.environment}/*"
+        ]
       }
     ]
   })

@@ -1,0 +1,44 @@
+name: Backend Tests
+
+on:
+  push:
+    branches: [main, staging]
+  pull_request:
+    branches: [main, staging]
+
+jobs:
+  tests:
+    name: Pytest
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    defaults:
+      run:
+        working-directory: backend
+
+    # Tests are domain-level (pure DataFrames) — no real DB or AWS needed.
+    # These env vars satisfy pydantic-settings validation at import time.
+    env:
+      DATABASE_URL: postgresql://postgres:postgres@localhost/test
+      SECRET_KEY: test-secret-key-for-ci
+      AWS_ACCESS_KEY_ID: test
+      AWS_SECRET_ACCESS_KEY: test
+      AWS_REGION: us-east-1
+      AWS_S3_BUCKET: test-bucket
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v4
+
+      - name: Install dependencies
+        run: uv sync --dev
+
+      - name: Run tests
+        run: uv run python -m pytest tests/ --no-cov -x -q

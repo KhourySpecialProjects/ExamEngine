@@ -62,3 +62,15 @@ variable "deploy_branch" {
   description = "GitHub branch allowed to assume the OIDC deploy role (e.g. main, staging)"
   type        = string
 }
+
+variable "backend_ecr_repo_name" {
+  description = "Name of the existing ECR repository for the backend image"
+  type        = string
+  default     = "fastapi-backend"
+}
+
+variable "frontend_ecr_repo_name" {
+  description = "Name of the existing ECR repository for the frontend image"
+  type        = string
+  default     = "next-web"
+}

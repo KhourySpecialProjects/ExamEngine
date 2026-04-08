@@ -1,0 +1,92 @@
+name: Deploy to Staging
+
+on:
+  push:
+    branches: [staging]
+
+env:
+  AWS_REGION: us-east-1
+  ENVIRONMENT: staging
+  APP_NAME: examengine
+
+permissions:
+  id-token: write
+  contents: read
+
+jobs:
+  deploy:
+    name: Build, Push & Deploy
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Configure AWS credentials via OIDC
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_GITHUB_ACTIONS_ROLE_ARN_STAGING }}
+          role-session-name: GitHub_to_AWS_via_FederatedOIDC
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Log in to Amazon ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Get configuration from SSM
+        id: config
+        run: |
+          get() { aws ssm get-parameter --name "/${APP_NAME}/${ENVIRONMENT}/$1" --query 'Parameter.Value' --output text; }
+          echo "cluster=$(get cluster-name)"          >> $GITHUB_OUTPUT
+          echo "backend-service=$(get backend-service)" >> $GITHUB_OUTPUT
+          echo "frontend-service=$(get frontend-service)" >> $GITHUB_OUTPUT
+          echo "backend-uri=$(get backend-repo-uri)"  >> $GITHUB_OUTPUT
+          echo "frontend-uri=$(get frontend-repo-uri)" >> $GITHUB_OUTPUT
+          echo "domain=$(get domain-name)"            >> $GITHUB_OUTPUT
+
+      - name: Build and push backend image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: ./backend/Dockerfile
+          platforms: linux/amd64
+          push: true
+          tags: |
+            ${{ steps.config.outputs.backend-uri }}:latest
+            ${{ steps.config.outputs.backend-uri }}:${{ github.sha }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Build and push frontend image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: ./frontend/Dockerfile
+          platforms: linux/amd64
+          push: true
+          tags: |
+            ${{ steps.config.outputs.frontend-uri }}:latest
+            ${{ steps.config.outputs.frontend-uri }}:${{ github.sha }}
+          build-args: |
+            NEXT_PUBLIC_API_URL=https://${{ steps.config.outputs.domain }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Deploy backend service
+        run: |
+          aws ecs update-service \
+            --cluster ${{ steps.config.outputs.cluster }} \
+            --service ${{ steps.config.outputs.backend-service }} \
+            --force-new-deployment \
+            --region ${{ env.AWS_REGION }}
+
+      - name: Deploy frontend service
+        run: |
+          aws ecs update-service \
+            --cluster ${{ steps.config.outputs.cluster }} \
+            --service ${{ steps.config.outputs.frontend-service }} \
+            --force-new-deployment \
+            --region ${{ env.AWS_REGION }}

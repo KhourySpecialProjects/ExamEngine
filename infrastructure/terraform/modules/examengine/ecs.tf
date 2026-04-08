@@ -288,11 +288,11 @@ resource "aws_ecs_task_definition" "backend-drop-conflicts-table-task" {
 
 
 data "aws_ecr_repository" "frontend_repo" {
-  name = "next-web"
+  name = var.frontend_ecr_repo_name
 }
 
 data "aws_ecr_repository" "backend_repo" {
-  name = "fastapi-backend"
+  name = var.backend_ecr_repo_name
 }
 
 # CloudWatch Log Groups

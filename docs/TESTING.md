@@ -84,28 +84,65 @@ def test_database_save():
 
 ## CI/CD Workflows
 
-### Unit Tests (`.github/workflows/unit-test.yml`)
+All workflows run on push and PRs to `main` and `staging`, scoped to relevant paths so only affected checks run.
 
-Runs on every push and PR to `main`:
+### Backend Lint (`.github/workflows/backend-lint.yml`)
 
-- Sets up Python 3.12 and Node.js 20
-- Installs dependencies
-- Runs backend pytest
-- Runs frontend Vitest
+Triggers on `backend/**` changes.
 
-### E2E Tests (`.github/workflows/e2e.yml`)
+- Runs **Ruff** lint and format check against `backend/` using Python 3.12 and `uv`
 
-Runs on frontend changes:
+### Backend Tests (`.github/workflows/backend-tests.yml`)
 
-- Installs Playwright browsers
-- Runs full E2E test suite
-- Uploads test reports as artifacts
+Triggers on `backend/**` changes.
+
+- Runs **Pytest** against `backend/tests/` using Python 3.12 and `uv`
+- Domain-level tests only — no real DB or AWS required
+
+### Frontend Lint (`.github/workflows/frontend-lint.yml`)
+
+Triggers on `frontend/**` changes.
+
+- Runs **Biome** lint and format check against `frontend/` using Node 20
+
+### Frontend Unit Tests (`.github/workflows/frontend-unit-tests.yml`)
+
+Triggers on `frontend/**` changes.
+
+- Runs **Vitest** unit tests against `frontend/` using Node 20
+
+### Frontend Build (`.github/workflows/frontend-build.yml`)
+
+Triggers on `frontend/**` changes.
+
+- Runs `next build` to verify the Next.js app compiles and TypeScript is valid
+
+### Frontend E2E Tests (`.github/workflows/frontend-e2e-tests.yml`)
+
+Triggers on `frontend/**` changes.
+
+- Installs **Playwright** browsers with system dependencies
+- Runs the full E2E test suite via `npm run test:e2e --workspace=frontend`
+- Uploads the Playwright HTML report as an artifact (retained 30 days)
+
+### Deploy to Staging (`.github/workflows/deploy-staging.yml`)
+
+Runs on push to `staging` only:
+
+- Authenticates to AWS via OIDC (no long-lived credentials)
+- Fetches config (cluster, service names, ECR URIs, domain) from SSM Parameter Store
+- Builds and pushes backend and frontend Docker images to ECR
+- Force-deploys both ECS services
+
+### Deploy to Production (`.github/workflows/deploy-prod.yml`)
+
+Runs on push to `main` only — same steps as staging with prod AWS role and SSM paths.
 
 ### Viewing Results
 
 1. Go to **Actions** tab in GitHub
-2. Click on workflow run
-3. Download artifacts for Playwright reports
+2. Click on a workflow run
+3. Download **playwright-report** artifact for E2E test results
 
 ## Writing Tests
 

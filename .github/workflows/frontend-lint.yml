@@ -3,8 +3,12 @@ name: Frontend Lint
 on:
   push:
     branches: [main, staging]
+    paths:
+      - 'frontend/**'
   pull_request:
     branches: [main, staging]
+    paths:
+      - 'frontend/**'
 
 jobs:
   lint:

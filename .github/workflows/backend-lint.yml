@@ -3,8 +3,12 @@ name: Backend Lint
 on:
   push:
     branches: [main, staging]
+    paths:
+      - 'backend/**'
   pull_request:
     branches: [main, staging]
+    paths:
+      - 'backend/**'
 
 jobs:
   lint:

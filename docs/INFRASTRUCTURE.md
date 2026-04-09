@@ -163,12 +163,16 @@ Each deploy workflow:
 3. Builds and pushes backend and frontend images to ECR
 4. Force-deploys both ECS services
 
-CI checks run on every push and PR to `main`/`staging`:
-- `backend-lint.yml` — ruff check + format
-- `backend-tests.yml` — pytest (no real DB or AWS required)
-- `frontend-lint.yml` — Biome
-- `frontend-build.yml` — Next.js build
-- `frontend-unit-tests.yml` — Vitest
+CI checks run on every push and PR to `main`/`staging`, scoped to relevant paths:
+
+| Workflow | Trigger path | What it does |
+|---|---|---|
+| `backend-lint.yml` | `backend/**` | Ruff lint + format check |
+| `backend-tests.yml` | `backend/**` | Pytest (no real DB or AWS required) |
+| `frontend-lint.yml` | `frontend/**` | Biome lint + format check |
+| `frontend-build.yml` | `frontend/**` | Next.js build + TypeScript check |
+| `frontend-unit-tests.yml` | `frontend/**` | Vitest unit tests |
+| `frontend-e2e-tests.yml` | `frontend/**` | Playwright E2E tests; uploads HTML report as artifact |
 
 ## Credentials & IAM
 

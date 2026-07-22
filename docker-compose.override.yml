@@ -1,0 +1,35 @@
+# Local dev port overrides — auto-merged by `docker compose` (no extra flags needed).
+# Only the HOST side of each mapping changes; container-internal ports and
+# service-to-service networking (backend-dev:8000, localstack:4566, db:5432) are untouched.
+#
+# Remapped because these host ports were already in use locally:
+#   3000 -> 3100  (frontend)
+#   8000 -> 8100  (backend API)
+#   5432 -> 5434  (postgres)
+#   4566 -> 4576  (localstack S3)
+services:
+  frontend-dev:
+    ports: !override
+      - "3100:3000"
+    environment:
+      # Browser (client-side) hits the backend on its new host port; must match 8100 below.
+      - NEXT_PUBLIC_API_URL=http://localhost:8100/api
+
+  backend-dev:
+    ports: !override
+      - "8100:8000"
+    environment:
+      # CORS must allow the frontend's new host origin.
+      - FRONTEND_URL=http://localhost:3100
+
+  db:
+    ports: !override
+      - "5434:5432"
+
+  localstack:
+    # ':latest' now resolves to a Pro build that requires LOCALSTACK_AUTH_TOKEN and
+    # exits 55. Pin to the community v4 image (no license needed).
+    image: localstack/localstack:4
+    ports: !override
+      - "4576:4566"
+      - "4571:4571"

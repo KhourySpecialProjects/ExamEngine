@@ -47,6 +47,15 @@ class Settings(BaseSettings):
         description="JWT token expiration time in minutes",
     )
 
+    # Initial Admin Seed (development only; used to bootstrap the first admin user)
+    admin_email: str = Field(
+        default="theadmin@northeastern.edu",
+        description="Email for the auto-seeded initial admin user",
+    )
+    admin_password: str = Field(
+        default="admin", description="Password for the auto-seeded initial admin user"
+    )
+
     # CORS Settings
     frontend_url: str = Field(
         default="http://localhost:3000", description="Frontend application URL for CORS"

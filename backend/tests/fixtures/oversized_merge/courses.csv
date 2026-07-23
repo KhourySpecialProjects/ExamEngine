@@ -1,0 +1,6 @@
+CRN,CourseID,Enrollment,Instructor Name,department,examination_term
+1001,CS 1001,60,Dr. Alpha,CS,Fall 2025
+1002,CS 1002,60,Dr. Beta,CS,Fall 2025
+2001,CS 2001,40,Dr. Gamma,CS,Fall 2025
+2002,MATH 2002,30,Dr. Delta,MATH,Fall 2025
+2003,MATH 2003,25,Dr. Epsilon,MATH,Fall 2025

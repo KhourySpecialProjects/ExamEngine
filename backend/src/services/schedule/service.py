@@ -176,6 +176,7 @@ class ScheduleService:
                 scheduling_dataset,
                 conflicts_response,
                 parameters,
+                merges,
             )
 
         except DatasetNotFoundError:
@@ -357,6 +358,33 @@ class ScheduleService:
             unplaced_exams=unscheduled_count,
         )
 
+    @staticmethod
+    def _summarize_placement(
+        result: ScheduleResult,
+        merges: dict[str, list[str]] | None,
+        courses,
+    ) -> tuple[int, int]:
+        """Count (num_classes, unplaced_exams) from an algorithm result.
+
+        An exam is "unplaced" when it has no usable slot+room: either unroomed
+        (a slot but no room, tracked in result.unassigned) or a member of a
+        merge group that could not be scheduled at all (result.unscheduled_merges),
+        whose CRNs get neither slot nor room. Both are persisted by
+        _save_exam_assignments, so this MUST match the row-based count in
+        _calculate_summary_stats to keep the generate and retrieve responses
+        consistent.
+        """
+        merges = merges or {}
+        unscheduled_merge_crns = {
+            crn
+            for merge_id in result.unscheduled_merges
+            for crn in merges.get(merge_id, [])
+            if crn in courses and crn not in result.assignments
+        }
+        num_classes = len(result.assignments) + len(unscheduled_merge_crns)
+        unplaced_exams = len(result.unassigned) + len(unscheduled_merge_crns)
+        return num_classes, unplaced_exams
+
     def _build_generation_response(
         self,
         schedule,
@@ -366,9 +394,10 @@ class ScheduleService:
         scheduling_dataset,
         conflicts_response: dict,
         parameters: dict,
-        merges: dict[str, list[str]] = None,
+        merges: dict[str, list[str]] | None = None,
     ) -> dict[str, Any]:
         """Build response for generate_schedule endpoint."""
+        merges = merges or {}
         # Count unique students
         all_students = set()
         for crn in result.assignments:
@@ -457,13 +486,16 @@ class ScheduleService:
             .get("blockout_slots", {})
         )
 
+        num_classes, unplaced_exams = self._summarize_placement(
+            result, merges, scheduling_dataset.courses
+        )
         summary = ScheduleAssembler.build_summary(
-            num_classes=len(result.assignments),
+            num_classes=num_classes,
             num_students=len(all_students),
             num_rooms=rooms_used,
             slots_used=slots_used,
             hard_conflicts=conflicts_response["total_hard"],
-            unplaced_exams=len(result.unassigned),
+            unplaced_exams=unplaced_exams,
         )
 
         return ScheduleAssembler.build_generation_response(

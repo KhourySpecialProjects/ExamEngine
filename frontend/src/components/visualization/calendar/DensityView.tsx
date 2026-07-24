@@ -1,6 +1,6 @@
 // biome-ignore-all lint/suspicious/noExplicitAny: this file require conflict types definitions
 
-import { User, Users } from "lucide-react";
+import { Ban, User, Users } from "lucide-react";
 import { useMemo, useState } from "react";
 import { EmptyScheduleState } from "@/components/common/EmptyScheduleState";
 import {
@@ -13,7 +13,7 @@ import {
 import { colorThemes, THEME_KEYS } from "@/lib/constants/colorThemes";
 import { useScheduleData } from "@/lib/hooks/useScheduleData";
 import { useCalendarStore } from "@/lib/store/calendarStore";
-import { getReadableTextColorFromBg } from "@/lib/utils";
+import { extractTimeFromBlock, getReadableTextColorFromBg } from "@/lib/utils";
 import { CalendarGrid } from "./CalendarGrid";
 
 const DAYS = [
@@ -105,13 +105,6 @@ export default function DensityView() {
     );
     return calculateThresholds(counts);
   }, [calendarRows, densityMode]);
-
-  const extractTimeFromBlock = (blockStr: string): string => {
-    if (!blockStr) return "";
-    if (!blockStr.includes("(")) return blockStr;
-    const match = blockStr.match(/\(([^)]+)\)/);
-    return match ? match[1] : blockStr;
-  };
 
   // Build a map from frontendDay-normalizedTime -> array of conflict type strings
   // biome-ignore lint/correctness/useExhaustiveDependencies: cause rerender
@@ -231,6 +224,19 @@ export default function DensityView() {
     };
   }, [breakdownMap, calendarRows]);
 
+  // Build a (day, blockTime) -> blocked-room-count lookup from schedule.blockouts
+  const blockoutMap = useMemo(() => {
+    const map = new Map<string, number>();
+    const blockouts = schedule?.blockouts;
+    if (!blockouts) return map;
+    for (const [day, slots] of Object.entries(blockouts)) {
+      for (const [blockTime, count] of Object.entries(slots)) {
+        map.set(`${day}-${blockTime}`, count);
+      }
+    }
+    return map;
+  }, [schedule]);
+
   if (!hasData) return <EmptyScheduleState isLoading={isLoading} />;
 
   return (
@@ -333,6 +339,13 @@ export default function DensityView() {
           const displayDouble = doubleCount > 0 ? doubleCount : 0;
           const displayInstructor = instructorCount > 0 ? instructorCount : 0;
 
+          // Blocked room count for this slot
+          const blockedCount = cell
+            ? (blockoutMap.get(
+                `${(cell as any).day}-${extractTimeFromBlock((cell as any).timeSlot)}`,
+              ) ?? 0)
+            : 0;
+
           return (
             <div
               onClick={() => examCount > 0 && cell && selectCell(cell)}
@@ -372,8 +385,10 @@ export default function DensityView() {
                   </div>
                 )}
 
-                {/* ⭐ Conflict badges — now placed BELOW density */}
-                {(displayDouble > 0 || displayInstructor > 0) && (
+                {/* Conflict and blockout badges */}
+                {(displayDouble > 0 ||
+                  displayInstructor > 0 ||
+                  blockedCount > 0) && (
                   <div className="flex flex-row flex-wrap gap-1 mt-2 justify-start">
                     {displayInstructor > 0 && (
                       <span
@@ -392,6 +407,16 @@ export default function DensityView() {
                       >
                         <User className="h-3 w-3" />
                         {displayDouble} student
+                      </span>
+                    )}
+
+                    {blockedCount > 0 && (
+                      <span
+                        className="inline-flex items-center gap-1 bg-orange-500 text-white text-[10px] font-semibold rounded-full px-2 py-0.5 shadow-sm"
+                        title={`${blockedCount} room${blockedCount > 1 ? "s" : ""} blocked at this slot`}
+                      >
+                        <Ban className="h-3 w-3" />
+                        {blockedCount} blocked
                       </span>
                     )}
                   </div>

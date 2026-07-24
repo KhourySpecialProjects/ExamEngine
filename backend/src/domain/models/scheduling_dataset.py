@@ -1,4 +1,4 @@
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 from .course import Course
 from .room import Room
@@ -21,6 +21,9 @@ class SchedulingDataset:
     # Pre-computed relationships for algorithm efficiency
     students_by_crn: dict[str, frozenset[str]]  # CRN → {student_ids}
     instructors_by_crn: dict[str, frozenset[str]]  # CRN → {instructor_names}
+
+    # Optional room blockouts: room_name → set of (day_idx, block_idx) pairs
+    room_blockouts: dict[str, frozenset[tuple[int, int]]] = field(default_factory=dict)
 
     def get_course(self, crn: str) -> Course | None:
         return self.courses.get(crn)

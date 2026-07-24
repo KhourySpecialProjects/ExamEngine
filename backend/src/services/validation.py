@@ -127,4 +127,28 @@ def get_file_statistics(
             stats["avg_capacity"] = round(float(capacity_col.mean()), 2)
             stats["max_capacity"] = int(capacity_col.max())
 
+    elif file_type == "room_blockouts":
+        # Precompute blockout_slots so schedule retrieval reads from Postgres, not S3
+        from src.domain.adapters import RoomBlockoutAdapter
+        from src.domain.constants import BLOCK_TIMES, DAY_NAMES
+
+        raw = RoomBlockoutAdapter.from_dataframe(df)
+        # Use adapter output for counts — raw column includes invalid rows that the
+        # adapter silently drops, so these numbers stay consistent with each other.
+        stats["unique_rooms_blocked"] = len(raw)
+        stats["total_blockout_entries"] = sum(len(slots) for slots in raw.values())
+        slot_counts: dict[tuple[int, int], int] = {}
+        for slots in raw.values():
+            for day_idx, block_idx in slots:
+                key = (day_idx, block_idx)
+                slot_counts[key] = slot_counts.get(key, 0) + 1
+        blockout_slots: dict[str, dict[str, int]] = {}
+        for (day_idx, block_idx), count in slot_counts.items():
+            day_name = DAY_NAMES[day_idx]
+            block_time = BLOCK_TIMES.get(block_idx, f"Block {block_idx}")
+            if day_name not in blockout_slots:
+                blockout_slots[day_name] = {}
+            blockout_slots[day_name][block_time] = count
+        stats["blockout_slots"] = blockout_slots
+
     return stats

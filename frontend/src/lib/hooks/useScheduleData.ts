@@ -22,14 +22,16 @@ export function useScheduleData() {
 
   // Flatten to exam list from calendar AND include unscheduled exams
   const allExams = useMemo(() => {
-    const scheduledExams = calendarRows.flatMap((row) => row.days.flatMap((day) => day.exams));
-    
-    // Get unscheduled exams from schedule.complete (those without Day or Room)
+    const scheduledExams = calendarRows.flatMap((row) =>
+      row.days.flatMap((day) => day.exams),
+    );
+
+    // Get unscheduled/unroomed exams from schedule.complete
     const unscheduledExams: Exam[] = [];
     if (currentSchedule?.schedule?.complete) {
       currentSchedule.schedule.complete.forEach((exam) => {
-        // If exam has no Day or Room, it's unscheduled
-        if (!exam.Day || !exam.Room) {
+        if (!exam.Day && !exam.Room) {
+          // Truly unscheduled — no slot, no room
           unscheduledExams.push({
             id: `unscheduled-${exam.CRN}`,
             courseCode: exam.Course,
@@ -44,10 +46,26 @@ export function useScheduleData() {
             timeSlot: "",
             isUnscheduled: true,
           });
+        } else if (exam.Day && !exam.Room) {
+          // Has a slot but no room (all rooms were blocked at that slot)
+          unscheduledExams.push({
+            id: `unroomed-${exam.CRN}`,
+            courseCode: exam.Course,
+            section: exam.CRN,
+            department: exam.Course || "MISC",
+            instructor: exam.Instructor || "TBD",
+            studentCount: exam.Size,
+            room: "",
+            building: "",
+            conflicts: 0,
+            day: exam.Day,
+            timeSlot: exam.Block || "",
+            isUnroomed: true,
+          });
         }
       });
     }
-    
+
     return [...scheduledExams, ...unscheduledExams];
   }, [calendarRows, currentSchedule]);
 

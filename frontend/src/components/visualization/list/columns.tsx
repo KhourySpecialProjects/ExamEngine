@@ -1,5 +1,5 @@
 import { type ColumnDef, createColumnHelper } from "@tanstack/react-table";
-import { AlertCircle, GitMerge } from "lucide-react";
+import { AlertCircle, Ban, GitMerge } from "lucide-react";
 import { SortableHeader } from "@/components/common/table/SortableHeader";
 import { Badge } from "@/components/ui/badge";
 import type { Exam } from "@/lib/types/calendar.types";
@@ -19,7 +19,11 @@ const CourseCell = ({
     <div className="flex items-center gap-2">
       <span className="font-medium">{courseCode}</span>
       {isMerged && (
-        <Badge variant="outline" className="gap-1 text-xs px-1.5 py-0.5 border-blue-300 text-blue-700 bg-blue-50/50 flex items-center" title="Merged course">
+        <Badge
+          variant="outline"
+          className="gap-1 text-xs px-1.5 py-0.5 border-blue-300 text-blue-700 bg-blue-50/50 flex items-center"
+          title="Merged course"
+        >
           <GitMerge className="h-3 w-3" />
         </Badge>
       )}
@@ -89,6 +93,11 @@ export function createExamColumns(
         <div className="text-sm font-mono">
           {info.row.original.isUnscheduled ? (
             <span className="text-muted-foreground">—</span>
+          ) : info.row.original.isUnroomed ? (
+            <span className="inline-flex items-center gap-1 text-orange-600 font-medium not-italic">
+              <Ban className="h-3 w-3" />
+              No Room
+            </span>
           ) : (
             info.getValue()
           )}

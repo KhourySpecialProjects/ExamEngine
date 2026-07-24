@@ -11,6 +11,7 @@ export interface Exam {
   day: string;
   timeSlot: string;
   isUnscheduled?: boolean; // True if exam has no time slot or room assignment
+  isUnroomed?: boolean; // True if exam has a slot but no room (all rooms blocked at that slot)
 }
 
 export interface CalendarCell {

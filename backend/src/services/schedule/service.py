@@ -1,3 +1,4 @@
+import asyncio
 from collections import defaultdict
 from typing import Any
 from uuid import UUID
@@ -113,11 +114,31 @@ class ScheduleService:
             # 3.5 Drop zero-enrollment courses and get updated merges
             files = await self.dataset_service.drop_zero_enrollment(dataset_id, user_id)
 
-            # 4. Build scheduling dataset and run algorithm
-            scheduling_dataset = DatasetFactory.from_dataframes_to_scheduling_dataset(
-                courses_df=files["courses"],
-                enrollment_df=files["enrollments"],
-                rooms_df=files["rooms"],
+            # 4. Build scheduling dataset and run algorithm (CPU-bound — run in thread)
+            def _run_algorithm() -> tuple:
+                dataset = DatasetFactory.from_dataframes_to_scheduling_dataset(
+                    courses_df=files["courses"],
+                    enrollment_df=files["enrollments"],
+                    rooms_df=files["rooms"],
+                    blockouts_df=files.get("room_blockouts"),
+                )
+                sched = Scheduler(
+                    dataset=dataset,
+                    max_days=max_days,
+                    student_max_per_day=student_max_per_day,
+                    instructor_max_per_day=instructor_max_per_day,
+                    merges=merges,
+                )
+                sched_result = sched.schedule(
+                    prioritize_large_courses=prioritize_large_courses
+                )
+                sched_analysis = ScheduleAnalyzer(dataset).analyze(
+                    schedule=sched_result
+                )
+                return dataset, sched_result, sched_analysis
+
+            scheduling_dataset, result, analysis = await asyncio.to_thread(
+                _run_algorithm
             )
 
             # 5. Ensure database records exist for courses/rooms
@@ -129,21 +150,6 @@ class ScheduleService:
                 dataset_id,
                 scheduling_dataset.rooms,
             )
-
-            scheduler = Scheduler(
-                dataset=scheduling_dataset,
-                max_days=max_days,
-                student_max_per_day=student_max_per_day,
-                instructor_max_per_day=instructor_max_per_day,
-                merges=merges,  # Pass merges to scheduler
-            )
-            result = scheduler.schedule(
-                prioritize_large_courses=prioritize_large_courses
-            )
-
-            # 5. Analyze results
-            analyzer = ScheduleAnalyzer(scheduling_dataset)
-            analysis = analyzer.analyze(schedule=result)
 
             # 6. Persist results
             await self._save_exam_assignments(
@@ -170,6 +176,7 @@ class ScheduleService:
                 scheduling_dataset,
                 conflicts_response,
                 parameters,
+                merges,
             )
 
         except DatasetNotFoundError:
@@ -220,6 +227,18 @@ class ScheduleService:
         conflicts = formatter.format_conflicts(conflict_analysis)
         summary = self._calculate_summary_stats(assignments, conflicts)
 
+        # Load blockout slots for calendar visualisation (if blockouts were uploaded)
+        # blockout_slots is precomputed at upload time and stored in file_paths metadata
+        blockout_slots: dict[str, dict[str, int]] = {}
+        file_paths = schedule.run.dataset.file_paths or []
+        blockout_entry = next(
+            (f for f in file_paths if f["type"] == "room_blockouts"), None
+        )
+        if blockout_entry:
+            blockout_slots = blockout_entry.get("metadata", {}).get(
+                "blockout_slots", {}
+            )
+
         return ScheduleAssembler.build_full_response(
             schedule=schedule,
             dataset_name=schedule.run.dataset.dataset_name,
@@ -229,6 +248,7 @@ class ScheduleService:
                 complete_exams, calendar
             ),
             permissions=permissions,
+            blockouts=blockout_slots,
         )
 
     async def delete_schedule(self, schedule_id: UUID, user_id: UUID) -> dict[str, Any]:
@@ -255,18 +275,33 @@ class ScheduleService:
             crn = str(assignment.course.crn)
             has_conflict = crn in conflicting_crns
 
-            # Check if assignment is unscheduled (no time_slot or room)
-            is_unscheduled = assignment.time_slot is None or assignment.room is None
+            is_truly_unscheduled = assignment.time_slot is None
+            is_unroomed = assignment.time_slot is not None and assignment.room is None
 
-            if is_unscheduled:
-                # Build unscheduled exam record (no Day, Block, or Room)
+            if is_truly_unscheduled:
+                # No slot and no room (e.g. unscheduled merge group)
                 complete_exams.append(
                     {
                         "CRN": crn,
                         "Course": assignment.course.course_subject_code,
-                        "Day": "",  # Empty for unscheduled
-                        "Block": "",  # Empty for unscheduled
-                        "Room": "",  # Empty for unscheduled
+                        "Day": "",
+                        "Block": "",
+                        "Room": "",
+                        "Capacity": 0,
+                        "Size": assignment.course.enrollment_count,
+                        "Valid": not has_conflict,
+                        "Instructor": assignment.course.instructor_name or "",
+                    }
+                )
+            elif is_unroomed:
+                # Has a slot but no room (all rooms were blocked at that slot)
+                complete_exams.append(
+                    {
+                        "CRN": crn,
+                        "Course": assignment.course.course_subject_code,
+                        "Day": assignment.time_slot.day.value,
+                        "Block": assignment.time_slot.slot_label,
+                        "Room": "",
                         "Capacity": 0,
                         "Size": assignment.course.enrollment_count,
                         "Valid": not has_conflict,
@@ -323,6 +358,33 @@ class ScheduleService:
             unplaced_exams=unscheduled_count,
         )
 
+    @staticmethod
+    def _summarize_placement(
+        result: ScheduleResult,
+        merges: dict[str, list[str]] | None,
+        courses,
+    ) -> tuple[int, int]:
+        """Count (num_classes, unplaced_exams) from an algorithm result.
+
+        An exam is "unplaced" when it has no usable slot+room: either unroomed
+        (a slot but no room, tracked in result.unassigned) or a member of a
+        merge group that could not be scheduled at all (result.unscheduled_merges),
+        whose CRNs get neither slot nor room. Both are persisted by
+        _save_exam_assignments, so this MUST match the row-based count in
+        _calculate_summary_stats to keep the generate and retrieve responses
+        consistent.
+        """
+        merges = merges or {}
+        unscheduled_merge_crns = {
+            crn
+            for merge_id in result.unscheduled_merges
+            for crn in merges.get(merge_id, [])
+            if crn in courses and crn not in result.assignments
+        }
+        num_classes = len(result.assignments) + len(unscheduled_merge_crns)
+        unplaced_exams = len(result.unassigned) + len(unscheduled_merge_crns)
+        return num_classes, unplaced_exams
+
     def _build_generation_response(
         self,
         schedule,
@@ -332,9 +394,10 @@ class ScheduleService:
         scheduling_dataset,
         conflicts_response: dict,
         parameters: dict,
-        merges: dict[str, list[str]] = None,
+        merges: dict[str, list[str]] | None = None,
     ) -> dict[str, Any]:
         """Build response for generate_schedule endpoint."""
+        merges = merges or {}
         # Count unique students
         all_students = set()
         for crn in result.assignments:
@@ -344,10 +407,13 @@ class ScheduleService:
         slots_used = len(set(result.assignments.values()))
         rooms_used = len(set(result.room_assignments.values()))
 
-        # Build schedule list (scheduled exams only)
+        # Build schedule list
         schedule_list = []
         for crn, (day_idx, block_idx) in result.assignments.items():
-            room_name = result.room_assignments.get(crn, "TBD")
+            if crn in result.unassigned:
+                # Has a slot but no room — added separately below
+                continue
+            room_name = result.room_assignments.get(crn, "")
             instructors = result.instructors_by_crn.get(crn, set())
 
             schedule_list.append(
@@ -360,8 +426,28 @@ class ScheduleService:
                     capacity=result.room_capacities.get(room_name, 0),
                     size=result.course_sizes.get(crn, 0),
                     instructor=", ".join(instructors) if instructors else "",
-                    has_conflict=False,  # Conflicts tracked separately
+                    has_conflict=False,
                 )
+            )
+
+        # Add unroomed exams (have a slot but no room due to blockouts)
+        for crn in result.unassigned:
+            if crn not in result.assignments:
+                continue
+            day_idx, block_idx = result.assignments[crn]
+            instructors = result.instructors_by_crn.get(crn, set())
+            schedule_list.append(
+                {
+                    "CRN": crn,
+                    "Course": result.course_codes.get(crn, ""),
+                    "Day": DAY_NAMES[day_idx],
+                    "Block": f"{block_idx} ({BLOCK_TIMES.get(block_idx, '')})",
+                    "Room": "",  # No room assigned
+                    "Capacity": 0,
+                    "Size": result.course_sizes.get(crn, 0),
+                    "Valid": True,
+                    "Instructor": ", ".join(instructors) if instructors else "",
+                }
             )
 
         # Add unscheduled merge exams to complete list
@@ -393,13 +479,23 @@ class ScheduleService:
         # Get dataset info
         dataset_info = self.dataset_service.get_dataset_info(dataset_id, user_id)
 
+        # Read blockout slots from precomputed metadata (same source as get_schedule)
+        blockout_slots: dict[str, dict[str, int]] = (
+            dataset_info.get("files", {})
+            .get("room_blockouts", {})
+            .get("blockout_slots", {})
+        )
+
+        num_classes, unplaced_exams = self._summarize_placement(
+            result, merges, scheduling_dataset.courses
+        )
         summary = ScheduleAssembler.build_summary(
-            num_classes=len(result.assignments),
+            num_classes=num_classes,
             num_students=len(all_students),
             num_rooms=rooms_used,
             slots_used=slots_used,
             hard_conflicts=conflicts_response["total_hard"],
-            unplaced_exams=len(result.unassigned),
+            unplaced_exams=unplaced_exams,
         )
 
         return ScheduleAssembler.build_generation_response(
@@ -411,6 +507,7 @@ class ScheduleService:
             summary=summary,
             conflicts=conflicts_response["conflicts"],
             parameters=parameters,
+            blockouts=blockout_slots,
         )
 
     def _build_calendar_from_result(self, result: ScheduleResult) -> dict:
@@ -418,6 +515,10 @@ class ScheduleService:
         calendar: dict[str, dict[str, list]] = {}
 
         for crn, (day_idx, block_idx) in result.assignments.items():
+            if crn in result.unassigned:
+                # Has a slot but no room — excluded from the calendar view
+                continue
+
             day_name = DAY_NAMES[day_idx]
             block_time = BLOCK_TIMES.get(block_idx, f"Block {block_idx}")
 
@@ -426,7 +527,7 @@ class ScheduleService:
             if block_time not in calendar[day_name]:
                 calendar[day_name][block_time] = []
 
-            room_name = result.room_assignments.get(crn, "TBD")
+            room_name = result.room_assignments.get(crn, "")
             instructors = result.instructors_by_crn.get(crn, set())
 
             calendar[day_name][block_time].append(
@@ -502,6 +603,25 @@ class ScheduleService:
                     "course_id": course_id,
                     "time_slot_id": time_slot.time_slot_id,
                     "room_id": room_id,
+                }
+            )
+
+        # Save unroomed assignments (have a time slot but no room due to blockouts)
+        for crn in result.unassigned:
+            course_id = course_mapping.get(crn)
+            if not course_id or crn not in result.assignments:
+                continue
+            day_idx, block_idx = result.assignments[crn]
+            time_slot = self.time_slot_repo.get_or_create_slot(
+                dataset_id=dataset_id,
+                day=DAY_NAMES[day_idx],
+                block_index=block_idx,
+            )
+            assignments_to_create.append(
+                {
+                    "course_id": course_id,
+                    "time_slot_id": time_slot.time_slot_id,
+                    "room_id": None,
                 }
             )
 

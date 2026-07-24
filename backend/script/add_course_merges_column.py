@@ -15,6 +15,7 @@ from pathlib import Path
 from dotenv import load_dotenv
 from sqlalchemy import create_engine, text
 
+
 # Load .env from multiple possible locations
 script_dir = Path(__file__).resolve().parent
 root_dir = script_dir.parent.parent
@@ -36,8 +37,8 @@ def add_course_merges_column():
         with engine.connect() as conn:
             result = conn.execute(
                 text("""
-                    SELECT column_name 
-                    FROM information_schema.columns 
+                    SELECT column_name
+                    FROM information_schema.columns
                     WHERE table_name = 'datasets' AND column_name = 'course_merges'
                 """)
             )
@@ -48,7 +49,9 @@ def add_course_merges_column():
         print("➕ Adding course_merges column to datasets table...")
         with engine.connect() as conn:
             conn.execute(
-                text("ALTER TABLE datasets ADD COLUMN IF NOT EXISTS course_merges JSONB DEFAULT NULL")
+                text(
+                    "ALTER TABLE datasets ADD COLUMN IF NOT EXISTS course_merges JSONB DEFAULT NULL"
+                )
             )
             conn.commit()
         print("✅ Column 'course_merges' added successfully!")
@@ -73,4 +76,3 @@ if __name__ == "__main__":
     except Exception as e:
         print(f"❌ Error: {e}")
         sys.exit(1)
-

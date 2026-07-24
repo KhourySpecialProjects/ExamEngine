@@ -1,27 +1,33 @@
-from uuid import uuid4
 from unittest.mock import MagicMock
+from uuid import uuid4
 
 import pytest
 
 from src.repo.conflict_analyses import ConflictAnalysesRepo
 
+
 @pytest.fixture
 def session():
     return MagicMock()
+
 
 @pytest.fixture
 def repo(session):
     return ConflictAnalysesRepo(session)
 
+
 def test_get_by_schedule_id(repo, session):
     schedule_id = uuid4()
     expected_analysis = MagicMock()
-    session.execute.return_value.scalars.return_value.first.return_value = expected_analysis
+    session.execute.return_value.scalars.return_value.first.return_value = (
+        expected_analysis
+    )
 
     result = repo.get_by_schedule_id(schedule_id)
 
     session.execute.assert_called_once()
     assert result == expected_analysis
+
 
 def test_create_analysis(repo, session):
     schedule_id = uuid4()

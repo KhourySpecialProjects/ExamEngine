@@ -1,12 +1,12 @@
-import { render, screen, fireEvent } from "@testing-library/react";
-import { describe, it, expect, vi, beforeEach, Mock } from "vitest";
+// biome-ignore-all lint/suspicious/noExplicitAny: test mocks require loose typing
+import { fireEvent, render, screen } from "@testing-library/react";
+import { beforeEach, describe, expect, it, type Mock, vi } from "vitest";
 
 import DensityView from "./DensityView";
 
 beforeEach(() => {
-  vi.clearAllMocks(); 
+  vi.clearAllMocks();
 });
-
 
 vi.mock("@/lib/hooks/useScheduleData", () => ({
   useScheduleData: vi.fn(),
@@ -20,11 +20,10 @@ vi.mock("@/lib/store/calendarStore", () => {
       fn({
         colorTheme: "gray",
         setColorTheme: vi.fn(),
-        selectCell: mockSelect, 
+        selectCell: mockSelect,
       }),
   };
 });
-
 
 vi.mock("@/lib/constants/colorThemes", () => ({
   colorThemes: {
@@ -35,19 +34,20 @@ vi.mock("@/lib/constants/colorThemes", () => ({
 
 vi.mock("@/lib/utils", () => ({
   getReadableTextColorFromBg: () => "black",
-  cn: (...args: any[]) => args.filter(Boolean).join(" "), // simple stub
+  cn: (...args: any[]) => args.filter(Boolean).join(" "),
+  extractTimeFromBlock: (s: string) => s,
 }));
 
-
 vi.mock("../CalendarGrid", () => ({
-  CalendarGrid: ({ renderCell, data, days }: any) => (
+  CalendarGrid: ({ renderCell, data }: any) => (
     <div data-testid="calendar-grid">
       {data.map((row: any) =>
         row.days.map((cell: any, i: number) => (
+          // biome-ignore lint/suspicious/noArrayIndexKey: acceptable in test stubs
           <div key={i} data-testid="grid-cell">
             {renderCell(cell)}
           </div>
-        ))
+        )),
       )}
     </div>
   ),
@@ -60,7 +60,6 @@ vi.mock("@/components/common/EmptyScheduleState", () => ({
 }));
 
 const { useScheduleData } = await import("@/lib/hooks/useScheduleData");
-const { useCalendarStore } = await import("@/lib/store/calendarStore");
 
 describe("DensityView Component", () => {
   beforeEach(() => {
@@ -110,8 +109,8 @@ describe("DensityView Component", () => {
     expect(screen.queryByText("Density View")).not.toBeNull();
     expect(
       screen.queryByText(
-        "Color-coded heat map of exam distribution and conflicts"
-      )
+        "Color-coded heat map of exam distribution and conflicts",
+      ),
     ).not.toBeNull();
 
     expect(screen.queryByText("Theme: Gray")).not.toBeNull();
@@ -145,8 +144,8 @@ describe("DensityView Component", () => {
       calendarRows: [
         {
           days: [
-            { examCount: 0, conflicts: 0 }, 
-            { examCount: 3, conflicts: 1 }, 
+            { examCount: 0, conflicts: 0 },
+            { examCount: 3, conflicts: 1 },
           ],
         },
       ],
@@ -156,22 +155,21 @@ describe("DensityView Component", () => {
 
     const cells = screen.getAllByText("No Exams");
 
-    // uses toHaveStyle which works without jest-dom
     expect(cells[0].firstChild).not.toBeFalsy();
   });
 
   it("calls selectCell when clicking non-zero exam cell", () => {
-  (useScheduleData as Mock).mockReturnValue({
-    hasData: true,
-    isLoading: false,
-    calendarRows: [{ days: [{ examCount: 1, conflicts: 0 }] }],
+    (useScheduleData as Mock).mockReturnValue({
+      hasData: true,
+      isLoading: false,
+      calendarRows: [{ days: [{ examCount: 1, conflicts: 0 }] }],
+    });
+
+    render(<DensityView />);
+
+    const cell = screen.getByText("1 Exam");
+    fireEvent.click(cell);
+
+    expect(mockSelect).toHaveBeenCalledTimes(1);
   });
-
-  render(<DensityView />);
-
-  const cell = screen.getByText("1 Exam");
-  fireEvent.click(cell);
-
-  expect(mockSelect).toHaveBeenCalledTimes(1);
-  }); 
 });

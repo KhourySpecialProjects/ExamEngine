@@ -110,8 +110,8 @@ export function Uploader() {
         <DialogHeader>
           <DialogTitle>Upload Dataset</DialogTitle>
           <DialogDescription>
-            Upload three CSV files: enrollment data, room availability, and
-            classes schedules
+            Upload three required CSV files: courses, enrollments, and rooms.
+            Optionally include a room blockouts file.
           </DialogDescription>
         </DialogHeader>
 

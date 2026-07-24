@@ -6,6 +6,7 @@ export interface DatasetMetadata {
     courses: CoursesFileMetadata;
     enrollments: EnrollmentsFileMetadata;
     rooms: RoomsFileMetadata;
+    room_blockouts?: RoomBlockoutsFileMetadata;
   };
   status: string;
 }
@@ -35,4 +36,9 @@ export interface RoomsFileMetadata extends BaseFileMetadata {
   total_capacity: number;
   avg_capacity: number;
   max_capacity: number;
+}
+
+export interface RoomBlockoutsFileMetadata extends BaseFileMetadata {
+  unique_rooms_blocked: number;
+  total_blockout_entries: number;
 }

@@ -46,6 +46,7 @@ async def upload_dataset(
     courses: UploadFile = File(...),
     enrollments: UploadFile = File(...),
     rooms: UploadFile = File(...),
+    room_blockouts: UploadFile | None = File(None),
     current_user: Users = Depends(get_current_user),
     dataset_service: DatasetService = Depends(get_dataset_service),
 ):
@@ -57,6 +58,9 @@ async def upload_dataset(
             enrollments_file=enrollments,
             rooms_file=rooms,
             user_id=current_user.user_id,
+            room_blockouts_file=room_blockouts
+            if room_blockouts and room_blockouts.filename
+            else None,
         )
         return results
 

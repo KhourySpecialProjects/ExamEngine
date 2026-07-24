@@ -34,6 +34,7 @@ class DatasetService:
         enrollments_file: UploadFile,
         rooms_file: UploadFile,
         user_id: UUID,
+        room_blockouts_file: UploadFile | None = None,
     ) -> dict[str, Any]:
         """
         Upload and validate complete dataset.
@@ -48,11 +49,13 @@ class DatasetService:
 
         dataset_uuid = uuid.uuid4()
 
-        uploaded_files = {
+        uploaded_files: dict[str, UploadFile] = {
             "courses": courses_file,
             "enrollments": enrollments_file,
             "rooms": rooms_file,
         }
+        if room_blockouts_file:
+            uploaded_files["room_blockouts"] = room_blockouts_file
 
         validated_files = await self._validate_and_parse_files(uploaded_files)
 
@@ -204,7 +207,7 @@ class DatasetService:
                 "storage_key": storage_keys[file_type],
                 "metadata": file_metadata[file_type],
             }
-            for file_type in ["courses", "enrollments", "rooms"]
+            for file_type in storage_keys
         ]
 
         dataset = Datasets(
@@ -281,7 +284,7 @@ class DatasetService:
         Args:
             dataset_id: Dataset ID
             user_id: User ID for authorization
-        
+
         Returns:
             Dictionary with filtered courses, enrollments, and rooms dataframes
         """
@@ -290,9 +293,7 @@ class DatasetService:
         courses_df = files["courses"]
         enrollments_df = files["enrollments"]
 
-        filtered_courses_df, allowed_crns = self._filter_nonzero_enrollment(
-            courses_df
-        )
+        filtered_courses_df, allowed_crns = self._filter_nonzero_enrollment(courses_df)
 
         # If we couldn't determine CRNs/columns, keep enrollments as-is.
         filtered_enrollments_df = (
@@ -301,11 +302,14 @@ class DatasetService:
             else enrollments_df
         )
 
-        return {
+        result: dict[str, pd.DataFrame] = {
             "courses": filtered_courses_df,
             "enrollments": filtered_enrollments_df,
             "rooms": files["rooms"],
         }
+        if "room_blockouts" in files:
+            result["room_blockouts"] = files["room_blockouts"]
+        return result
 
     def _filter_nonzero_enrollment(
         self, courses_df: pd.DataFrame
@@ -331,8 +335,16 @@ class DatasetService:
             return courses_df.copy(), None
 
         col_defs = {cd.canonical_name: cd for cd in schema}
-        enrollment_transformer = col_defs.get("Total_Enrollment").transformer if col_defs.get("Total_Enrollment") else None
-        crn_transformer = col_defs.get("Course_Reference_Number").transformer if col_defs.get("Course_Reference_Number") else None
+        enrollment_transformer = (
+            col_defs.get("Total_Enrollment").transformer
+            if col_defs.get("Total_Enrollment")
+            else None
+        )
+        crn_transformer = (
+            col_defs.get("Course_Reference_Number").transformer
+            if col_defs.get("Course_Reference_Number")
+            else None
+        )
 
         enrollment_series = courses_df[enrollment_col]
         if enrollment_transformer:
@@ -377,7 +389,11 @@ class DatasetService:
             return enrollments_df.copy()
 
         col_defs = {cd.canonical_name: cd for cd in schema}
-        crn_transformer = col_defs.get("Course_Reference_Number").transformer if col_defs.get("Course_Reference_Number") else None
+        crn_transformer = (
+            col_defs.get("Course_Reference_Number").transformer
+            if col_defs.get("Course_Reference_Number")
+            else None
+        )
 
         crn_series = enrollments_df[crn_col]
         if crn_transformer:
@@ -440,7 +456,9 @@ class DatasetService:
 
         return result.to_dict()
 
-    def get_merges(self, dataset_id: UUID, user_id: UUID) -> dict[str, list[str]] | None:
+    def get_merges(
+        self, dataset_id: UUID, user_id: UUID
+    ) -> dict[str, list[str]] | None:
         """Get course merges for a dataset."""
         dataset = self.dataset_repo.get_by_id_for_user(dataset_id, user_id)
         if not dataset:

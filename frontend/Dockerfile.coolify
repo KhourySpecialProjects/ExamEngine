@@ -1,0 +1,50 @@
+# Frontend image for Coolify DEVELOPMENT deployment.
+# Builds a production Next.js bundle. NEXT_PUBLIC_API_URL is inlined at BUILD time,
+# so it must be passed as a build-arg by Coolify.
+#
+# IMPORTANT: this is an npm WORKSPACES monorepo — the lockfile lives at the repo root
+# and `frontend/` has none. Installing from just frontend/package.json with `npm install`
+# resolves unpinned deps and breaks the build (React "createContext is not a function").
+# So we install the workspace from the root lockfile with `npm install`, which keeps
+# versions pinned via the lockfile while resolving this platform's native binaries.
+# Build context must be the repo root.
+FROM node:20-bookworm-slim
+
+WORKDIR /app
+
+# Skip the root `prepare: husky` script (no .git in the image, husky not needed).
+ENV HUSKY=0
+
+# Next.js inlines NEXT_PUBLIC_* at build time -> must be a build-arg, not just runtime env.
+ARG NEXT_PUBLIC_API_URL
+ENV NEXT_PUBLIC_API_URL=${NEXT_PUBLIC_API_URL}
+
+RUN apt-get update && apt-get install -y curl && rm -rf /var/lib/apt/lists/*
+
+# Install from the committed root lockfile. We use `npm install` (not `npm ci`) because
+# npm can omit platform-native optional binaries (Tailwind v4 lightningcss/oxide) from a
+# cross-platform lockfile; with the lockfile present, versions stay pinned while the
+# linux-x64 native binaries get resolved for this image.
+COPY package.json package-lock.json ./
+COPY frontend/package.json frontend/package.json
+RUN npm install
+
+# The committed lockfile only records darwin-arm64 native binaries, so npm skips the
+# linux-x64 natives Tailwind v4 needs at build time. Install them explicitly (versions
+# matched to the lockfile: lightningcss 1.30.2, @tailwindcss/oxide 4.1.17).
+RUN npm install --no-save \
+      lightningcss-linux-x64-gnu@1.30.2 \
+      @tailwindcss/oxide-linux-x64-gnu@4.1.17
+
+# App source + production build (Next 15 / Turbopack).
+COPY frontend/ frontend/
+RUN npm run build --workspace=frontend
+
+ENV NODE_ENV=production
+EXPOSE 3000
+
+HEALTHCHECK --interval=20s --timeout=5s --start-period=60s --retries=5 \
+  CMD curl -f http://localhost:3000 || exit 1
+
+# `next start` for the frontend workspace (cwd handled by --workspace).
+CMD ["npm", "run", "start", "--workspace=frontend"]

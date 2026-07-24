@@ -1,0 +1,38 @@
+# Backend image for Coolify DEVELOPMENT deployment.
+# Self-contained (no bind mounts, no hot reload) so Coolify can build it from git.
+# Dev-ness comes from the compose env (ENVIRONMENT=development), not this image.
+FROM python:3.12-slim
+
+WORKDIR /app
+
+ENV PYTHONDONTWRITEBYTECODE=1 \
+  PYTHONUNBUFFERED=1 \
+  PIP_NO_CACHE_DIR=1 \
+  PIP_DISABLE_PIP_VERSION_CHECK=1
+
+# System deps: gcc (wheels), postgresql-client (psql / pg_isready), curl (healthcheck)
+RUN apt-get update && apt-get install -y \
+  gcc \
+  postgresql-client \
+  curl \
+  && rm -rf /var/lib/apt/lists/*
+
+# Install Python dependencies first for layer caching
+COPY backend/pyproject.toml .
+RUN pip install .
+
+# Application code
+COPY backend/ .
+
+# Non-root runtime user
+RUN useradd -m -u 1000 appuser && chown -R appuser:appuser /app
+USER appuser
+
+EXPOSE 8000
+
+# NOTE: current branch exposes GET "/" (and /api/*, /docs) but NOT /health.
+# /health only exists on PR #104 — so the dev healthcheck targets "/".
+HEALTHCHECK --interval=30s --timeout=10s --start-period=30s --retries=3 \
+  CMD curl -f http://localhost:8000/ || exit 1
+
+CMD ["uvicorn", "src.main:app", "--host", "0.0.0.0", "--port", "8000"]

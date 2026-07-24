@@ -7,6 +7,8 @@ COPY deploy/coolify/nginx.conf /etc/nginx/nginx.conf
 
 EXPOSE 80
 
-# busybox wget ships with nginx:alpine; hits the proxy-local /healthz (no upstream dependency).
+# busybox wget ships with nginx:alpine and (unlike curl) does NOT fall back across
+# address families. `localhost` resolves to ::1 first, but nginx listens IPv4-only,
+# so the check MUST target 127.0.0.1 or it fails and the container is marked unhealthy.
 HEALTHCHECK --interval=20s --timeout=5s --start-period=10s --retries=5 \
-  CMD wget -qO- http://localhost:80/healthz || exit 1
+  CMD wget -qO- http://127.0.0.1:80/healthz || exit 1

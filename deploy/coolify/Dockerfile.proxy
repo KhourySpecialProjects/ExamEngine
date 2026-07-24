@@ -1,0 +1,12 @@
+# Reverse-proxy image for the Coolify dev deployment.
+# Bakes the nginx config in so no bind mount is needed on the Coolify host.
+# Build context must be the repo root (COPY path is repo-relative).
+FROM nginx:alpine
+
+COPY deploy/coolify/nginx.conf /etc/nginx/nginx.conf
+
+EXPOSE 80
+
+# busybox wget ships with nginx:alpine; hits the proxy-local /healthz (no upstream dependency).
+HEALTHCHECK --interval=20s --timeout=5s --start-period=10s --retries=5 \
+  CMD wget -qO- http://localhost:80/healthz || exit 1

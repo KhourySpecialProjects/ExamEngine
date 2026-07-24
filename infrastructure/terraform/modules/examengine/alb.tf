@@ -3,7 +3,7 @@ resource "aws_lb" "examengine" {
   internal           = false
   load_balancer_type = "application"
   security_groups    = [aws_security_group.alb.id]
-  subnets            = data.aws_subnets.default.ids
+  subnets            = aws_subnet.public[*].id
 
   tags = {
     Name        = "examengine-${var.environment}"
@@ -12,22 +12,11 @@ resource "aws_lb" "examengine" {
   }
 }
 
-data "aws_subnets" "default" {
-  filter {
-    name   = "default-for-az"
-    values = ["true"]
-  }
-}
-
-data "aws_vpc" "default" {
-  default = true
-}
-
 resource "aws_lb_target_group" "backend" {
   name        = "examengine-backend-ip-${var.environment}"
   port        = 8000
   protocol    = "HTTP"
-  vpc_id      = data.aws_vpc.default.id
+  vpc_id      = aws_vpc.main.id
   target_type = "ip" # Required for ECS Fargate with awsvpc network mode
 
   lifecycle {
@@ -35,7 +24,7 @@ resource "aws_lb_target_group" "backend" {
   }
 
   health_check {
-    path                = "/docs"
+    path                = "/health"
     port                = "8000"
     healthy_threshold   = 2
     unhealthy_threshold = 5
@@ -54,7 +43,7 @@ resource "aws_lb_target_group" "frontend" {
   name        = "examengine-frontend-ip-${var.environment}"
   port        = 3000
   protocol    = "HTTP"
-  vpc_id      = data.aws_vpc.default.id
+  vpc_id      = aws_vpc.main.id
   target_type = "ip"
 
   lifecycle {
@@ -85,10 +74,14 @@ resource "aws_lb_listener" "http" {
   port              = 80
   protocol          = "HTTP"
 
-  # Default - send to frontend
+  # Redirect all HTTP traffic to HTTPS
   default_action {
-    type             = "forward"
-    target_group_arn = aws_lb_target_group.frontend.arn
+    type = "redirect"
+    redirect {
+      port        = "443"
+      protocol    = "HTTPS"
+      status_code = "HTTP_301"
+    }
   }
 }
 
@@ -98,7 +91,7 @@ resource "aws_lb_listener" "https" {
   port              = 443
   protocol          = "HTTPS"
   ssl_policy        = "ELBSecurityPolicy-TLS13-1-2-2021-06"
-  certificate_arn   = data.aws_acm_certificate.examengine.arn
+  certificate_arn   = aws_acm_certificate_validation.examengine.certificate_arn
 
   default_action {
     type             = "forward"
@@ -108,23 +101,6 @@ resource "aws_lb_listener" "https" {
 
 resource "aws_lb_listener_rule" "api_https" {
   listener_arn = aws_lb_listener.https.arn
-  priority     = 100
-
-  action {
-    type             = "forward"
-    target_group_arn = aws_lb_target_group.backend.arn
-  }
-
-  condition {
-    path_pattern {
-      values = ["/api/*"]
-    }
-  }
-}
-
-# Rule for /api/* - send to backend
-resource "aws_lb_listener_rule" "api" {
-  listener_arn = aws_lb_listener.http.arn
   priority     = 100
 
   action {

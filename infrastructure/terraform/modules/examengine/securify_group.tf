@@ -1,6 +1,7 @@
 resource "aws_security_group" "alb" {
   name        = "examengine-alb-${var.environment}"
   description = "Security group for ExamEngine ALB"
+  vpc_id      = aws_vpc.main.id
 
   ingress {
     description = "HTTP"
@@ -35,6 +36,7 @@ resource "aws_security_group" "alb" {
 resource "aws_security_group" "rds" {
   name        = "examengine-rds-${var.environment}"
   description = "Security group for ExamEngine RDS"
+  vpc_id      = aws_vpc.main.id
 
   ingress {
     description     = "PostgreSQL from ECS tasks"

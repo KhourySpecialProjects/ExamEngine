@@ -24,12 +24,6 @@ class Settings(BaseSettings):
         default=None,
         description="AWS endpoint URL (use http://localstack:4566 for local dev with LocalStack)"
     )
-    aws_access_key_id: str = Field(
-        description="AWS access key (REQUIRED: use 'test' for LocalStack, real key for production)"
-    )
-    aws_secret_access_key: str = Field(
-        description="AWS secret key (REQUIRED: use 'test' for LocalStack, real key for production)"
-    )
     aws_region: str = Field(
         default="us-east-1",
         description="AWS region for S3 bucket"

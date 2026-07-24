@@ -5,22 +5,25 @@ variable "aws_region" {
 }
 
 variable "environment" {
-  description = "Environment (dev, staging, prod)"
+  description = "Environment name"
   type        = string
-  default     = "dev"
+  default     = "prod"
 }
 
-# S3
+variable "domain_name" {
+  description = "Domain name for ACM certificate and application URL"
+  type        = string
+}
+
 variable "bucket_name" {
   description = "S3 bucket name for datasets"
   type        = string
 }
 
-# RDS
 variable "db_instance_class" {
   description = "RDS instance class"
   type        = string
-  default     = "db.t3.micro"
+  default     = "db.t3.small"
 }
 
 variable "db_username" {
@@ -31,24 +34,6 @@ variable "db_username" {
 
 variable "db_password" {
   description = "Database password"
-  type        = string
-  sensitive   = true #hidden in logs (same w all sensitive fields)
-}
-
-variable "database_url" {
-  description = "Database connection URL"
-  type        = string
-  sensitive   = true
-}
-
-variable "aws_access_key_id" {
-  description = "AWS Access Key ID"
-  type        = string
-  sensitive   = true
-}
-
-variable "aws_secret_access_key" {
-  description = "AWS Secret Access Key"
   type        = string
   sensitive   = true
 }
@@ -62,5 +47,11 @@ variable "secret_key" {
 variable "frontend_url" {
   description = "Frontend URL for CORS configuration"
   type        = string
-  default     = "" # Will be constructed from ALB if not provided
+  default     = ""
+}
+
+variable "deploy_branch" {
+  description = "GitHub branch allowed to assume the OIDC deploy role"
+  type        = string
+  default     = "main"
 }

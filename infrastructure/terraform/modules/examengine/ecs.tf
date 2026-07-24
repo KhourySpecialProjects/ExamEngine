@@ -68,11 +68,8 @@ resource "aws_ecs_task_definition" "backend-task" {
       name      = "backend-repo"
       image     = "${data.aws_ecr_repository.backend_repo.repository_url}:latest"
       essential = true
+      # Non-sensitive environment variables
       environment = [
-        {
-          name  = "DATABASE_URL"
-          value = var.database_url
-        },
         {
           name  = "AWS_REGION"
           value = var.aws_region
@@ -80,10 +77,6 @@ resource "aws_ecs_task_definition" "backend-task" {
         {
           name  = "AWS_S3_BUCKET"
           value = var.bucket_name
-        },
-        {
-          name  = "SECRET_KEY"
-          value = var.secret_key
         },
         {
           name  = "ENVIRONMENT"
@@ -95,7 +88,18 @@ resource "aws_ecs_task_definition" "backend-task" {
         },
         {
           name  = "FRONTEND_URL"
-          value = var.frontend_url != "" ? var.frontend_url : "http://${aws_lb.examengine.dns_name}"
+          value = var.frontend_url != "" ? var.frontend_url : "https://${aws_lb.examengine.dns_name}"
+        }
+      ]
+      # Sensitive credentials from Secrets Manager
+      secrets = [
+        {
+          name      = "DATABASE_URL"
+          valueFrom = aws_secretsmanager_secret.database_url.arn
+        },
+        {
+          name      = "SECRET_KEY"
+          valueFrom = aws_secretsmanager_secret.secret_key.arn
         }
       ]
       portMappings = [
@@ -114,7 +118,7 @@ resource "aws_ecs_task_definition" "backend-task" {
         }
       }
       healthCheck = {
-        command     = ["CMD-SHELL", "curl -f http://localhost:8000/docs || exit 1"]
+        command     = ["CMD-SHELL", "curl -f http://localhost:8000/health || exit 1"]
         interval    = 30
         timeout     = 10
         retries     = 3
@@ -144,20 +148,12 @@ resource "aws_ecs_task_definition" "backend-add-admin-task" {
 
       environment = [
         {
-          name  = "DATABASE_URL"
-          value = var.database_url
-        },
-        {
           name  = "AWS_REGION"
           value = var.aws_region
         },
         {
           name  = "AWS_S3_BUCKET"
           value = var.bucket_name
-        },
-        {
-          name  = "SECRET_KEY"
-          value = var.secret_key
         },
         {
           name  = "ENVIRONMENT"
@@ -169,7 +165,17 @@ resource "aws_ecs_task_definition" "backend-add-admin-task" {
         },
         {
           name  = "FRONTEND_URL"
-          value = var.frontend_url != "" ? var.frontend_url : "http://${aws_lb.examengine.dns_name}"
+          value = var.frontend_url != "" ? var.frontend_url : "https://${aws_lb.examengine.dns_name}"
+        }
+      ]
+      secrets = [
+        {
+          name      = "DATABASE_URL"
+          valueFrom = aws_secretsmanager_secret.database_url.arn
+        },
+        {
+          name      = "SECRET_KEY"
+          valueFrom = aws_secretsmanager_secret.secret_key.arn
         }
       ]
 
@@ -206,17 +212,18 @@ resource "aws_ecs_task_definition" "backend-reset-db-task" {
 
       environment = [
         {
-          name  = "DATABASE_URL"
-          value = var.database_url
-        },
-        # Ensure Python can import `db` module from src/schemas
-        {
           name  = "PYTHONPATH"
           value = "/app/src/schemas"
         },
         {
           name  = "AWS_REGION"
           value = var.aws_region
+        }
+      ]
+      secrets = [
+        {
+          name      = "DATABASE_URL"
+          valueFrom = aws_secretsmanager_secret.database_url.arn
         }
       ]
 
@@ -256,8 +263,14 @@ resource "aws_ecs_task_definition" "backend-drop-conflicts-table-task" {
 
       environment = [
         {
-          name  = "DATABASE_URL"
-          value = var.database_url
+          name  = "AWS_REGION"
+          value = var.aws_region
+        }
+      ]
+      secrets = [
+        {
+          name      = "DATABASE_URL"
+          valueFrom = aws_secretsmanager_secret.database_url.arn
         }
       ]
 
@@ -275,27 +288,11 @@ resource "aws_ecs_task_definition" "backend-drop-conflicts-table-task" {
 
 
 data "aws_ecr_repository" "frontend_repo" {
-  name = "next-web"
+  name = var.frontend_ecr_repo_name
 }
 
 data "aws_ecr_repository" "backend_repo" {
-  name = "fastapi-backend"
-}
-
-#Fetching both frontend/backend services
-data "aws_ecs_service" "examengine_frontend_service" {
-  service_name = "examengine-frontend-service-dev"
-  cluster_arn  = aws_ecs_cluster.cluster.arn
-}
-
-
-data "aws_ecs_service" "examengine_backend_service" {
-  service_name = "examengine-backend-service-dev"
-  cluster_arn  = aws_ecs_cluster.cluster.arn
-}
-
-data "aws_ecs_cluster" "cluster" {
-  cluster_name = "ee-cluster"
+  name = var.backend_ecr_repo_name
 }
 
 # CloudWatch Log Groups
@@ -324,7 +321,7 @@ resource "aws_cloudwatch_log_group" "frontend_logs" {
 resource "aws_security_group" "ecs_tasks" {
   name        = "examengine-ecs-tasks-${var.environment}"
   description = "Security group for ECS tasks"
-  vpc_id      = data.aws_vpc.default.id
+  vpc_id      = aws_vpc.main.id  # Use new VPC
 
   ingress {
     description     = "Frontend from ALB"
@@ -366,9 +363,9 @@ resource "aws_ecs_service" "frontend" {
   launch_type     = "FARGATE"
 
   network_configuration {
-    subnets          = data.aws_subnets.default.ids
+    subnets          = aws_subnet.private_app[*].id
     security_groups  = [aws_security_group.ecs_tasks.id]
-    assign_public_ip = true
+    assign_public_ip = false  # No public IPs - use NAT Gateway for outbound
   }
 
   load_balancer {
@@ -400,9 +397,9 @@ resource "aws_ecs_service" "backend" {
   launch_type     = "FARGATE"
 
   network_configuration {
-    subnets          = data.aws_subnets.default.ids
+    subnets          = aws_subnet.private_app[*].id  # Private app subnets
     security_groups  = [aws_security_group.ecs_tasks.id]
-    assign_public_ip = true
+    assign_public_ip = false  # No public IPs - use NAT Gateway for outbound
   }
 
   load_balancer {

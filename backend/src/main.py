@@ -53,8 +53,12 @@ async def lifespan(app: FastAPI):
     yield  # Server runs here
 
 
+# Disable docs in production
+_docs_url = None if settings.environment == "production" else "/docs"
+_redoc_url = None if settings.environment == "production" else "/redoc"
+
 # Create app with lifespan
-app = FastAPI(title="Exam Scheduler API", version="1.0", lifespan=lifespan)
+app = FastAPI(title="Exam Scheduler API", version="1.0", lifespan=lifespan, docs_url=_docs_url, redoc_url=_redoc_url)
 
 # CORS
 app.add_middleware(
@@ -77,3 +81,8 @@ def root():
         "message": "Exam Scheduler API is running",
         "environment": settings.environment,
     }
+
+
+@app.get("/health")
+def health():
+    return {"status": "ok"}

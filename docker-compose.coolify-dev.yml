@@ -111,15 +111,13 @@ services:
         condition: service_healthy
     restart: unless-stopped
 
-  # Public entrypoint. Give THIS service the domain in Coolify (set to $APP_URL).
+  # Public entrypoint. Set THIS service's domain via Coolify's UI (Service Domains),
+  # matching APP_URL. No SERVICE_FQDN_* magic var: left bare it kept auto-generating a
+  # spurious *.sslip.io domain on every re-parse — the UI domain is the single source of truth.
   proxy:
     build:
       context: .
       dockerfile: deploy/coolify/Dockerfile.proxy
-    environment:
-      # Coolify magic var: generate + route a domain to port 80 of this service.
-      # Set APP_URL (above) to the same value Coolify assigns / your custom domain.
-      - SERVICE_FQDN_PROXY_80
     expose:
       - "80"
     depends_on:

@@ -53,8 +53,19 @@ async def lifespan(app: FastAPI):
     yield  # Server runs here
 
 
-# Create app with lifespan
-app = FastAPI(title="Exam Scheduler API", version="1.0", lifespan=lifespan)
+# Create app with lifespan.
+# /docs, /redoc and the OpenAPI schema are disabled in staging. Development keeps
+# them for convenience; production keeps them because its ALB/ECS/Docker health
+# checks probe /docs (see infrastructure/terraform + backend/Dockerfile).
+_docs_disabled = settings.environment == "staging"
+app = FastAPI(
+    title="Exam Scheduler API",
+    version="1.0",
+    lifespan=lifespan,
+    docs_url=None if _docs_disabled else "/docs",
+    redoc_url=None if _docs_disabled else "/redoc",
+    openapi_url=None if _docs_disabled else "/openapi.json",
+)
 
 # CORS
 app.add_middleware(

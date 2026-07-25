@@ -1,0 +1,139 @@
+# ExamEngine — STAGING deployment for Coolify.
+#
+# Sits between `develop` (docker-compose.coolify-dev.yml) and production. Deploy this
+# file as a Docker Compose resource in Coolify, linked to the `staging` git branch.
+#
+# PERSISTENCE: Postgres runs in-stack (like dev) but on the named `pgdata` volume,
+# and MinIO on `miniodata`. Coolify named volumes survive redeploys/updates, so
+# re-deploying staging does NOT wipe the database or any uploaded testing data.
+#
+# Routing: one public domain hits the `proxy` service, which sends
+#   /api/* -> backend (FastAPI, routes mounted under /api)
+#   /*     -> frontend (Next.js)
+# Same-origin, so no CORS juggling.
+#
+# Required Coolify env vars (see .env.coolify-staging.example):
+#   APP_URL        e.g. https://examengine-staging.example.com  (the proxy's public URL)
+# Recommended:
+#   POSTGRES_PASSWORD, SECRET_KEY, MINIO_ROOT_USER, MINIO_ROOT_PASSWORD, ADMIN_EMAIL, ADMIN_PASSWORD
+#
+# ENVIRONMENT=staging disables /docs and does NOT auto-seed the admin. Seed the first
+# admin once (it persists in the pgdata volume) from the running backend container:
+#   ADMIN_EMAIL=... ADMIN_PASSWORD=... python script/add_admin.py
+
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+      POSTGRES_DB: ${POSTGRES_DB:-exam_engine_db}
+    volumes:
+      # Persistent — survives redeploys so staging data is not lost on update.
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-postgres} -d ${POSTGRES_DB:-exam_engine_db}"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+  # S3-compatible object storage (MinIO). Free, no account or auth token required.
+  # The current s3.py boto3 client (custom endpoint_url) talks to it with no code changes.
+  # Data persists in the `miniodata` volume across redeploys.
+  minio:
+    image: minio/minio:latest
+    command: server /data --console-address ":9001"
+    environment:
+      - MINIO_ROOT_USER=${MINIO_ROOT_USER:-minioadmin}
+      - MINIO_ROOT_PASSWORD=${MINIO_ROOT_PASSWORD:-minioadmin}
+    volumes:
+      - miniodata:/data
+    expose:
+      - "9000"
+      - "9001"
+    restart: unless-stopped
+
+  # One-shot: wait for MinIO, create the bucket the app expects, then exit.
+  minio-init:
+    image: minio/mc:latest
+    environment:
+      - MINIO_ROOT_USER=${MINIO_ROOT_USER:-minioadmin}
+      - MINIO_ROOT_PASSWORD=${MINIO_ROOT_PASSWORD:-minioadmin}
+      - AWS_S3_BUCKET=${AWS_S3_BUCKET:-exam-engine-csvs}
+    entrypoint:
+      - /bin/sh
+      - -c
+      - >
+        until mc alias set local http://minio:9000 "$$MINIO_ROOT_USER" "$$MINIO_ROOT_PASSWORD"; do
+        echo 'waiting for minio...'; sleep 2; done;
+        mc mb --ignore-existing local/"$$AWS_S3_BUCKET";
+        echo "bucket $$AWS_S3_BUCKET ready"
+    depends_on:
+      - minio
+    restart: "no"
+
+  backend:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile.coolify
+    environment:
+      - DATABASE_URL=postgresql+psycopg2://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@db:5432/${POSTGRES_DB:-exam_engine_db}
+      - AWS_ENDPOINT_URL=http://minio:9000
+      - AWS_ACCESS_KEY_ID=${MINIO_ROOT_USER:-minioadmin}
+      - AWS_SECRET_ACCESS_KEY=${MINIO_ROOT_PASSWORD:-minioadmin}
+      - AWS_REGION=${AWS_REGION:-us-east-1}
+      - AWS_S3_BUCKET=${AWS_S3_BUCKET:-exam-engine-csvs}
+      - SECRET_KEY=${SECRET_KEY:-staging-secret-key-change-me}
+      - ENVIRONMENT=staging
+      - DEBUG=false
+      - FRONTEND_URL=${APP_URL}
+      # Used by `python script/add_admin.py` for the one-time manual admin seed.
+      - ADMIN_EMAIL=${ADMIN_EMAIL:-theadmin@northeastern.edu}
+      - ADMIN_PASSWORD=${ADMIN_PASSWORD:-admin}
+    expose:
+      - "8000"
+    depends_on:
+      db:
+        condition: service_healthy
+      minio-init:
+        condition: service_completed_successfully
+    restart: unless-stopped
+
+  frontend:
+    build:
+      context: .
+      dockerfile: frontend/Dockerfile.coolify
+      args:
+        # Baked into the client bundle at build time — must be the PUBLIC url.
+        - NEXT_PUBLIC_API_URL=${APP_URL}/api
+    environment:
+      - NODE_ENV=production
+      - API_URL=http://backend:8000
+      - NEXT_PUBLIC_API_URL=${APP_URL}/api
+    expose:
+      - "3000"
+    depends_on:
+      backend:
+        condition: service_healthy
+    restart: unless-stopped
+
+  # Public entrypoint. Set THIS service's domain via Coolify's UI (Service Domains),
+  # matching APP_URL. No SERVICE_FQDN_* magic var: left bare it kept auto-generating a
+  # spurious *.sslip.io domain on every re-parse — the UI domain is the single source of truth.
+  proxy:
+    build:
+      context: .
+      dockerfile: deploy/coolify/Dockerfile.proxy
+    expose:
+      - "80"
+    depends_on:
+      frontend:
+        condition: service_healthy
+      backend:
+        condition: service_healthy
+    restart: unless-stopped
+
+volumes:
+  pgdata:
+  miniodata:

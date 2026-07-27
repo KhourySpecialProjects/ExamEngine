@@ -47,6 +47,20 @@ export class AuthAPI extends BaseAPI {
     return this.request("/auth/me");
   }
 
+  async changePassword(
+    oldPassword: string,
+    newPassword: string,
+  ): Promise<{ message: string }> {
+    return this.request("/auth/password", {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        old_password: oldPassword,
+        new_password: newPassword,
+      }),
+    });
+  }
+
   async getApprovedUsers(): Promise<UserResponse[]> {
     return this.request("/auth/users/approved", {
       method: "GET",

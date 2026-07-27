@@ -4,6 +4,7 @@ import { MoveLeft, User, Users } from "lucide-react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Suspense, useEffect, useState } from "react";
 import { AdminUserManagement } from "@/components/admin/AdminUserManagement";
+import { ChangePasswordForm } from "@/components/settings/ChangePasswordForm";
 import {
   Breadcrumb,
   BreadcrumbItem,
@@ -95,12 +96,7 @@ function SettingsContent() {
         </TabsList>
 
         <TabsContent value="account" className="mt-6">
-          <div className="rounded-lg border bg-card p-6">
-            <h2 className="text-lg font-semibold mb-4">Account Settings</h2>
-            <p className="text-sm text-muted-foreground">
-              Settings and preferences will be available here soon.
-            </p>
-          </div>
+          <ChangePasswordForm />
         </TabsContent>
 
         {isAdmin && (

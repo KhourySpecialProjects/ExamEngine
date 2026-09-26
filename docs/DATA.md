@@ -4,9 +4,9 @@ CSV file formats, database management, and data operations for ExamEngine.
 
 ## CSV File Formats
 
-ExamEngine requires three CSV files — **courses**, **enrollments**, and **rooms** — to generate exam schedules, plus an optional **room blockouts** file. Column names are auto-detected from multiple aliases (case-insensitive, whitespace-trimmed).
+ExamEngine requires three CSV files — **courses**, **enrollments**, and **rooms** — to generate exam schedules, plus two optional files: **room blockouts** and **common exams**. All files are uploaded together in one `POST /api/datasets/upload` request (multipart form fields `courses`, `enrollments`, `rooms`, `room_blockouts`, `common_exams`). Column names are auto-detected from multiple aliases (case-insensitive, whitespace-trimmed).
 
-> **Required vs optional:** ✅ = required (the upload is rejected if the column is missing). ❌ = optional (used if present, ignored if absent). Any column not listed below is ignored. For courses/enrollments/rooms a row with a missing/invalid *required* value aborts the entire import; invalid room-blockout rows are skipped individually.
+> **Required vs optional:** ✅ = required (the upload is rejected if the column is missing). ❌ = optional (used if present, ignored if absent). Any column not listed below is ignored. For courses/enrollments/rooms/common exams a row with a missing/invalid *required* value aborts the entire import; invalid room-blockout rows are skipped individually.
 
 ### courses.csv
 
@@ -85,6 +85,42 @@ Shillman 105,0,2
 West Village H 212,Monday,9AM-11AM
 ```
 
+### common_exams.csv (optional)
+
+Defines common exams: groups of course sections (CRNs) that sit one shared exam at the same time and in the same room. Each group is a **merge group**, and the group label is its identifier. This file is optional — omit it if no sections share an exam. It uses long format, one row per (group, CRN); a group needs at least two rows. Unlike room blockouts, any invalid row fails the whole upload (see the validation rules below).
+
+| Column                  | Required | Accepted Names                                                                                        | Description                                               |
+| ----------------------- | -------- | ---------------------------------------------------------------------------------------------------- | --------------------------------------------------------- |
+| Exam_Group              | ✅       | `Exam_Group`, `ExamGroup`, `Exam Group`, `Common Exam`, `merge_group`, `merge_group_id`, `Group`, `group_id` | Group label (whitespace-trimmed), e.g., "MATH Common Final" |
+| Course_Reference_Number | ✅       | `Course_Reference_Number`, `CRN`, `Course Registration Number`, `crn`                                | Must match a CRN in courses.csv                           |
+
+**Example:**
+
+```csv
+ExamGroup,CRN
+MATH Common Final,11315
+MATH Common Final,11316
+PHYS Common Final,11320
+PHYS Common Final,11321
+```
+
+**Validation rules:**
+
+| #   | Rule                                                                         | Result                                                                                           |
+| --- | ---------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------ |
+| V1  | A required column is missing                                                 | ❌ Upload rejected                                                                               |
+| V2  | A row has a blank group, or a blank/unparseable CRN                          | ❌ Upload rejected (error lists the row numbers)                                                 |
+| V3  | The same CRN appears in two different groups                                 | ❌ Upload rejected                                                                               |
+| V4  | A group has fewer than 2 distinct CRNs                                       | ❌ Upload rejected                                                                               |
+| V5  | Exact duplicate (group, CRN) rows                                            | ✅ Accepted; duplicates are silently de-duplicated                                               |
+| V6  | A CRN is not in courses.csv                                                  | ❌ Upload rejected                                                                               |
+| V7  | A group's combined enrollment exceeds the largest room in rooms.csv          | ⚠️ Warning only; the group is saved and reported in the upload response as `over_capacity_groups` |
+| V8  | The file is empty or is not a parseable CSV                                  | ❌ Upload rejected                                                                               |
+
+Every problem found in the file is reported together. A rejected upload returns HTTP 400 `{"message": "File validation failed", "errors": {"common_exams": "<reason>"}}`, and nothing is stored. Over-capacity groups (V7) are saved but no room can hold them, so the scheduler reports them as unscheduled.
+
+Valid groups are stored in the `datasets.course_merges` JSONB column as `{group_label: [CRN, ...]}` (CRNs in order of first appearance), e.g., `{"MATH Common Final": ["11315", "11316"]}`. After upload they can still be viewed and edited through the existing merges API: `GET`, `POST`, and `DELETE /api/datasets/{dataset_id}/merges`.
+
 ## Data Validation
 
 The system automatically:
@@ -92,7 +128,7 @@ The system automatically:
 - Detects column names from aliases (case-insensitive)
 - Cleans whitespace and formats
 - Converts numeric strings (e.g., "11310.0" → "11310")
-- Rejects the entire upload if a required column is missing or a required value is empty/invalid (courses, enrollments, rooms); invalid room-blockout rows are skipped individually
+- Rejects the entire upload if a required column is missing or a required value is empty/invalid (courses, enrollments, rooms, common exams); invalid room-blockout rows are skipped individually
 - Reports validation errors with row numbers
 
 ### Common Validation Errors
@@ -129,7 +165,9 @@ s3://examengine-datasets/
 └── {dataset_uuid}/
     ├── courses.csv
     ├── enrollments.csv
-    └── rooms.csv
+    ├── rooms.csv
+    ├── room_blockouts.csv   # only if uploaded
+    └── common_exams.csv     # only if uploaded
 ```
 
 Files are private (no public access) and accessed via IAM roles.

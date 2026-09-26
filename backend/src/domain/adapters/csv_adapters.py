@@ -3,6 +3,7 @@ import pandas as pd
 from src.domain.exceptions import DataValidationError
 from src.domain.models import Course, Enrollment, Room
 
+from .schemas import validate_non_empty_string
 from .schemas_detector import CSVSchemaDetector
 
 
@@ -64,6 +65,91 @@ class RoomBlockoutAdapter:
                 continue
 
         return blockouts
+
+
+class CommonExamAdapter:
+    """Converts common exam CSV to a dict mapping exam group to its CRNs."""
+
+    @staticmethod
+    def from_dataframe(df: pd.DataFrame) -> dict[str, list[str]]:
+        """
+        Convert common exam DataFrame to dict of group label -> list of CRNs.
+
+        Exact duplicate (group, CRN) rows are ignored. CRNs within a group keep
+        their order of first appearance.
+
+        Args:
+            df: Common exam data from CSV (one row per group/CRN pair)
+
+        Returns:
+            Dict mapping exam group label to the CRNs that share one exam
+
+        Raises:
+            SchemaDetectionError: If CSV format is unknown
+            DataValidationError: If any row has a blank group or CRN, a CRN is in
+                more than one group, or a group has fewer than 2 distinct CRNs.
+                The message lists every problem found.
+        """
+        schema, column_mapping = CSVSchemaDetector.detect_schema_version(
+            df, "common_exams"
+        )
+
+        col_defs = {cd.canonical_name: cd for cd in schema}
+        df_normalized = df.rename(columns=column_mapping)
+
+        for canonical_name, col_def in col_defs.items():
+            if canonical_name in df_normalized.columns and col_def.transformer:
+                df_normalized[canonical_name] = df_normalized[canonical_name].apply(
+                    col_def.transformer
+                )
+
+        problems: list[str] = []
+        merges: dict[str, list[str]] = {}
+        crn_groups: dict[str, list[str]] = {}
+
+        # Row numbers match spreadsheet lines: header is line 1.
+        for position, (group, crn) in enumerate(
+            zip(
+                df_normalized["Exam_Group"],
+                df_normalized["Course_Reference_Number"],
+                strict=True,
+            )
+        ):
+            missing = []
+            if not validate_non_empty_string(group):
+                missing.append("exam group")
+            if not validate_non_empty_string(crn):
+                missing.append("CRN")
+            if missing:
+                row_number = position + 2
+                problems.append(f"row {row_number}: missing {' and '.join(missing)}")
+                continue
+
+            crns = merges.setdefault(group, [])
+            if crn in crns:
+                continue
+            crns.append(crn)
+
+            groups = crn_groups.setdefault(crn, [])
+            if group not in groups:
+                groups.append(group)
+
+        for crn, groups in crn_groups.items():
+            if len(groups) > 1:
+                listed = ", ".join(f"'{g}'" for g in groups)
+                problems.append(f"CRN {crn} is in multiple exam groups: {listed}")
+
+        for group, crns in merges.items():
+            if len(crns) < 2:
+                problems.append(
+                    f"exam group '{group}' needs at least 2 distinct CRNs "
+                    f"(found {len(crns)})"
+                )
+
+        if problems:
+            raise DataValidationError("; ".join(problems))
+
+        return merges
 
 
 class CourseAdapter:

@@ -14,7 +14,9 @@ from src.core.exceptions import (
     StorageError,
     ValidationError,
 )
-from src.domain.adapters import CSVSchemaDetector
+from src.domain.adapters import CommonExamAdapter, CSVSchemaDetector
+from src.domain.adapters.schemas import clean_crn
+from src.domain.exceptions import DataValidationError, SchemaDetectionError
 from src.repo.dataset import DatasetRepo
 from src.schemas.db import Datasets
 from src.services.storage import storage
@@ -35,6 +37,7 @@ class DatasetService:
         rooms_file: UploadFile,
         user_id: UUID,
         room_blockouts_file: UploadFile | None = None,
+        common_exams_file: UploadFile | None = None,
     ) -> dict[str, Any]:
         """
         Upload and validate complete dataset.
@@ -56,8 +59,14 @@ class DatasetService:
         }
         if room_blockouts_file:
             uploaded_files["room_blockouts"] = room_blockouts_file
+        if common_exams_file:
+            uploaded_files["common_exams"] = common_exams_file
 
         validated_files = await self._validate_and_parse_files(uploaded_files)
+
+        course_merges = None
+        if "common_exams" in validated_files["contents"]:
+            course_merges = self._validate_common_exams(validated_files)
 
         try:
             storage_keys = await self._upload_files_to_storage(
@@ -74,6 +83,7 @@ class DatasetService:
                 user_id=user_id,
                 file_metadata=validated_files["metadata"],
                 storage_keys=storage_keys,
+                course_merges=course_merges,
             )
         except Exception as e:
             # Cleanup uploaded files
@@ -154,6 +164,8 @@ class DatasetService:
 
             except pd.errors.ParserError as e:
                 validation_errors[file_type] = f"Invalid CSV: {str(e)}"
+            except DataValidationError as e:
+                validation_errors[file_type] = str(e)
             except Exception as e:
                 validation_errors[file_type] = f"Validation error: {str(e)}"
 
@@ -163,6 +175,107 @@ class DatasetService:
             )
 
         return {"contents": file_contents, "metadata": file_metadata}
+
+    def _validate_common_exams(
+        self, validated_files: dict[str, Any]
+    ) -> dict[str, list[str]]:
+        """
+        Check common exam groups against the uploaded courses and rooms.
+
+        Groups referencing unknown CRNs fail the upload. Groups whose combined
+        enrollment exceeds the largest room are kept (they will be unscheduled)
+        and listed in the common_exams metadata as over_capacity_groups.
+
+        Returns:
+            Dictionary mapping exam group label to its CRNs
+
+        Raises:
+            ValidationError: If any group cannot be merged
+        """
+        from src.domain.factories.dataset_factory import DatasetFactory
+        from src.services.dataset.merge_validator import MergeValidator
+
+        contents = validated_files["contents"]
+
+        def read(file_type: str) -> pd.DataFrame:
+            return pd.read_csv(io.BytesIO(contents[file_type]))
+
+        merges = CommonExamAdapter.from_dataframe(read("common_exams"))
+
+        # Match what the scheduler sees: zero-enrollment courses are dropped.
+        raw_courses_df = read("courses")
+        courses_df, allowed_crns = self._filter_nonzero_enrollment(raw_courses_df)
+        enrollments_df = read("enrollments")
+        if allowed_crns is not None:
+            enrollments_df = self._filter_by_allowed_crns(enrollments_df, allowed_crns)
+
+        # Courses passed schema validation already, so detection cannot fail here.
+        _, course_mapping = CSVSchemaDetector.detect_schema_version(
+            raw_courses_df, "courses"
+        )
+        crn_col = next(
+            csv_col
+            for csv_col, canonical in course_mapping.items()
+            if canonical == "Course_Reference_Number"
+        )
+        dropped_df = raw_courses_df.drop(index=courses_df.index)
+        zero_enrollment_crns = {clean_crn(v) for v in dropped_df[crn_col]}
+
+        try:
+            scheduling_dataset = DatasetFactory.from_dataframes_to_scheduling_dataset(
+                courses_df=courses_df,
+                enrollment_df=enrollments_df,
+                rooms_df=read("rooms"),
+            )
+        except (DataValidationError, SchemaDetectionError) as e:
+            raise ValidationError(
+                "File validation failed",
+                detail={
+                    "errors": {
+                        "common_exams": (
+                            f"Could not check exam groups against courses/rooms: {e}"
+                        )
+                    }
+                },
+            ) from e
+
+        results = MergeValidator(scheduling_dataset).validate_multiple_merges(merges)
+
+        failures = []
+        for group, result in results.items():
+            if result.can_proceed:
+                continue
+            crns = merges[group]
+            empty = [c for c in crns if c in zero_enrollment_crns]
+            unknown = [
+                c
+                for c in crns
+                if c not in scheduling_dataset.courses and c not in empty
+            ]
+            reasons = []
+            if unknown:
+                reasons.append(f"CRNs not found in courses: {unknown}")
+            if empty:
+                reasons.append(f"CRNs with zero enrollment cannot be merged: {empty}")
+            reason = "; ".join(reasons) or result.warning_message
+            failures.append(f"exam group '{group}': {reason}")
+        if failures:
+            raise ValidationError(
+                "File validation failed",
+                detail={"errors": {"common_exams": "; ".join(failures)}},
+            )
+
+        validated_files["metadata"]["common_exams"]["over_capacity_groups"] = [
+            {
+                "group": group,
+                "total_enrollment": result.total_enrollment,
+                "max_room_capacity": result.max_room_capacity,
+            }
+            for group, result in results.items()
+            if not result.has_suitable_room
+        ]
+
+        return merges
 
     async def _upload_files_to_storage(
         self, file_contents: dict[str, bytes], dataset_uuid: UUID
@@ -199,6 +312,7 @@ class DatasetService:
         user_id: UUID,
         file_metadata: dict[str, Any],
         storage_keys: dict[str, str],
+        course_merges: dict[str, list[str]] | None = None,
     ) -> Datasets:
         """Create database record for dataset."""
         file_paths = [
@@ -216,6 +330,7 @@ class DatasetService:
             upload_date=datetime.now(),
             user_id=user_id,
             file_paths=file_paths,
+            course_merges=course_merges,
         )
 
         return self.dataset_repo.create(dataset)

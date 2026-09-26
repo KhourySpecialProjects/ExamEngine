@@ -10,7 +10,7 @@ export interface UploadedFile {
 }
 
 export interface FileSlot {
-  id: "courses" | "enrollments" | "rooms" | "room_blockouts";
+  id: "courses" | "enrollments" | "rooms" | "room_blockouts" | "common_exams";
   label: string;
   description: string;
   file: UploadedFile | null;

@@ -87,7 +87,7 @@ West Village H 212,Monday,9AM-11AM
 
 ### common_exams.csv (optional)
 
-Defines common exams: groups of course sections (CRNs) that sit one shared exam at the same time and in the same room. Each group is a **merge group**, and the group label is its identifier. This file is optional — omit it if no sections share an exam. It uses long format, one row per (group, CRN); a group needs at least two rows. Unlike room blockouts, any invalid row fails the whole upload (see the validation rules below).
+Defines common exams: groups of course sections (CRNs) that sit one shared exam at the same time and in the same room. Each group is a **merge group**, and the group label is its identifier. This file is optional — omit it if no sections share an exam. It uses long format, one row per (group, CRN); a group needs at least two rows. Cells are read as text, so labels such as `01` and `1` are different groups. Blank lines are ignored. Unlike room blockouts, any invalid row fails the whole upload (see the validation rules below).
 
 | Column                  | Required | Accepted Names                                                                                        | Description                                               |
 | ----------------------- | -------- | ---------------------------------------------------------------------------------------------------- | --------------------------------------------------------- |
@@ -109,15 +109,16 @@ PHYS Common Final,11321
 | #   | Rule                                                                         | Result                                                                                           |
 | --- | ---------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------ |
 | V1  | A required column is missing                                                 | ❌ Upload rejected                                                                               |
-| V2  | A row has a blank group, or a blank/unparseable CRN                          | ❌ Upload rejected (error lists the row numbers)                                                 |
+| V2  | A row has a blank group or a blank CRN, or the CRN has a decimal part (e.g. `11316.9`) | ❌ Upload rejected (error lists the row numbers)                                       |
 | V3  | The same CRN appears in two different groups                                 | ❌ Upload rejected                                                                               |
 | V4  | A group has fewer than 2 distinct CRNs                                       | ❌ Upload rejected                                                                               |
 | V5  | Exact duplicate (group, CRN) rows                                            | ✅ Accepted; duplicates are silently de-duplicated                                               |
-| V6  | A CRN is not in courses.csv                                                  | ❌ Upload rejected                                                                               |
+| V6  | A CRN is not in courses.csv, or has zero enrollment there (the scheduler drops zero-enrollment sections) | ❌ Upload rejected                                                   |
 | V7  | A group's combined enrollment exceeds the largest room in rooms.csv          | ⚠️ Warning only; the group is saved and reported in the upload response as `over_capacity_groups` |
-| V8  | The file is empty or is not a parseable CSV                                  | ❌ Upload rejected                                                                               |
+| V8  | The file is empty, has no groups (header only), or is not a parseable CSV    | ❌ Upload rejected                                                                               |
+| V9  | Two group labels differ only in capitalization or spacing (e.g. `MATH Final` / `math final`) | ❌ Upload rejected (likely a typo)                                               |
 
-Every problem found in the file is reported together. A rejected upload returns HTTP 400 `{"message": "File validation failed", "errors": {"common_exams": "<reason>"}}`, and nothing is stored. Over-capacity groups (V7) are saved but no room can hold them, so the scheduler reports them as unscheduled.
+Problems within the file itself (V2–V5, V8, V9) are reported together. Checks against courses.csv and rooms.csv (V6, V7) run only once every file passes its own checks. A rejected upload returns HTTP 400 `{"message": "File validation failed", "errors": {"common_exams": "<reason>"}}`, and nothing is stored. Over-capacity groups (V7) are saved but no room can hold them, so the scheduler reports them as unscheduled.
 
 Valid groups are stored in the `datasets.course_merges` JSONB column as `{group_label: [CRN, ...]}` (CRNs in order of first appearance), e.g., `{"MATH Common Final": ["11315", "11316"]}`. After upload they can still be viewed and edited through the existing merges API: `GET`, `POST`, and `DELETE /api/datasets/{dataset_id}/merges`.
 

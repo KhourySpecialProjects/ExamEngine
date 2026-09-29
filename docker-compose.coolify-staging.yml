@@ -39,10 +39,13 @@ services:
     restart: unless-stopped
 
   # S3-compatible object storage (MinIO). Free, no account or auth token required.
+  # MinIO deleted minio/minio + minio/mc from Docker Hub (Sept 2026) and stopped
+  # publishing community images, so we pull the last community build (amd64) from
+  # our own GHCR mirror, pinned by digest. Frozen/unpatched: replacement is EXENG-27.
   # The current s3.py boto3 client (custom endpoint_url) talks to it with no code changes.
   # Data persists in the `miniodata` volume across redeploys.
   minio:
-    image: minio/minio:latest
+    image: ghcr.io/khouryspecialprojects/minio:RELEASE.2025-09-07T16-13-09Z@sha256:a1a8bd4ac40ad7881a245bab97323e18f971e4d4cba2c2007ec1bedd21cbaba2
     command: server /data --console-address ":9001"
     environment:
       - MINIO_ROOT_USER=${MINIO_ROOT_USER:-minioadmin}
@@ -56,7 +59,7 @@ services:
 
   # One-shot: wait for MinIO, create the bucket the app expects, then exit.
   minio-init:
-    image: minio/mc:latest
+    image: ghcr.io/khouryspecialprojects/minio-mc:RELEASE.2025-08-13T08-35-41Z@sha256:eb4ea9884b77704230e2423e9004d2fa738dc272876b9cc41a297d29443b8780
     environment:
       - MINIO_ROOT_USER=${MINIO_ROOT_USER:-minioadmin}
       - MINIO_ROOT_PASSWORD=${MINIO_ROOT_PASSWORD:-minioadmin}

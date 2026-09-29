@@ -1,5 +1,4 @@
 import asyncio
-import io
 import uuid
 from datetime import datetime
 from typing import Any
@@ -14,7 +13,11 @@ from src.core.exceptions import (
     StorageError,
     ValidationError,
 )
-from src.domain.adapters import CommonExamAdapter, CSVSchemaDetector
+from src.domain.adapters import (
+    CommonExamAdapter,
+    CSVSchemaDetector,
+    read_upload_csv,
+)
 from src.domain.adapters.schemas import clean_crn
 from src.domain.exceptions import DataValidationError, SchemaDetectionError
 from src.repo.dataset import DatasetRepo
@@ -144,10 +147,7 @@ class DatasetService:
                     validation_errors[file_type] = "File is empty"
                     continue
 
-                if file_type == "common_exams":
-                    df = CommonExamAdapter.read_csv(content)
-                else:
-                    df = pd.read_csv(io.BytesIO(content))
+                df = read_upload_csv(content, file_type)
                 print(df.head())
 
                 missing_cols = validate_csv_schema(df, file_type)
@@ -201,7 +201,7 @@ class DatasetService:
         contents = validated_files["contents"]
 
         def read(file_type: str) -> pd.DataFrame:
-            return pd.read_csv(io.BytesIO(contents[file_type]))
+            return read_upload_csv(contents[file_type], file_type)
 
         merges = CommonExamAdapter.from_dataframe(
             CommonExamAdapter.read_csv(contents["common_exams"])
@@ -539,7 +539,7 @@ class DatasetService:
             )
 
         try:
-            df = await asyncio.to_thread(pd.read_csv, io.BytesIO(content))
+            df = await asyncio.to_thread(read_upload_csv, content, file_type)
             return file_type, df
         except Exception as e:
             raise ValidationError(

@@ -4,6 +4,7 @@ from .csv_adapters import (
     EnrollmentAdapter,
     RoomAdapter,
     RoomBlockoutAdapter,
+    read_upload_csv,
 )
 from .schemas_detector import CSVSchemaDetector
 
@@ -15,4 +16,5 @@ __all__ = [
     "RoomAdapter",
     "RoomBlockoutAdapter",
     "CSVSchemaDetector",
+    "read_upload_csv",
 ]

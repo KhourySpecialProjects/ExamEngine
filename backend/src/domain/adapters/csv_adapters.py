@@ -6,7 +6,7 @@ import pandas as pd
 from src.domain.exceptions import DataValidationError
 from src.domain.models import Course, Enrollment, Room
 
-from .schemas import validate_non_empty_string
+from .schemas import ColumnType, get_schema, validate_non_empty_string
 from .schemas_detector import CSVSchemaDetector
 
 
@@ -207,6 +207,44 @@ def _has_fraction(value: object) -> bool:
     except ValueError:
         return False
     return math.isfinite(number) and not number.is_integer()
+
+
+def read_upload_csv(content: bytes, file_type: str) -> pd.DataFrame:
+    """
+    Parse uploaded CSV bytes, keeping text columns as text.
+
+    Columns the schema declares as strings (student IDs, CRNs, names, ...) are
+    read verbatim so identifiers like "001234567" keep their leading zeros.
+    Other columns (enrollment, capacity, day/block) are still type-inferred.
+    Common exam files are read fully as text via `CommonExamAdapter.read_csv`.
+
+    Args:
+        content: Raw CSV bytes
+        file_type: One of the keys in SCHEMA_REGISTRY (e.g. "enrollments")
+
+    Returns:
+        Parsed DataFrame with the file's original column names
+    """
+    if file_type == "common_exams":
+        return CommonExamAdapter.read_csv(content)
+
+    schema_class = get_schema(file_type)
+    if schema_class is None:
+        return pd.read_csv(io.BytesIO(content))
+
+    string_defs = [
+        col_def
+        for version in schema_class.get_all_versions()
+        for col_def in version
+        if col_def.data_type is ColumnType.STRING
+    ]
+    header = pd.read_csv(io.BytesIO(content), nrows=0).columns
+    text_columns = {
+        column: str
+        for column in header
+        if any(col_def.matches(str(column)) for col_def in string_defs)
+    }
+    return pd.read_csv(io.BytesIO(content), dtype=text_columns or None)
 
 
 class CourseAdapter:

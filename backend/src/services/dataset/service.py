@@ -144,7 +144,10 @@ class DatasetService:
                     validation_errors[file_type] = "File is empty"
                     continue
 
-                df = pd.read_csv(io.BytesIO(content))
+                if file_type == "common_exams":
+                    df = CommonExamAdapter.read_csv(content)
+                else:
+                    df = pd.read_csv(io.BytesIO(content))
                 print(df.head())
 
                 missing_cols = validate_csv_schema(df, file_type)
@@ -200,7 +203,9 @@ class DatasetService:
         def read(file_type: str) -> pd.DataFrame:
             return pd.read_csv(io.BytesIO(contents[file_type]))
 
-        merges = CommonExamAdapter.from_dataframe(read("common_exams"))
+        merges = CommonExamAdapter.from_dataframe(
+            CommonExamAdapter.read_csv(contents["common_exams"])
+        )
 
         # Match what the scheduler sees: zero-enrollment courses are dropped.
         raw_courses_df = read("courses")
@@ -219,7 +224,10 @@ class DatasetService:
             if canonical == "Course_Reference_Number"
         )
         dropped_df = raw_courses_df.drop(index=courses_df.index)
-        zero_enrollment_crns = {clean_crn(v) for v in dropped_df[crn_col]}
+        # A CRN repeated with a nonzero row is still a real course.
+        zero_enrollment_crns = {clean_crn(v) for v in dropped_df[crn_col]} - (
+            allowed_crns or set()
+        )
 
         try:
             scheduling_dataset = DatasetFactory.from_dataframes_to_scheduling_dataset(

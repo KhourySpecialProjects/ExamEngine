@@ -155,6 +155,15 @@ async def test_over_capacity_group_is_saved_with_warning(repo, storage):
     ]
 
 
+async def test_numeric_looking_group_labels_are_saved_verbatim(repo, storage):
+    await _upload(repo, b"ExamGroup,CRN\n01,1001\n01,1002\n1,1003\n1,1004\n")
+
+    assert repo.created[0].course_merges == {
+        "01": ["1001", "1002"],
+        "1": ["1003", "1004"],
+    }
+
+
 async def test_zero_enrollment_course_does_not_block_validation(repo, storage):
     courses = COURSES_CSV + b"1005,ART 1000,0\n"
 

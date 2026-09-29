@@ -66,6 +66,14 @@ export function Uploader() {
         id: uploadToast,
         description: `${result.dataset_name} uploaded with ${result.files.courses.rows} courses`,
       });
+      const overCapacityGroups =
+        result.files.common_exams?.over_capacity_groups ?? [];
+      if (overCapacityGroups.length > 0) {
+        const groupNames = overCapacityGroups.map((g) => g.group).join(", ");
+        toast.warning("Some common exams exceed room capacity", {
+          description: `${groupNames}: combined enrollment exceeds the largest room, so these will be left unscheduled.`,
+        });
+      }
       selectDataset(result.dataset_id);
     } catch (error) {
       const errorMessage =
@@ -111,7 +119,7 @@ export function Uploader() {
           <DialogTitle>Upload Dataset</DialogTitle>
           <DialogDescription>
             Upload three required CSV files: courses, enrollments, and rooms.
-            Optionally include a room blockouts file.
+            Optionally include room blockouts and common exams files.
           </DialogDescription>
         </DialogHeader>
 

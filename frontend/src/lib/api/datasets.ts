@@ -17,6 +17,7 @@ export class DatasetsAPI extends BaseAPI {
       enrollments: File;
       rooms: File;
       room_blockouts?: File;
+      common_exams?: File;
     },
   ): Promise<DatasetMetadata> {
     const formData = new FormData();
@@ -25,6 +26,9 @@ export class DatasetsAPI extends BaseAPI {
     formData.append("rooms", files.rooms);
     if (files.room_blockouts) {
       formData.append("room_blockouts", files.room_blockouts);
+    }
+    if (files.common_exams) {
+      formData.append("common_exams", files.common_exams);
     }
     if (datasetName?.trim()) {
       formData.append("dataset_name", datasetName.trim());

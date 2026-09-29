@@ -35,6 +35,13 @@ const INITIAL_SLOTS: FileSlot[] = [
     file: null,
     optional: true,
   },
+  {
+    id: "common_exams",
+    label: "Common Exams",
+    description: "Optional — Upload CSV with: ExamGroup, CRN",
+    file: null,
+    optional: true,
+  },
 ];
 
 export const useUploadStore = create<UploadState>((set, get) => ({
@@ -123,6 +130,7 @@ export const useUploadStore = create<UploadState>((set, get) => ({
       const enrollmentsSlot = state.slots.find((s) => s.id === "enrollments");
       const roomsSlot = state.slots.find((s) => s.id === "rooms");
       const blockoutsSlot = state.slots.find((s) => s.id === "room_blockouts");
+      const commonExamsSlot = state.slots.find((s) => s.id === "common_exams");
 
       if (!coursesSlot?.file || !enrollmentsSlot?.file || !roomsSlot?.file) {
         throw new Error("Missing required files");
@@ -135,6 +143,9 @@ export const useUploadStore = create<UploadState>((set, get) => ({
         rooms: roomsSlot.file.file,
         ...(blockoutsSlot?.file
           ? { room_blockouts: blockoutsSlot.file.file }
+          : {}),
+        ...(commonExamsSlot?.file
+          ? { common_exams: commonExamsSlot.file.file }
           : {}),
       });
 
@@ -157,6 +168,11 @@ export const useUploadStore = create<UploadState>((set, get) => ({
       if (blockoutsSlot?.file) {
         get().updateSlotStatus("room_blockouts", "success", {
           rowCount: result.files.room_blockouts?.rows,
+        });
+      }
+      if (commonExamsSlot?.file) {
+        get().updateSlotStatus("common_exams", "success", {
+          rowCount: result.files.common_exams?.rows,
         });
       }
 

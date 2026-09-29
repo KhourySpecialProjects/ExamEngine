@@ -1,3 +1,6 @@
+import io
+import math
+
 import pandas as pd
 
 from src.domain.exceptions import DataValidationError
@@ -71,24 +74,43 @@ class CommonExamAdapter:
     """Converts common exam CSV to a dict mapping exam group to its CRNs."""
 
     @staticmethod
+    def read_csv(content: bytes) -> pd.DataFrame:
+        """
+        Parse common exam CSV bytes without type inference.
+
+        Every cell stays a string, so group labels like "01" and "1" remain
+        distinct and CRNs keep their original text. Blank lines are kept so
+        reported row numbers match the file's line numbers.
+        """
+        return pd.read_csv(
+            io.BytesIO(content),
+            dtype=str,
+            keep_default_na=False,
+            skip_blank_lines=False,
+        )
+
+    @staticmethod
     def from_dataframe(df: pd.DataFrame) -> dict[str, list[str]]:
         """
         Convert common exam DataFrame to dict of group label -> list of CRNs.
 
-        Exact duplicate (group, CRN) rows are ignored. CRNs within a group keep
-        their order of first appearance.
+        Fully blank rows and exact duplicate (group, CRN) rows are ignored. CRNs
+        within a group keep their order of first appearance.
 
         Args:
-            df: Common exam data from CSV (one row per group/CRN pair)
+            df: Common exam data from CSV (one row per group/CRN pair), ideally
+                parsed with `read_csv` so labels and row numbers are exact
 
         Returns:
             Dict mapping exam group label to the CRNs that share one exam
 
         Raises:
             SchemaDetectionError: If CSV format is unknown
-            DataValidationError: If any row has a blank group or CRN, a CRN is in
-                more than one group, or a group has fewer than 2 distinct CRNs.
-                The message lists every problem found.
+            DataValidationError: If the file has no groups, a row has a blank
+                group or a blank/non-whole-number CRN, a CRN is in more than one
+                group, a group has fewer than 2 distinct CRNs, or two group labels
+                differ only in capitalization/spacing. The message lists every
+                problem found.
         """
         schema, column_mapping = CSVSchemaDetector.detect_schema_version(
             df, "common_exams"
@@ -96,6 +118,7 @@ class CommonExamAdapter:
 
         col_defs = {cd.canonical_name: cd for cd in schema}
         df_normalized = df.rename(columns=column_mapping)
+        raw_crns = df_normalized["Course_Reference_Number"].copy()
 
         for canonical_name, col_def in col_defs.items():
             if canonical_name in df_normalized.columns and col_def.transformer:
@@ -108,21 +131,32 @@ class CommonExamAdapter:
         crn_groups: dict[str, list[str]] = {}
 
         # Row numbers match spreadsheet lines: header is line 1.
-        for position, (group, crn) in enumerate(
+        for position, (group, crn, raw_crn) in enumerate(
             zip(
                 df_normalized["Exam_Group"],
                 df_normalized["Course_Reference_Number"],
+                raw_crns,
                 strict=True,
             )
         ):
+            row_number = position + 2
+            has_group = validate_non_empty_string(group)
+            has_crn = validate_non_empty_string(crn)
+            if not has_group and not has_crn:
+                continue  # blank line
             missing = []
-            if not validate_non_empty_string(group):
+            if not has_group:
                 missing.append("exam group")
-            if not validate_non_empty_string(crn):
+            if not has_crn:
                 missing.append("CRN")
             if missing:
-                row_number = position + 2
                 problems.append(f"row {row_number}: missing {' and '.join(missing)}")
+                continue
+            if _has_fraction(raw_crn):
+                problems.append(
+                    f"row {row_number}: CRN '{str(raw_crn).strip()}' is not a whole "
+                    "number"
+                )
                 continue
 
             crns = merges.setdefault(group, [])
@@ -133,6 +167,17 @@ class CommonExamAdapter:
             groups = crn_groups.setdefault(crn, [])
             if group not in groups:
                 groups.append(group)
+
+        labels_by_key: dict[str, list[str]] = {}
+        for group in merges:
+            key = " ".join(group.split()).casefold()
+            labels_by_key.setdefault(key, []).append(group)
+        for labels in labels_by_key.values():
+            if len(labels) > 1:
+                listed = ", ".join(f"'{g}'" for g in labels)
+                problems.append(
+                    f"exam groups {listed} differ only in capitalization or spacing"
+                )
 
         for crn, groups in crn_groups.items():
             if len(groups) > 1:
@@ -146,10 +191,22 @@ class CommonExamAdapter:
                     f"(found {len(crns)})"
                 )
 
+        if not merges and not problems:
+            problems.append("no exam groups found")
+
         if problems:
             raise DataValidationError("; ".join(problems))
 
         return merges
+
+
+def _has_fraction(value: object) -> bool:
+    """True if value is a number with a non-zero fractional part (e.g. 11316.9)."""
+    try:
+        number = float(str(value).strip())
+    except ValueError:
+        return False
+    return math.isfinite(number) and not number.is_integer()
 
 
 class CourseAdapter:

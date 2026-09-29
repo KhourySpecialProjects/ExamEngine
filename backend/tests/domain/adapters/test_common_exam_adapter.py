@@ -160,3 +160,52 @@ class TestCommonExamAdapter:
         assert problems[0] == "row 4: missing exam group"
         assert "CRN 101" in problems[1]
         assert "'Solo'" in problems[2]
+
+    def test_fractional_crn_rejected_not_truncated(self):
+        df = pd.DataFrame({"ExamGroup": ["A", "A"], "CRN": ["11315", "11316.9"]})
+        with pytest.raises(DataValidationError) as exc_info:
+            CommonExamAdapter.from_dataframe(df)
+        assert "row 3: CRN '11316.9' is not a whole number" in str(exc_info.value)
+
+    def test_labels_differing_only_in_case_or_spacing_rejected(self):
+        df = pd.DataFrame(
+            {
+                "ExamGroup": ["MATH Final", "MATH Final", "math  final", "math  final"],
+                "CRN": ["100", "101", "102", "103"],
+            }
+        )
+        with pytest.raises(DataValidationError) as exc_info:
+            CommonExamAdapter.from_dataframe(df)
+        message = str(exc_info.value)
+        assert "'MATH Final'" in message and "'math  final'" in message
+        assert "differ only in capitalization or spacing" in message
+
+    def test_file_with_no_groups_rejected(self):
+        df = pd.DataFrame({"ExamGroup": [], "CRN": []})
+        with pytest.raises(DataValidationError, match="no exam groups found"):
+            CommonExamAdapter.from_dataframe(df)
+
+
+class TestCommonExamReadCsv:
+    """Tests for parsing raw CSV bytes with CommonExamAdapter.read_csv()."""
+
+    def test_numeric_looking_labels_stay_distinct(self):
+        df = CommonExamAdapter.read_csv(
+            b"ExamGroup,CRN\n01,100\n01,101\n1,102\n1,103\n"
+        )
+        assert CommonExamAdapter.from_dataframe(df) == {
+            "01": ["100", "101"],
+            "1": ["102", "103"],
+        }
+
+    def test_blank_lines_ignored_and_row_numbers_match_file_lines(self):
+        df = CommonExamAdapter.read_csv(b"ExamGroup,CRN\nA,100\n\nA,\nA,101\n\n")
+        with pytest.raises(DataValidationError) as exc_info:
+            CommonExamAdapter.from_dataframe(df)
+        assert str(exc_info.value) == "row 4: missing CRN"
+
+    def test_excel_bom_and_crlf(self):
+        df = CommonExamAdapter.read_csv(
+            b"\xef\xbb\xbfExamGroup,CRN\r\nA,100\r\nA,101\r\n"
+        )
+        assert CommonExamAdapter.from_dataframe(df) == {"A": ["100", "101"]}

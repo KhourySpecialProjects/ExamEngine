@@ -94,7 +94,13 @@ export class BaseAPI {
           }
         }
 
-        throw new Error(error.detail || error.message || JSON.stringify(error));
+        // Object details (e.g. {message, errors}) are passed on as JSON so
+        // callers can parse them; String() would yield "[object Object]".
+        const detail =
+          error.detail && typeof error.detail === "object"
+            ? JSON.stringify(error.detail)
+            : error.detail;
+        throw new Error(detail || error.message || JSON.stringify(error));
       }
 
       if (response.status === 204) return {} as T;

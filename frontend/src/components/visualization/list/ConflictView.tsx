@@ -17,7 +17,11 @@ import {
   getIconForType,
   PAGE_SIZE,
 } from "@/lib/hooks/useConflictData";
-import { useConflictDataSimple } from "@/lib/hooks/useConflictDataSimple";
+import {
+  type ConflictRow,
+  isPersonConflictType,
+  useConflictDataSimple,
+} from "@/lib/hooks/useConflictDataSimple";
 import type { ConflictMetrics } from "@/lib/types/conflict.types";
 
 // Legend: conflict type definitions
@@ -44,14 +48,15 @@ function ConflictDefinitions() {
   );
 }
 
-// Paginated table for a conflict tab
+// Paginated table for a conflict tab. Person-based tabs have one row per
+// student/instructor listing all of their conflicting exams.
 function ConflictTable({
   rowsForActive,
   activeTabId,
   page,
   setPageForTab,
 }: {
-  rowsForActive: any[];
+  rowsForActive: ConflictRow[];
   activeTabId: string;
   page: number;
   setPageForTab: (tab: string, p: number) => void;
@@ -60,132 +65,88 @@ function ConflictTable({
   const start = page * PAGE_SIZE;
   const end = Math.min(rowsForActive.length, start + PAGE_SIZE);
 
-  const has = {
-    entity: rowsForActive.some(
-      (r: any) => r.entity != null && String(r.entity).trim() !== "",
-    ),
-    day: rowsForActive.some(
-      (r: any) => r.day != null && String(r.day).trim() !== "",
-    ),
-    block: rowsForActive.some((r: any) =>
-      Array.isArray(r.blocks)
-        ? r.blocks.length > 0
-        : r.block != null && String(r.block).trim() !== "",
-    ),
-    course: rowsForActive.some(
-      (r: any) => r.course != null && String(r.course).trim() !== "",
-    ),
-    crn: rowsForActive.some(
-      (r: any) => r.crn != null && String(r.crn).trim() !== "",
-    ),
-    conflicting_courses: rowsForActive.some((r: any) =>
-      Array.isArray(r.conflicting_courses)
-        ? r.conflicting_courses.length > 0
-        : r.conflicting_courses != null &&
-          String(r.conflicting_courses).trim() !== "",
-    ),
-    size: rowsForActive.some(
-      (r: any) => r.size != null && String(r.size).trim() !== "",
-    ),
-  };
-
-  // Helper function to format block display with times
-  const formatBlockDisplay = (row: any): string => {
-    // For back-to-back conflicts, show times if available
-    if (Array.isArray(row.blocks) && row.blocks.length > 0) {
-      if (Array.isArray(row.block_times) && row.block_times.length > 0) {
-        // Show times for each block: "Time1, Time2"
-        return row.block_times.join(", ");
-      }
-      // Fallback: show block numbers if times not available
-      return row.blocks.join(", ");
-    }
-    // For single block conflicts, show block_time if available
-    if (row.block_time) {
-      return row.block_time;
-    }
-    // Fallback: show block number
-    return row.block?.toString() || "—";
-  };
-
-  if (activeTabId === "large_course_not_early") {
-    has.block = false;
-    has.conflicting_courses = false;
-  }
-
   const isInstructorConflict =
     activeTabId === "back_to_back_instructor" ||
     activeTabId === "instructor_double_book" ||
     activeTabId === "instructor_gt_max_per_day";
+  const isPersonTab = isPersonConflictType(activeTabId);
 
-  const columns: Array<{ key: string; label: string }> = [];
-  if (has.entity)
-    columns.push({
-      key: "entity",
-      label: isInstructorConflict ? "Instructor" : "NUId",
-    });
-  if (has.day) columns.push({ key: "day", label: "Day" });
-  if (has.block) {
-    // For back-to-back conflicts, change label to show it's times
-    const isBackToBack =
-      activeTabId === "back_to_back" ||
-      activeTabId === "back_to_back_student" ||
-      activeTabId === "back_to_back_instructor";
-    columns.push({ key: "block", label: isBackToBack ? "Time" : "Block" });
-  }
-  if (has.course) columns.push({ key: "course", label: "Course" });
-  if (has.crn) columns.push({ key: "crn", label: "CRN" });
-  if (has.size) columns.push({ key: "size", label: "Size" });
-  if (has.conflicting_courses)
-    columns.push({
-      key: "conflicting_courses",
-      label: "Conflicting Courses",
-    });
+  const recordColumns = (
+    [
+      { key: "entity", label: isInstructorConflict ? "Instructor" : "NUId" },
+      { key: "day", label: "Day" },
+      { key: "block", label: "Block" },
+      { key: "course", label: "Course" },
+      { key: "crn", label: "CRN" },
+      { key: "size", label: "Size" },
+    ] as const
+  ).filter(
+    (c) =>
+      !(activeTabId === "large_course_not_early" && c.key === "block") &&
+      rowsForActive.some(
+        (r) =>
+          r.kind === "record" &&
+          r[c.key] != null &&
+          String(r[c.key]).trim() !== "",
+      ),
+  );
+
+  const headers = isPersonTab
+    ? [
+        isInstructorConflict ? "Instructor" : "NUId",
+        "Conflicts",
+        "Conflicting exams",
+      ]
+    : recordColumns.map((c) => c.label);
 
   return (
     <>
       <table className="w-full table-auto text-sm">
         <thead>
           <tr className="text-left text-muted-foreground">
-            {columns.map((c) => (
-              <th key={c.key} className="px-2 py-2">
-                {c.label}
+            {headers.map((label) => (
+              <th key={label} className="px-2 py-2">
+                {label}
               </th>
             ))}
           </tr>
         </thead>
         <tbody>
-          {rowsForActive.slice(start, end).map((r: any, i: number) => (
-            // biome-ignore lint/suspicious/noArrayIndexKey: temporary key usage
-            <tr key={i} className="border-t">
-              {columns.map((c) => {
-                const key = c.key;
-                let cell: any = "—";
-                if (key === "entity") {
-                  // For instructor conflicts, prefer instructor_name if available
-                  if (isInstructorConflict && r.instructor_name) {
-                    cell = r.instructor_name;
-                  } else {
-                    cell = r.entity ?? r.student ?? r.instructor_name ?? "—";
-                  }
-                } else if (key === "day") cell = r.day ?? "—";
-                else if (key === "block") {
-                  // Use the helper function to format block display with times
-                  cell = formatBlockDisplay(r);
-                } else if (key === "course") cell = r.course ?? "—";
-                else if (key === "crn") cell = r.crn ?? "—";
-                else if (key === "conflicting_courses")
-                  cell = (r.conflicting_courses || []).join
-                    ? (r.conflicting_courses || []).join(", ")
-                    : String(r.conflicting_courses ?? "—");
-                else if (key === "size") cell = r.size ?? "—";
-
-                return (
-                  <td key={key} className="px-2 py-2">
-                    {cell}
+          {rowsForActive.slice(start, end).map((r) => (
+            <tr key={r.id} className="border-t align-top">
+              {r.kind === "person" ? (
+                <>
+                  <td className="px-2 py-2">{r.entity || "—"}</td>
+                  <td className="px-2 py-2">{r.conflictCount}</td>
+                  <td className="px-2 py-2">
+                    <ul className="space-y-0.5">
+                      {r.instances.map((inst) => {
+                        const when = [inst.day, inst.time]
+                          .filter(Boolean)
+                          .join(" ");
+                        const exams = inst.courses
+                          .map((c) =>
+                            c.course && c.crn
+                              ? `${c.course} (${c.crn})`
+                              : c.course || c.crn,
+                          )
+                          .join(", ");
+                        return (
+                          <li key={`${inst.day}|${inst.time}`}>
+                            {exams ? `${when || "—"}: ${exams}` : when || "—"}
+                          </li>
+                        );
+                      })}
+                    </ul>
                   </td>
-                );
-              })}
+                </>
+              ) : (
+                recordColumns.map((c) => (
+                  <td key={c.key} className="px-2 py-2">
+                    {r[c.key] || "—"}
+                  </td>
+                ))
+              )}
             </tr>
           ))}
         </tbody>
@@ -195,6 +156,7 @@ function ConflictTable({
         <div className="text-sm text-muted-foreground">
           Showing {rowsForActive.length === 0 ? 0 : start + 1}-{end} of{" "}
           {rowsForActive.length}
+          {isPersonTab && (isInstructorConflict ? " instructors" : " students")}
         </div>
         <div className="flex gap-2">
           <Button
@@ -231,7 +193,9 @@ export default function ConflictView({
     rowsByType,
     types,
   } = useConflictDataSimple();
-  const conflictTypeRows: Record<string, any[]> = { ...(rowsByType || {}) };
+  const conflictTypeRows: Record<string, ConflictRow[]> = {
+    ...(rowsByType || {}),
+  };
 
   // Prefer backend-provided metrics when available
   const finalMerged = {
@@ -270,14 +234,14 @@ export default function ConflictView({
     {
       label: "Student Back-to-Back",
       value: finalMerged.students_back_to_back,
-      subtitle: "Consecutive exams without breaks",
+      subtitle: "Students with back-to-back exams",
       icon: <Clock className="h-4 w-4" />,
       variant: finalMerged.students_back_to_back > 0 ? "warning" : "success",
     },
     {
       label: "Instructor Back-to-Back",
       value: finalMerged.instructors_back_to_back,
-      subtitle: "Consecutive proctoring duties",
+      subtitle: "Instructors with back-to-back exams",
       icon: <GraduationCap className="h-4 w-4" />,
       variant: finalMerged.instructors_back_to_back > 0 ? "warning" : "success",
     },

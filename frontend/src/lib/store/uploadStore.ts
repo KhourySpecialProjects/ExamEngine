@@ -178,11 +178,24 @@ export const useUploadStore = create<UploadState>((set, get) => ({
 
       return result;
     } catch (error) {
-      // Mark all uploading files as error
-      state.slots.forEach((slot) => {
+      // Mark all uploading files as error. Read fresh state: the `state`
+      // snapshot above predates the switch to "uploading".
+      const message = error instanceof Error ? error.message : "Upload failed";
+      let fileErrors: Record<string, string> = {};
+      try {
+        fileErrors = JSON.parse(message).errors ?? {};
+      } catch {
+        // Not a structured validation error; use the message as-is.
+      }
+      const hasFileErrors = Object.keys(fileErrors).length > 0;
+      get().slots.forEach((slot) => {
         if (slot.file?.status === "uploading") {
           get().updateSlotStatus(slot.id, "error", {
-            error: error instanceof Error ? error.message : "Upload failed",
+            error:
+              fileErrors[slot.id] ??
+              (hasFileErrors
+                ? "Not uploaded: another file failed validation"
+                : message),
           });
         }
       });

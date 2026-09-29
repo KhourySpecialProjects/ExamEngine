@@ -113,8 +113,17 @@ function ConflictTable({
     has.conflicting_courses = false;
   }
 
+  const isInstructorConflict =
+    activeTabId === "back_to_back_instructor" ||
+    activeTabId === "instructor_double_book" ||
+    activeTabId === "instructor_gt_max_per_day";
+
   const columns: Array<{ key: string; label: string }> = [];
-  if (has.entity) columns.push({ key: "entity", label: "Entity" });
+  if (has.entity)
+    columns.push({
+      key: "entity",
+      label: isInstructorConflict ? "Instructor" : "NUId",
+    });
   if (has.day) columns.push({ key: "day", label: "Day" });
   if (has.block) {
     // For back-to-back conflicts, change label to show it's times
@@ -154,10 +163,6 @@ function ConflictTable({
                 let cell: any = "—";
                 if (key === "entity") {
                   // For instructor conflicts, prefer instructor_name if available
-                  const isInstructorConflict =
-                    activeTabId === "back_to_back_instructor" ||
-                    activeTabId === "instructor_double_book" ||
-                    activeTabId === "instructor_gt_max_per_day";
                   if (isInstructorConflict && r.instructor_name) {
                     cell = r.instructor_name;
                   } else {

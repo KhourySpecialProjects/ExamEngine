@@ -9,7 +9,7 @@ const faqs = [
   {
     question: "What files do I need to upload?",
     answer:
-      "You need three CSVs: courses (CRN, course_ref, num_students), enrollment (student_id, CRN, instructor_name), and classrooms (room_name, capacity). Upload them under Datasets in the dashboard.",
+      "You need three CSVs: courses (CRN, CourseID, num_students, and optionally instructor_name), enrollment (student_id, CRN), and classrooms (room_name, capacity). Upload them under Datasets in the dashboard.",
   },
   {
     question: "How are conflicts handled?",
@@ -39,7 +39,7 @@ const faqs = [
   {
     question: "What columns are required in each CSV?",
     answer:
-      "Courses: CRN, course_ref, num_students. Enrollment: student_id, CRN, instructor_name. Classrooms: room_name, capacity. Stick to these headers so validation passes.",
+      "Courses: CRN, CourseID, num_students, plus instructor_name (optional; without it a section is left out of instructor limits). Enrollment: student_id, CRN. Classrooms: room_name, capacity. Stick to these headers so validation passes.",
   },
   {
     question: "Can I reuse datasets across runs?",

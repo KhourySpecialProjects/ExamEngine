@@ -145,7 +145,8 @@ export function Uploader() {
           <DialogTitle>Upload Dataset</DialogTitle>
           <DialogDescription>
             Upload three required CSV files: courses, enrollments, and rooms.
-            Optionally include room blockouts and common exams files.
+            Optionally include room blockouts, combined exams, and common exams
+            files.
           </DialogDescription>
         </DialogHeader>
 

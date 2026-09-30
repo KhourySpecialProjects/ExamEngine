@@ -1,18 +1,18 @@
-import { render, screen } from "@testing-library/react";
-import {
-  beforeAll,
-  beforeEach,
-  describe,
-  expect,
-  it,
-  type Mock,
-  vi,
-} from "vitest";
+import { fireEvent, render, screen, within } from "@testing-library/react";
+import { beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
+import type { ConflictBreakdown, ScheduleExam } from "@/lib/api/schedules";
 import { useSchedulesStore } from "@/lib/store/schedulesStore";
 import { StatisticsView } from "./StatisticsView";
 
 vi.mock("@/lib/store/schedulesStore", () => ({
   useSchedulesStore: vi.fn(),
+}));
+// Group hooks fetch from the API; these tests have no groups.
+vi.mock("@/lib/hooks/useCourseMerges", () => ({
+  useCourseMerges: () => ({ merges: {}, isMerged: () => false }),
+}));
+vi.mock("@/lib/hooks/useCommonExams", () => ({
+  useCommonExams: () => ({ commonGroups: {}, isCommon: () => false }),
 }));
 
 beforeAll(() => {
@@ -23,206 +23,127 @@ beforeAll(() => {
   };
 });
 
+const exam = (
+  crn: string,
+  day: string,
+  room: string,
+  size = 30,
+  capacity = 40,
+): ScheduleExam => ({
+  CRN: crn,
+  Course: `CS ${crn}`,
+  Day: day,
+  Block: day ? "9AM-11AM" : "",
+  Room: room,
+  Capacity: room ? capacity : 0,
+  Size: size,
+  Valid: true,
+});
+
+function mockSchedule(
+  complete: ScheduleExam[] | null,
+  breakdown: ConflictBreakdown[] = [],
+) {
+  const currentSchedule = complete && {
+    dataset_id: "d1",
+    schedule: { complete, calendar: {}, total_exams: complete.length },
+    conflicts: { total: breakdown.length, details: {}, breakdown },
+  };
+  const state = { currentSchedule } as unknown as Parameters<
+    Parameters<typeof useSchedulesStore>[0]
+  >[0];
+  vi.mocked(useSchedulesStore).mockImplementation((selector) =>
+    selector(state),
+  );
+}
+
+const problems = () =>
+  screen.getByRole("heading", { name: "Needs attention" })
+    .parentElement as HTMLElement;
+
 describe("StatisticsView", () => {
-  beforeEach(() => {
-    vi.clearAllMocks();
-  });
+  beforeEach(() => vi.clearAllMocks());
 
-  it("renders placeholder when currentSchedule is null", () => {
-    (useSchedulesStore as any).mockReturnValue(null);
-
+  it("asks for a schedule when there is none", () => {
+    mockSchedule(null);
     render(<StatisticsView />);
 
-    expect(screen.getByText("Statistics Dashboard")).toBeDefined();
     expect(
       screen.getByText("Generate a schedule to view statistics"),
-    ).toBeDefined();
+    ).toBeTruthy();
   });
 
-  it("renders statistics overview when schedule exists", () => {
-    (useSchedulesStore as any).mockReturnValue({
-      schedule: {
-        complete: [
-          { Day: "Monday", Block: "1", Size: 30, Capacity: 40 },
-          { Day: "Monday", Block: "2", Size: 20, Capacity: 20 },
-        ],
-        total_exams: 2,
-      },
-      summary: {
-        real_conflicts: 1,
-        num_students: 200,
-        num_rooms: 15,
-        slots_used: 5,
-        num_classes: 2,
-      },
-      conflicts: {
-        total: 0,
-        breakdown: [
-          {
-            conflict_type: "student_double_book",
-            entity_id: "S123",
-            day: "Monday",
-            block_time: "8:00",
-            course: "CS2000",
-            conflicting_course: "CS3000",
-            crn: "11111",
-            conflicting_crn: "22222",
-          },
-        ],
-      },
-      currentSchedule: {
-        schedule: {
-          complete: [
-            { Day: "Monday", Block: "1", Size: 30, Capacity: 40 },
-            { Day: "Monday", Block: "2", Size: 20, Capacity: 20 },
-          ],
-          total_exams: 2,
-        },
-        summary: {
-          real_conflicts: 1,
-          num_students: 200,
-          num_rooms: 15,
-          slots_used: 5,
-          num_classes: 2,
-        },
-        conflicts: {
-          total: 0,
-          breakdown: [
-            {
-              conflict_type: "student_double_book",
-              entity_id: "S123",
-              day: "Monday",
-              block_time: "8:00",
-              course: "CS2000",
-              conflicting_course: "CS3000",
-              crn: "11111",
-              conflicting_crn: "22222",
-            },
-          ],
-        },
-      },
-    });
-
+  it("says nothing needs attention when every exam is placed and there are no hard conflicts", () => {
+    mockSchedule([exam("1", "Monday", "A"), exam("2", "Tuesday", "B")]);
     render(<StatisticsView />);
 
-    expect(screen.getByText("Statistics View")).toBeDefined();
-    expect(screen.getByText("Total Exams")).toBeDefined();
-    expect(screen.getAllByText("2")).toBeDefined();
-    expect(screen.getByText("Conflicts")).toBeDefined();
-    expect(screen.getByText("1")).toBeDefined();
+    expect(within(problems()).queryAllByRole("region")).toEqual([]);
+    expect(problems().textContent).toContain(
+      "Every exam has a time and a room that fits",
+    );
   });
 
-  it("shows 'No exam data available' when studentsPerDayData is empty", () => {
-    (useSchedulesStore as unknown as Mock).mockReturnValue({
-      schedule: {
-        complete: [],
-        total_exams: 20,
-      },
-      summary: {
-        real_conflicts: 3,
-        num_students: 200,
-        num_rooms: 15,
-        slots_used: 5,
-        num_classes: 2,
-      },
-      conflicts: {
-        total: 0,
-        breakdown: [
-          {
-            conflict_type: "student_double_book",
-            entity_id: "S123",
-            day: "Monday",
-            block_time: "8:00",
-            course: "CS2000",
-            conflicting_course: "CS3000",
-            crn: "11111",
-            conflicting_crn: "22222",
-          },
-        ],
-      },
-      currentSchedule: {
-        schedule: {
-          complete: [],
-          total_exams: 20,
-        },
-        summary: {
-          real_conflicts: 3,
-          num_students: 200,
-          num_rooms: 15,
-          slots_used: 5,
-          num_classes: 2,
-        },
-        conflicts: {
-          total: 0,
-          breakdown: [
-            {
-              conflict_type: "student_double_book",
-              entity_id: "S123",
-              day: "Monday",
-              block_time: "8:00",
-              course: "CS2000",
-              conflicting_course: "CS3000",
-              crn: "11111",
-              conflicting_crn: "22222",
-            },
-          ],
-        },
-      },
-    });
-
+  it("lists problems before the overview: unscheduled, unroomed and over-capacity exams", () => {
+    mockSchedule([
+      exam("1", "Monday", "A"),
+      exam("2", "", ""),
+      exam("3", "Monday", ""),
+      exam("4", "Tuesday", "B", 419, 400),
+    ]);
     render(<StatisticsView />);
 
-    expect(screen.getByText("No exam data available")).toBeDefined();
+    const cards = within(problems()).getAllByRole("region");
+    expect(cards.map((c) => c.getAttribute("aria-label"))).toEqual([
+      "Unscheduled exams",
+      "Exams without a room",
+      "Rooms over capacity",
+    ]);
+    expect(cards[2].textContent).toContain("419/400 in B");
+    const headings = screen
+      .getAllByRole("heading", { level: 2 })
+      .map((h) => h.textContent);
+    expect(headings.indexOf("Needs attention")).toBeLessThan(
+      headings.indexOf("Overview"),
+    );
   });
 
-  it("renders conflict placeholder when real_conflicts > 0 but breakdown is empty", () => {
-    (useSchedulesStore as any).mockReturnValue({
-      schedule: {
-        complete: [
-          { Day: "Monday", Block: "1", Size: 30, Capacity: 40 },
-          { Day: "Monday", Block: "2", Size: 20, Capacity: 20 },
-        ],
-        total_exams: 2,
-      },
-      summary: {
-        real_conflicts: 3,
-        num_students: 200,
-        num_rooms: 15,
-        slots_used: 5,
-        num_classes: 2,
-      },
-      conflicts: {
-        total: 0,
-        breakdown: [],
-      },
-      currentSchedule: {
-        schedule: {
-          complete: [
-            { Day: "Monday", Block: "1", Size: 30, Capacity: 40 },
-            { Day: "Monday", Block: "2", Size: 20, Capacity: 20 },
-          ],
-          total_exams: 2,
-        },
-        summary: {
-          real_conflicts: 3,
-          num_students: 200,
-          num_rooms: 15,
-          slots_used: 5,
-          num_classes: 2,
-        },
-        conflicts: {
-          total: 0,
-          breakdown: [],
-        },
-      },
+  it("counts people in hard conflicts like the Conflicts tab and links to it", () => {
+    const doubleBook = (student: string, crn: string): ConflictBreakdown => ({
+      conflict_type: "student_double_book",
+      entity_id: student,
+      day: "Monday",
+      block: 0,
+      block_time: "9AM-11AM",
+      crn,
+      course: `CS ${crn}`,
+      conflicting_crn: "9",
+      conflicting_course: "CS 9",
     });
+    // Two records for one student (3-way double-book) + one other student.
+    mockSchedule(
+      [exam("1", "Monday", "A")],
+      [doubleBook("001", "1"), doubleBook("001", "2"), doubleBook("002", "1")],
+    );
+    const onShowConflicts = vi.fn();
+    render(<StatisticsView onShowConflicts={onShowConflicts} />);
 
+    const card = within(problems()).getByRole("region", {
+      name: "Hard conflicts",
+    });
+    expect(card.textContent).toContain("Students double-booked2");
+    fireEvent.click(
+      within(card).getByRole("button", { name: "View conflicts" }),
+    );
+    expect(onShowConflicts).toHaveBeenCalledOnce();
+  });
+
+  it("reports exams scheduled out of all exams", () => {
+    mockSchedule([exam("1", "Monday", "A"), exam("2", "", "")]);
     render(<StatisticsView />);
 
-    expect(
-      screen.getByText(/Analytics and insights about your exam schedule/i),
-    ).toBeDefined();
-
-    expect(screen.getByText(/Statistics View/i)).toBeDefined();
+    const overview = screen.getByRole("heading", { name: "Overview" })
+      .parentElement as HTMLElement;
+    expect(overview.textContent).toContain("1 / 2");
+    expect(overview.textContent).toContain("50% have a day, time and room");
   });
 });

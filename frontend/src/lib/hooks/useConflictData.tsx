@@ -350,9 +350,9 @@ export function ConflictStat({
       )}
     >
       {/* Icon sits on the pill row so the title gets the full card width;
-          px-4 (not the Card default px-6) keeps titles on one line when seven
-          cards share a row. */}
-      <CardHeader className="flex flex-col gap-1.5 space-y-0 px-4 pb-2">
+          px-3 (not the Card default px-6) keeps titles on one line when all
+          seven cards share a row. */}
+      <CardHeader className="flex flex-col gap-1.5 space-y-0 px-3 pb-2">
         <CardTitle className="text-sm font-medium">{label}</CardTitle>
         <div className="flex w-full items-center justify-between gap-2">
           {audience && (
@@ -363,7 +363,7 @@ export function ConflictStat({
           {icon}
         </div>
       </CardHeader>
-      <CardContent className="px-4">
+      <CardContent className="px-3">
         <div
           className={cn(
             "text-3xl font-bold tracking-tight",

@@ -473,8 +473,7 @@ export default function ConflictView({
         </div>
       </div>
 
-      {/* Seven across only when each card is wide enough for a one-line title. */}
-      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4 min-[1500px]:grid-cols-7">
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-4 lg:grid-cols-7">
         {summaryCards.map((c) => (
           <ConflictStat
             key={`${c.audience} ${c.label}`}

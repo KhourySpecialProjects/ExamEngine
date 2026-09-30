@@ -1,24 +1,23 @@
 "use client";
 
-/// <reference types="react" />
-import { useState, useEffect } from "react";
-import { X, Plus, Trash2, AlertTriangle, GitMerge } from "lucide-react";
+import { AlertTriangle, GitMerge, Plus, Trash2, X } from "lucide-react";
+import { useCallback, useEffect, useState } from "react";
 import { toast } from "sonner";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
   DialogContent,
   DialogDescription,
+  DialogFooter,
   DialogHeader,
   DialogTitle,
   DialogTrigger,
-  DialogFooter,
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Alert, AlertDescription } from "@/components/ui/alert";
-import { useDatasetStore } from "@/lib/store/datasetStore";
 import { apiClient } from "@/lib/api/client";
+import { useDatasetStore } from "@/lib/store/datasetStore";
 
 interface MergeGroup {
   id: string;
@@ -33,13 +32,7 @@ interface MergeGroup {
   };
 }
 
-function CrnInputGroup({
-  groupId,
-  onAddCrn,
-}: {
-  groupId: string;
-  onAddCrn: (crn: string) => void;
-}) {
+function CrnInputGroup({ onAddCrn }: { onAddCrn: (crn: string) => void }) {
   const [inputValue, setInputValue] = useState("");
 
   const handleAdd = () => {
@@ -55,7 +48,9 @@ function CrnInputGroup({
       <Input
         placeholder="Enter CRN"
         value={inputValue}
-        onChange={(e: React.ChangeEvent<HTMLInputElement>) => setInputValue(e.target.value)}
+        onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
+          setInputValue(e.target.value)
+        }
         onKeyDown={(e: React.KeyboardEvent<HTMLInputElement>) => {
           if (e.key === "Enter") {
             e.preventDefault();
@@ -85,34 +80,34 @@ export function MergeCoursesDialog() {
     setMounted(true);
   }, []);
 
-  // Load existing merges when dialog opens
-  useEffect(() => {
-    if (open && selectedDatasetId) {
-      loadMerges();
-    }
-  }, [open, selectedDatasetId]);
-
-  const loadMerges = async () => {
-    if (!selectedDatasetId) return;
-    
+  const loadMerges = useCallback(async (datasetId: string) => {
     setIsLoading(true);
     try {
-      const merges = await apiClient.datasets.getCourseMerges(selectedDatasetId);
-      
+      const merges = await apiClient.datasets.getCourseMerges(datasetId);
+
       // Convert merges object to MergeGroup array
       const groups: MergeGroup[] = Object.entries(merges).map(([id, crns]) => ({
         id,
         crns: Array.isArray(crns) ? crns : [],
       }));
-      
-      setMergeGroups(groups.length > 0 ? groups : [{ id: "merge-1", crns: [] }]);
+
+      setMergeGroups(
+        groups.length > 0 ? groups : [{ id: "merge-1", crns: [] }],
+      );
     } catch (error) {
       console.error("Failed to load merges:", error);
       setMergeGroups([{ id: "merge-1", crns: [] }]);
     } finally {
       setIsLoading(false);
     }
-  };
+  }, []);
+
+  // Load existing merges when dialog opens
+  useEffect(() => {
+    if (open && selectedDatasetId) {
+      loadMerges(selectedDatasetId);
+    }
+  }, [open, selectedDatasetId, loadMerges]);
 
   const addMergeGroup = () => {
     const newId = `merge-${Date.now()}`;
@@ -125,7 +120,7 @@ export function MergeCoursesDialog() {
 
   const addCrnToGroup = (groupId: string, crn: string) => {
     if (!crn.trim()) return;
-    
+
     setMergeGroups(
       mergeGroups.map((group) => {
         if (group.id === groupId) {
@@ -174,9 +169,12 @@ export function MergeCoursesDialog() {
       );
     } catch (error) {
       console.error("Validation failed:", error);
-      const errorMessage = error instanceof Error ? error.message : "Failed to validate merge group";
+      const errorMessage =
+        error instanceof Error
+          ? error.message
+          : "Failed to validate merge group";
       toast.error(`Validation failed: ${errorMessage}`);
-      
+
       // Set error state on the group
       setMergeGroups(
         mergeGroups.map((group) => {
@@ -206,10 +204,10 @@ export function MergeCoursesDialog() {
       try {
         setIsSaving(true);
         await apiClient.datasets.clearCourseMerges(selectedDatasetId);
-        toast.success("Course merges cleared");
+        toast.success("Combined exams cleared");
         setOpen(false);
-      } catch (error) {
-        toast.error("Failed to clear merges");
+      } catch {
+        toast.error("Failed to clear combined exams");
       } finally {
         setIsSaving(false);
       }
@@ -231,18 +229,20 @@ export function MergeCoursesDialog() {
 
       // Check for validation warnings
       const hasWarnings = Object.values(result.validation || {}).some(
-        (v: any) => !v.is_valid && v.warning_type === "room_capacity_exceeded",
+        (v) => !v.is_valid && v.warning_type === "room_capacity_exceeded",
       );
 
       if (hasWarnings) {
-        toast.warning("Merges saved with warnings. Some groups may exceed room capacity.");
+        toast.warning(
+          "Combined exams saved with warnings. Some groups may exceed room capacity.",
+        );
       } else {
-        toast.success("Course merges saved successfully");
+        toast.success("Combined exams saved successfully");
       }
 
       setOpen(false);
-    } catch (error) {
-      toast.error("Failed to save course merges");
+    } catch {
+      toast.error("Failed to save combined exams");
     } finally {
       setIsSaving(false);
     }
@@ -254,9 +254,12 @@ export function MergeCoursesDialog() {
 
   if (!mounted) {
     return (
-      <Button className="w-full bg-blue-700 hover:bg-blue-800 text-white" disabled={!selectedDataset}>
+      <Button
+        className="w-full bg-blue-700 hover:bg-blue-800 text-white"
+        disabled={!selectedDataset}
+      >
         <GitMerge className="h-4 w-4" />
-        Merge Courses
+        Combined Exams
       </Button>
     );
   }
@@ -264,33 +267,34 @@ export function MergeCoursesDialog() {
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
-        <Button className="w-full bg-blue-700 hover:bg-blue-800 text-white" disabled={!selectedDataset}>
+        <Button
+          className="w-full bg-blue-700 hover:bg-blue-800 text-white"
+          disabled={!selectedDataset}
+        >
           <GitMerge className="h-4 w-4" />
-          Merge Courses
+          Combined Exams
         </Button>
       </DialogTrigger>
       <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>Merge Courses</DialogTitle>
+          <DialogTitle>Combined Exams</DialogTitle>
           <DialogDescription>
-            Group multiple course sections (CRNs) to schedule them together in the same time slot and room.
-            Enter CRNs for each merge group.
+            Group course sections (CRNs) that share one exam: they are scheduled
+            in the same time slot and the same room. Enter CRNs for each
+            combined group.
           </DialogDescription>
         </DialogHeader>
 
         <div className="space-y-4 py-4">
           {isLoading ? (
-            <div className="text-center py-8">Loading merges...</div>
+            <div className="text-center py-8">Loading combined exams...</div>
           ) : (
             <>
               {mergeGroups.map((group) => (
-                <div
-                  key={group.id}
-                  className="border rounded-lg p-4 space-y-3"
-                >
+                <div key={group.id} className="border rounded-lg p-4 space-y-3">
                   <div className="flex items-center justify-between">
                     <Label className="text-sm font-medium">
-                      Merge Group {mergeGroups.indexOf(group) + 1}
+                      Combined Group {mergeGroups.indexOf(group) + 1}
                     </Label>
                     {mergeGroups.length > 1 && (
                       <Button
@@ -306,7 +310,6 @@ export function MergeCoursesDialog() {
                   <div className="space-y-2">
                     <div className="flex gap-2">
                       <CrnInputGroup
-                        groupId={group.id}
                         onAddCrn={(crn) => addCrnToGroup(group.id, crn)}
                       />
                       {group.crns.length > 0 && (
@@ -356,17 +359,21 @@ export function MergeCoursesDialog() {
                             <div>{group.validation.message}</div>
                             {group.validation.has_suitable_room === false && (
                               <div className="text-sm font-medium mt-2">
-                                ⚠️ This merge will be saved but will not be scheduled (no room assignment).
-                                It will appear in the schedule as unscheduled.
+                                ⚠️ This combined exam will be saved but will not
+                                be scheduled (no room assignment). It will
+                                appear in the schedule as unscheduled.
                               </div>
                             )}
-                            {group.validation.total_enrollment !== undefined && 
-                             group.validation.max_room_capacity !== undefined && (
-                              <div className="text-xs text-muted-foreground mt-1">
-                                Total enrollment: {group.validation.total_enrollment} students • 
-                                Max room capacity: {group.validation.max_room_capacity} students
-                              </div>
-                            )}
+                            {group.validation.total_enrollment !== undefined &&
+                              group.validation.max_room_capacity !==
+                                undefined && (
+                                <div className="text-xs text-muted-foreground mt-1">
+                                  Total enrollment:{" "}
+                                  {group.validation.total_enrollment} students •
+                                  Max room capacity:{" "}
+                                  {group.validation.max_room_capacity} students
+                                </div>
+                              )}
                           </div>
                         </AlertDescription>
                       </Alert>
@@ -382,7 +389,7 @@ export function MergeCoursesDialog() {
                 className="w-full"
               >
                 <Plus className="h-4 w-4 mr-2" />
-                Add Merge Group
+                Add Combined Group
               </Button>
             </>
           )}
@@ -393,11 +400,10 @@ export function MergeCoursesDialog() {
             Cancel
           </Button>
           <Button onClick={handleSave} disabled={isSaving}>
-            {isSaving ? "Saving..." : "Save Merges"}
+            {isSaving ? "Saving..." : "Save Combined Exams"}
           </Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>
   );
 }
-

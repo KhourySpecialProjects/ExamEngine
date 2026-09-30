@@ -13,6 +13,7 @@ import {
 import { useEffect } from "react";
 import { useDatasetStore } from "@/lib/store/datasetStore";
 import { getTimeAgo } from "@/lib/utils";
+import { CommonExamsDialog } from "../dataset/CommonExamsDialog";
 import { DatasetBar } from "../dataset/DatasetBar";
 import { MergeCoursesDialog } from "../dataset/MergeCoursesDialog";
 import { ScheduleRunner } from "../schedule/ScheduleRunner";
@@ -130,10 +131,11 @@ export function DashboardSidebar({ isOpen = true, onToggle }: SidebarProps) {
                 )}
               </div>
             )}
-            
-            {/* Merge Courses Button */}
-            <div className="w-full mt-6">
+
+            {/* Combined / Common Exams Buttons */}
+            <div className="w-full mt-6 space-y-2">
               <MergeCoursesDialog />
+              <CommonExamsDialog />
             </div>
           </section>
 

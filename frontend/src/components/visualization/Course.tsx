@@ -1,4 +1,4 @@
-import { AlertCircle, GitMerge } from "lucide-react";
+import { AlertCircle, GitMerge, Layers } from "lucide-react";
 import { useMemo } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -10,6 +10,7 @@ interface CourseProps {
   className?: string;
   hasConflict?: boolean;
   isMerged?: boolean;
+  isCommon?: boolean;
 }
 
 const colors = ["red", "blue", "green"] as const;
@@ -21,6 +22,7 @@ export function Course({
   className,
   hasConflict = false,
   isMerged = false,
+  isCommon = false,
 }: CourseProps) {
   const color = useMemo(() => {
     return colors[Math.floor(Math.random() * colors.length)];
@@ -54,9 +56,18 @@ export function Course({
           <Badge
             variant="outline"
             className="gap-1 border-blue-300 text-blue-700 bg-blue-50/50 ml-2"
-            title="Merged course"
+            title="Combined exam"
           >
             <GitMerge className="h-3 w-3" />
+          </Badge>
+        )}
+        {isCommon && (
+          <Badge
+            variant="outline"
+            className="gap-1 border-violet-300 text-violet-700 bg-violet-50/50 ml-2"
+            title="Common exam"
+          >
+            <Layers className="h-3 w-3" />
           </Badge>
         )}
         {hasConflict && (

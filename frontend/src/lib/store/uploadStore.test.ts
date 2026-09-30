@@ -65,6 +65,49 @@ describe("uploadAll failure", () => {
   });
 });
 
+describe("uploadAll success with optional exam-group files", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it("sends combined and common files under separate keys and marks both slots", async () => {
+    selectFiles([
+      "courses",
+      "enrollments",
+      "rooms",
+      "combined_exams",
+      "common_exams",
+    ]);
+    upload.mockResolvedValue({
+      dataset_id: "d1",
+      dataset_name: "Test dataset",
+      created_at: "",
+      status: "ok",
+      files: {
+        courses: { rows: 1 },
+        enrollments: { rows: 1 },
+        rooms: { rows: 1 },
+        combined_exams: { rows: 4 },
+        common_exams: { rows: 7 },
+      },
+    } as never);
+
+    await useUploadStore.getState().uploadAll();
+
+    const files = upload.mock.calls[0][1];
+    expect(files.combined_exams?.name).toBe("combined_exams.csv");
+    expect(files.common_exams?.name).toBe("common_exams.csv");
+    expect(slot("combined_exams")).toMatchObject({
+      status: "success",
+      rowCount: 4,
+    });
+    expect(slot("common_exams")).toMatchObject({
+      status: "success",
+      rowCount: 7,
+    });
+  });
+});
+
 describe("API errors with an object detail", () => {
   it("surface the detail as parseable JSON, not [object Object]", async () => {
     const detail = {
@@ -91,6 +134,30 @@ describe("API errors with an object detail", () => {
       .catch((e: Error) => e);
 
     expect(JSON.parse((error as Error).message)).toEqual(detail);
+    vi.unstubAllGlobals();
+  });
+});
+
+describe("DatasetsAPI.upload form fields", () => {
+  it("posts combined and common exam files under their own field names", async () => {
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: async () => ({}),
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    await new DatasetsAPI("http://api.test").upload("x", {
+      courses: csv("c.csv"),
+      enrollments: csv("e.csv"),
+      rooms: csv("r.csv"),
+      combined_exams: csv("combined.csv"),
+      common_exams: csv("common.csv"),
+    });
+
+    const body = fetchMock.mock.calls[0][1].body as FormData;
+    expect((body.get("combined_exams") as File).name).toBe("combined.csv");
+    expect((body.get("common_exams") as File).name).toBe("common.csv");
     vi.unstubAllGlobals();
   });
 });

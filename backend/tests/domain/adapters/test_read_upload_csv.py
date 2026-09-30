@@ -21,7 +21,13 @@ class TestReadUploadCsv:
 
     @pytest.mark.parametrize(
         "header",
-        ["Student_PIDM,CRN", "student_id,crn", "Student ID,Course Registration Number"],
+        [
+            "NUID,CRN",
+            "NU ID,CRN",
+            "Student_PIDM,CRN",
+            "student_id,crn",
+            "Student ID,Course Registration Number",
+        ],
     )
     def test_student_ids_keep_leading_zeros(self, header):
         content = f"{header}\n001234567,11310\n000000042,11311\n".encode()

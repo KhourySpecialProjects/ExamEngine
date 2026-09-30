@@ -35,15 +35,15 @@ CRN,CourseID,Enrollment,Instructor Name,department,examination_term
 
 Maps students to the courses they're enrolled in. Only these two columns are read; any others are ignored.
 
-| Column     | Required | Accepted Names                                                                       | Description                     |
-| ---------- | -------- | ----------------------------------------------------------------------------------- | ------------------------------- |
-| student_id | ✅       | `Student_PIDM`, `Student ID`, `PIDM`, `Student Number`, `student_id`, `student_pidm` | Unique student identifier       |
-| crn        | ✅       | `Course_Reference_Number`, `CRN`, `Course Registration Number`, `crn`               | Must match a CRN in courses.csv |
+| Column | Required | Accepted Names                                                                                         | Description                                           |
+| ------ | -------- | ----------------------------------------------------------------------------------------------------- | ----------------------------------------------------- |
+| NUID   | ✅       | `NUID`, `NU ID`, `Student ID`, `Student Number`, `student_id`, `Student_PIDM`, `PIDM`, `student_pidm` | Student's NUID, read as text (leading zeros are kept) |
+| crn    | ✅       | `Course_Reference_Number`, `CRN`, `Course Registration Number`, `crn`                                 | Must match a CRN in courses.csv                       |
 
 **Example:**
 
 ```csv
-Student_PIDM,CRN
+NUID,CRN
 001234567,11310
 001234567,11311
 001234568,11310

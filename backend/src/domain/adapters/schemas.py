@@ -229,6 +229,8 @@ class EnrollmentSchema:
         ColumnDefinition(
             canonical_name="Student_PIDM",
             aliases=[
+                "NUID",
+                "NU ID",
                 "Student ID",
                 "PIDM",
                 "Student Number",

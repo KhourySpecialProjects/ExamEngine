@@ -325,7 +325,7 @@ def write_csvs(out: str, data: dict) -> None:
             ],
             data["courses"],
         ),
-        "enrollments.csv": (["Student_PIDM", "CRN"], data["enrollments"]),
+        "enrollments.csv": (["NUID", "CRN"], data["enrollments"]),
         "rooms.csv": (["Room", "Capacity"], data["rooms"]),
         "room_blockouts.csv": (["Room", "Day", "Block"], data["room_blockouts"]),
     }

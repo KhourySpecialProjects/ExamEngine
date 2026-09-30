@@ -13,13 +13,14 @@ const INITIAL_SLOTS: FileSlot[] = [
   {
     id: "courses",
     label: "Courses Data",
-    description: "Upload CSV with: CRN, CourseID, num_students",
+    description:
+      "Upload CSV with: CRN, CourseID, num_students, Instructor (optional; needed for instructor limits)",
     file: null,
   },
   {
     id: "enrollments",
     label: "Enrollment Data",
-    description: "Upload CSV with: Student_PIDM, CRN, Instructor Name",
+    description: "Upload CSV with: NUID, CRN",
     file: null,
   },
   {

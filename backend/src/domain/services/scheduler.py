@@ -17,6 +17,25 @@ _CRN_PREFIX = "crn:"
 _COMMON_PREFIX = "common:"
 
 
+@dataclass(frozen=True)
+class UnscheduledGroup:
+    """A combined or common group left entirely unscheduled, and why."""
+
+    kind: str  # "combined" or "common"
+    label: str
+    reason: str
+    crns: list[str]
+
+    def to_dict(self) -> dict[str, object]:
+        """JSON form used in API responses and the saved conflict analysis."""
+        return {
+            "kind": self.kind,
+            "group": self.label,
+            "reason": self.reason,
+            "crns": list(self.crns),
+        }
+
+
 @dataclass
 class ScheduleResult:
     """
@@ -44,8 +63,9 @@ class ScheduleResult:
 
     # Unplaced courses (empty if all placed)
     unassigned: set[str] = field(default_factory=set)  # slot but no room
-    # Combined/common group label → human-readable reason it was not scheduled
-    unscheduled_groups: dict[str, str] = field(default_factory=dict)
+    # Combined/common groups left unscheduled, with the reason. A combined group
+    # inside an unscheduled common group is reported once, under the common group.
+    unscheduled_groups: list[UnscheduledGroup] = field(default_factory=list)
     # CRNs with neither slot nor room because their group was not scheduled
     unscheduled_crns: set[str] = field(default_factory=set)
 
@@ -113,10 +133,9 @@ class Scheduler:
 
         self._build_groups()
 
-        # Group labels/CRNs that will not be scheduled at all
-        self.unscheduled_groups: dict[str, str] = {}
+        # Time groups (keyed by internal id) and CRNs that will not be scheduled
+        self.unscheduled_groups: dict[str, UnscheduledGroup] = {}
         self.unscheduled_crns: set[str] = set()
-        self.unscheduled_time_groups: set[str] = set()
         self._identify_unschedulable_groups()
 
         # Initialize focused services
@@ -238,9 +257,14 @@ class Scheduler:
 
     def _mark_unscheduled(self, tg: str, reason: str) -> None:
         """Leave a whole time group unscheduled, recording why."""
-        self.unscheduled_time_groups.add(tg)
-        self.unscheduled_groups[self.time_group_label[tg]] = reason
-        self.unscheduled_crns.update(self.time_group_crns[tg])
+        crns = self.time_group_crns[tg]
+        self.unscheduled_groups[tg] = UnscheduledGroup(
+            kind="common" if tg in self.common_time_groups else "combined",
+            label=self.time_group_label[tg],
+            reason=reason,
+            crns=sorted(crns),
+        )
+        self.unscheduled_crns.update(crns)
 
     def _identify_unschedulable_groups(self) -> None:
         """Mark combined/common groups that no room inventory can ever satisfy."""
@@ -248,7 +272,7 @@ class Scheduler:
         max_capacity = max((room.capacity for room in rooms), default=0)
 
         oversized_units: dict[str, str] = {}
-        for unit, label in self.unit_to_merge_label.items():
+        for unit in self.unit_to_merge_label:
             enrollment = self.unit_enrollment[unit]
             if not rooms:
                 oversized_units[unit] = "No rooms are available"
@@ -259,7 +283,6 @@ class Scheduler:
                 )
             else:
                 continue
-            self.unscheduled_groups[label] = oversized_units[unit]
             tg = self.crn_to_time_group[self.room_units[unit][0]]
             if tg not in self.common_time_groups:
                 self._mark_unscheduled(tg, oversized_units[unit])
@@ -320,7 +343,7 @@ class Scheduler:
                 room_assignments={},
                 conflicts=[],
                 colors={},
-                unscheduled_groups=dict(self.unscheduled_groups),
+                unscheduled_groups=list(self.unscheduled_groups.values()),
                 unscheduled_crns=set(self.unscheduled_crns),
             )
 
@@ -334,7 +357,7 @@ class Scheduler:
             room_assignments=room_assignments,
             conflicts=list(self.conflicts),
             colors=dict(self.colors),
-            unscheduled_groups=dict(self.unscheduled_groups),
+            unscheduled_groups=list(self.unscheduled_groups.values()),
             unscheduled_crns=set(self.unscheduled_crns),
             unassigned=unroomed,
         )
@@ -448,7 +471,7 @@ class Scheduler:
 
         for crn in self._get_course_ordering(prioritize_large):
             tg = self.crn_to_time_group[crn]
-            if tg in placed or tg in self.unscheduled_time_groups:
+            if tg in placed or tg in self.unscheduled_groups:
                 continue
 
             choice = self._find_best_slot(crn)

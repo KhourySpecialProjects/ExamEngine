@@ -28,10 +28,16 @@ export function useScheduleData() {
 
     // Get unscheduled/unroomed exams from schedule.complete
     const unscheduledExams: Exam[] = [];
+    const groupByCrn = new Map(
+      (currentSchedule?.unscheduled_groups ?? []).flatMap((group) =>
+        group.crns.map((crn) => [crn, group] as const),
+      ),
+    );
     if (currentSchedule?.schedule?.complete) {
       currentSchedule.schedule.complete.forEach((exam) => {
         if (!exam.Day && !exam.Room) {
           // Truly unscheduled — no slot, no room
+          const group = groupByCrn.get(String(exam.CRN));
           unscheduledExams.push({
             id: `unscheduled-${exam.CRN}`,
             courseCode: exam.Course,
@@ -45,6 +51,8 @@ export function useScheduleData() {
             day: "",
             timeSlot: "",
             isUnscheduled: true,
+            unscheduledGroup: group?.group,
+            unscheduledReason: group?.reason,
           });
         } else if (exam.Day && !exam.Room) {
           // Has a slot but no room (all rooms were blocked at that slot)

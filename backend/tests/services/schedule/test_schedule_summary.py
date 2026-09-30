@@ -17,7 +17,7 @@ _calculate_summary_stats.
 
 from types import SimpleNamespace
 
-from src.domain.services.scheduler import ScheduleResult
+from src.domain.services.scheduler import ScheduleResult, UnscheduledGroup
 from src.services.schedule.service import ScheduleService
 
 
@@ -29,7 +29,11 @@ def _make_result() -> ScheduleResult:
         conflicts=[],
         colors={},
         unassigned={"UR"},
-        unscheduled_groups={"mg1": "too big"},
+        unscheduled_groups=[
+            UnscheduledGroup(
+                kind="combined", label="mg1", reason="too big", crns=["M1", "M2"]
+            )
+        ],
         unscheduled_crns={"M1", "M2"},
     )
 
@@ -66,7 +70,7 @@ class TestSummarizePlacement:
 
     def test_no_unscheduled_groups_counts_only_assignments(self):
         result = _make_result()
-        result.unscheduled_groups = {}
+        result.unscheduled_groups = []
         result.unscheduled_crns = set()
 
         num_classes, unplaced = ScheduleService._summarize_placement(result)

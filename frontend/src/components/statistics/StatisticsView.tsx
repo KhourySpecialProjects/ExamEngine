@@ -539,6 +539,27 @@ export function StatisticsView() {
               <p className="text-xs text-muted-foreground">
                 {stats.overview.unscheduledStudents} students affected
               </p>
+              {(currentSchedule?.unscheduled_groups ?? []).length > 0 && (
+                <ul className="mt-3 space-y-2">
+                  {(currentSchedule?.unscheduled_groups ?? []).map((group) => (
+                    <li
+                      key={`${group.kind}:${group.group}`}
+                      className="rounded border border-orange-200 bg-white/60 p-2 text-xs"
+                    >
+                      <div className="font-medium text-orange-800">
+                        {group.kind === "common" ? "Common" : "Combined"} exam:{" "}
+                        {group.group}
+                      </div>
+                      <div className="text-muted-foreground">
+                        {group.reason}
+                      </div>
+                      <div className="font-mono text-muted-foreground">
+                        CRNs: {group.crns.join(", ")}
+                      </div>
+                    </li>
+                  ))}
+                </ul>
+              )}
               <p className="text-xs text-muted-foreground mt-2">
                 These exams appear in the list view without a day, time, or room
                 assignment. Consider splitting these combined or common groups

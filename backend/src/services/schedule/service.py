@@ -163,8 +163,9 @@ class ScheduleService:
                 course_mapping,
                 room_mapping,
             )
+            unscheduled_groups = [g.to_dict() for g in result.unscheduled_groups]
             conflicts_response = await self._save_and_format_conflicts(
-                schedule.schedule_id, analysis
+                schedule.schedule_id, analysis, unscheduled_groups
             )
 
             # 7. Mark complete
@@ -251,7 +252,19 @@ class ScheduleService:
             ),
             permissions=permissions,
             blockouts=blockout_slots,
+            unscheduled_groups=self._stored_unscheduled_groups(conflict_analysis),
         )
+
+    @staticmethod
+    def _stored_unscheduled_groups(conflict_analysis) -> list[dict[str, Any]]:
+        """Unscheduled combined/common groups saved with a schedule's analysis.
+
+        Schedules generated before these were saved (or without an analysis)
+        have none.
+        """
+        if conflict_analysis is None or not conflict_analysis.conflicts:
+            return []
+        return list(conflict_analysis.conflicts.get("unscheduled_groups", []))
 
     async def delete_schedule(self, schedule_id: UUID, user_id: UUID) -> dict[str, Any]:
         """Delete schedule and all related data."""
@@ -493,6 +506,7 @@ class ScheduleService:
             conflicts=conflicts_response["conflicts"],
             parameters=parameters,
             blockouts=blockout_slots,
+            unscheduled_groups=[g.to_dict() for g in result.unscheduled_groups],
         )
 
     def _build_calendar_from_result(self, result: ScheduleResult) -> dict:
@@ -626,15 +640,21 @@ class ScheduleService:
             self.exam_assignment_repo.bulk_create(schedule_id, assignments_to_create)
 
     async def _save_and_format_conflicts(
-        self, schedule_id: UUID, analysis: ScheduleAnalysis
+        self,
+        schedule_id: UUID,
+        analysis: ScheduleAnalysis,
+        unscheduled_groups: list[dict[str, Any]],
     ) -> dict:
-        """Save conflicts to database and return formatted response."""
+        """Save conflicts (and unscheduled groups) and return formatted response."""
         conflict_payload = analysis.to_dict()
 
         try:
             self.conflict_analyses_repo.create_analysis(
                 schedule_id=schedule_id,
-                conflicts_data=conflict_payload,
+                conflicts_data={
+                    **conflict_payload,
+                    "unscheduled_groups": unscheduled_groups,
+                },
             )
         except Exception as e:
             raise e

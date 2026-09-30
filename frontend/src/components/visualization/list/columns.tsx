@@ -76,15 +76,22 @@ export function createExamColumns(
     columnHelper.accessor("day", {
       id: "day",
       header: ({ column }) => <SortableHeader column={column} label="Day" />,
-      cell: (info) => (
-        <div className="text-sm">
-          {info.row.original.isUnscheduled ? (
+      cell: (info) => {
+        const exam = info.row.original;
+        if (!exam.isUnscheduled) {
+          return <div className="text-sm">{info.getValue()}</div>;
+        }
+        return (
+          <div className="text-sm" title={exam.unscheduledReason}>
             <span className="text-muted-foreground italic">Unscheduled</span>
-          ) : (
-            info.getValue()
-          )}
-        </div>
-      ),
+            {exam.unscheduledGroup && (
+              <div className="text-xs text-orange-700">
+                {exam.unscheduledGroup}
+              </div>
+            )}
+          </div>
+        );
+      },
     }),
     columnHelper.accessor("timeSlot", {
       id: "timeSlot",

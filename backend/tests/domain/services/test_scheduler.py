@@ -948,12 +948,27 @@ class TestSchedulerCommonExams:
             common_groups={"G": ["X", "Z"]},
         ).schedule()
 
-        assert set(result.unscheduled_groups) == {"G", "M"}
+        # Reported once, under the common group; the reason names the combined one
+        [group] = result.unscheduled_groups
+        assert (group.kind, group.label, group.crns) == ("common", "G", ["X", "Y", "Z"])
+        assert "M" in group.reason
         assert result.unscheduled_crns == {"X", "Y", "Z"}
         for crn in ("X", "Y", "Z"):
             assert crn not in result.assignments
             assert crn not in result.room_assignments
         assert "W" in result.assignments
+
+    def test_over_capacity_standalone_combined_group_is_reported(self):
+        dataset = _group_dataset({"X": 30, "Y": 30, "Z": 10}, {"R1": 50, "R2": 50})
+        result = Scheduler(
+            dataset=dataset, max_days=2, merges={"M": ["Y", "X"]}
+        ).schedule()
+
+        [group] = result.unscheduled_groups
+        assert (group.kind, group.label, group.crns) == ("combined", "M", ["X", "Y"])
+        assert group.to_dict()["group"] == "M"
+        assert result.unscheduled_crns == {"X", "Y"}
+        assert "Z" in result.assignments
 
     def test_too_few_rooms_unschedules_whole_common_group(self):
         dataset = _group_dataset({"A": 10, "B": 10, "C": 10}, {"R1": 50, "R2": 50})
@@ -961,7 +976,7 @@ class TestSchedulerCommonExams:
             dataset=dataset, max_days=2, common_groups={"G": ["A", "B", "C"]}
         ).schedule()
 
-        assert "G" in result.unscheduled_groups
+        assert [g.label for g in result.unscheduled_groups] == ["G"]
         assert result.unscheduled_crns == {"A", "B", "C"}
         assert not result.assignments
 
@@ -993,7 +1008,7 @@ class TestSchedulerCommonExams:
             dataset=dataset, max_days=2, common_groups={"G": ["A", "B"]}
         ).schedule()
 
-        assert "G" in result.unscheduled_groups
+        assert [g.label for g in result.unscheduled_groups] == ["G"]
         assert result.unscheduled_crns == {"A", "B"}
         assert set(result.assignments) == {"S"}
         assert result.room_assignments["S"] == "R2"

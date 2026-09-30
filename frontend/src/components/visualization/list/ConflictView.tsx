@@ -3,6 +3,7 @@ import {
   AlertTriangle,
   Briefcase,
   Calendar,
+  CalendarX,
   ChevronLeft,
   ChevronRight,
   ChevronsLeft,
@@ -31,9 +32,11 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import {
+  CONFLICT_TYPE_ORDER,
   ConflictStat,
   conflictDescriptions,
   conflictTypeMap,
+  conflictTypeRank,
   getIconForType,
 } from "@/lib/hooks/useConflictData";
 import {
@@ -70,7 +73,7 @@ function ConflictDefinitions() {
     <div className="mt-4 bg-white rounded-lg shadow p-4">
       <h3 className="font-semibold mb-3">Conflict Definitions</h3>
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm">
-        {Object.keys(conflictTypeMap).map((type) => (
+        {CONFLICT_TYPE_ORDER.map((type) => (
           <div key={type} className="flex flex-col">
             <div className="font-medium flex items-center gap-2">
               <span className="inline-flex items-center">
@@ -96,22 +99,12 @@ function courseTooltip({ course, crn, exam }: ConflictCourse): string {
   return lines.join("\n");
 }
 
-function CoursePill({
-  course,
-  time,
-}: {
-  course: ConflictCourse;
-  /** Shown inside the pill when the table has no Time column. */
-  time?: string;
-}) {
+function CoursePill({ course }: { course: ConflictCourse }) {
   return (
     <Badge
       variant="outline"
       title={courseTooltip(course)}
-      className={cn(
-        "justify-between cursor-default border-yellow-200 bg-yellow-50 text-yellow-950",
-        time ? "w-64" : "w-40",
-      )}
+      className="w-40 justify-between cursor-default border-yellow-200 bg-yellow-50 text-yellow-950"
     >
       <span className="truncate font-semibold">
         {course.course || course.crn}
@@ -119,7 +112,6 @@ function CoursePill({
       {course.course && course.crn && (
         <span className="tabular-nums opacity-70">{course.crn}</span>
       )}
-      {time && <span className="tabular-nums">{time}</span>}
     </Badge>
   );
 }
@@ -246,31 +238,36 @@ function ConflictTable({
   const showCourses = rowsForActive.some(
     (r) => r.kind === "person" && r.instances.some((i) => i.courses.length),
   );
-  // Per-day limit records name only the exam that went over the limit
-  // (EXENG-46), so its time goes in the pill, not a Time column that reads
-  // like the time of the conflict.
+  // Per-day limit records name only the exam that went over the limit, not
+  // the day's other exams (EXENG-46): list just the days over the limit.
   const isPerDayTab = isPerDayLimitConflictType(activeTabId);
-  const showTimeColumn = showCourses && !isPerDayTab;
 
   // Person tabs: percentage widths so columns spread with the table instead
   // of bunching left, while staying independent of page contents. The pills
   // column takes the rest. Record tabs split the width evenly.
   const headers: { label: string; width?: string }[] = !isPersonTab
     ? recordColumns.map((c) => ({ label: c.label }))
-    : showTimeColumn
+    : isPerDayTab
       ? [
-          { label: entityLabel, width: "w-[15%]" },
-          { label: "Conflicts", width: "w-[10%]" },
-          { label: "Day", width: "w-[12%]" },
-          { label: "Time", width: "w-[15%]" },
-          { label: "Conflicting exams" },
-        ]
-      : [
           { label: entityLabel, width: "w-[18%]" },
-          { label: "Conflicts", width: "w-[12%]" },
-          { label: "Day", width: "w-[15%]" },
-          { label: isPerDayTab ? "Exam over the limit" : "Exam times" },
-        ];
+          { label: "Days over limit", width: "w-[15%]" },
+          { label: "Day" },
+        ]
+      : showCourses
+        ? [
+            { label: entityLabel, width: "w-[15%]" },
+            { label: "Conflicts", width: "w-[10%]" },
+            { label: "Day", width: "w-[12%]" },
+            { label: "Time", width: "w-[15%]" },
+            { label: "Conflicting exams" },
+          ]
+        : [
+            { label: entityLabel, width: "w-[18%]" },
+            { label: "Conflicts", width: "w-[12%]" },
+            { label: "Day", width: "w-[15%]" },
+            { label: "Exam times" },
+          ];
+  const showTimeColumn = showCourses && !isPerDayTab;
 
   const pagination = {
     page,
@@ -338,28 +335,26 @@ function ConflictTable({
                     {inst.time || "—"}
                   </TableCell>
                 )}
-                <TableCell className="align-top whitespace-normal">
-                  <div className="flex flex-wrap gap-1">
-                    {showCourses
-                      ? inst.courses.map((c) => (
-                          <CoursePill
-                            key={c.crn || c.course}
-                            course={c}
-                            time={isPerDayTab ? inst.time : undefined}
-                          />
-                        ))
-                      : inst.slots.map((slot) => (
-                          <Badge
-                            key={slot}
-                            variant="secondary"
-                            className="w-32 tabular-nums"
-                          >
-                            {slot}
-                          </Badge>
-                        ))}
-                    {showCourses && inst.courses.length === 0 && "—"}
-                  </div>
-                </TableCell>
+                {!isPerDayTab && (
+                  <TableCell className="align-top whitespace-normal">
+                    <div className="flex flex-wrap gap-1">
+                      {showCourses
+                        ? inst.courses.map((c) => (
+                            <CoursePill key={c.crn || c.course} course={c} />
+                          ))
+                        : inst.slots.map((slot) => (
+                            <Badge
+                              key={slot}
+                              variant="secondary"
+                              className="w-32 tabular-nums"
+                            >
+                              {slot}
+                            </Badge>
+                          ))}
+                      {showCourses && inst.courses.length === 0 && "—"}
+                    </div>
+                  </TableCell>
+                )}
               </TableRow>
             ));
           })}
@@ -377,78 +372,67 @@ export default function ConflictView({
   metrics?: Partial<ConflictMetrics>;
 }) {
   // Use the simple backend-driven conflict hook — backend returns a single normalized shape
-  const {
-    metrics: backendMetrics,
-    rowsByType,
-    types,
-  } = useConflictDataSimple();
+  const { metrics: counts, rowsByType, types } = useConflictDataSimple();
 
-  // Prefer backend-provided metrics when available
-  const finalMerged = {
-    hard_student_conflicts: backendMetrics?.hard_student_conflicts ?? 0,
-    hard_instructor_conflicts: backendMetrics?.hard_instructor_conflicts ?? 0,
-    students_back_to_back: backendMetrics?.students_back_to_back ?? 0,
-    instructors_back_to_back: backendMetrics?.instructors_back_to_back ?? 0,
-    large_courses_not_early: backendMetrics?.large_courses_not_early ?? 0,
-    student_gt3_per_day: backendMetrics?.student_gt3_per_day ?? 0,
-  };
-
+  // Same order and names as the tabs: students, instructors, then courses.
   const summaryCards = [
     {
-      label: "Student Conflicts",
-      value: finalMerged.hard_student_conflicts,
+      label: "Student Double-Book",
+      value: counts.hard_student_conflicts,
       subtitle: "Students with overlapping exams",
       icon: <UserX className="h-4 w-4" />,
-      variant:
-        finalMerged.hard_student_conflicts > 0 ? "destructive" : "success",
+      variant: counts.hard_student_conflicts > 0 ? "destructive" : "success",
     },
     {
-      label: "Instructor Conflicts",
-      value: finalMerged.hard_instructor_conflicts,
-      subtitle: "Instructors with overlapping exams",
-      icon: <Briefcase className="h-4 w-4" />,
-      variant:
-        finalMerged.hard_instructor_conflicts > 0 ? "destructive" : "success",
-    },
-    {
-      label: "Overloaded Students",
-      value: finalMerged.student_gt3_per_day,
-      subtitle: "Students with 3+ exams in one day",
+      label: "Student Per-Day Limit",
+      value: counts.student_gt3_per_day,
+      subtitle: "Students over the daily exam limit",
       icon: <Calendar className="h-4 w-4" />,
-      variant: finalMerged.student_gt3_per_day > 0 ? "destructive" : "success",
+      variant: counts.student_gt3_per_day > 0 ? "destructive" : "success",
     },
     {
       label: "Student Back-to-Back",
-      value: finalMerged.students_back_to_back,
+      value: counts.students_back_to_back,
       subtitle: "Students with back-to-back exams",
       icon: <Clock className="h-4 w-4" />,
-      variant: finalMerged.students_back_to_back > 0 ? "warning" : "success",
+      variant: counts.students_back_to_back > 0 ? "warning" : "success",
+    },
+    {
+      label: "Instructor Double-Book",
+      value: counts.hard_instructor_conflicts,
+      subtitle: "Instructors with overlapping exams",
+      icon: <Briefcase className="h-4 w-4" />,
+      variant: counts.hard_instructor_conflicts > 0 ? "destructive" : "success",
+    },
+    {
+      label: "Instructor Per-Day Limit",
+      value: counts.instructor_gt_max_per_day,
+      subtitle: "Instructors over the daily exam limit",
+      icon: <CalendarX className="h-4 w-4" />,
+      variant: counts.instructor_gt_max_per_day > 0 ? "destructive" : "success",
     },
     {
       label: "Instructor Back-to-Back",
-      value: finalMerged.instructors_back_to_back,
+      value: counts.instructors_back_to_back,
       subtitle: "Instructors with back-to-back exams",
       icon: <GraduationCap className="h-4 w-4" />,
-      variant: finalMerged.instructors_back_to_back > 0 ? "warning" : "success",
+      variant: counts.instructors_back_to_back > 0 ? "warning" : "success",
     },
     {
       label: "Late Large Courses",
-      value: finalMerged.large_courses_not_early,
+      value: counts.large_courses_not_early,
       subtitle: "100+ enrollment scheduled late",
       icon: <AlertTriangle className="h-4 w-4" />,
-      variant: finalMerged.large_courses_not_early > 0 ? "warning" : "success",
+      variant: counts.large_courses_not_early > 0 ? "warning" : "success",
     },
   ] as const;
 
-  const dynamicTabEntries =
-    types && types.length > 0
-      ? types.map((t) => ({ id: t, label: conflictTypeMap[t] ?? t }))
-      : [
-          { id: "back_to_back", label: "Back-to-Back" },
-          { id: "large_course_not_early", label: "Large courses not early" },
-        ];
-
-  const effectiveTabs = dynamicTabEntries;
+  // Students first, then instructors, then courses; unlisted types last.
+  const effectiveTabs = [
+    ...(types.length > 0 ? types : ["back_to_back", "large_course_not_early"]),
+  ]
+    .sort((a, b) => conflictTypeRank(a) - conflictTypeRank(b))
+    .map((t) => ({ id: t, label: conflictTypeMap[t] ?? t }));
 
   const [pageByTab, setPageByTab] = useState<Record<string, number>>({});
 
@@ -481,7 +465,7 @@ export default function ConflictView({
         </div>
       </div>
 
-      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-6">
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 md:grid-cols-4 xl:grid-cols-7">
         {summaryCards.map((c) => (
           <ConflictStat
             key={c.label}

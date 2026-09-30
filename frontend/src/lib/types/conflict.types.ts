@@ -14,6 +14,7 @@ export interface ConflictMetrics {
   instructors_back_to_back: number;
   large_courses_not_early: number;
   student_gt3_per_day: number;
+  instructor_gt_max_per_day: number;
 }
 
 /** Conflicts-view preferences kept for the browser session. */

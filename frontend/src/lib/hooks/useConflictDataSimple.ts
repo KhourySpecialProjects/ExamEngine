@@ -81,7 +81,8 @@ const PERSON_CONFLICT_TYPES: ConflictType[] = [
 
 /**
  * Per-day limit types. Their records carry only the exam that went over the
- * limit, not the person's other exams that day (EXENG-46).
+ * limit, not the person's other exams that day (EXENG-46), so they are shown
+ * as the days a person is over the limit, without times or exams.
  */
 const PER_DAY_LIMIT_CONFLICT_TYPES: ConflictType[] = [
   "student_gt_max_per_day",
@@ -101,7 +102,7 @@ export function isInstructorConflictType(type: ConflictType): boolean {
   return INSTRUCTOR_CONFLICT_TYPES.includes(type);
 }
 
-/** Per-day limit types: each sub-row is one exam that went over the limit. */
+/** Per-day limit types: one sub-row per day the person is over the limit. */
 export function isPerDayLimitConflictType(type: ConflictType): boolean {
   return PER_DAY_LIMIT_CONFLICT_TYPES.includes(type);
 }
@@ -256,7 +257,8 @@ export function buildConflictRows(
     }
 
     const day = conflict.day || "";
-    const slots = getSlots(conflict);
+    // Per-day limit conflicts are about the whole day: merge by day alone.
+    const slots = isPerDayLimitConflictType(type) ? [] : getSlots(conflict);
     const time = slots.join(", ");
     const instanceKey = `${day}\u0000${time}`;
     let entry = group.instances.get(instanceKey);
@@ -312,6 +314,7 @@ function calculateMetrics(rowsByType: ConflictDataByType): ConflictMetrics {
     ]),
     students_back_to_back: countRows(["back_to_back", "back_to_back_student"]),
     instructors_back_to_back: countRows(["back_to_back_instructor"]),
+    instructor_gt_max_per_day: countRows(["instructor_gt_max_per_day"]),
     large_courses_not_early: countRows(["large_course_not_early"]),
   };
 }

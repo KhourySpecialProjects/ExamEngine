@@ -41,6 +41,7 @@ export function computeAggregatesFromExams(
     instructors_back_to_back: 0,
     large_courses_not_early: 0,
     student_gt3_per_day: 0,
+    instructor_gt_max_per_day: 0,
   };
 
   if (!Array.isArray(allExams)) return init;
@@ -105,6 +106,7 @@ export function computeTotalsFromBreakdown(
     instructors_back_to_back: 0,
     large_courses_not_early: 0,
     student_gt3_per_day: 0,
+    instructor_gt_max_per_day: 0,
   };
   if (!Array.isArray(bd) || bd.length === 0) return init;
 
@@ -181,15 +183,38 @@ export function computeTotalsFromBreakdown(
   return init;
 }
 
+/**
+ * Conflict types the backend emits, in display order: student types first,
+ * then instructor types, then course-level types. Drives the tab order and
+ * the definitions legend; unlisted types sort after these.
+ */
+export const CONFLICT_TYPE_ORDER = [
+  "student_double_book",
+  "student_gt_max_per_day",
+  "back_to_back",
+  "instructor_double_book",
+  "instructor_gt_max_per_day",
+  "back_to_back_instructor",
+  "large_course_not_early",
+];
+
+/** Sort key for CONFLICT_TYPE_ORDER; unlisted types rank last. */
+export function conflictTypeRank(type: string): number {
+  const i = CONFLICT_TYPE_ORDER.indexOf(type);
+  return i === -1 ? CONFLICT_TYPE_ORDER.length : i;
+}
+
+// Labels start with who is affected ("Student …" / "Instructor …").
+// back_to_back is the backend's type for students.
 export const conflictTypeMap: Record<string, string> = {
   student_double_book: "Student Double-Book",
   student_gt_max_per_day: "Student Per-Day Limit",
-  student_gt3_per_day: "Student has more than 2 exams per day",
+  student_gt3_per_day: "Student 3+ Exams Per Day",
+  back_to_back: "Student Back-to-Back",
+  back_to_back_student: "Student Back-to-Back",
   instructor_double_book: "Instructor Double-Book",
   instructor_gt_max_per_day: "Instructor Per-Day Limit",
-  back_to_back: "Back-to-Back",
-  back_to_back_student: "Back-to-Back (Students)",
-  back_to_back_instructor: "Back-to-Back (Instructors)",
+  back_to_back_instructor: "Instructor Back-to-Back",
   large_course_not_early: "Large Course Not Early",
   unknown: "Uncategorized",
 };
@@ -197,22 +222,22 @@ export const conflictTypeMap: Record<string, string> = {
 export const conflictDescriptions: Record<string, string> = {
   student_double_book:
     "A student is scheduled for more than one exam at the same time. Requires resolution.",
-  instructor_double_book:
-    "An instructor is scheduled to proctor/teach more than one exam at the same time.",
-  back_to_back:
-    "Exams scheduled back-to-back for the same entity (student/instructor) with no gap.",
-  back_to_back_student:
-    "A student has two exams scheduled in immediately consecutive blocks.",
-  back_to_back_instructor:
-    "An instructor has back-to-back assignments with no break.",
-  large_course_not_early:
-    "Large-enrollment courses that are not scheduled in earlier (preferred) time slots.",
+  student_gt_max_per_day:
+    "A student has more exams in one day than the configured maximum.",
   student_gt3_per_day:
     "Students scheduled for more than 3 exams in a single day.",
-  student_gt_max_per_day:
-    "Students exceeding the configured maximum exams per day.",
+  back_to_back:
+    "A student has exams in consecutive time blocks on the same day.",
+  back_to_back_student:
+    "A student has exams in consecutive time blocks on the same day.",
+  instructor_double_book:
+    "An instructor is scheduled to proctor/teach more than one exam at the same time.",
   instructor_gt_max_per_day:
-    "Instructors exceeding the configured maximum exams per day.",
+    "An instructor has more exams in one day than the configured maximum.",
+  back_to_back_instructor:
+    "An instructor has exams in consecutive time blocks on the same day.",
+  large_course_not_early:
+    "Large-enrollment courses that are not scheduled in earlier (preferred) time slots.",
   unknown: "Uncategorized or unknown conflict type.",
 };
 

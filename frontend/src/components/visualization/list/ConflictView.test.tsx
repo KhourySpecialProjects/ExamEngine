@@ -232,21 +232,22 @@ describe("ConflictView", () => {
     ).toEqual(["9AM-11AM", "11:30AM-1:30PM"]);
   });
 
-  it("labels per-day limit exams as over the limit, with the time in the pill", () => {
+  it("lists per-day limit conflicts as the days a person is over the limit", () => {
     // Backend shape: one record per exam that went over the limit (EXENG-46).
+    const overLimit = (day: string, block: number, crn: string) => ({
+      conflict_type: "student_gt_max_per_day",
+      entity_id: "000100663",
+      student_id: "000100663",
+      day,
+      block,
+      block_time: ["9AM-11AM", "11:30AM-1:30PM", "2PM-4PM"][block],
+      crn,
+      course: `CS ${crn}`,
+    });
     mockSchedule([
-      {
-        conflict_type: "student_gt_max_per_day",
-        entity_id: "000100663",
-        student_id: "000100663",
-        day: "Tuesday",
-        block: 2,
-        block_time: "2PM-4PM",
-        crn: "20020",
-        course: "CSCI 1100",
-        conflicting_crns: [],
-        conflicting_courses: [],
-      },
+      overLimit("Tuesday", 2, "3"),
+      overLimit("Monday", 1, "1"),
+      overLimit("Monday", 2, "2"),
     ]);
     render(<ConflictView />);
 
@@ -254,27 +255,27 @@ describe("ConflictView", () => {
       within(screen.getByRole("table"))
         .getAllByRole("columnheader")
         .map((th) => th.textContent),
-    ).toEqual(["NUId", "Conflicts", "Day", "Exam over the limit"]);
-    const [row] = bodyRows();
-    expect(cellTexts(row).slice(0, 3)).toEqual(["000100663", "1", "Tuesday"]);
-    expect(
-      [...row.querySelectorAll('[data-slot="badge"] span')].map(
-        (s) => s.textContent,
-      ),
-    ).toEqual(["CSCI 1100", "20020", "2PM-4PM"]);
+    ).toEqual(["NUId", "Days over limit", "Day"]);
+    // Two over-limit exams on Monday are one day over the limit.
+    expect(bodyRows().map(cellTexts)).toEqual([
+      ["000100663", "2", "Monday"],
+      ["Tuesday"],
+    ]);
+    expect(screen.queryAllByText("CS 1")).toEqual([]);
   });
 
-  it("gives every conflict type the backend emits a readable tab name", () => {
-    // conflict_type values from backend/src/domain/assemblers/conflict_assembler.py
+  it("orders tabs students, then instructors, then courses, each named for who it affects", () => {
+    // conflict_type values from backend/src/domain/assemblers/conflict_assembler.py,
+    // deliberately out of order.
     mockSchedule(
       [
-        "student_double_book",
-        "instructor_double_book",
-        "student_gt_max_per_day",
-        "instructor_gt_max_per_day",
-        "back_to_back",
-        "back_to_back_instructor",
         "large_course_not_early",
+        "back_to_back_instructor",
+        "instructor_double_book",
+        "back_to_back",
+        "instructor_gt_max_per_day",
+        "student_gt_max_per_day",
+        "student_double_book",
       ].map((conflict_type) => ({
         conflict_type,
         entity_id: "x",
@@ -283,22 +284,27 @@ describe("ConflictView", () => {
     );
     render(<ConflictView />);
 
-    expect(
-      screen.getByRole("button", { name: "Instructor Per-Day Limit" }),
-    ).toBeDefined();
-    expect(screen.queryAllByRole("button", { name: /_/ })).toEqual([]);
+    const tabs = screen
+      .getAllByRole("button")
+      .map((b) => b.textContent)
+      .filter((t) => /^(Student|Instructor|Large)/.test(t ?? ""));
+    expect(tabs).toEqual([
+      "Student Double-Book",
+      "Student Per-Day Limit",
+      "Student Back-to-Back",
+      "Instructor Double-Book",
+      "Instructor Per-Day Limit",
+      "Instructor Back-to-Back",
+      "Large Course Not Early",
+    ]);
   });
 
-  it("counts students, not conflict records, in the Student Conflicts card", () => {
+  it("counts students, not conflict records, in the Student Double-Book card", () => {
     render(<ConflictView />);
 
-    const card = screen
-      .getByText("Student Conflicts")
-      .closest<HTMLElement>('[data-slot="card"]');
-    expect(card).not.toBeNull();
     expect(
-      within(card as HTMLElement).getByText("Students with overlapping exams")
-        .previousSibling?.textContent,
+      screen.getByText("Students with overlapping exams").previousSibling
+        ?.textContent,
     ).toBe("2");
   });
 });

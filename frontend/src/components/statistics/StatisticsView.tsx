@@ -114,6 +114,7 @@ export function StatisticsView() {
     const timeBlocks: Record<string, number> = {};
 
     let unscheduledCount = 0;
+    const unscheduledCrns: string[] = [];
     let unscheduledStudents = 0;
     let unroomedCount = 0;
     let unroomedStudents = 0;
@@ -122,6 +123,7 @@ export function StatisticsView() {
       if (!exam.Day && !exam.Room) {
         // Truly unscheduled — no slot, no room
         unscheduledCount += 1;
+        unscheduledCrns.push(String(exam.CRN));
         unscheduledStudents += exam.Size || 0;
       } else if (exam.Day && !exam.Room) {
         // Has a slot but no room (blocked out)
@@ -290,6 +292,7 @@ export function StatisticsView() {
         slotsUsed: summary.slots_used,
         backToBackWarnings: totalBackToBackWarnings,
         unscheduledExams: unscheduledCount,
+        unscheduledCrns,
         unscheduledStudents: unscheduledStudents,
         unroomedExams: unroomedCount,
         unroomedStudents: unroomedStudents,
@@ -560,6 +563,31 @@ export function StatisticsView() {
                   ))}
                 </ul>
               )}
+              {(() => {
+                // CRNs not explained by a saved group (e.g. schedules
+                // generated before groups were recorded) are still listed.
+                const grouped = new Set(
+                  (currentSchedule?.unscheduled_groups ?? []).flatMap(
+                    (group) => group.crns,
+                  ),
+                );
+                const others = stats.overview.unscheduledCrns.filter(
+                  (crn) => !grouped.has(crn),
+                );
+                if (others.length === 0) return null;
+                return (
+                  <div className="mt-3 text-xs">
+                    <div className="font-medium text-orange-800">
+                      {grouped.size > 0
+                        ? "Other unscheduled CRNs"
+                        : "Unscheduled CRNs"}
+                    </div>
+                    <div className="font-mono text-muted-foreground">
+                      {others.join(", ")}
+                    </div>
+                  </div>
+                );
+              })()}
               <p className="text-xs text-muted-foreground mt-2">
                 These exams appear in the list view without a day, time, or room
                 assignment. Consider splitting these combined or common groups

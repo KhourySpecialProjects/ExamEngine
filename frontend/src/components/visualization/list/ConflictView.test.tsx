@@ -299,12 +299,18 @@ describe("ConflictView", () => {
     ]);
   });
 
-  it("counts students, not conflict records, in the Student Double-Book card", () => {
+  it("counts students, not conflict records, in the student double-book card", () => {
     render(<ConflictView />);
 
+    const subtitle = screen.getByText("Students with overlapping exams");
+    expect(subtitle.previousSibling?.textContent).toBe("2");
+    // Who is affected is a pill under the title, not part of the title.
+    const card = subtitle.closest<HTMLElement>('[data-slot="card"]');
     expect(
-      screen.getByText("Students with overlapping exams").previousSibling
-        ?.textContent,
-    ).toBe("2");
+      within(card as HTMLElement).getByText("Double-Book").dataset.slot,
+    ).toBe("card-title");
+    expect(within(card as HTMLElement).getByText("Student").dataset.slot).toBe(
+      "badge",
+    );
   });
 });

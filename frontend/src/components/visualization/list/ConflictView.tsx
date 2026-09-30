@@ -374,52 +374,60 @@ export default function ConflictView({
   // Use the simple backend-driven conflict hook — backend returns a single normalized shape
   const { metrics: counts, rowsByType, types } = useConflictDataSimple();
 
-  // Same order and names as the tabs: students, instructors, then courses.
+  // Same order as the tabs: students, instructors, then courses. Who is
+  // affected goes in a pill under the title so titles stay on one line.
   const summaryCards = [
     {
-      label: "Student Double-Book",
+      audience: "Student",
+      label: "Double-Book",
       value: counts.hard_student_conflicts,
       subtitle: "Students with overlapping exams",
       icon: <UserX className="h-4 w-4" />,
       variant: counts.hard_student_conflicts > 0 ? "destructive" : "success",
     },
     {
-      label: "Student Per-Day Limit",
+      audience: "Student",
+      label: "Per-Day Limit",
       value: counts.student_gt3_per_day,
       subtitle: "Students over the daily exam limit",
       icon: <Calendar className="h-4 w-4" />,
       variant: counts.student_gt3_per_day > 0 ? "destructive" : "success",
     },
     {
-      label: "Student Back-to-Back",
+      audience: "Student",
+      label: "Back-to-Back",
       value: counts.students_back_to_back,
       subtitle: "Students with back-to-back exams",
       icon: <Clock className="h-4 w-4" />,
       variant: counts.students_back_to_back > 0 ? "warning" : "success",
     },
     {
-      label: "Instructor Double-Book",
+      audience: "Instructor",
+      label: "Double-Book",
       value: counts.hard_instructor_conflicts,
       subtitle: "Instructors with overlapping exams",
       icon: <Briefcase className="h-4 w-4" />,
       variant: counts.hard_instructor_conflicts > 0 ? "destructive" : "success",
     },
     {
-      label: "Instructor Per-Day Limit",
+      audience: "Instructor",
+      label: "Per-Day Limit",
       value: counts.instructor_gt_max_per_day,
       subtitle: "Instructors over the daily exam limit",
       icon: <CalendarX className="h-4 w-4" />,
       variant: counts.instructor_gt_max_per_day > 0 ? "destructive" : "success",
     },
     {
-      label: "Instructor Back-to-Back",
+      audience: "Instructor",
+      label: "Back-to-Back",
       value: counts.instructors_back_to_back,
       subtitle: "Instructors with back-to-back exams",
       icon: <GraduationCap className="h-4 w-4" />,
       variant: counts.instructors_back_to_back > 0 ? "warning" : "success",
     },
     {
-      label: "Late Large Courses",
+      audience: "Course",
+      label: "Large, Not Early",
       value: counts.large_courses_not_early,
       subtitle: "100+ enrollment scheduled late",
       icon: <AlertTriangle className="h-4 w-4" />,
@@ -465,11 +473,13 @@ export default function ConflictView({
         </div>
       </div>
 
-      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 md:grid-cols-4 xl:grid-cols-7">
+      {/* Seven across only when each card is wide enough for a one-line title. */}
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4 min-[1500px]:grid-cols-7">
         {summaryCards.map((c) => (
           <ConflictStat
-            key={c.label}
+            key={`${c.audience} ${c.label}`}
             label={c.label}
+            audience={c.audience}
             value={c.value}
             icon={c.icon}
             subtitle={c.subtitle}

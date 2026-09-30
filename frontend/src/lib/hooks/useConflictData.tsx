@@ -285,8 +285,18 @@ export function getIconForType(type: string) {
  * Small presentational card that shows a single conflict metric.
  * Styled consistently with StatCard from StatsOverview.
  */
+export type ConflictAudience = "Student" | "Instructor" | "Course";
+
+const audienceStyles: Record<ConflictAudience, string> = {
+  Student: "border-sky-200 bg-sky-50 text-sky-900",
+  Instructor: "border-violet-200 bg-violet-50 text-violet-900",
+  Course: "border-slate-200 bg-slate-50 text-slate-700",
+};
+
 interface Props {
   label: string;
+  /** Who the conflict affects, shown as a pill under the title. */
+  audience?: ConflictAudience;
   value: number | null | undefined;
   subtitle?: string;
   icon?: React.ReactNode;
@@ -323,6 +333,7 @@ const variantConfig = {
 
 export function ConflictStat({
   label,
+  audience,
   value,
   subtitle,
   icon,
@@ -338,11 +349,21 @@ export function ConflictStat({
         styles.border,
       )}
     >
-      <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+      {/* Icon sits on the pill row so the title gets the full card width;
+          px-4 (not the Card default px-6) keeps titles on one line when seven
+          cards share a row. */}
+      <CardHeader className="flex flex-col gap-1.5 space-y-0 px-4 pb-2">
         <CardTitle className="text-sm font-medium">{label}</CardTitle>
-        {icon}
+        <div className="flex w-full items-center justify-between gap-2">
+          {audience && (
+            <Badge variant="outline" className={audienceStyles[audience]}>
+              {audience}
+            </Badge>
+          )}
+          {icon}
+        </div>
       </CardHeader>
-      <CardContent>
+      <CardContent className="px-4">
         <div
           className={cn(
             "text-3xl font-bold tracking-tight",

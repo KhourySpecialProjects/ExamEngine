@@ -342,9 +342,11 @@ function ConflictTable({
                         ? inst.courses.map((c) => (
                             <CoursePill key={c.crn || c.course} course={c} />
                           ))
-                        : inst.slots.map((slot) => (
+                        : // A time repeats when the person also has two exams
+                          // in that block; show it twice, keyed by position.
+                          inst.slots.map((slot, slotIdx) => (
                             <Badge
-                              key={slot}
+                              key={`${slotIdx}-${slot}`}
                               variant="secondary"
                               className="w-32 tabular-nums"
                             >

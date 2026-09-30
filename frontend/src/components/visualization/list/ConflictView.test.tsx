@@ -232,6 +232,36 @@ describe("ConflictView", () => {
     ).toEqual(["9AM-11AM", "11:30AM-1:30PM"]);
   });
 
+  it("shows a repeated back-to-back time slot twice without a React key warning", () => {
+    // Real record: the student also has two exams in block 1 (double-booked).
+    const consoleError = vi
+      .spyOn(console, "error")
+      .mockImplementation(() => {});
+    mockSchedule([
+      {
+        conflict_type: "back_to_back",
+        student_id: "000102290",
+        day: "Monday",
+        blocks: [1, 1, 2],
+        block_times: ["11:30AM-1:30PM", "11:30AM-1:30PM", "2PM-4PM"],
+      },
+    ]);
+    render(<ConflictView />);
+
+    const [row] = bodyRows();
+    expect(
+      [...row.querySelectorAll('[data-slot="badge"]')].map(
+        (b) => b.textContent,
+      ),
+    ).toEqual(["11:30AM-1:30PM", "11:30AM-1:30PM", "2PM-4PM"]);
+    expect(
+      consoleError.mock.calls.filter((args) =>
+        String(args[0]).includes("same key"),
+      ),
+    ).toEqual([]);
+    consoleError.mockRestore();
+  });
+
   it("lists per-day limit conflicts as the days a person is over the limit", () => {
     // Backend shape: one record per exam that went over the limit (EXENG-46).
     const overLimit = (day: string, block: number, crn: string) => ({

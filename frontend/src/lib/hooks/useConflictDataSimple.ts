@@ -44,6 +44,8 @@ export interface PersonConflictRow {
   /** Chronological (day, then block). */
   instances: ConflictInstance[];
   conflictCount: number;
+  /** [day index Mon..Sun, block] of the earliest instance; sorts Day/Time. */
+  earliest: [number, number];
 }
 
 /** One row per backend record, for conflicts not tied to a person (e.g. large courses). */
@@ -107,6 +109,20 @@ export function isPerDayLimitConflictType(type: ConflictType): boolean {
   return PER_DAY_LIMIT_CONFLICT_TYPES.includes(type);
 }
 
+/**
+ * Back-to-back records carry time slots but no courses (EXENG-42), so they
+ * cannot be counted per course.
+ */
+const BACK_TO_BACK_CONFLICT_TYPES: ConflictType[] = [
+  "back_to_back",
+  "back_to_back_student",
+  "back_to_back_instructor",
+];
+
+export function isBackToBackConflictType(type: ConflictType): boolean {
+  return BACK_TO_BACK_CONFLICT_TYPES.includes(type);
+}
+
 // Helper functions
 function buildExamsByCrn(
   schedule: ScheduleData | undefined,
@@ -136,21 +152,28 @@ function getSlots(conflict: ConflictBreakdown): string[] {
   return blocks.map((b) => `Block ${b}`);
 }
 
-/** [day index Mon..Sun, first block index]; unknown values sort last. */
-function getSortKey(conflict: ConflictBreakdown): [number, number] {
+/** [day index Mon..Sun, block index]; unknown values sort last. */
+function dayBlockKey(
+  day: string | null | undefined,
+  block: number | string | null | undefined,
+): [number, number] {
   const dayIdx = DAY_ORDER.indexOf(
-    String(conflict.day ?? "")
+    String(day ?? "")
       .slice(0, 3)
       .toLowerCase(),
   );
-  const firstBlock = conflict.blocks?.length
-    ? conflict.blocks[0]
-    : conflict.block;
-  const blockIdx = firstBlock == null ? Number.NaN : Number(firstBlock);
+  const blockIdx = block == null ? Number.NaN : Number(block);
   return [
     dayIdx === -1 ? DAY_ORDER.length : dayIdx,
     Number.isNaN(blockIdx) ? Number.POSITIVE_INFINITY : blockIdx,
   ];
+}
+
+function getSortKey(conflict: ConflictBreakdown): [number, number] {
+  const firstBlock = conflict.blocks?.length
+    ? conflict.blocks[0]
+    : conflict.block;
+  return dayBlockKey(conflict.day, firstBlock);
 }
 
 /** The record's own course plus its conflicting courses. */
@@ -249,6 +272,7 @@ export function buildConflictRows(
           entity,
           instances: [],
           conflictCount: 0,
+          earliest: [DAY_ORDER.length, Number.POSITIVE_INFINITY],
         },
         instances: new Map(),
       };
@@ -273,21 +297,188 @@ export function buildConflictRows(
   });
 
   for (const { row, instances } of personRows.values()) {
-    row.instances = [...instances.values()]
-      .sort(
-        (a, b) => a.sortKey[0] - b.sortKey[0] || a.sortKey[1] - b.sortKey[1],
-      )
-      .map(({ instance }) => ({
-        ...instance,
-        courses: instance.courses.sort(
-          (a, b) =>
-            a.course.localeCompare(b.course) || a.crn.localeCompare(b.crn),
-        ),
-      }));
+    const sorted = [...instances.values()].sort((a, b) =>
+      compareKeys(a.sortKey, b.sortKey),
+    );
+    row.instances = sorted.map(({ instance }) => ({
+      ...instance,
+      courses: instance.courses.sort(
+        (a, b) =>
+          a.course.localeCompare(b.course) || a.crn.localeCompare(b.crn),
+      ),
+    }));
     row.conflictCount = row.instances.length;
+    row.earliest = sorted[0].sortKey;
   }
 
   return rows;
+}
+
+// Sorting
+
+export type SortDirection = "asc" | "desc";
+
+export interface SortState<C extends string> {
+  column: C;
+  direction: SortDirection;
+}
+
+/** Person-tab sort columns; Day and Time both sort by the earliest conflict. */
+export type PersonSortColumn = "entity" | "conflictCount" | "earliest";
+
+export type RecordSortColumn = keyof Pick<
+  RecordConflictRow,
+  "entity" | "day" | "block" | "course" | "crn" | "size"
+>;
+
+export type CourseSortColumn = "course" | "crn" | "people" | "conflictCount";
+
+function compareKeys(a: [number, number], b: [number, number]): number {
+  return a[0] - b[0] || a[1] - b[1];
+}
+
+/** IDs stay strings: "000000010" sorts before "9" (no numeric coercion). */
+function compareText(a: string, b: string): number {
+  // Empty values last in ascending order.
+  if (!a || !b) return (a ? 0 : 1) - (b ? 0 : 1);
+  return a.localeCompare(b);
+}
+
+function compareNumbers(a: number | null, b: number | null): number {
+  return (a ?? Number.NEGATIVE_INFINITY) - (b ?? Number.NEGATIVE_INFINITY);
+}
+
+/** Stable sort; ties keep their input order in both directions. */
+function sortWith<T>(
+  items: T[],
+  compare: (a: T, b: T) => number,
+  direction: SortDirection,
+): T[] {
+  const sign = direction === "asc" ? 1 : -1;
+  return [...items].sort((a, b) => sign * compare(a, b) || 0);
+}
+
+/** Sorts whole people; each person's instances stay together and chronological. */
+export function sortPersonRows(
+  rows: PersonConflictRow[],
+  { column, direction }: SortState<PersonSortColumn>,
+): PersonConflictRow[] {
+  const compare: Record<
+    PersonSortColumn,
+    (a: PersonConflictRow, b: PersonConflictRow) => number
+  > = {
+    entity: (a, b) => compareText(a.entity, b.entity),
+    conflictCount: (a, b) => a.conflictCount - b.conflictCount,
+    earliest: (a, b) => compareKeys(a.earliest, b.earliest),
+  };
+  return sortWith(rows, compare[column], direction);
+}
+
+export function sortRecordRows(
+  rows: RecordConflictRow[],
+  { column, direction }: SortState<RecordSortColumn>,
+): RecordConflictRow[] {
+  const blockOf = (r: RecordConflictRow) => {
+    const n = Number(r.block);
+    return r.block === "" || Number.isNaN(n) ? null : n;
+  };
+  const compare: Record<
+    RecordSortColumn,
+    (a: RecordConflictRow, b: RecordConflictRow) => number
+  > = {
+    entity: (a, b) => compareText(a.entity, b.entity),
+    day: (a, b) =>
+      compareKeys(
+        dayBlockKey(a.day, blockOf(a)),
+        dayBlockKey(b.day, blockOf(b)),
+      ),
+    block: (a, b) => compareNumbers(blockOf(a), blockOf(b)),
+    course: (a, b) => compareText(a.course, b.course),
+    crn: (a, b) => compareText(a.crn, b.crn),
+    size: (a, b) => compareNumbers(a.size, b.size),
+  };
+  return sortWith(rows, compare[column], direction);
+}
+
+// Per-course view
+
+/** One course (CRN) and the people whose conflicts of one type involve it. */
+export interface CourseConflictSummary {
+  course: string;
+  crn: string;
+  exam?: ScheduleExam;
+  /** Distinct students/instructors, in first-seen order. */
+  people: string[];
+  /** Conflict instances (across all those people) that include this course. */
+  conflictCount: number;
+}
+
+/**
+ * Per-course summary of one conflict type's rows: a course counts for a person
+ * when it is one of the courses in one of that person's conflict instances.
+ * Sorted by distinct people, descending, then course. Record rows and
+ * instances without courses (back-to-back, EXENG-42) contribute nothing.
+ */
+export function summarizeConflictsByCourse(
+  rows: ConflictRow[],
+): CourseConflictSummary[] {
+  const byCourse = new Map<
+    string,
+    { summary: CourseConflictSummary; personKeys: Set<string> }
+  >();
+  for (const row of rows) {
+    if (row.kind !== "person") continue;
+    for (const instance of row.instances) {
+      for (const c of instance.courses) {
+        const key = c.crn ? `crn:${c.crn}` : `course:${c.course}`;
+        let entry = byCourse.get(key);
+        if (!entry) {
+          entry = {
+            summary: {
+              course: c.course,
+              crn: c.crn,
+              ...(c.exam && { exam: c.exam }),
+              people: [],
+              conflictCount: 0,
+            },
+            personKeys: new Set(),
+          };
+          byCourse.set(key, entry);
+        }
+        entry.summary.conflictCount += 1;
+        // Rows without a person are distinct records, never one person "".
+        const personKey = row.entity || row.id;
+        if (!entry.personKeys.has(personKey)) {
+          entry.personKeys.add(personKey);
+          entry.summary.people.push(row.entity);
+        }
+      }
+    }
+  }
+  return sortCourseSummaries(
+    sortWith(
+      [...byCourse.values()].map((e) => e.summary),
+      (a, b) => compareText(a.course, b.course) || compareText(a.crn, b.crn),
+      "asc",
+    ),
+    { column: "people", direction: "desc" },
+  );
+}
+
+export function sortCourseSummaries(
+  rows: CourseConflictSummary[],
+  { column, direction }: SortState<CourseSortColumn>,
+): CourseConflictSummary[] {
+  const compare: Record<
+    CourseSortColumn,
+    (a: CourseConflictSummary, b: CourseConflictSummary) => number
+  > = {
+    course: (a, b) => compareText(a.course, b.course),
+    crn: (a, b) => compareText(a.crn, b.crn),
+    people: (a, b) => a.people.length - b.people.length,
+    conflictCount: (a, b) => a.conflictCount - b.conflictCount,
+  };
+  return sortWith(rows, compare[column], direction);
 }
 
 function groupRowsByType(rows: ConflictRow[]): ConflictDataByType {

@@ -363,6 +363,110 @@ describe("ConflictView", () => {
     ]);
   });
 
+  describe("sorting", () => {
+    const sortBy = (label: string) =>
+      fireEvent.click(screen.getByRole("button", { name: label }));
+    const header = (label: string) =>
+      screen
+        .getAllByRole("columnheader")
+        .find((th) => th.textContent === label);
+
+    it("sorts people both ways by a header, keeping each person's sub-rows together", () => {
+      render(<ConflictView />);
+
+      sortBy("Conflicts");
+      expect(header("Conflicts")?.getAttribute("aria-sort")).toBe("ascending");
+      expect(bodyRows().map((r) => cellTexts(r)[0])).toEqual([
+        "000000002",
+        "000000001",
+        "Tuesday",
+      ]);
+
+      sortBy("Conflicts");
+      expect(header("Conflicts")?.getAttribute("aria-sort")).toBe("descending");
+      const rows = bodyRows();
+      expect(
+        within(rows[0]).getAllByRole("cell")[0].getAttribute("rowspan"),
+      ).toBe("2");
+      expect(rows.map((r) => cellTexts(r)[0])).toEqual([
+        "000000001",
+        "Tuesday",
+        "000000002",
+      ]);
+    });
+
+    it("does not offer sorting on the exams column", () => {
+      render(<ConflictView />);
+
+      expect(
+        screen.queryByRole("button", { name: "Conflicting exams" }),
+      ).toBeNull();
+    });
+
+    it("goes back to page 1 when the sort changes", () => {
+      mockSchedule(
+        Array.from({ length: 30 }, (_, i) =>
+          doubleBook(String(i + 1).padStart(9, "0"), "Monday", "1", "2"),
+        ),
+      );
+      render(<ConflictView />);
+      fireEvent.click(screen.getAllByRole("button", { name: "Next page" })[0]);
+
+      sortBy("NUId");
+      sortBy("NUId");
+
+      expect(cellTexts(bodyRows()[0])[0]).toBe("000000030");
+      expect(screen.getAllByText("Page 1 of 3")).toHaveLength(2);
+    });
+  });
+
+  describe("by course", () => {
+    it("lists each conflicting course once with its distinct students, most first", () => {
+      render(<ConflictView />);
+      fireEvent.click(screen.getByRole("button", { name: "By course" }));
+
+      expect(
+        screen
+          .getAllByRole("columnheader")
+          .map((th) => [th.textContent, th.getAttribute("aria-sort")]),
+      ).toEqual([
+        ["Course", null],
+        ["CRN", null],
+        ["Students with a conflict", "descending"],
+        ["Conflicts", null],
+      ]);
+      // CRN 3500 and 4535 are shared by both students; 2510 is in two of
+      // student 1's records but on the same Monday slot: one conflict.
+      expect(bodyRows().map(cellTexts)).toEqual([
+        ["CS 3500", "3500", "2", "2"],
+        ["CS 4535", "4535", "2", "2"],
+        ["CS 2500", "2500", "1", "1"],
+        ["CS 2510", "2510", "1", "1"],
+        ["CS 2800", "2800", "1", "1"],
+      ]);
+      expect(screen.getAllByText("Showing 1-5 of 5 courses")).toHaveLength(2);
+    });
+
+    it("says back-to-back conflicts can't be counted per course instead of showing none", () => {
+      mockSchedule([
+        {
+          conflict_type: "back_to_back_student",
+          student_id: "000000004",
+          day: "Wednesday",
+          blocks: [0, 1],
+          block_times: ["9AM-11AM", "11:30AM-1:30PM"],
+        },
+      ]);
+      render(<ConflictView />);
+      fireEvent.click(screen.getByRole("button", { name: "By course" }));
+
+      expect(screen.queryByRole("table")).toBeNull();
+      expect(
+        screen.getByText(/can't be counted per course/).textContent,
+      ).toMatch(/^Back-to-back conflicts/);
+    });
+  });
+
   it("counts students, not conflict records, in the student double-book card", () => {
     render(<ConflictView />);
 

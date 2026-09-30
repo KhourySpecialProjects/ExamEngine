@@ -657,38 +657,6 @@ class DatasetService:
                 f"Failed to parse {file_type}", detail={"error": str(e)}
             ) from e
 
-    async def validate_merge(
-        self, dataset_id: UUID, user_id: UUID, crns: list[str]
-    ) -> dict[str, Any]:
-        """
-        Validate if merging multiple CRNs is feasible.
-
-        Args:
-            dataset_id: Dataset ID
-            user_id: User ID for authorization
-            crns: List of CRNs to merge
-
-        Returns:
-            Validation result dictionary
-        """
-        from src.domain.factories.dataset_factory import DatasetFactory
-
-        # Load dataset files
-        files = await self.get_dataset_files(dataset_id, user_id)
-
-        # Build SchedulingDataset for validation
-        scheduling_dataset = DatasetFactory.from_dataframes_to_scheduling_dataset(
-            courses_df=files["courses"],
-            enrollment_df=files["enrollments"],
-            rooms_df=files["rooms"],
-        )
-
-        # Validate merge
-        validator = MergeValidator(scheduling_dataset)
-        result = validator.validate_merge(crns)
-
-        return result.to_dict()
-
     def get_merges(
         self, dataset_id: UUID, user_id: UUID
     ) -> dict[str, list[str]] | None:
@@ -698,96 +666,6 @@ class DatasetService:
             raise DatasetNotFoundError(f"Dataset {dataset_id} not found")
         return dataset.course_merges
 
-    def set_merges(
-        self, dataset_id: UUID, user_id: UUID, merges: dict[str, list[str]]
-    ) -> dict[str, Any]:
-        """
-        Set course merges for a dataset.
-
-        Args:
-            dataset_id: Dataset ID
-            user_id: User ID for authorization
-            merges: Dictionary mapping merge_group_id to list of CRNs
-
-        Returns:
-            Updated merges dictionary
-        """
-        dataset = self.dataset_repo.get_by_id_for_user(dataset_id, user_id)
-        if not dataset:
-            raise DatasetNotFoundError(f"Dataset {dataset_id} not found")
-
-        updated = self.dataset_repo.set_merges(dataset_id, merges)
-        return updated.course_merges if updated else None
-
-    def clear_merges(self, dataset_id: UUID, user_id: UUID) -> dict[str, Any]:
-        """Clear all course merges for a dataset."""
-        dataset = self.dataset_repo.get_by_id_for_user(dataset_id, user_id)
-        if not dataset:
-            raise DatasetNotFoundError(f"Dataset {dataset_id} not found")
-
-        success = self.dataset_repo.clear_merges(dataset_id)
-        return {"success": success, "message": "Merges cleared"}
-
-    async def _common_exam_validator(
-        self, dataset_id: UUID, user_id: UUID
-    ) -> CommonExamValidator:
-        """Build a common exam validator from the stored files and merges."""
-        from src.domain.factories.dataset_factory import DatasetFactory
-
-        files = await self.get_dataset_files(dataset_id, user_id)
-        scheduling_dataset = DatasetFactory.from_dataframes_to_scheduling_dataset(
-            courses_df=files["courses"],
-            enrollment_df=files["enrollments"],
-            rooms_df=files["rooms"],
-        )
-        merges = self.get_merges(dataset_id, user_id) or {}
-        return CommonExamValidator(scheduling_dataset, merges)
-
-    async def validate_common_exam(
-        self, dataset_id: UUID, user_id: UUID, crns: list[str]
-    ) -> dict[str, Any]:
-        """
-        Validate one common exam group against the dataset and its merges.
-
-        Returns:
-            Validation result dictionary (`is_valid` is False when the group's
-            room units cannot all be seated at once)
-
-        Raises:
-            ValueError: If a CRN is unknown or the group has fewer than 2 room
-                units after combined-group closure
-        """
-        if not crns:
-            raise ValueError("Cannot validate an empty common exam group")
-        validator = await self._common_exam_validator(dataset_id, user_id)
-        return validator.validate(crns).to_dict()
-
-    async def validate_common_exam_groups(
-        self, dataset_id: UUID, user_id: UUID, groups: dict[str, list[str]]
-    ) -> dict[str, dict[str, Any]]:
-        """
-        Validate a full set of common exam groups before saving it.
-
-        Returns:
-            Validation result dictionary per group label
-
-        Raises:
-            ValueError: Listing every structural problem (unknown CRN, CRN in
-                several groups, combined group split across groups, group with
-                fewer than 2 room units). Infeasible groups are not errors.
-        """
-        validator = await self._common_exam_validator(dataset_id, user_id)
-        problems = validator.cross_group_problems(groups)
-        results: dict[str, dict[str, Any]] = {}
-        for label, crns in groups.items():
-            try:
-                results[label] = validator.validate(crns).to_dict()
-            except ValueError as e:
-                problems.append(f"common group '{label}': {e}")
-        if problems:
-            raise ValueError("; ".join(problems))
-        return results
-
     def get_common_exams(
         self, dataset_id: UUID, user_id: UUID
     ) -> dict[str, list[str]] | None:
@@ -796,36 +674,6 @@ class DatasetService:
         if not dataset:
             raise DatasetNotFoundError(f"Dataset {dataset_id} not found")
         return dataset.common_exam_groups
-
-    def set_common_exams(
-        self, dataset_id: UUID, user_id: UUID, groups: dict[str, list[str]]
-    ) -> dict[str, list[str]] | None:
-        """
-        Set common exam groups for a dataset.
-
-        Args:
-            dataset_id: Dataset ID
-            user_id: User ID for authorization
-            groups: Dictionary mapping common group label to its CRNs
-
-        Returns:
-            Updated common exam groups
-        """
-        dataset = self.dataset_repo.get_by_id_for_user(dataset_id, user_id)
-        if not dataset:
-            raise DatasetNotFoundError(f"Dataset {dataset_id} not found")
-
-        updated = self.dataset_repo.set_common_exams(dataset_id, groups)
-        return updated.common_exam_groups if updated else None
-
-    def clear_common_exams(self, dataset_id: UUID, user_id: UUID) -> dict[str, Any]:
-        """Clear all common exam groups for a dataset."""
-        dataset = self.dataset_repo.get_by_id_for_user(dataset_id, user_id)
-        if not dataset:
-            raise DatasetNotFoundError(f"Dataset {dataset_id} not found")
-
-        success = self.dataset_repo.clear_common_exams(dataset_id)
-        return {"success": success, "message": "Common exams cleared"}
 
 
 def _entry_type(file_entry: dict[str, Any]) -> str:

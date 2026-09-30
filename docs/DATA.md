@@ -120,7 +120,7 @@ PHYS Common Final,11321
 
 Problems within the file itself (V2–V5, V8, V9) are reported together. Checks against courses.csv and rooms.csv (V6, V7) run only once every file passes its own checks. A rejected upload returns HTTP 400 `{"message": "File validation failed", "errors": {"combined_exams": "<reason>"}}`, and nothing is stored. Over-capacity groups (V7) are saved but no room can hold them, so the scheduler reports them as unscheduled. The upload response reports the file under `files.combined_exams` as `{rows, exam_groups, merged_crns, over_capacity_groups}`.
 
-Valid groups are stored in the `datasets.course_merges` JSONB column as `{group_label: [CRN, ...]}` (CRNs in order of first appearance), e.g., `{"MATH Common Final": ["11315", "11316"]}`. After upload they can still be viewed and edited through the merges API: `GET`, `POST`, and `DELETE /api/datasets/{dataset_id}/merges` (the column and route keep their original "merges" names).
+Valid groups are stored in the `datasets.course_merges` JSONB column as `{group_label: [CRN, ...]}` (CRNs in order of first appearance), e.g., `{"MATH Common Final": ["11315", "11316"]}`. Combined groups can only be set by uploading this file; to change them, upload a new dataset. They are read back with `GET /api/datasets/{dataset_id}/merges` (the column and route keep their original "merges" names).
 
 > Datasets uploaded before combined and common exams were split stored this file as `common_exams.csv` (file type `common_exams`, metadata with `exam_groups`). They are still reported as `combined_exams`.
 
@@ -157,7 +157,7 @@ BIOL 1101 Final,44444
 
 Cross-file checks (C2–C4) run once every file passes its own checks; errors in combined_exams.csv and common_exams.csv are reported together, e.g. HTTP 400 `{"message": "File validation failed", "errors": {"common_exams": "<reason>"}}`. The upload response reports the file under `files.common_exams` as `{rows, common_groups, common_crns, infeasible_groups, student_overlap_groups}`.
 
-Valid groups are stored, as listed (closure is applied at scheduling time), in the nullable `datasets.common_exam_groups` JSONB column as `{group_label: [CRN, ...]}`. The scheduler places common groups before all other exams; a group is never split across blocks or partially placed. After upload they can be viewed and edited through `GET`, `POST` (body `{"common_exams": {label: [CRN, ...]}}`; structurally invalid groups → 400), and `DELETE /api/datasets/{dataset_id}/common-exams`, and a single group can be checked with `POST /api/datasets/{dataset_id}/common-exams/validate` (body `{"crns": [...]}`).
+Valid groups are stored, as listed (closure is applied at scheduling time), in the nullable `datasets.common_exam_groups` JSONB column as `{group_label: [CRN, ...]}`. The scheduler places common groups before all other exams; a group is never split across blocks or partially placed. Common groups can only be set by uploading this file; to change them, upload a new dataset. They are read back with `GET /api/datasets/{dataset_id}/common-exams`.
 
 ## Data Validation
 

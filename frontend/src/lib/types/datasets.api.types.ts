@@ -73,12 +73,3 @@ export interface CommonExamsFileMetadata extends BaseFileMetadata {
   infeasible_groups?: InfeasibleCommonGroup[];
   student_overlap_groups?: StudentOverlapCommonGroup[];
 }
-
-export interface CommonExamValidation {
-  is_valid: boolean;
-  room_units: number;
-  total_enrollment: number;
-  warning_message?: string | null;
-  can_proceed?: boolean;
-  crns?: string[];
-}

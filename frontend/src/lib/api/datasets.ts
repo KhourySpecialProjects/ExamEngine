@@ -1,7 +1,4 @@
-import type {
-  CommonExamValidation,
-  DatasetMetadata,
-} from "../types/datasets.api.types";
+import type { DatasetMetadata } from "../types/datasets.api.types";
 import { BaseAPI } from "./base";
 
 export class DatasetsAPI extends BaseAPI {
@@ -57,69 +54,7 @@ export class DatasetsAPI extends BaseAPI {
     return this.request(`/datasets/${datasetId}/merges`);
   }
 
-  async validateCourseMerge(
-    datasetId: string,
-    crns: string[],
-  ): Promise<{
-    is_valid: boolean;
-    has_suitable_room?: boolean;
-    message: string;
-    warning_type?: string;
-    total_enrollment?: number;
-    max_room_capacity?: number;
-  }> {
-    return this.request(`/datasets/${datasetId}/merges/validate`, {
-      method: "POST",
-      body: JSON.stringify({ crns: crns }),
-    });
-  }
-
-  async setCourseMerges(
-    datasetId: string,
-    merges: Record<string, string[]>,
-  ): Promise<{
-    message: string;
-    validation: Record<string, { is_valid: boolean; warning_type?: string }>;
-  }> {
-    return this.request(`/datasets/${datasetId}/merges`, {
-      method: "POST",
-      body: JSON.stringify({ merges }),
-    });
-  }
-
-  async clearCourseMerges(datasetId: string): Promise<{ message: string }> {
-    return this.request(`/datasets/${datasetId}/merges`, {
-      method: "DELETE",
-    });
-  }
-
   async getCommonExams(datasetId: string): Promise<Record<string, string[]>> {
     return this.request(`/datasets/${datasetId}/common-exams`);
-  }
-
-  async validateCommonExam(
-    datasetId: string,
-    crns: string[],
-  ): Promise<CommonExamValidation> {
-    return this.request(`/datasets/${datasetId}/common-exams/validate`, {
-      method: "POST",
-      body: JSON.stringify({ crns }),
-    });
-  }
-
-  async setCommonExams(
-    datasetId: string,
-    groups: Record<string, string[]>,
-  ): Promise<{ message: string; validation?: Record<string, unknown> }> {
-    return this.request(`/datasets/${datasetId}/common-exams`, {
-      method: "POST",
-      body: JSON.stringify({ common_exams: groups }),
-    });
-  }
-
-  async clearCommonExams(datasetId: string): Promise<{ message: string }> {
-    return this.request(`/datasets/${datasetId}/common-exams`, {
-      method: "DELETE",
-    });
   }
 }

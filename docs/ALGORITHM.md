@@ -64,6 +64,35 @@ When 25 time slots are insufficient:
 2. Extend exam period (add slots)
 3. Split large courses across multiple rooms
 
+## Combined and Common Exams
+
+Two optional inputs group CRNs together (see `Scheduler(merges=..., common_groups=...)`):
+
+| Kind                  | Input file                         | Same time block | Room                                  |
+| --------------------- | ---------------------------------- | --------------- | ------------------------------------- |
+| **Combined**          | `combined_exams` (`ExamGroup,CRN`) | Yes             | One shared room                       |
+| **Common**            | `common_exams` (`Common_Group,CRN`) | Yes             | A distinct room per member (anti-leak) |
+| **Common + combined** | both                               | Yes             | One room per combined group, one per other CRN |
+
+A common group may contain combined groups. If any CRN of a combined group is listed in a common group, the whole combined group belongs to it. Example: combined `{11111, 22222}` and common `BIOL101 = {11111, 33333, 44444}` → one block, three rooms: `11111+22222`, `33333`, `44444`.
+
+Terms used by the scheduler:
+
+- **Room unit** — a combined group or a lone CRN; gets exactly one room.
+- **Time group** — a common group (its room units) or a lone room unit; all its CRNs share one block.
+
+A CRN in two combined groups, a CRN in two common groups, or a combined group split across common groups raises `ValueError`.
+
+### Pipeline changes
+
+1. **Upfront feasibility.** A combined group larger than the largest room is unscheduled. A common group is unscheduled **as a whole** if it contains such a combined group, or if its room units cannot all be seated at once in distinct rooms (greedy: units by enrollment descending, each into the smallest unused room that fits; blockouts ignored at this stage).
+2. **Contraction.** Before DSATUR, every multi-CRN time group is collapsed into one virtual node carrying the union of its members' external edges (max weight); edges inside the group are dropped. All members receive the virtual node's color.
+3. **Ordering.** Common groups are placed **first** — most room units, then largest total enrollment — so their rooms are reserved before other exams compete for them. Everything else follows the usual color/size ordering, one representative per time group.
+4. **Slot choice.** Conflicts and soft penalties are summed over all CRNs of the time group. For a common group, a block is admissible only if its room units pack (same greedy) into rooms that are neither blocked (`room_blockouts`) nor already reserved by an earlier common group at that block. If no block is admissible, the whole group is unscheduled. Students enrolled in two or more room units of one common group are reported as unavoidable `student_double_book` conflicts.
+5. **Room reservation.** On placement the packed rooms are reserved for that block. `_assign_rooms` starts from these reservations, then assigns every other room unit the smallest free, unblocked room that fits (falling back to the largest free room, else leaving it unroomed).
+
+Unsatisfiable groups are never split or partially placed: `ScheduleResult.unscheduled_groups` maps each affected combined/common label to a reason, and `ScheduleResult.unscheduled_crns` lists every CRN left with neither block nor room. These are persisted as assignments with no time slot and no room.
+
 ## Future Improvements
 
 ### Tabu Search Enhancement

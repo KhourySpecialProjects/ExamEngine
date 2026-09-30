@@ -1013,6 +1013,45 @@ class TestSchedulerCommonExams:
         assert set(result.assignments) == {"S"}
         assert result.room_assignments["S"] == "R2"
 
+    def test_combined_group_never_gets_an_undersized_room(self):
+        # The common group needs R100 + R30 and can only use slot (0, 0), where
+        # R100 is not blocked. The 50-seat combined group then has no fitting
+        # room anywhere: it must stay unscheduled, not fall back to R30.
+        not_first = frozenset((0, b) for b in range(1, 5))
+        dataset = _group_dataset(
+            {"A": 80, "B": 20, "X": 25, "Y": 25},
+            {"R100": 100, "R30": 30, "R10": 10},
+            blockouts={"R100": not_first},
+        )
+        result = Scheduler(
+            dataset=dataset,
+            max_days=1,
+            merges={"M": ["X", "Y"]},
+            common_groups={"G": ["A", "B"]},
+        ).schedule()
+
+        assert result.room_assignments["A"] == "R100"
+        [group] = result.unscheduled_groups
+        assert (group.kind, group.label, group.crns) == ("combined", "M", ["X", "Y"])
+        assert "X" not in result.assignments
+        assert "X" not in result.room_assignments
+
+    def test_combined_group_takes_the_block_where_a_fitting_room_is_free(self):
+        # R100 is free only at (0, 3); the combined group must go there.
+        not_three = frozenset((0, b) for b in range(5) if b != 3)
+        dataset = _group_dataset(
+            {"X": 25, "Y": 25, "S": 5},
+            {"R100": 100, "R30": 30},
+            blockouts={"R100": not_three},
+        )
+        result = Scheduler(
+            dataset=dataset, max_days=1, merges={"M": ["X", "Y"]}
+        ).schedule()
+
+        assert result.assignments["X"] == result.assignments["Y"] == (0, 3)
+        assert result.room_assignments["X"] == result.room_assignments["Y"] == "R100"
+        assert not result.unscheduled_groups
+
     def test_later_common_group_avoids_rooms_reserved_by_earlier_one(self):
         dataset = _group_dataset(
             {"A": 10, "B": 10, "C": 10, "D": 10},

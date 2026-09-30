@@ -254,6 +254,15 @@ class Scheduler:
         self.crn_to_time_group: dict[str, str] = {
             crn: unit_to_time_group[unit] for crn, unit in self.crn_to_room_unit.items()
         }
+        # Groups whose rooms are chosen and reserved with their time block:
+        # common groups and any group containing a combined unit. They never fall
+        # back to an undersized room; with no fitting room they stay unscheduled.
+        self.room_reserving_groups: set[str] = {
+            tg
+            for tg, units in self.time_groups.items()
+            if tg in self.common_time_groups
+            or any(unit in self.unit_to_merge_label for unit in units)
+        }
 
     def _mark_unscheduled(self, tg: str, reason: str) -> None:
         """Leave a whole time group unscheduled, recording why."""
@@ -476,12 +485,18 @@ class Scheduler:
 
             choice = self._find_best_slot(crn)
             if choice is None:
-                units = len(self.time_groups[tg])
-                self._mark_unscheduled(
-                    tg,
-                    f"No time block has {units} free, unblocked rooms large enough "
-                    "for its exams",
-                )
+                units = self.time_groups[tg]
+                if len(units) == 1:
+                    reason = (
+                        "No time block has a free, unblocked room large enough "
+                        f"for its {self.unit_enrollment[units[0]]} students"
+                    )
+                else:
+                    reason = (
+                        f"No time block has {len(units)} free, unblocked rooms "
+                        "large enough for its exams"
+                    )
+                self._mark_unscheduled(tg, reason)
                 continue
 
             (day, block), slot_conflicts, room_plan = choice
@@ -571,23 +586,24 @@ class Scheduler:
         """Find the slot with minimum conflicts and penalties for the CRN's group.
 
         Conflicts and penalties are summed over every CRN in the time group. For a
-        common group a slot is admissible only if all of its room units fit into
-        distinct rooms that are neither blocked nor already reserved at that slot.
+        room-reserving group (common, or containing a combined group) a slot is
+        admissible only if all of its room units fit into distinct rooms that are
+        neither blocked nor already reserved at that slot.
 
         Returns:
             (slot, conflicts, room_plan) where room_plan maps room unit → room
-            (empty for non-common groups), or None if no slot is admissible.
+            (empty for other groups), or None if no slot is admissible.
         """
         tg = self.crn_to_time_group[crn]
         crns_to_check = self.time_group_crns[tg]
-        is_common = tg in self.common_time_groups
+        reserves_rooms = tg in self.room_reserving_groups
         blockouts = self.dataset.room_blockouts
 
         candidates = []
 
         for day, block in self.available_slots:
             room_plan: dict[str, str] = {}
-            if is_common:
+            if reserves_rooms:
                 reserved = self.reserved_rooms[(day, block)]
                 free_rooms = [
                     r
@@ -667,8 +683,9 @@ class Scheduler:
     def _assign_rooms(self) -> tuple[dict[str, str], set[str]]:
         """Assign rooms to courses based on capacity.
 
-        Rooms reserved for common groups during slot assignment are kept; every
-        other room unit gets the smallest free, unblocked room that fits.
+        Rooms reserved for common and combined groups during slot assignment are
+        kept; every other room unit gets the smallest free, unblocked room that
+        fits, falling back to the largest free room.
 
         Returns:
             room_assignments: CRN → room_name for all placed courses

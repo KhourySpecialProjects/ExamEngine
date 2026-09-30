@@ -232,6 +232,31 @@ describe("ConflictView", () => {
     ).toEqual(["9AM-11AM", "11:30AM-1:30PM"]);
   });
 
+  it("gives every conflict type the backend emits a readable tab name", () => {
+    // conflict_type values from backend/src/domain/assemblers/conflict_assembler.py
+    mockSchedule(
+      [
+        "student_double_book",
+        "instructor_double_book",
+        "student_gt_max_per_day",
+        "instructor_gt_max_per_day",
+        "back_to_back",
+        "back_to_back_instructor",
+        "large_course_not_early",
+      ].map((conflict_type) => ({
+        conflict_type,
+        entity_id: "x",
+        day: "Monday",
+      })),
+    );
+    render(<ConflictView />);
+
+    expect(
+      screen.getByRole("button", { name: "Instructor Per-Day Limit" }),
+    ).toBeDefined();
+    expect(screen.queryAllByRole("button", { name: /_/ })).toEqual([]);
+  });
+
   it("counts students, not conflict records, in the Student Conflicts card", () => {
     render(<ConflictView />);
 

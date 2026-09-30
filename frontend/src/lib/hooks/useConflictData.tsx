@@ -186,6 +186,7 @@ export const conflictTypeMap: Record<string, string> = {
   student_gt_max_per_day: "Student Per-Day Limit",
   student_gt3_per_day: "Student has more than 2 exams per day",
   instructor_double_book: "Instructor Double-Book",
+  instructor_gt_max_per_day: "Instructor Per-Day Limit",
   back_to_back: "Back-to-Back",
   back_to_back_student: "Back-to-Back (Students)",
   back_to_back_instructor: "Back-to-Back (Instructors)",
@@ -210,6 +211,8 @@ export const conflictDescriptions: Record<string, string> = {
     "Students scheduled for more than 3 exams in a single day.",
   student_gt_max_per_day:
     "Students exceeding the configured maximum exams per day.",
+  instructor_gt_max_per_day:
+    "Instructors exceeding the configured maximum exams per day.",
   unknown: "Uncategorized or unknown conflict type.",
 };
 
@@ -245,6 +248,8 @@ export function getIconForType(type: string) {
     t.includes("student_gt")
   )
     return <AlertTriangle className="w-4 h-4 text-rose-600" />;
+  if (t.includes("instructor_gt_max_per_day"))
+    return <AlertTriangle className="w-4 h-4 text-amber-600" />;
   if (t.includes("student") && !t.includes("double"))
     return <User className="w-4 h-4 text-rose-600" />;
   if (t.includes("instructor") && !t.includes("double"))

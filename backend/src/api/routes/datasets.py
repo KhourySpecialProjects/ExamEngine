@@ -37,6 +37,19 @@ class SetMergesRequest(BaseModel):
     # Format: {"merge_group_1": ["CRN1", "CRN2"], "merge_group_2": ["CRN3", "CRN4"]}
 
 
+class CommonExamValidationRequest(BaseModel):
+    """Request model for validating one common exam group."""
+
+    crns: list[str]
+
+
+class SetCommonExamsRequest(BaseModel):
+    """Request model for setting common exam groups."""
+
+    common_exams: dict[str, list[str]]
+    # Format: {"BIOL 1101 Final": ["11111", "33333", "44444"]}
+
+
 router = APIRouter(prefix="/datasets", tags=["datasets"])
 
 
@@ -47,6 +60,7 @@ async def upload_dataset(
     enrollments: UploadFile = File(...),
     rooms: UploadFile = File(...),
     room_blockouts: UploadFile | None = File(None),
+    combined_exams: UploadFile | None = File(None),
     common_exams: UploadFile | None = File(None),
     current_user: Users = Depends(get_current_user),
     dataset_service: DatasetService = Depends(get_dataset_service),
@@ -61,6 +75,9 @@ async def upload_dataset(
             user_id=current_user.user_id,
             room_blockouts_file=room_blockouts
             if room_blockouts and room_blockouts.filename
+            else None,
+            combined_exams_file=combined_exams
+            if combined_exams and combined_exams.filename
             else None,
             common_exams_file=common_exams
             if common_exams and common_exams.filename
@@ -209,5 +226,83 @@ async def clear_merges(
     """Clear all course merges for a dataset."""
     try:
         return dataset_service.clear_merges(dataset_id, current_user.user_id)
+    except DatasetNotFoundError as e:
+        raise HTTPException(status_code=404, detail=e.message) from e
+
+
+@router.get("/{dataset_id}/common-exams")
+async def get_common_exams(
+    dataset_id: UUID,
+    current_user: Users = Depends(get_current_user),
+    dataset_service: DatasetService = Depends(get_dataset_service),
+):
+    """Get all common exam groups for a dataset."""
+    try:
+        groups = dataset_service.get_common_exams(dataset_id, current_user.user_id)
+        return groups or {}
+    except DatasetNotFoundError as e:
+        raise HTTPException(status_code=404, detail=e.message) from e
+
+
+@router.post("/{dataset_id}/common-exams/validate")
+async def validate_common_exam(
+    dataset_id: UUID,
+    request: CommonExamValidationRequest,
+    current_user: Users = Depends(get_current_user),
+    dataset_service: DatasetService = Depends(get_dataset_service),
+):
+    """Validate if CRNs can sit one common exam (same block, separate rooms)."""
+    try:
+        return await dataset_service.validate_common_exam(
+            dataset_id, current_user.user_id, request.crns
+        )
+    except DatasetNotFoundError as e:
+        raise HTTPException(status_code=404, detail=e.message) from e
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e)) from e
+
+
+@router.post("/{dataset_id}/common-exams")
+async def set_common_exams(
+    dataset_id: UUID,
+    request: SetCommonExamsRequest,
+    current_user: Users = Depends(get_current_user),
+    dataset_service: DatasetService = Depends(get_dataset_service),
+):
+    """
+    Set common exam groups for a dataset.
+
+    Structurally invalid groups (unknown CRN, CRN in several groups, combined
+    group split across groups, fewer than 2 room units) are rejected with 400.
+    Groups that cannot be seated at once are saved and reported in
+    `validation`; the scheduler leaves them unscheduled.
+    """
+    try:
+        validation = await dataset_service.validate_common_exam_groups(
+            dataset_id, current_user.user_id, request.common_exams
+        )
+        groups = dataset_service.set_common_exams(
+            dataset_id, current_user.user_id, request.common_exams
+        )
+        return {
+            "message": "Common exams updated successfully",
+            "validation": validation,
+            "common_exams": groups,
+        }
+    except DatasetNotFoundError as e:
+        raise HTTPException(status_code=404, detail=e.message) from e
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e)) from e
+
+
+@router.delete("/{dataset_id}/common-exams")
+async def clear_common_exams(
+    dataset_id: UUID,
+    current_user: Users = Depends(get_current_user),
+    dataset_service: DatasetService = Depends(get_dataset_service),
+):
+    """Clear all common exam groups for a dataset."""
+    try:
+        return dataset_service.clear_common_exams(dataset_id, current_user.user_id)
     except DatasetNotFoundError as e:
         raise HTTPException(status_code=404, detail=e.message) from e

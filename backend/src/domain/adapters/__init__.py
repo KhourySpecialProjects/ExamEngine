@@ -1,4 +1,5 @@
 from .csv_adapters import (
+    CombinedExamAdapter,
     CommonExamAdapter,
     CourseAdapter,
     EnrollmentAdapter,
@@ -10,6 +11,7 @@ from .schemas_detector import CSVSchemaDetector
 
 
 __all__ = [
+    "CombinedExamAdapter",
     "CommonExamAdapter",
     "CourseAdapter",
     "EnrollmentAdapter",

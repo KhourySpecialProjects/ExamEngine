@@ -42,10 +42,14 @@ class TestReadUploadCsv:
         assert courses["Enrollment"].sum() == 55
         assert pd.api.types.is_integer_dtype(rooms["Capacity"])
 
-    def test_common_exams_read_fully_as_text(self):
-        df = read_upload_csv(b"ExamGroup,CRN\n01,11310\n01,11311\n", "common_exams")
+    @pytest.mark.parametrize(
+        ("file_type", "header"),
+        [("combined_exams", "ExamGroup"), ("common_exams", "Common_Group")],
+    )
+    def test_group_files_read_fully_as_text(self, file_type, header):
+        df = read_upload_csv(f"{header},CRN\n01,11310\n01,11311\n".encode(), file_type)
 
-        assert df["ExamGroup"].tolist() == ["01", "01"]
+        assert df[header].tolist() == ["01", "01"]
         assert df["CRN"].tolist() == ["11310", "11311"]
 
 

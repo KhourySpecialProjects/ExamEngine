@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { DatasetsAPI } from "@/lib/api/datasets";
 
 vi.mock("@/lib/api/client", () => ({
@@ -10,6 +10,11 @@ import { useUploadStore } from "./uploadStore";
 
 const upload = vi.mocked(apiClient.datasets.upload);
 const csv = (name: string) => new File(["a,b\n1,2\n"], name);
+
+// Restore stubbed globals (fetch) even when an assertion fails mid-test.
+afterEach(() => {
+  vi.unstubAllGlobals();
+});
 
 function selectFiles(ids: string[]) {
   const store = useUploadStore.getState();
@@ -134,7 +139,6 @@ describe("API errors with an object detail", () => {
       .catch((e: Error) => e);
 
     expect(JSON.parse((error as Error).message)).toEqual(detail);
-    vi.unstubAllGlobals();
   });
 });
 
@@ -158,6 +162,5 @@ describe("DatasetsAPI.upload form fields", () => {
     const body = fetchMock.mock.calls[0][1].body as FormData;
     expect((body.get("combined_exams") as File).name).toBe("combined.csv");
     expect((body.get("common_exams") as File).name).toBe("common.csv");
-    vi.unstubAllGlobals();
   });
 });

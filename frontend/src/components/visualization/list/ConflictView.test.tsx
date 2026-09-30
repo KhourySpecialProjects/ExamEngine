@@ -1,5 +1,11 @@
-import { fireEvent, render, screen, within } from "@testing-library/react";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import {
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+  within,
+} from "@testing-library/react";
+import { beforeEach, describe, expect, it, type Mock, vi } from "vitest";
 import type { ConflictBreakdown, ScheduleExam } from "@/lib/api/schedules";
 import { useConflictViewStore } from "@/lib/store/conflictViewStore";
 import { useSchedulesStore } from "@/lib/store/schedulesStore";
@@ -464,6 +470,88 @@ describe("ConflictView", () => {
       expect(
         screen.getByText(/can't be counted per course/).textContent,
       ).toMatch(/^Back-to-back conflicts/);
+    });
+  });
+
+  describe("copy and course details", () => {
+    let writeText: Mock<(text: string) => Promise<void>>;
+    beforeEach(() => {
+      writeText = vi
+        .fn<(text: string) => Promise<void>>()
+        .mockResolvedValue(undefined);
+      Object.defineProperty(navigator, "clipboard", {
+        value: { writeText },
+        configurable: true,
+      });
+    });
+
+    it("copies the exact NUId and CRN without opening the course details", async () => {
+      render(<ConflictView />);
+
+      fireEvent.click(
+        screen.getByRole("button", { name: "Copy NUId 000000002" }),
+      );
+      fireEvent.click(
+        screen.getAllByRole("button", { name: "Copy CRN 2510" })[0],
+      );
+
+      await waitFor(() =>
+        expect(writeText.mock.calls).toEqual([["000000002"], ["2510"]]),
+      );
+      expect(screen.queryByRole("dialog")).toBeNull();
+    });
+
+    it("opens a course's details from its pill with the students it conflicts for", async () => {
+      render(<ConflictView />);
+
+      // CS 3500 is double-booked for both students.
+      fireEvent.click(
+        screen.getAllByRole("button", {
+          name: "Show conflicts for CS 3500",
+        })[0],
+      );
+      const dialog = screen.getByRole("dialog");
+      expect(
+        within(dialog).getByRole("heading", { name: "CS 3500" }),
+      ).toBeTruthy();
+      const section = within(dialog).getByRole("region", {
+        name: "Student Double-Book",
+      });
+      expect(within(section).getByRole("heading").textContent).toBe(
+        "Student Double-Book: 2 students",
+      );
+      expect(
+        within(section)
+          .getAllByRole("listitem")
+          .map((li) => li.textContent),
+      ).toEqual(["000000001", "000000002"]);
+
+      fireEvent.click(
+        within(section).getByRole("button", { name: "Copy all" }),
+      );
+      await waitFor(() =>
+        expect(writeText).toHaveBeenCalledWith("000000001\n000000002"),
+      );
+    });
+
+    it("counts each course of a 3-way double-book, with exam details in the header", () => {
+      render(<ConflictView />);
+
+      // Student 1's Monday slot holds CS 2500, CS 2510 and CS 2800.
+      fireEvent.click(
+        screen.getByRole("button", {
+          name: "Open conflict details for CS 2500",
+        }),
+      );
+      const dialog = screen.getByRole("dialog");
+      expect(dialog.textContent).toContain("CRN 2500");
+      expect(dialog.textContent).toContain("Monday Block 0");
+      expect(dialog.textContent).toContain("WVH 210");
+      expect(dialog.textContent).toContain("95 enrolled");
+      expect(
+        within(dialog).getByRole("region", { name: "Student Double-Book" })
+          .textContent,
+      ).toContain("Student Double-Book: 1 student");
     });
   });
 

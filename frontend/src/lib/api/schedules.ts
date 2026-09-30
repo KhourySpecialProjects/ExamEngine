@@ -8,20 +8,24 @@ export interface ScheduleParameters {
   prioritize_large_courses?: boolean;
 }
 
+/** One flat `conflicts.breakdown` record; populated fields vary by `conflict_type`. */
 export interface ConflictBreakdown {
-  student_id?: string;
-  entity_id?: string;
+  student_id?: string | null;
+  entity_id?: string | null;
+  instructor_name?: string | null;
   day: string;
   block?: number;
   block_time?: string;
   conflict_type: string;
   blocks?: number[];
+  block_times?: string[];
   crn?: string;
   course?: string;
-  conflicting_crn?: string;
-  conflicting_course?: string;
+  conflicting_crn?: string | null;
+  conflicting_course?: string | null;
   conflicting_crns?: string[];
   conflicting_courses?: string[];
+  size?: number;
 }
 
 export interface ScheduleFailure {

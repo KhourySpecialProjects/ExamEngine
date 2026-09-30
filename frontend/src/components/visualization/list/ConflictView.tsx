@@ -3,22 +3,69 @@ import {
   AlertTriangle,
   Briefcase,
   Calendar,
+  CalendarX,
+  ChevronLeft,
+  ChevronRight,
+  ChevronsLeft,
+  ChevronsRight,
   Clock,
   GraduationCap,
   UserX,
 } from "lucide-react";
 import { useState } from "react";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
+import {
+  CONFLICT_TYPE_ORDER,
   ConflictStat,
   conflictDescriptions,
   conflictTypeMap,
+  conflictTypeRank,
   getIconForType,
-  PAGE_SIZE,
 } from "@/lib/hooks/useConflictData";
-import { useConflictDataSimple } from "@/lib/hooks/useConflictDataSimple";
+import {
+  type ConflictCourse,
+  type ConflictRow,
+  type ConflictType,
+  isInstructorConflictType,
+  isPerDayLimitConflictType,
+  isPersonConflictType,
+  type RecordConflictRow,
+  useConflictDataSimple,
+} from "@/lib/hooks/useConflictDataSimple";
+import {
+  CONFLICT_PAGE_SIZES,
+  useConflictViewStore,
+} from "@/lib/store/conflictViewStore";
 import type { ConflictMetrics } from "@/lib/types/conflict.types";
+import { cn } from "@/lib/utils";
+
+type RecordColumnKey = keyof Pick<
+  RecordConflictRow,
+  "entity" | "day" | "block" | "course" | "crn" | "size"
+>;
+
+// Record-row columns a conflict type never shows, even when the data has them.
+const HIDDEN_RECORD_COLUMNS: Partial<Record<ConflictType, RecordColumnKey[]>> =
+  {
+    large_course_not_early: ["block"],
+  };
 
 // Legend: conflict type definitions
 function ConflictDefinitions() {
@@ -26,7 +73,7 @@ function ConflictDefinitions() {
     <div className="mt-4 bg-white rounded-lg shadow p-4">
       <h3 className="font-semibold mb-3">Conflict Definitions</h3>
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm">
-        {Object.keys(conflictTypeMap).map((type) => (
+        {CONFLICT_TYPE_ORDER.map((type) => (
           <div key={type} className="flex flex-col">
             <div className="font-medium flex items-center gap-2">
               <span className="inline-flex items-center">
@@ -44,177 +91,278 @@ function ConflictDefinitions() {
   );
 }
 
-// Paginated table for a conflict tab
+function courseTooltip({ course, crn, exam }: ConflictCourse): string {
+  const lines = [[course, crn && `CRN ${crn}`].filter(Boolean).join(" · ")];
+  if (exam?.Room) lines.push(`Room: ${exam.Room} (capacity ${exam.Capacity})`);
+  if (exam?.Size != null) lines.push(`Enrolled: ${exam.Size}`);
+  if (exam?.Instructor) lines.push(`Instructor: ${exam.Instructor}`);
+  return lines.join("\n");
+}
+
+function CoursePill({ course }: { course: ConflictCourse }) {
+  return (
+    <Badge
+      variant="outline"
+      title={courseTooltip(course)}
+      className="w-40 justify-between cursor-default border-yellow-200 bg-yellow-50 text-yellow-950"
+    >
+      <span className="truncate font-semibold">
+        {course.course || course.crn}
+      </span>
+      {course.course && course.crn && (
+        <span className="tabular-nums opacity-70">{course.crn}</span>
+      )}
+    </Badge>
+  );
+}
+
+function PaginationBar({
+  page,
+  pageSize,
+  total,
+  noun,
+  onPage,
+  onPageSize,
+}: {
+  page: number;
+  pageSize: number;
+  total: number;
+  /** Pluralized, with a leading space (" students"), or "". */
+  noun: string;
+  onPage: (p: number) => void;
+  /** Omit to hide the rows-per-page picker. */
+  onPageSize?: (size: number) => void;
+}) {
+  const totalPages = Math.max(1, Math.ceil(total / pageSize));
+  const start = page * pageSize;
+  const end = Math.min(total, start + pageSize);
+  const pageButtons = [
+    { label: "First page", icon: ChevronsLeft, to: 0 },
+    { label: "Previous page", icon: ChevronLeft, to: page - 1 },
+    { label: "Next page", icon: ChevronRight, to: page + 1 },
+    { label: "Last page", icon: ChevronsRight, to: totalPages - 1 },
+  ];
+  return (
+    <div className="flex flex-wrap items-center justify-between gap-2 py-2">
+      <div className="text-sm text-muted-foreground">
+        Showing {total === 0 ? 0 : start + 1}-{end} of {total}
+        {noun}
+      </div>
+      <div className="flex items-center gap-2">
+        {onPageSize && (
+          <>
+            <span className="text-sm text-muted-foreground">Rows per page</span>
+            <Select
+              value={String(pageSize)}
+              onValueChange={(v) => onPageSize(Number(v))}
+            >
+              <SelectTrigger size="sm" aria-label="Rows per page">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {CONFLICT_PAGE_SIZES.map((n) => (
+                  <SelectItem key={n} value={String(n)}>
+                    {n}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </>
+        )}
+        <span className="text-sm text-muted-foreground tabular-nums">
+          Page {page + 1} of {totalPages}
+        </span>
+        {pageButtons.map(({ label, icon: Icon, to }) => (
+          <Button
+            key={label}
+            variant="outline"
+            size="icon-sm"
+            aria-label={label}
+            title={label}
+            disabled={to < 0 || to >= totalPages || to === page}
+            onClick={() => onPage(to)}
+          >
+            <Icon />
+          </Button>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// Paginated table for a conflict tab. Person-based tabs keep one logical row
+// per student/instructor: NUId and count span one sub-row per conflict.
+// Fixed layout keeps column widths stable across pages.
 function ConflictTable({
   rowsForActive,
   activeTabId,
   page,
-  setPageForTab,
+  onPage,
+  pageSize,
+  onPageSize,
 }: {
-  rowsForActive: any[];
-  activeTabId: string;
+  rowsForActive: ConflictRow[];
+  activeTabId: ConflictType;
   page: number;
-  setPageForTab: (tab: string, p: number) => void;
+  onPage: (p: number) => void;
+  pageSize: number;
+  onPageSize: (size: number) => void;
 }) {
-  const totalPages = Math.max(1, Math.ceil(rowsForActive.length / PAGE_SIZE));
-  const start = page * PAGE_SIZE;
-  const end = Math.min(rowsForActive.length, start + PAGE_SIZE);
+  const isPersonTab = isPersonConflictType(activeTabId);
+  const isInstructorTab = isInstructorConflictType(activeTabId);
+  const entityLabel = isInstructorTab ? "Instructor" : "NUId";
+  const hiddenColumns = HIDDEN_RECORD_COLUMNS[activeTabId] ?? [];
 
-  const has = {
-    entity: rowsForActive.some(
-      (r: any) => r.entity != null && String(r.entity).trim() !== "",
-    ),
-    day: rowsForActive.some(
-      (r: any) => r.day != null && String(r.day).trim() !== "",
-    ),
-    block: rowsForActive.some((r: any) =>
-      Array.isArray(r.blocks)
-        ? r.blocks.length > 0
-        : r.block != null && String(r.block).trim() !== "",
-    ),
-    course: rowsForActive.some(
-      (r: any) => r.course != null && String(r.course).trim() !== "",
-    ),
-    crn: rowsForActive.some(
-      (r: any) => r.crn != null && String(r.crn).trim() !== "",
-    ),
-    conflicting_courses: rowsForActive.some((r: any) =>
-      Array.isArray(r.conflicting_courses)
-        ? r.conflicting_courses.length > 0
-        : r.conflicting_courses != null &&
-          String(r.conflicting_courses).trim() !== "",
-    ),
-    size: rowsForActive.some(
-      (r: any) => r.size != null && String(r.size).trim() !== "",
-    ),
+  const recordColumns = (
+    [
+      { key: "entity", label: entityLabel },
+      { key: "day", label: "Day" },
+      { key: "block", label: "Block" },
+      { key: "course", label: "Course" },
+      { key: "crn", label: "CRN" },
+      { key: "size", label: "Size" },
+    ] satisfies { key: RecordColumnKey; label: string }[]
+  ).filter(
+    (c) =>
+      !hiddenColumns.includes(c.key) &&
+      rowsForActive.some(
+        (r) =>
+          r.kind === "record" &&
+          r[c.key] != null &&
+          String(r[c.key]).trim() !== "",
+      ),
+  );
+
+  // Back-to-back records carry only time slots (no courses): show the slots
+  // as pills instead of an always-empty exams column.
+  const showCourses = rowsForActive.some(
+    (r) => r.kind === "person" && r.instances.some((i) => i.courses.length),
+  );
+  // Per-day limit records name only the exam that went over the limit, not
+  // the day's other exams (EXENG-46): list just the days over the limit.
+  const isPerDayTab = isPerDayLimitConflictType(activeTabId);
+
+  // Person tabs: percentage widths so columns spread with the table instead
+  // of bunching left, while staying independent of page contents. The pills
+  // column takes the rest. Record tabs split the width evenly.
+  const headers: { label: string; width?: string }[] = !isPersonTab
+    ? recordColumns.map((c) => ({ label: c.label }))
+    : isPerDayTab
+      ? [
+          { label: entityLabel, width: "w-[18%]" },
+          { label: "Days over limit", width: "w-[15%]" },
+          { label: "Day" },
+        ]
+      : showCourses
+        ? [
+            { label: entityLabel, width: "w-[15%]" },
+            { label: "Conflicts", width: "w-[10%]" },
+            { label: "Day", width: "w-[12%]" },
+            { label: "Time", width: "w-[15%]" },
+            { label: "Conflicting exams" },
+          ]
+        : [
+            { label: entityLabel, width: "w-[18%]" },
+            { label: "Conflicts", width: "w-[12%]" },
+            { label: "Day", width: "w-[15%]" },
+            { label: "Exam times" },
+          ];
+  const showTimeColumn = showCourses && !isPerDayTab;
+
+  const pagination = {
+    page,
+    pageSize,
+    total: rowsForActive.length,
+    noun: isPersonTab ? (isInstructorTab ? " instructors" : " students") : "",
+    onPage,
   };
-
-  // Helper function to format block display with times
-  const formatBlockDisplay = (row: any): string => {
-    // For back-to-back conflicts, show times if available
-    if (Array.isArray(row.blocks) && row.blocks.length > 0) {
-      if (Array.isArray(row.block_times) && row.block_times.length > 0) {
-        // Show times for each block: "Time1, Time2"
-        return row.block_times.join(", ");
-      }
-      // Fallback: show block numbers if times not available
-      return row.blocks.join(", ");
-    }
-    // For single block conflicts, show block_time if available
-    if (row.block_time) {
-      return row.block_time;
-    }
-    // Fallback: show block number
-    return row.block?.toString() || "—";
-  };
-
-  if (activeTabId === "large_course_not_early") {
-    has.block = false;
-    has.conflicting_courses = false;
-  }
-
-  const isInstructorConflict =
-    activeTabId === "back_to_back_instructor" ||
-    activeTabId === "instructor_double_book" ||
-    activeTabId === "instructor_gt_max_per_day";
-
-  const columns: Array<{ key: string; label: string }> = [];
-  if (has.entity)
-    columns.push({
-      key: "entity",
-      label: isInstructorConflict ? "Instructor" : "NUId",
-    });
-  if (has.day) columns.push({ key: "day", label: "Day" });
-  if (has.block) {
-    // For back-to-back conflicts, change label to show it's times
-    const isBackToBack =
-      activeTabId === "back_to_back" ||
-      activeTabId === "back_to_back_student" ||
-      activeTabId === "back_to_back_instructor";
-    columns.push({ key: "block", label: isBackToBack ? "Time" : "Block" });
-  }
-  if (has.course) columns.push({ key: "course", label: "Course" });
-  if (has.crn) columns.push({ key: "crn", label: "CRN" });
-  if (has.size) columns.push({ key: "size", label: "Size" });
-  if (has.conflicting_courses)
-    columns.push({
-      key: "conflicting_courses",
-      label: "Conflicting Courses",
-    });
+  const start = page * pageSize;
 
   return (
     <>
-      <table className="w-full table-auto text-sm">
-        <thead>
-          <tr className="text-left text-muted-foreground">
-            {columns.map((c) => (
-              <th key={c.key} className="px-2 py-2">
-                {c.label}
-              </th>
+      <PaginationBar {...pagination} onPageSize={onPageSize} />
+      <Table className="min-w-3xl table-fixed">
+        <TableHeader>
+          <TableRow className="hover:bg-transparent">
+            {headers.map(({ label, width }) => (
+              <TableHead
+                key={label}
+                className={cn("text-muted-foreground", width)}
+              >
+                {label}
+              </TableHead>
             ))}
-          </tr>
-        </thead>
-        <tbody>
-          {rowsForActive.slice(start, end).map((r: any, i: number) => (
-            // biome-ignore lint/suspicious/noArrayIndexKey: temporary key usage
-            <tr key={i} className="border-t">
-              {columns.map((c) => {
-                const key = c.key;
-                let cell: any = "—";
-                if (key === "entity") {
-                  // For instructor conflicts, prefer instructor_name if available
-                  if (isInstructorConflict && r.instructor_name) {
-                    cell = r.instructor_name;
-                  } else {
-                    cell = r.entity ?? r.student ?? r.instructor_name ?? "—";
-                  }
-                } else if (key === "day") cell = r.day ?? "—";
-                else if (key === "block") {
-                  // Use the helper function to format block display with times
-                  cell = formatBlockDisplay(r);
-                } else if (key === "course") cell = r.course ?? "—";
-                else if (key === "crn") cell = r.crn ?? "—";
-                else if (key === "conflicting_courses")
-                  cell = (r.conflicting_courses || []).join
-                    ? (r.conflicting_courses || []).join(", ")
-                    : String(r.conflicting_courses ?? "—");
-                else if (key === "size") cell = r.size ?? "—";
-
-                return (
-                  <td key={key} className="px-2 py-2">
-                    {cell}
-                  </td>
-                );
-              })}
-            </tr>
-          ))}
-        </tbody>
-      </table>
-
-      <div className="flex items-center justify-between mt-2">
-        <div className="text-sm text-muted-foreground">
-          Showing {rowsForActive.length === 0 ? 0 : start + 1}-{end} of{" "}
-          {rowsForActive.length}
-        </div>
-        <div className="flex gap-2">
-          <Button
-            size="sm"
-            disabled={page <= 0}
-            onClick={() => setPageForTab(activeTabId, Math.max(0, page - 1))}
-          >
-            Prev
-          </Button>
-          <Button
-            size="sm"
-            disabled={page >= totalPages - 1}
-            onClick={() =>
-              setPageForTab(activeTabId, Math.min(totalPages - 1, page + 1))
+          </TableRow>
+        </TableHeader>
+        <TableBody>
+          {rowsForActive.slice(start, start + pageSize).map((r) => {
+            if (r.kind !== "person") {
+              return (
+                <TableRow key={r.id} className="align-top">
+                  {recordColumns.map((c) => (
+                    <TableCell key={c.key}>{r[c.key] || "—"}</TableCell>
+                  ))}
+                </TableRow>
+              );
             }
-          >
-            Next
-          </Button>
-        </div>
-      </div>
+            const span = r.instances.length;
+            // Hover highlighting is off: it would light up one sub-row of a
+            // person but not the cells spanning the whole group.
+            return r.instances.map((inst, i) => (
+              <TableRow
+                key={`${r.id}|${inst.day}|${inst.time}`}
+                className={cn(
+                  "align-top hover:bg-transparent",
+                  i < span - 1 && "border-dashed border-muted-foreground/20",
+                )}
+              >
+                {i === 0 && (
+                  <>
+                    <TableCell
+                      rowSpan={span}
+                      className="align-top font-medium whitespace-normal break-words"
+                    >
+                      {r.entity || "—"}
+                    </TableCell>
+                    <TableCell rowSpan={span} className="align-top">
+                      {r.conflictCount}
+                    </TableCell>
+                  </>
+                )}
+                <TableCell className="align-top">{inst.day || "—"}</TableCell>
+                {showTimeColumn && (
+                  <TableCell className="align-top tabular-nums">
+                    {inst.time || "—"}
+                  </TableCell>
+                )}
+                {!isPerDayTab && (
+                  <TableCell className="align-top whitespace-normal">
+                    <div className="flex flex-wrap gap-1">
+                      {showCourses
+                        ? inst.courses.map((c) => (
+                            <CoursePill key={c.crn || c.course} course={c} />
+                          ))
+                        : // A time repeats when the person also has two exams
+                          // in that block; show it twice, keyed by position.
+                          inst.slots.map((slot, slotIdx) => (
+                            <Badge
+                              key={`${slotIdx}-${slot}`}
+                              variant="secondary"
+                              className="w-32 tabular-nums"
+                            >
+                              {slot}
+                            </Badge>
+                          ))}
+                      {showCourses && inst.courses.length === 0 && "—"}
+                    </div>
+                  </TableCell>
+                )}
+              </TableRow>
+            ));
+          })}
+        </TableBody>
+      </Table>
+      <PaginationBar {...pagination} />
     </>
   );
 }
@@ -226,79 +374,75 @@ export default function ConflictView({
   metrics?: Partial<ConflictMetrics>;
 }) {
   // Use the simple backend-driven conflict hook — backend returns a single normalized shape
-  const {
-    metrics: backendMetrics,
-    rowsByType,
-    types,
-  } = useConflictDataSimple();
-  const conflictTypeRows: Record<string, any[]> = { ...(rowsByType || {}) };
+  const { metrics: counts, rowsByType, types } = useConflictDataSimple();
 
-  // Prefer backend-provided metrics when available
-  const finalMerged = {
-    hard_student_conflicts: backendMetrics?.hard_student_conflicts ?? 0,
-    hard_instructor_conflicts: backendMetrics?.hard_instructor_conflicts ?? 0,
-    students_back_to_back: backendMetrics?.students_back_to_back ?? 0,
-    instructors_back_to_back: backendMetrics?.instructors_back_to_back ?? 0,
-    large_courses_not_early: backendMetrics?.large_courses_not_early ?? 0,
-    student_gt3_per_day: backendMetrics?.student_gt3_per_day ?? 0,
-  };
-
+  // Same order as the tabs: students, instructors, then courses. Who is
+  // affected goes in a pill under the title so titles stay on one line.
   const summaryCards = [
     {
-      label: "Student Conflicts",
-      value: finalMerged.hard_student_conflicts,
+      audience: "Student",
+      label: "Double-Book",
+      value: counts.hard_student_conflicts,
       subtitle: "Students with overlapping exams",
       icon: <UserX className="h-4 w-4" />,
-      variant:
-        finalMerged.hard_student_conflicts > 0 ? "destructive" : "success",
+      variant: counts.hard_student_conflicts > 0 ? "destructive" : "success",
     },
     {
-      label: "Instructor Conflicts",
-      value: finalMerged.hard_instructor_conflicts,
+      audience: "Student",
+      label: "Per-Day Limit",
+      value: counts.student_gt3_per_day,
+      subtitle: "Students over the daily exam limit",
+      icon: <Calendar className="h-4 w-4" />,
+      variant: counts.student_gt3_per_day > 0 ? "destructive" : "success",
+    },
+    {
+      audience: "Student",
+      label: "Back-to-Back",
+      value: counts.students_back_to_back,
+      subtitle: "Students with back-to-back exams",
+      icon: <Clock className="h-4 w-4" />,
+      variant: counts.students_back_to_back > 0 ? "warning" : "success",
+    },
+    {
+      audience: "Instructor",
+      label: "Double-Book",
+      value: counts.hard_instructor_conflicts,
       subtitle: "Instructors with overlapping exams",
       icon: <Briefcase className="h-4 w-4" />,
-      variant:
-        finalMerged.hard_instructor_conflicts > 0 ? "destructive" : "success",
+      variant: counts.hard_instructor_conflicts > 0 ? "destructive" : "success",
     },
     {
-      label: "Overloaded Students",
-      value: finalMerged.student_gt3_per_day,
-      subtitle: "Students with 3+ exams in one day",
-      icon: <Calendar className="h-4 w-4" />,
-      variant: finalMerged.student_gt3_per_day > 0 ? "destructive" : "success",
+      audience: "Instructor",
+      label: "Per-Day Limit",
+      value: counts.instructor_gt_max_per_day,
+      subtitle: "Instructors over the daily exam limit",
+      icon: <CalendarX className="h-4 w-4" />,
+      variant: counts.instructor_gt_max_per_day > 0 ? "destructive" : "success",
     },
     {
-      label: "Student Back-to-Back",
-      value: finalMerged.students_back_to_back,
-      subtitle: "Consecutive exams without breaks",
-      icon: <Clock className="h-4 w-4" />,
-      variant: finalMerged.students_back_to_back > 0 ? "warning" : "success",
-    },
-    {
-      label: "Instructor Back-to-Back",
-      value: finalMerged.instructors_back_to_back,
-      subtitle: "Consecutive proctoring duties",
+      audience: "Instructor",
+      label: "Back-to-Back",
+      value: counts.instructors_back_to_back,
+      subtitle: "Instructors with back-to-back exams",
       icon: <GraduationCap className="h-4 w-4" />,
-      variant: finalMerged.instructors_back_to_back > 0 ? "warning" : "success",
+      variant: counts.instructors_back_to_back > 0 ? "warning" : "success",
     },
     {
-      label: "Late Large Courses",
-      value: finalMerged.large_courses_not_early,
+      audience: "Course",
+      label: "Large, Not Early",
+      value: counts.large_courses_not_early,
       subtitle: "100+ enrollment scheduled late",
       icon: <AlertTriangle className="h-4 w-4" />,
-      variant: finalMerged.large_courses_not_early > 0 ? "warning" : "success",
+      variant: counts.large_courses_not_early > 0 ? "warning" : "success",
     },
   ] as const;
 
-  const dynamicTabEntries =
-    types && types.length > 0
-      ? types.map((t) => ({ id: t, label: conflictTypeMap[t] ?? t }))
-      : [
-          { id: "back_to_back", label: "Back-to-Back" },
-          { id: "large_course_not_early", label: "Large courses not early" },
-        ];
-
-  const effectiveTabs = dynamicTabEntries;
+  // Students first, then instructors, then courses; unlisted types last.
+  const effectiveTabs = [
+    ...(types.length > 0 ? types : ["back_to_back", "large_course_not_early"]),
+  ]
+    .sort((a, b) => conflictTypeRank(a) - conflictTypeRank(b))
+    .map((t) => ({ id: t, label: conflictTypeMap[t] ?? t }));
 
   const [pageByTab, setPageByTab] = useState<Record<string, number>>({});
 
@@ -310,11 +454,14 @@ export default function ConflictView({
     return pageByTab[tabId] ?? 0;
   }
 
+  const pageSize = useConflictViewStore((s) => s.pageSize);
+  const setPageSize = useConflictViewStore((s) => s.setPageSize);
+
   const [activeTab, setActiveTab] = useState<string>(
     effectiveTabs[0]?.id ?? "back_to_back",
   );
 
-  const rowsForActive = conflictTypeRows[activeTab] ?? [];
+  const rowsForActive = rowsByType[activeTab] ?? [];
   const page = getPage(activeTab);
 
   return (
@@ -328,11 +475,12 @@ export default function ConflictView({
         </div>
       </div>
 
-      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-6">
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-4 lg:grid-cols-7">
         {summaryCards.map((c) => (
           <ConflictStat
-            key={c.label}
+            key={`${c.audience} ${c.label}`}
             label={c.label}
+            audience={c.audience}
             value={c.value}
             icon={c.icon}
             subtitle={c.subtitle}
@@ -375,14 +523,18 @@ export default function ConflictView({
               </CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="overflow-auto">
-                <ConflictTable
-                  rowsForActive={rowsForActive}
-                  activeTabId={activeTab}
-                  page={page}
-                  setPageForTab={setPage}
-                />
-              </div>
+              <ConflictTable
+                rowsForActive={rowsForActive}
+                activeTabId={activeTab}
+                page={page}
+                onPage={(p) => setPage(activeTab, p)}
+                pageSize={pageSize}
+                onPageSize={(size) => {
+                  setPageSize(size);
+                  // Old page indexes are meaningless at the new size.
+                  setPageByTab({});
+                }}
+              />
             </CardContent>
           </Card>
 

@@ -30,6 +30,7 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
+import { conflictTypeMap, conflictTypeRank } from "@/lib/hooks/useConflictData";
 import { useCourseMerges } from "@/lib/hooks/useCourseMerges";
 import { useDatasetStore } from "@/lib/store/datasetStore";
 import { useSchedulesStore } from "@/lib/store/schedulesStore";
@@ -168,26 +169,17 @@ export function StatisticsView() {
       );
     }
 
-    // Map conflict types to readable names
-    const conflictTypeMap: Record<string, string> = {
-      student_double_book: "Student Double-Book",
-      student_gt_max_per_day: "Student Per-Day Limit",
-      instructor_double_book: "Instructor Double-Book",
-      instructor_gt_max_per_day: "Instructor Per-Day Limit",
-      back_to_back: "Back-to-Back",
-      back_to_back_student: "Back-to-Back (Students)",
-      back_to_back_instructor: "Back-to-Back (Instructors)",
-      unknown: "Uncategorized Conflicts",
-    };
-
-    Object.entries(conflictTypes).forEach(([type, count]) => {
-      if (count > 0) {
+    // Same names and order as the Conflicts view: students, instructors,
+    // then everything else.
+    Object.entries(conflictTypes)
+      .filter(([, count]) => count > 0)
+      .sort(([a], [b]) => conflictTypeRank(a) - conflictTypeRank(b))
+      .forEach(([type, count]) => {
         conflictBreakdown.push({
           name: conflictTypeMap[type] || type,
           value: count,
         });
-      }
-    });
+      });
 
     // Prepare data for charts
     const dayData = Object.entries(examsPerDay)

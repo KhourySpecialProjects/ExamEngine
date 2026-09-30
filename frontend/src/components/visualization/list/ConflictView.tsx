@@ -13,9 +13,11 @@ import {
   ChevronsRight,
   Clock,
   GraduationCap,
+  SquareArrowOutUpRight,
   UserX,
 } from "lucide-react";
 import { useState } from "react";
+import { CopyButton } from "@/components/common/CopyButton";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { ButtonGroup } from "@/components/ui/button-group";
@@ -75,6 +77,7 @@ import {
 } from "@/lib/store/conflictViewStore";
 import type { ConflictMetrics } from "@/lib/types/conflict.types";
 import { cn } from "@/lib/utils";
+import { CourseConflictDialog } from "./CourseConflictDialog";
 
 // Record-row columns a conflict type never shows, even when the data has them.
 const HIDDEN_RECORD_COLUMNS: Partial<Record<ConflictType, RecordSortColumn[]>> =
@@ -114,19 +117,46 @@ function courseTooltip({ course, crn, exam }: ConflictCourse): string {
   return lines.join("\n");
 }
 
-function CoursePill({ course }: { course: ConflictCourse }) {
+// Fixed width so pills line up in columns across rows.
+function CoursePill({
+  course,
+  onOpen,
+}: {
+  course: ConflictCourse;
+  onOpen: (course: ConflictCourse) => void;
+}) {
+  const name = course.course || `CRN ${course.crn}`;
   return (
     <Badge
       variant="outline"
       title={courseTooltip(course)}
-      className="w-40 justify-between cursor-default border-yellow-200 bg-yellow-50 text-yellow-950"
+      className="w-52 gap-0.5 py-0 pr-1 pl-0 border-yellow-200 bg-yellow-50 text-yellow-950"
     >
-      <span className="truncate font-semibold">
-        {course.course || course.crn}
-      </span>
-      {course.course && course.crn && (
-        <span className="tabular-nums opacity-70">{course.crn}</span>
+      <button
+        type="button"
+        aria-label={`Show conflicts for ${name}`}
+        onClick={() => onOpen(course)}
+        className="flex min-w-0 flex-1 items-center justify-between gap-1 rounded-sm py-0.5 pl-2 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring"
+      >
+        <span className="truncate font-semibold">
+          {course.course || course.crn}
+        </span>
+        {course.course && course.crn && (
+          <span className="tabular-nums opacity-70">{course.crn}</span>
+        )}
+      </button>
+      {course.crn && (
+        <CopyButton value={course.crn} label={`Copy CRN ${course.crn}`} />
       )}
+      <button
+        type="button"
+        aria-label={`Open conflict details for ${name}`}
+        title={`Open conflict details for ${name}`}
+        onClick={() => onOpen(course)}
+        className="inline-flex shrink-0 items-center justify-center rounded-sm p-0.5 opacity-60 hover:opacity-100 focus-visible:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+      >
+        <SquareArrowOutUpRight className="size-3" aria-hidden />
+      </button>
     </Badge>
   );
 }
@@ -285,6 +315,7 @@ function ConflictTable({
   onPage,
   pageSize,
   onPageSize,
+  onOpenCourse,
 }: {
   rowsForActive: ConflictRow[];
   activeTabId: ConflictType;
@@ -295,6 +326,7 @@ function ConflictTable({
   onPage: (p: number) => void;
   pageSize: number;
   onPageSize: (size: number) => void;
+  onOpenCourse: (course: ConflictCourse) => void;
 }) {
   const isPersonTab = isPersonConflictType(activeTabId);
   const isInstructorTab = isInstructorConflictType(activeTabId);
@@ -485,7 +517,17 @@ function ConflictTable({
                       rowSpan={span}
                       className="align-top font-medium whitespace-normal break-words"
                     >
-                      {r.entity || "—"}
+                      {r.entity ? (
+                        <span className="inline-flex items-center gap-1">
+                          {r.entity}
+                          <CopyButton
+                            value={r.entity}
+                            label={`Copy ${isInstructorTab ? "instructor" : "NUId"} ${r.entity}`}
+                          />
+                        </span>
+                      ) : (
+                        "—"
+                      )}
                     </TableCell>
                     <TableCell rowSpan={span} className="align-top">
                       {r.conflictCount}
@@ -503,7 +545,11 @@ function ConflictTable({
                     <div className="flex flex-wrap gap-1">
                       {showCourses
                         ? inst.courses.map((c) => (
-                            <CoursePill key={c.crn || c.course} course={c} />
+                            <CoursePill
+                              key={c.crn || c.course}
+                              course={c}
+                              onOpen={onOpenCourse}
+                            />
                           ))
                         : // A time repeats when the person also has two exams
                           // in that block; show it twice, keyed by position.
@@ -629,6 +675,7 @@ export default function ConflictView({
 
   // "By course" applies to every person tab until switched back.
   const [byCourse, setByCourse] = useState(false);
+  const [openCourse, setOpenCourse] = useState<ConflictCourse | null>(null);
   const isPersonTab = isPersonConflictType(activeTab);
   const showByCourse = isPersonTab && byCourse;
 
@@ -745,6 +792,7 @@ export default function ConflictView({
                 page={page}
                 onPage={(p) => setPage(activeTab, p)}
                 pageSize={pageSize}
+                onOpenCourse={setOpenCourse}
                 onPageSize={(size) => {
                   setPageSize(size);
                   // Old page indexes are meaningless at the new size.
@@ -755,6 +803,11 @@ export default function ConflictView({
           </Card>
 
           <ConflictDefinitions />
+          <CourseConflictDialog
+            course={openCourse}
+            rowsByType={rowsByType}
+            onClose={() => setOpenCourse(null)}
+          />
         </div>
       </div>
     </section>

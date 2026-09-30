@@ -1,6 +1,9 @@
 // biome-ignore-all lint/suspicious/noExplicitAny: this file require conflict types definitions
 import {
   AlertTriangle,
+  ArrowDown,
+  ArrowUp,
+  ArrowUpDown,
   Briefcase,
   Calendar,
   CalendarX,
@@ -15,7 +18,14 @@ import {
 import { useState } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { ButtonGroup } from "@/components/ui/button-group";
+import {
+  Card,
+  CardAction,
+  CardContent,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
 import {
   Select,
   SelectContent,
@@ -43,10 +53,20 @@ import {
   type ConflictCourse,
   type ConflictRow,
   type ConflictType,
+  type CourseSortColumn,
+  isBackToBackConflictType,
   isInstructorConflictType,
   isPerDayLimitConflictType,
   isPersonConflictType,
+  type PersonConflictRow,
+  type PersonSortColumn,
   type RecordConflictRow,
+  type RecordSortColumn,
+  type SortState,
+  sortCourseSummaries,
+  sortPersonRows,
+  sortRecordRows,
+  summarizeConflictsByCourse,
   useConflictDataSimple,
 } from "@/lib/hooks/useConflictDataSimple";
 import {
@@ -56,13 +76,8 @@ import {
 import type { ConflictMetrics } from "@/lib/types/conflict.types";
 import { cn } from "@/lib/utils";
 
-type RecordColumnKey = keyof Pick<
-  RecordConflictRow,
-  "entity" | "day" | "block" | "course" | "crn" | "size"
->;
-
 // Record-row columns a conflict type never shows, even when the data has them.
-const HIDDEN_RECORD_COLUMNS: Partial<Record<ConflictType, RecordColumnKey[]>> =
+const HIDDEN_RECORD_COLUMNS: Partial<Record<ConflictType, RecordSortColumn[]>> =
   {
     large_course_not_early: ["block"],
   };
@@ -190,12 +205,82 @@ function PaginationBar({
   );
 }
 
-// Paginated table for a conflict tab. Person-based tabs keep one logical row
-// per student/instructor: NUId and count span one sub-row per conflict.
-// Fixed layout keeps column widths stable across pages.
+/** Person-tab header ids → sort key; Day and Time both sort by earliest conflict. */
+const PERSON_SORT_COLUMNS: Record<string, PersonSortColumn> = {
+  entity: "entity",
+  conflictCount: "conflictCount",
+  day: "earliest",
+  time: "earliest",
+};
+
+/** The per-course view opens sorted by who is affected, most first. */
+const DEFAULT_COURSE_SORT: SortState<CourseSortColumn> = {
+  column: "people",
+  direction: "desc",
+};
+
+interface TableColumn {
+  /** Sort id; omit for an unsortable column. */
+  id?: string;
+  label: string;
+  width?: string;
+}
+
+function ConflictTableHead({
+  column,
+  sort,
+  onSort,
+}: {
+  column: TableColumn;
+  sort?: SortState<string>;
+  onSort: (column: string) => void;
+}) {
+  const { id, label, width } = column;
+  const direction = id && sort?.column === id ? sort.direction : undefined;
+  const Icon =
+    direction === "asc"
+      ? ArrowUp
+      : direction === "desc"
+        ? ArrowDown
+        : ArrowUpDown;
+  return (
+    <TableHead
+      className={cn("text-muted-foreground", width)}
+      aria-sort={
+        direction === "asc"
+          ? "ascending"
+          : direction === "desc"
+            ? "descending"
+            : undefined
+      }
+    >
+      {id ? (
+        <Button
+          variant="ghost"
+          size="sm"
+          className="-ml-3 text-muted-foreground"
+          onClick={() => onSort(id)}
+        >
+          {label}
+          <Icon className={cn("size-3.5", !direction && "opacity-50")} />
+        </Button>
+      ) : (
+        label
+      )}
+    </TableHead>
+  );
+}
+
+// Paginated, sortable table for a conflict tab. Person-based tabs keep one
+// logical row per student/instructor: NUId and count span one sub-row per
+// conflict, and sorting/paging act on people. `byCourse` shows one row per
+// course instead. Fixed layout keeps column widths stable across pages.
 function ConflictTable({
   rowsForActive,
   activeTabId,
+  byCourse,
+  sort,
+  onSort,
   page,
   onPage,
   pageSize,
@@ -203,6 +288,9 @@ function ConflictTable({
 }: {
   rowsForActive: ConflictRow[];
   activeTabId: ConflictType;
+  byCourse: boolean;
+  sort?: SortState<string>;
+  onSort: (column: string) => void;
   page: number;
   onPage: (p: number) => void;
   pageSize: number;
@@ -211,100 +299,175 @@ function ConflictTable({
   const isPersonTab = isPersonConflictType(activeTabId);
   const isInstructorTab = isInstructorConflictType(activeTabId);
   const entityLabel = isInstructorTab ? "Instructor" : "NUId";
-  const hiddenColumns = HIDDEN_RECORD_COLUMNS[activeTabId] ?? [];
+  const peopleNoun = isInstructorTab ? " instructors" : " students";
+  const start = page * pageSize;
+  const pagination = { page, pageSize, onPage };
 
-  const recordColumns = (
-    [
-      { key: "entity", label: entityLabel },
-      { key: "day", label: "Day" },
-      { key: "block", label: "Block" },
-      { key: "course", label: "Course" },
-      { key: "crn", label: "CRN" },
-      { key: "size", label: "Size" },
-    ] satisfies { key: RecordColumnKey; label: string }[]
-  ).filter(
-    (c) =>
-      !hiddenColumns.includes(c.key) &&
-      rowsForActive.some(
-        (r) =>
-          r.kind === "record" &&
-          r[c.key] != null &&
-          String(r[c.key]).trim() !== "",
-      ),
+  const header = (columns: TableColumn[]) => (
+    <TableHeader>
+      <TableRow className="hover:bg-transparent">
+        {columns.map((c) => (
+          <ConflictTableHead
+            key={c.label}
+            column={c}
+            sort={sort}
+            onSort={onSort}
+          />
+        ))}
+      </TableRow>
+    </TableHeader>
   );
+
+  if (isPersonTab && byCourse) {
+    if (isBackToBackConflictType(activeTabId)) {
+      return (
+        <p className="py-6 text-sm text-muted-foreground">
+          Back-to-back conflicts don't record which exams are involved yet, so
+          they can't be counted per course.
+        </p>
+      );
+    }
+    const summaries = summarizeConflictsByCourse(rowsForActive);
+    const sorted = sort
+      ? sortCourseSummaries(summaries, sort as SortState<CourseSortColumn>)
+      : summaries;
+    const courseBar = { ...pagination, total: sorted.length, noun: " courses" };
+    return (
+      <>
+        {isPerDayLimitConflictType(activeTabId) && (
+          <p className="text-sm text-muted-foreground">
+            Counts only the exam that put each person over the daily limit;
+            their other exams that day aren't recorded.
+          </p>
+        )}
+        <PaginationBar {...courseBar} onPageSize={onPageSize} />
+        <Table className="min-w-3xl table-fixed">
+          {header([
+            { id: "course", label: "Course" },
+            { id: "crn", label: "CRN" },
+            {
+              id: "people",
+              label: `${isInstructorTab ? "Instructors" : "Students"} with a conflict`,
+            },
+            { id: "conflictCount", label: "Conflicts" },
+          ])}
+          <TableBody>
+            {sorted.slice(start, start + pageSize).map((s) => (
+              <TableRow key={s.crn || s.course}>
+                <TableCell className="font-medium">{s.course || "—"}</TableCell>
+                <TableCell className="tabular-nums">{s.crn || "—"}</TableCell>
+                <TableCell className="tabular-nums">
+                  {s.people.length}
+                </TableCell>
+                <TableCell className="tabular-nums">
+                  {s.conflictCount}
+                </TableCell>
+              </TableRow>
+            ))}
+          </TableBody>
+        </Table>
+        <PaginationBar {...courseBar} />
+      </>
+    );
+  }
+
+  if (!isPersonTab) {
+    const records = rowsForActive.filter(
+      (r): r is RecordConflictRow => r.kind === "record",
+    );
+    const hiddenColumns = HIDDEN_RECORD_COLUMNS[activeTabId] ?? [];
+    const recordColumns = (
+      [
+        { key: "entity", label: entityLabel },
+        { key: "day", label: "Day" },
+        { key: "block", label: "Block" },
+        { key: "course", label: "Course" },
+        { key: "crn", label: "CRN" },
+        { key: "size", label: "Size" },
+      ] satisfies { key: RecordSortColumn; label: string }[]
+    ).filter(
+      (c) =>
+        !hiddenColumns.includes(c.key) &&
+        records.some((r) => r[c.key] != null && String(r[c.key]).trim() !== ""),
+    );
+    const sorted = sort
+      ? sortRecordRows(records, sort as SortState<RecordSortColumn>)
+      : records;
+    const recordBar = { ...pagination, total: sorted.length, noun: "" };
+    return (
+      <>
+        <PaginationBar {...recordBar} onPageSize={onPageSize} />
+        <Table className="min-w-3xl table-fixed">
+          {header(recordColumns.map((c) => ({ id: c.key, label: c.label })))}
+          <TableBody>
+            {sorted.slice(start, start + pageSize).map((r) => (
+              <TableRow key={r.id} className="align-top">
+                {recordColumns.map((c) => (
+                  <TableCell key={c.key}>{r[c.key] || "—"}</TableCell>
+                ))}
+              </TableRow>
+            ))}
+          </TableBody>
+        </Table>
+        <PaginationBar {...recordBar} />
+      </>
+    );
+  }
+
+  const people = rowsForActive.filter(
+    (r): r is PersonConflictRow => r.kind === "person",
+  );
+  const personSort = sort && PERSON_SORT_COLUMNS[sort.column];
+  const sorted =
+    sort && personSort
+      ? sortPersonRows(people, {
+          column: personSort,
+          direction: sort.direction,
+        })
+      : people;
 
   // Back-to-back records carry only time slots (no courses): show the slots
   // as pills instead of an always-empty exams column.
-  const showCourses = rowsForActive.some(
-    (r) => r.kind === "person" && r.instances.some((i) => i.courses.length),
+  const showCourses = people.some((r) =>
+    r.instances.some((i) => i.courses.length),
   );
   // Per-day limit records name only the exam that went over the limit, not
   // the day's other exams (EXENG-46): list just the days over the limit.
   const isPerDayTab = isPerDayLimitConflictType(activeTabId);
 
-  // Person tabs: percentage widths so columns spread with the table instead
-  // of bunching left, while staying independent of page contents. The pills
-  // column takes the rest. Record tabs split the width evenly.
-  const headers: { label: string; width?: string }[] = !isPersonTab
-    ? recordColumns.map((c) => ({ label: c.label }))
-    : isPerDayTab
+  // Percentage widths so columns spread with the table instead of bunching
+  // left, while staying independent of page contents. The last column takes
+  // the rest; it is sortable only when it is not a column of pills.
+  const columns: TableColumn[] = isPerDayTab
+    ? [
+        { id: "entity", label: entityLabel, width: "w-[18%]" },
+        { id: "conflictCount", label: "Days over limit", width: "w-[15%]" },
+        { id: "day", label: "Day" },
+      ]
+    : showCourses
       ? [
-          { label: entityLabel, width: "w-[18%]" },
-          { label: "Days over limit", width: "w-[15%]" },
-          { label: "Day" },
+          { id: "entity", label: entityLabel, width: "w-[15%]" },
+          { id: "conflictCount", label: "Conflicts", width: "w-[10%]" },
+          { id: "day", label: "Day", width: "w-[12%]" },
+          { id: "time", label: "Time", width: "w-[15%]" },
+          { label: "Conflicting exams" },
         ]
-      : showCourses
-        ? [
-            { label: entityLabel, width: "w-[15%]" },
-            { label: "Conflicts", width: "w-[10%]" },
-            { label: "Day", width: "w-[12%]" },
-            { label: "Time", width: "w-[15%]" },
-            { label: "Conflicting exams" },
-          ]
-        : [
-            { label: entityLabel, width: "w-[18%]" },
-            { label: "Conflicts", width: "w-[12%]" },
-            { label: "Day", width: "w-[15%]" },
-            { label: "Exam times" },
-          ];
+      : [
+          { id: "entity", label: entityLabel, width: "w-[18%]" },
+          { id: "conflictCount", label: "Conflicts", width: "w-[12%]" },
+          { id: "day", label: "Day", width: "w-[15%]" },
+          { label: "Exam times" },
+        ];
   const showTimeColumn = showCourses && !isPerDayTab;
-
-  const pagination = {
-    page,
-    pageSize,
-    total: rowsForActive.length,
-    noun: isPersonTab ? (isInstructorTab ? " instructors" : " students") : "",
-    onPage,
-  };
-  const start = page * pageSize;
+  const personBar = { ...pagination, total: sorted.length, noun: peopleNoun };
 
   return (
     <>
-      <PaginationBar {...pagination} onPageSize={onPageSize} />
+      <PaginationBar {...personBar} onPageSize={onPageSize} />
       <Table className="min-w-3xl table-fixed">
-        <TableHeader>
-          <TableRow className="hover:bg-transparent">
-            {headers.map(({ label, width }) => (
-              <TableHead
-                key={label}
-                className={cn("text-muted-foreground", width)}
-              >
-                {label}
-              </TableHead>
-            ))}
-          </TableRow>
-        </TableHeader>
+        {header(columns)}
         <TableBody>
-          {rowsForActive.slice(start, start + pageSize).map((r) => {
-            if (r.kind !== "person") {
-              return (
-                <TableRow key={r.id} className="align-top">
-                  {recordColumns.map((c) => (
-                    <TableCell key={c.key}>{r[c.key] || "—"}</TableCell>
-                  ))}
-                </TableRow>
-              );
-            }
+          {sorted.slice(start, start + pageSize).map((r) => {
             const span = r.instances.length;
             // Hover highlighting is off: it would light up one sub-row of a
             // person but not the cells spanning the whole group.
@@ -362,7 +525,7 @@ function ConflictTable({
           })}
         </TableBody>
       </Table>
-      <PaginationBar {...pagination} />
+      <PaginationBar {...personBar} />
     </>
   );
 }
@@ -464,6 +627,31 @@ export default function ConflictView({
   const rowsForActive = rowsByType[activeTab] ?? [];
   const page = getPage(activeTab);
 
+  // "By course" applies to every person tab until switched back.
+  const [byCourse, setByCourse] = useState(false);
+  const isPersonTab = isPersonConflictType(activeTab);
+  const showByCourse = isPersonTab && byCourse;
+
+  // Sort per tab and per view; switching tabs or views keeps each one's sort.
+  const [sortByView, setSortByView] = useState<
+    Record<string, SortState<string>>
+  >({});
+  const viewKey = `${activeTab}|${showByCourse ? "course" : "rows"}`;
+  const sort =
+    sortByView[viewKey] ?? (showByCourse ? DEFAULT_COURSE_SORT : undefined);
+
+  function toggleSort(column: string) {
+    const direction =
+      sort?.column === column && sort.direction === "asc" ? "desc" : "asc";
+    setSortByView((s) => ({ ...s, [viewKey]: { column, direction } }));
+    setPage(activeTab, 0);
+  }
+
+  function chooseByCourse(next: boolean) {
+    setByCourse(next);
+    setPage(activeTab, 0);
+  }
+
   return (
     <section className="space-y-4">
       <div className="flex items-center justify-between gap-2">
@@ -521,11 +709,39 @@ export default function ConflictView({
                     "Conflicts"}
                 </span>
               </CardTitle>
+              {isPersonTab && (
+                <CardAction>
+                  <ButtonGroup aria-label="Group conflicts">
+                    {[
+                      {
+                        value: false,
+                        label: isInstructorConflictType(activeTab)
+                          ? "By instructor"
+                          : "By student",
+                      },
+                      { value: true, label: "By course" },
+                    ].map(({ value, label }) => (
+                      <Button
+                        key={label}
+                        size="sm"
+                        variant={byCourse === value ? "default" : "outline"}
+                        aria-pressed={byCourse === value}
+                        onClick={() => chooseByCourse(value)}
+                      >
+                        {label}
+                      </Button>
+                    ))}
+                  </ButtonGroup>
+                </CardAction>
+              )}
             </CardHeader>
             <CardContent>
               <ConflictTable
                 rowsForActive={rowsForActive}
                 activeTabId={activeTab}
+                byCourse={showByCourse}
+                sort={sort}
+                onSort={toggleSort}
                 page={page}
                 onPage={(p) => setPage(activeTab, p)}
                 pageSize={pageSize}

@@ -3,6 +3,10 @@ import type { ConflictBreakdown, ScheduleExam } from "../api/schedules";
 import {
   buildConflictRows,
   type PersonConflictRow,
+  type RecordConflictRow,
+  sortPersonRows,
+  sortRecordRows,
+  summarizeConflictsByCourse,
 } from "./useConflictDataSimple";
 
 const doubleBook = (
@@ -215,5 +219,143 @@ describe("buildConflictRows", () => {
         size: 250,
       },
     ]);
+  });
+});
+
+describe("sortPersonRows", () => {
+  it("compares NUIds as strings, so leading zeros are kept in order", () => {
+    const rows = personRows([
+      doubleBook("9", "Monday", 0, "2", "1"),
+      doubleBook("000000010", "Monday", 0, "2", "1"),
+      doubleBook("000000009", "Monday", 0, "2", "1"),
+    ]);
+
+    const asc = sortPersonRows(rows, { column: "entity", direction: "asc" });
+    expect(asc.map((r) => r.entity)).toEqual(["000000009", "000000010", "9"]);
+    const desc = sortPersonRows(rows, { column: "entity", direction: "desc" });
+    expect(desc.map((r) => r.entity)).toEqual(["9", "000000010", "000000009"]);
+  });
+
+  it("orders people by their earliest conflict (day, then block) and keeps each person's conflicts chronological", () => {
+    const rows = personRows([
+      // A: earliest Tuesday block 0, also Wednesday.
+      doubleBook("A", "Wednesday", 0, "2", "1"),
+      doubleBook("A", "Tuesday", 0, "4", "3"),
+      // B: earliest Monday block 2, also Friday.
+      doubleBook("B", "Friday", 0, "6", "5"),
+      doubleBook("B", "Monday", 2, "8", "7"),
+      // C: earliest Monday block 1.
+      doubleBook("C", "Monday", 1, "10", "9"),
+    ]);
+
+    const asc = sortPersonRows(rows, { column: "earliest", direction: "asc" });
+    expect(asc.map((r) => r.entity)).toEqual(["C", "B", "A"]);
+    expect(asc[1].instances.map((i) => i.day)).toEqual(["Monday", "Friday"]);
+
+    const desc = sortPersonRows(rows, {
+      column: "earliest",
+      direction: "desc",
+    });
+    expect(desc.map((r) => r.entity)).toEqual(["A", "B", "C"]);
+    expect(desc[1].instances.map((i) => i.day)).toEqual(["Monday", "Friday"]);
+  });
+
+  it("sorts by conflict count, keeping input order for ties", () => {
+    const rows = personRows([
+      doubleBook("A", "Monday", 0, "2", "1"),
+      doubleBook("B", "Monday", 0, "2", "1"),
+      doubleBook("B", "Tuesday", 0, "2", "1"),
+      doubleBook("C", "Monday", 0, "2", "1"),
+    ]);
+
+    expect(
+      sortPersonRows(rows, { column: "conflictCount", direction: "desc" }).map(
+        (r) => r.entity,
+      ),
+    ).toEqual(["B", "A", "C"]);
+  });
+});
+
+describe("sortRecordRows", () => {
+  const record = (
+    crn: string,
+    day: string,
+    block: string,
+    size: number | null,
+  ): RecordConflictRow => ({
+    kind: "record",
+    id: crn,
+    type: "large_course_not_early",
+    entity: "",
+    day,
+    block,
+    course: `BIG ${crn}`,
+    crn,
+    size,
+  });
+  const rows = [
+    record("3", "Friday", "0", 150),
+    record("1", "Monday", "2", 300),
+    record("2", "Monday", "1", null),
+  ];
+
+  it("sorts days Mon..Sun, then by block", () => {
+    expect(
+      sortRecordRows(rows, { column: "day", direction: "asc" }).map(
+        (r) => r.crn,
+      ),
+    ).toEqual(["2", "1", "3"]);
+  });
+
+  it("sorts sizes numerically, unknown sizes lowest", () => {
+    expect(
+      sortRecordRows(rows, { column: "size", direction: "desc" }).map(
+        (r) => r.crn,
+      ),
+    ).toEqual(["1", "3", "2"]);
+  });
+});
+
+describe("summarizeConflictsByCourse", () => {
+  it("counts distinct students per course, most first, including every course of a 3-way double-book", () => {
+    const rows = buildConflictRows(
+      [
+        // Student 1: 3-way double-book on Monday (CRNs 1, 2, 3) ...
+        doubleBook("000000001", "Monday", 0, "2", "1"),
+        doubleBook("000000001", "Monday", 0, "3", "1"),
+        // ... and CRN 1 again on Tuesday: two conflicts, one student.
+        doubleBook("000000001", "Tuesday", 0, "1", "4"),
+        // Student 2 shares CRN 1.
+        doubleBook("000000002", "Monday", 0, "1", "5"),
+      ],
+      new Map(),
+    );
+
+    const summaries = summarizeConflictsByCourse(rows);
+
+    expect(summaries.map((s) => [s.crn, s.people, s.conflictCount])).toEqual([
+      ["1", ["000000001", "000000002"], 3],
+      ["2", ["000000001"], 1],
+      ["3", ["000000001"], 1],
+      ["4", ["000000001"], 1],
+      ["5", ["000000002"], 1],
+    ]);
+  });
+
+  it("ignores conflicts that carry no courses (back-to-back)", () => {
+    const rows = buildConflictRows(
+      [
+        {
+          conflict_type: "back_to_back",
+          student_id: "000000004",
+          day: "Wednesday",
+          blocks: [0, 1],
+          block_times: ["9AM-11AM", "11:30AM-1:30PM"],
+        },
+      ],
+      new Map(),
+    );
+
+    expect(summarizeConflictsByCourse(rows)).toEqual([]);
   });
 });

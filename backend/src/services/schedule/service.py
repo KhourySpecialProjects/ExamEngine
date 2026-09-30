@@ -108,8 +108,11 @@ class ScheduleService:
             # 2. Load dataset files
             files = await self.dataset_service.get_dataset_files(dataset_id, user_id)
 
-            # 3. Load course merges (if any) - synchronous call
+            # 3. Load combined (merge) and common exam groups (if any)
             merges = self.dataset_service.get_merges(dataset_id, user_id) or {}
+            common_groups = (
+                self.dataset_service.get_common_exams(dataset_id, user_id) or {}
+            )
 
             # 3.5 Drop zero-enrollment courses and get updated merges
             files = await self.dataset_service.drop_zero_enrollment(dataset_id, user_id)
@@ -128,6 +131,7 @@ class ScheduleService:
                     student_max_per_day=student_max_per_day,
                     instructor_max_per_day=instructor_max_per_day,
                     merges=merges,
+                    common_groups=common_groups,
                 )
                 sched_result = sched.schedule(
                     prioritize_large_courses=prioritize_large_courses
@@ -158,7 +162,6 @@ class ScheduleService:
                 result,
                 course_mapping,
                 room_mapping,
-                merges,
             )
             conflicts_response = await self._save_and_format_conflicts(
                 schedule.schedule_id, analysis
@@ -176,7 +179,6 @@ class ScheduleService:
                 scheduling_dataset,
                 conflicts_response,
                 parameters,
-                merges,
             )
 
         except DatasetNotFoundError:
@@ -359,30 +361,20 @@ class ScheduleService:
         )
 
     @staticmethod
-    def _summarize_placement(
-        result: ScheduleResult,
-        merges: dict[str, list[str]] | None,
-        courses,
-    ) -> tuple[int, int]:
+    def _summarize_placement(result: ScheduleResult) -> tuple[int, int]:
         """Count (num_classes, unplaced_exams) from an algorithm result.
 
         An exam is "unplaced" when it has no usable slot+room: either unroomed
         (a slot but no room, tracked in result.unassigned) or a member of a
-        merge group that could not be scheduled at all (result.unscheduled_merges),
-        whose CRNs get neither slot nor room. Both are persisted by
-        _save_exam_assignments, so this MUST match the row-based count in
-        _calculate_summary_stats to keep the generate and retrieve responses
-        consistent.
+        combined/common group that could not be scheduled at all
+        (result.unscheduled_crns), whose CRNs get neither slot nor room. Both are
+        persisted by _save_exam_assignments, so this MUST match the row-based
+        count in _calculate_summary_stats to keep the generate and retrieve
+        responses consistent.
         """
-        merges = merges or {}
-        unscheduled_merge_crns = {
-            crn
-            for merge_id in result.unscheduled_merges
-            for crn in merges.get(merge_id, [])
-            if crn in courses and crn not in result.assignments
-        }
-        num_classes = len(result.assignments) + len(unscheduled_merge_crns)
-        unplaced_exams = len(result.unassigned) + len(unscheduled_merge_crns)
+        unscheduled = result.unscheduled_crns - result.assignments.keys()
+        num_classes = len(result.assignments) + len(unscheduled)
+        unplaced_exams = len(result.unassigned) + len(unscheduled)
         return num_classes, unplaced_exams
 
     def _build_generation_response(
@@ -394,10 +386,8 @@ class ScheduleService:
         scheduling_dataset,
         conflicts_response: dict,
         parameters: dict,
-        merges: dict[str, list[str]] | None = None,
     ) -> dict[str, Any]:
         """Build response for generate_schedule endpoint."""
-        merges = merges or {}
         # Count unique students
         all_students = set()
         for crn in result.assignments:
@@ -450,28 +440,25 @@ class ScheduleService:
                 }
             )
 
-        # Add unscheduled merge exams to complete list
-        for merge_id in result.unscheduled_merges:
-            crns = merges.get(merge_id, [])
-            for crn in crns:
-                if crn in scheduling_dataset.courses:
-                    course = scheduling_dataset.courses[crn]
-                    instructors = result.instructors_by_crn.get(crn, set())
-                    schedule_list.append(
-                        {
-                            "CRN": crn,
-                            "Course": result.course_codes.get(crn, course.course_code),
-                            "Day": "",  # Empty for unscheduled
-                            "Block": "",  # Empty for unscheduled
-                            "Room": "",  # Empty for unscheduled
-                            "Capacity": 0,
-                            "Size": result.course_sizes.get(
-                                crn, course.enrollment_count
-                            ),
-                            "Valid": True,
-                            "Instructor": ", ".join(instructors) if instructors else "",
-                        }
-                    )
+        # Add exams of unscheduled combined/common groups to complete list
+        for crn in sorted(result.unscheduled_crns):
+            course = scheduling_dataset.courses.get(crn)
+            if course is None:
+                continue
+            instructors = result.instructors_by_crn.get(crn, set())
+            schedule_list.append(
+                {
+                    "CRN": crn,
+                    "Course": result.course_codes.get(crn, course.course_code),
+                    "Day": "",  # Empty for unscheduled
+                    "Block": "",  # Empty for unscheduled
+                    "Room": "",  # Empty for unscheduled
+                    "Capacity": 0,
+                    "Size": result.course_sizes.get(crn, course.enrollment_count),
+                    "Valid": True,
+                    "Instructor": ", ".join(instructors) if instructors else "",
+                }
+            )
 
         # Build calendar
         calendar = self._build_calendar_from_result(result)
@@ -486,9 +473,7 @@ class ScheduleService:
             .get("blockout_slots", {})
         )
 
-        num_classes, unplaced_exams = self._summarize_placement(
-            result, merges, scheduling_dataset.courses
-        )
+        num_classes, unplaced_exams = self._summarize_placement(result)
         summary = ScheduleAssembler.build_summary(
             num_classes=num_classes,
             num_students=len(all_students),
@@ -573,7 +558,6 @@ class ScheduleService:
         result: ScheduleResult,
         course_mapping: dict[str, UUID],
         room_mapping: dict[str, UUID],
-        merges: dict[str, list[str]],
     ) -> None:
         """Save exam assignments from ScheduleResult to database."""
         assignments_to_create = []
@@ -625,22 +609,18 @@ class ScheduleService:
                 }
             )
 
-        # Save unscheduled merge assignments (without time slots or rooms)
-        for merge_id in result.unscheduled_merges:
-            crns = merges.get(merge_id, [])
-            for crn in crns:
-                course_id = course_mapping.get(crn)
-                if not course_id:
-                    continue
-
-                # Create assignment without time_slot_id or room_id
-                assignments_to_create.append(
-                    {
-                        "course_id": course_id,
-                        "time_slot_id": None,
-                        "room_id": None,
-                    }
-                )
+        # Save unscheduled group assignments (without time slots or rooms)
+        for crn in result.unscheduled_crns:
+            course_id = course_mapping.get(crn)
+            if not course_id:
+                continue
+            assignments_to_create.append(
+                {
+                    "course_id": course_id,
+                    "time_slot_id": None,
+                    "room_id": None,
+                }
+            )
 
         if assignments_to_create:
             self.exam_assignment_repo.bulk_create(schedule_id, assignments_to_create)

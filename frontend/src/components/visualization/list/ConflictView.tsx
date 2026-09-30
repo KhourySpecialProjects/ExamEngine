@@ -41,6 +41,7 @@ import {
   type ConflictRow,
   type ConflictType,
   isInstructorConflictType,
+  isPerDayLimitConflictType,
   isPersonConflictType,
   type RecordConflictRow,
   useConflictDataSimple,
@@ -95,12 +96,22 @@ function courseTooltip({ course, crn, exam }: ConflictCourse): string {
   return lines.join("\n");
 }
 
-function CoursePill({ course }: { course: ConflictCourse }) {
+function CoursePill({
+  course,
+  time,
+}: {
+  course: ConflictCourse;
+  /** Shown inside the pill when the table has no Time column. */
+  time?: string;
+}) {
   return (
     <Badge
       variant="outline"
       title={courseTooltip(course)}
-      className="w-40 justify-between cursor-default border-yellow-200 bg-yellow-50 text-yellow-950"
+      className={cn(
+        "justify-between cursor-default border-yellow-200 bg-yellow-50 text-yellow-950",
+        time ? "w-64" : "w-40",
+      )}
     >
       <span className="truncate font-semibold">
         {course.course || course.crn}
@@ -108,6 +119,7 @@ function CoursePill({ course }: { course: ConflictCourse }) {
       {course.course && course.crn && (
         <span className="tabular-nums opacity-70">{course.crn}</span>
       )}
+      {time && <span className="tabular-nums">{time}</span>}
     </Badge>
   );
 }
@@ -234,12 +246,18 @@ function ConflictTable({
   const showCourses = rowsForActive.some(
     (r) => r.kind === "person" && r.instances.some((i) => i.courses.length),
   );
+  // Per-day limit records name only the exam that went over the limit
+  // (EXENG-46), so its time goes in the pill, not a Time column that reads
+  // like the time of the conflict.
+  const isPerDayTab = isPerDayLimitConflictType(activeTabId);
+  const showTimeColumn = showCourses && !isPerDayTab;
 
   // Person tabs: percentage widths so columns spread with the table instead
   // of bunching left, while staying independent of page contents. The pills
   // column takes the rest. Record tabs split the width evenly.
-  const headers: { label: string; width?: string }[] = isPersonTab
-    ? showCourses
+  const headers: { label: string; width?: string }[] = !isPersonTab
+    ? recordColumns.map((c) => ({ label: c.label }))
+    : showTimeColumn
       ? [
           { label: entityLabel, width: "w-[15%]" },
           { label: "Conflicts", width: "w-[10%]" },
@@ -251,9 +269,8 @@ function ConflictTable({
           { label: entityLabel, width: "w-[18%]" },
           { label: "Conflicts", width: "w-[12%]" },
           { label: "Day", width: "w-[15%]" },
-          { label: "Exam times" },
-        ]
-    : recordColumns.map((c) => ({ label: c.label }));
+          { label: isPerDayTab ? "Exam over the limit" : "Exam times" },
+        ];
 
   const pagination = {
     page,
@@ -316,7 +333,7 @@ function ConflictTable({
                   </>
                 )}
                 <TableCell className="align-top">{inst.day || "—"}</TableCell>
-                {showCourses && (
+                {showTimeColumn && (
                   <TableCell className="align-top tabular-nums">
                     {inst.time || "—"}
                   </TableCell>
@@ -325,7 +342,11 @@ function ConflictTable({
                   <div className="flex flex-wrap gap-1">
                     {showCourses
                       ? inst.courses.map((c) => (
-                          <CoursePill key={c.crn || c.course} course={c} />
+                          <CoursePill
+                            key={c.crn || c.course}
+                            course={c}
+                            time={isPerDayTab ? inst.time : undefined}
+                          />
                         ))
                       : inst.slots.map((slot) => (
                           <Badge

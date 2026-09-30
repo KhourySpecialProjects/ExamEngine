@@ -232,6 +232,38 @@ describe("ConflictView", () => {
     ).toEqual(["9AM-11AM", "11:30AM-1:30PM"]);
   });
 
+  it("labels per-day limit exams as over the limit, with the time in the pill", () => {
+    // Backend shape: one record per exam that went over the limit (EXENG-46).
+    mockSchedule([
+      {
+        conflict_type: "student_gt_max_per_day",
+        entity_id: "000100663",
+        student_id: "000100663",
+        day: "Tuesday",
+        block: 2,
+        block_time: "2PM-4PM",
+        crn: "20020",
+        course: "CSCI 1100",
+        conflicting_crns: [],
+        conflicting_courses: [],
+      },
+    ]);
+    render(<ConflictView />);
+
+    expect(
+      within(screen.getByRole("table"))
+        .getAllByRole("columnheader")
+        .map((th) => th.textContent),
+    ).toEqual(["NUId", "Conflicts", "Day", "Exam over the limit"]);
+    const [row] = bodyRows();
+    expect(cellTexts(row).slice(0, 3)).toEqual(["000100663", "1", "Tuesday"]);
+    expect(
+      [...row.querySelectorAll('[data-slot="badge"] span')].map(
+        (s) => s.textContent,
+      ),
+    ).toEqual(["CSCI 1100", "20020", "2PM-4PM"]);
+  });
+
   it("gives every conflict type the backend emits a readable tab name", () => {
     // conflict_type values from backend/src/domain/assemblers/conflict_assembler.py
     mockSchedule(

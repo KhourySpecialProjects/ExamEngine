@@ -79,6 +79,16 @@ const PERSON_CONFLICT_TYPES: ConflictType[] = [
   ...INSTRUCTOR_CONFLICT_TYPES,
 ];
 
+/**
+ * Per-day limit types. Their records carry only the exam that went over the
+ * limit, not the person's other exams that day (EXENG-46).
+ */
+const PER_DAY_LIMIT_CONFLICT_TYPES: ConflictType[] = [
+  "student_gt_max_per_day",
+  "student_gt3_per_day",
+  "instructor_gt_max_per_day",
+];
+
 const DAY_ORDER = ["mon", "tue", "wed", "thu", "fri", "sat", "sun"];
 
 /** Conflict types shown as one row per student/instructor. */
@@ -89,6 +99,11 @@ export function isPersonConflictType(type: ConflictType): boolean {
 /** Person conflict types whose person is an instructor, not a student. */
 export function isInstructorConflictType(type: ConflictType): boolean {
   return INSTRUCTOR_CONFLICT_TYPES.includes(type);
+}
+
+/** Per-day limit types: each sub-row is one exam that went over the limit. */
+export function isPerDayLimitConflictType(type: ConflictType): boolean {
+  return PER_DAY_LIMIT_CONFLICT_TYPES.includes(type);
 }
 
 // Helper functions

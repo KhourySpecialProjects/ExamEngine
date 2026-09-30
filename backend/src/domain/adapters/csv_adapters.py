@@ -70,134 +70,175 @@ class RoomBlockoutAdapter:
         return blockouts
 
 
-class CommonExamAdapter:
-    """Converts common exam CSV to a dict mapping exam group to its CRNs."""
+def _read_text_csv(content: bytes) -> pd.DataFrame:
+    """
+    Parse group CSV bytes without type inference.
+
+    Every cell stays a string, so group labels like "01" and "1" remain
+    distinct and CRNs keep their original text. Blank lines are kept so
+    reported row numbers match the file's line numbers.
+    """
+    return pd.read_csv(
+        io.BytesIO(content),
+        dtype=str,
+        keep_default_na=False,
+        skip_blank_lines=False,
+    )
+
+
+def _group_crns(
+    df: pd.DataFrame, file_type: str, group_column: str, noun: str
+) -> dict[str, list[str]]:
+    """
+    Convert a long-format (group, CRN) DataFrame to group label -> CRNs.
+
+    Fully blank rows and exact duplicate (group, CRN) rows are ignored. CRNs
+    within a group keep their order of first appearance.
+
+    Args:
+        df: Group data from CSV, ideally parsed with `_read_text_csv`
+        file_type: Schema registry key used for header detection
+        group_column: Canonical name of the group label column
+        noun: How groups are named in error messages (e.g. "exam group")
+
+    Raises:
+        SchemaDetectionError: If CSV format is unknown
+        DataValidationError: If the file has no groups, a row has a blank
+            group or a blank/non-whole-number CRN, a CRN is in more than one
+            group, a group has fewer than 2 distinct CRNs, or two group labels
+            differ only in capitalization/spacing. The message lists every
+            problem found.
+    """
+    schema, column_mapping = CSVSchemaDetector.detect_schema_version(df, file_type)
+
+    col_defs = {cd.canonical_name: cd for cd in schema}
+    df_normalized = df.rename(columns=column_mapping)
+    raw_crns = df_normalized["Course_Reference_Number"].copy()
+
+    for canonical_name, col_def in col_defs.items():
+        if canonical_name in df_normalized.columns and col_def.transformer:
+            df_normalized[canonical_name] = df_normalized[canonical_name].apply(
+                col_def.transformer
+            )
+
+    problems: list[str] = []
+    groups: dict[str, list[str]] = {}
+    crn_groups: dict[str, list[str]] = {}
+
+    # Row numbers match spreadsheet lines: header is line 1.
+    for position, (group, crn, raw_crn) in enumerate(
+        zip(
+            df_normalized[group_column],
+            df_normalized["Course_Reference_Number"],
+            raw_crns,
+            strict=True,
+        )
+    ):
+        row_number = position + 2
+        has_group = validate_non_empty_string(group)
+        has_crn = validate_non_empty_string(crn)
+        if not has_group and not has_crn:
+            continue  # blank line
+        missing = []
+        if not has_group:
+            missing.append(noun)
+        if not has_crn:
+            missing.append("CRN")
+        if missing:
+            problems.append(f"row {row_number}: missing {' and '.join(missing)}")
+            continue
+        if _has_fraction(raw_crn):
+            problems.append(
+                f"row {row_number}: CRN '{str(raw_crn).strip()}' is not a whole number"
+            )
+            continue
+
+        crns = groups.setdefault(group, [])
+        if crn in crns:
+            continue
+        crns.append(crn)
+
+        labels = crn_groups.setdefault(crn, [])
+        if group not in labels:
+            labels.append(group)
+
+    labels_by_key: dict[str, list[str]] = {}
+    for group in groups:
+        key = " ".join(group.split()).casefold()
+        labels_by_key.setdefault(key, []).append(group)
+    for labels in labels_by_key.values():
+        if len(labels) > 1:
+            listed = ", ".join(f"'{g}'" for g in labels)
+            problems.append(
+                f"{noun}s {listed} differ only in capitalization or spacing"
+            )
+
+    for crn, labels in crn_groups.items():
+        if len(labels) > 1:
+            listed = ", ".join(f"'{g}'" for g in labels)
+            problems.append(f"CRN {crn} is in multiple {noun}s: {listed}")
+
+    for group, crns in groups.items():
+        if len(crns) < 2:
+            problems.append(
+                f"{noun} '{group}' needs at least 2 distinct CRNs (found {len(crns)})"
+            )
+
+    if not groups and not problems:
+        problems.append(f"no {noun}s found")
+
+    if problems:
+        raise DataValidationError("; ".join(problems))
+
+    return groups
+
+
+class CombinedExamAdapter:
+    """Converts combined exam CSV to a dict mapping exam group to its CRNs."""
 
     @staticmethod
     def read_csv(content: bytes) -> pd.DataFrame:
-        """
-        Parse common exam CSV bytes without type inference.
+        """Parse combined exam CSV bytes as text (see `_read_text_csv`)."""
+        return _read_text_csv(content)
 
-        Every cell stays a string, so group labels like "01" and "1" remain
-        distinct and CRNs keep their original text. Blank lines are kept so
-        reported row numbers match the file's line numbers.
+    @staticmethod
+    def from_dataframe(df: pd.DataFrame) -> dict[str, list[str]]:
         """
-        return pd.read_csv(
-            io.BytesIO(content),
-            dtype=str,
-            keep_default_na=False,
-            skip_blank_lines=False,
-        )
+        Convert combined exam DataFrame to dict of group label -> list of CRNs.
+
+        Each group's CRNs sit one exam: same time block, same room.
+
+        Raises:
+            SchemaDetectionError: If CSV format is unknown
+            DataValidationError: If any row or group is invalid (see
+                `_group_crns`)
+        """
+        return _group_crns(df, "combined_exams", "Exam_Group", "exam group")
+
+
+class CommonExamAdapter:
+    """Converts common exam CSV to a dict mapping common group to its CRNs."""
+
+    @staticmethod
+    def read_csv(content: bytes) -> pd.DataFrame:
+        """Parse common exam CSV bytes as text (see `_read_text_csv`)."""
+        return _read_text_csv(content)
 
     @staticmethod
     def from_dataframe(df: pd.DataFrame) -> dict[str, list[str]]:
         """
         Convert common exam DataFrame to dict of group label -> list of CRNs.
 
-        Fully blank rows and exact duplicate (group, CRN) rows are ignored. CRNs
-        within a group keep their order of first appearance.
-
-        Args:
-            df: Common exam data from CSV (one row per group/CRN pair), ideally
-                parsed with `read_csv` so labels and row numbers are exact
-
-        Returns:
-            Dict mapping exam group label to the CRNs that share one exam
+        Each group's CRNs sit in the same time block but in different rooms
+        (combined groups among them still share one room). CRNs are kept as
+        listed; combined-group closure is applied by callers.
 
         Raises:
             SchemaDetectionError: If CSV format is unknown
-            DataValidationError: If the file has no groups, a row has a blank
-                group or a blank/non-whole-number CRN, a CRN is in more than one
-                group, a group has fewer than 2 distinct CRNs, or two group labels
-                differ only in capitalization/spacing. The message lists every
-                problem found.
+            DataValidationError: If any row or group is invalid (see
+                `_group_crns`)
         """
-        schema, column_mapping = CSVSchemaDetector.detect_schema_version(
-            df, "common_exams"
-        )
-
-        col_defs = {cd.canonical_name: cd for cd in schema}
-        df_normalized = df.rename(columns=column_mapping)
-        raw_crns = df_normalized["Course_Reference_Number"].copy()
-
-        for canonical_name, col_def in col_defs.items():
-            if canonical_name in df_normalized.columns and col_def.transformer:
-                df_normalized[canonical_name] = df_normalized[canonical_name].apply(
-                    col_def.transformer
-                )
-
-        problems: list[str] = []
-        merges: dict[str, list[str]] = {}
-        crn_groups: dict[str, list[str]] = {}
-
-        # Row numbers match spreadsheet lines: header is line 1.
-        for position, (group, crn, raw_crn) in enumerate(
-            zip(
-                df_normalized["Exam_Group"],
-                df_normalized["Course_Reference_Number"],
-                raw_crns,
-                strict=True,
-            )
-        ):
-            row_number = position + 2
-            has_group = validate_non_empty_string(group)
-            has_crn = validate_non_empty_string(crn)
-            if not has_group and not has_crn:
-                continue  # blank line
-            missing = []
-            if not has_group:
-                missing.append("exam group")
-            if not has_crn:
-                missing.append("CRN")
-            if missing:
-                problems.append(f"row {row_number}: missing {' and '.join(missing)}")
-                continue
-            if _has_fraction(raw_crn):
-                problems.append(
-                    f"row {row_number}: CRN '{str(raw_crn).strip()}' is not a whole "
-                    "number"
-                )
-                continue
-
-            crns = merges.setdefault(group, [])
-            if crn in crns:
-                continue
-            crns.append(crn)
-
-            groups = crn_groups.setdefault(crn, [])
-            if group not in groups:
-                groups.append(group)
-
-        labels_by_key: dict[str, list[str]] = {}
-        for group in merges:
-            key = " ".join(group.split()).casefold()
-            labels_by_key.setdefault(key, []).append(group)
-        for labels in labels_by_key.values():
-            if len(labels) > 1:
-                listed = ", ".join(f"'{g}'" for g in labels)
-                problems.append(
-                    f"exam groups {listed} differ only in capitalization or spacing"
-                )
-
-        for crn, groups in crn_groups.items():
-            if len(groups) > 1:
-                listed = ", ".join(f"'{g}'" for g in groups)
-                problems.append(f"CRN {crn} is in multiple exam groups: {listed}")
-
-        for group, crns in merges.items():
-            if len(crns) < 2:
-                problems.append(
-                    f"exam group '{group}' needs at least 2 distinct CRNs "
-                    f"(found {len(crns)})"
-                )
-
-        if not merges and not problems:
-            problems.append("no exam groups found")
-
-        if problems:
-            raise DataValidationError("; ".join(problems))
-
-        return merges
+        return _group_crns(df, "common_exams", "Common_Group", "common group")
 
 
 def _has_fraction(value: object) -> bool:
@@ -216,7 +257,7 @@ def read_upload_csv(content: bytes, file_type: str) -> pd.DataFrame:
     Columns the schema declares as strings (student IDs, CRNs, names, ...) are
     read verbatim so identifiers like "001234567" keep their leading zeros.
     Other columns (enrollment, capacity, day/block) are still type-inferred.
-    Common exam files are read fully as text via `CommonExamAdapter.read_csv`.
+    Combined and common exam files are read fully as text.
 
     Args:
         content: Raw CSV bytes
@@ -225,8 +266,8 @@ def read_upload_csv(content: bytes, file_type: str) -> pd.DataFrame:
     Returns:
         Parsed DataFrame with the file's original column names
     """
-    if file_type == "common_exams":
-        return CommonExamAdapter.read_csv(content)
+    if file_type in ("combined_exams", "common_exams"):
+        return _read_text_csv(content)
 
     schema_class = get_schema(file_type)
     if schema_class is None:

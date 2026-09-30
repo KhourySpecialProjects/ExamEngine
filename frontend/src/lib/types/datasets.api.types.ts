@@ -7,6 +7,7 @@ export interface DatasetMetadata {
     enrollments: EnrollmentsFileMetadata;
     rooms: RoomsFileMetadata;
     room_blockouts?: RoomBlockoutsFileMetadata;
+    combined_exams?: CombinedExamsFileMetadata;
     common_exams?: CommonExamsFileMetadata;
   };
   status: string;
@@ -44,14 +45,31 @@ export interface RoomBlockoutsFileMetadata extends BaseFileMetadata {
   total_blockout_entries: number;
 }
 
-export interface OverCapacityCommonExam {
+export interface OverCapacityCombinedExam {
   group: string;
   total_enrollment: number;
   max_room_capacity: number;
 }
 
-export interface CommonExamsFileMetadata extends BaseFileMetadata {
+export interface CombinedExamsFileMetadata extends BaseFileMetadata {
   exam_groups: number;
   merged_crns: number;
-  over_capacity_groups?: OverCapacityCommonExam[];
+  over_capacity_groups?: OverCapacityCombinedExam[];
+}
+
+export interface InfeasibleCommonGroup {
+  group: string;
+  reason: string;
+}
+
+export interface StudentOverlapCommonGroup {
+  group: string;
+  students: number;
+}
+
+export interface CommonExamsFileMetadata extends BaseFileMetadata {
+  common_groups: number;
+  common_crns: number;
+  infeasible_groups?: InfeasibleCommonGroup[];
+  student_overlap_groups?: StudentOverlapCommonGroup[];
 }

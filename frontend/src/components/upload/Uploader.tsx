@@ -67,12 +67,38 @@ export function Uploader() {
         description: `${result.dataset_name} uploaded with ${result.files.courses.rows} courses`,
       });
       const overCapacityGroups =
-        result.files.common_exams?.over_capacity_groups ?? [];
+        result.files.combined_exams?.over_capacity_groups ?? [];
       if (overCapacityGroups.length > 0) {
         const groupNames = overCapacityGroups.map((g) => g.group).join(", ");
-        toast.warning("Some common exams exceed room capacity", {
+        toast.warning("Some combined exams exceed room capacity", {
           description: `${groupNames}: combined enrollment exceeds the largest room, so these will be left unscheduled.`,
         });
+      }
+      const infeasibleGroups =
+        result.files.common_exams?.infeasible_groups ?? [];
+      if (infeasibleGroups.length > 0) {
+        const details = infeasibleGroups
+          .map((g) => `${g.group} (${g.reason})`)
+          .join("; ");
+        toast.warning("Some common exams cannot fit the room inventory", {
+          description: `${details}. These groups will be left unscheduled.`,
+        });
+      }
+      const overlapGroups =
+        result.files.common_exams?.student_overlap_groups ?? [];
+      if (overlapGroups.length > 0) {
+        const details = overlapGroups
+          .map(
+            (g) =>
+              `${g.group} (${g.students} student${g.students === 1 ? "" : "s"})`,
+          )
+          .join("; ");
+        toast.warning(
+          "Students enrolled in multiple sections of a common exam",
+          {
+            description: `${details}. These students will have simultaneous exams.`,
+          },
+        );
       }
       selectDataset(result.dataset_id);
     } catch (error) {

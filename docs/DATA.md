@@ -4,9 +4,9 @@ CSV file formats, database management, and data operations for ExamEngine.
 
 ## CSV File Formats
 
-ExamEngine requires three CSV files — **courses**, **enrollments**, and **rooms** — to generate exam schedules, plus two optional files: **room blockouts** and **common exams**. All files are uploaded together in one `POST /api/datasets/upload` request (multipart form fields `courses`, `enrollments`, `rooms`, `room_blockouts`, `common_exams`). Column names are auto-detected from multiple aliases (case-insensitive, whitespace-trimmed).
+ExamEngine requires three CSV files — **courses**, **enrollments**, and **rooms** — to generate exam schedules, plus three optional files: **room blockouts**, **combined exams**, and **common exams**. All files are uploaded together in one `POST /api/datasets/upload` request (multipart form fields `courses`, `enrollments`, `rooms`, `room_blockouts`, `combined_exams`, `common_exams`). Column names are auto-detected from multiple aliases (case-insensitive, whitespace-trimmed).
 
-> **Required vs optional:** ✅ = required (the upload is rejected if the column is missing). ❌ = optional (used if present, ignored if absent). Any column not listed below is ignored. For courses/enrollments/rooms/common exams a row with a missing/invalid *required* value aborts the entire import; invalid room-blockout rows are skipped individually.
+> **Required vs optional:** ✅ = required (the upload is rejected if the column is missing). ❌ = optional (used if present, ignored if absent). Any column not listed below is ignored. For courses/enrollments/rooms/combined exams/common exams a row with a missing/invalid *required* value aborts the entire import; invalid room-blockout rows are skipped individually.
 
 ### courses.csv
 
@@ -85,9 +85,9 @@ Shillman 105,0,2
 West Village H 212,Monday,9AM-11AM
 ```
 
-### common_exams.csv (optional)
+### combined_exams.csv (optional)
 
-Defines common exams: groups of course sections (CRNs) that sit one shared exam at the same time and in the same room. Each group is a **merge group**, and the group label is its identifier. This file is optional — omit it if no sections share an exam. It uses long format, one row per (group, CRN); a group needs at least two rows. Cells are read as text, so labels such as `01` and `1` are different groups. Blank lines are ignored. Unlike room blockouts, any invalid row fails the whole upload (see the validation rules below).
+Defines combined exams: groups of course sections (CRNs) merged into one exam — same time block **and same room**. Each group is a **merge group**, and the group label is its identifier. This file is optional — omit it if no sections share an exam. It uses long format, one row per (group, CRN); a group needs at least two rows. Cells are read as text, so labels such as `01` and `1` are different groups. Blank lines are ignored. Unlike room blockouts, any invalid row fails the whole upload (see the validation rules below).
 
 | Column                  | Required | Accepted Names                                                                                        | Description                                               |
 | ----------------------- | -------- | ---------------------------------------------------------------------------------------------------- | --------------------------------------------------------- |
@@ -118,9 +118,46 @@ PHYS Common Final,11321
 | V8  | The file is empty, has no groups (header only), or is not a parseable CSV    | ❌ Upload rejected                                                                               |
 | V9  | Two group labels differ only in capitalization or spacing (e.g. `MATH Final` / `math final`) | ❌ Upload rejected (likely a typo)                                               |
 
-Problems within the file itself (V2–V5, V8, V9) are reported together. Checks against courses.csv and rooms.csv (V6, V7) run only once every file passes its own checks. A rejected upload returns HTTP 400 `{"message": "File validation failed", "errors": {"common_exams": "<reason>"}}`, and nothing is stored. Over-capacity groups (V7) are saved but no room can hold them, so the scheduler reports them as unscheduled.
+Problems within the file itself (V2–V5, V8, V9) are reported together. Checks against courses.csv and rooms.csv (V6, V7) run only once every file passes its own checks. A rejected upload returns HTTP 400 `{"message": "File validation failed", "errors": {"combined_exams": "<reason>"}}`, and nothing is stored. Over-capacity groups (V7) are saved but no room can hold them, so the scheduler reports them as unscheduled. The upload response reports the file under `files.combined_exams` as `{rows, exam_groups, merged_crns, over_capacity_groups}`.
 
-Valid groups are stored in the `datasets.course_merges` JSONB column as `{group_label: [CRN, ...]}` (CRNs in order of first appearance), e.g., `{"MATH Common Final": ["11315", "11316"]}`. After upload they can still be viewed and edited through the existing merges API: `GET`, `POST`, and `DELETE /api/datasets/{dataset_id}/merges`.
+Valid groups are stored in the `datasets.course_merges` JSONB column as `{group_label: [CRN, ...]}` (CRNs in order of first appearance), e.g., `{"MATH Common Final": ["11315", "11316"]}`. Combined groups can only be set by uploading this file; to change them, upload a new dataset. They are read back with `GET /api/datasets/{dataset_id}/merges` (the column and route keep their original "merges" names).
+
+> Datasets uploaded before combined and common exams were split stored this file as `common_exams.csv` (file type `common_exams`, metadata with `exam_groups`). They are still reported as `combined_exams`.
+
+### common_exams.csv (optional)
+
+Defines common exams: groups of course sections (CRNs) that sit in the **same time block but in different rooms** (e.g. so exam content can't leak between sections). This file is optional and separate from combined_exams.csv. It uses the same long format and file-level rules as combined exams (text cells, blank lines ignored, duplicates de-duplicated, labels differing only in case/spacing rejected, at least 2 distinct CRNs per group), but a different group header, so a combined exam file uploaded in this slot is rejected rather than silently misread.
+
+| Column                  | Required | Accepted Names                                                        | Description                                         |
+| ----------------------- | -------- | --------------------------------------------------------------------- | --------------------------------------------------- |
+| Common_Group            | ✅       | `Common_Group`, `CommonGroup`, `Common Group`, `common_group`          | Group label (whitespace-trimmed), e.g., "BIOL 1101 Final" |
+| Course_Reference_Number | ✅       | `Course_Reference_Number`, `CRN`, `Course Registration Number`, `crn` | Must match a CRN in courses.csv                     |
+
+**Example:**
+
+```csv
+Common_Group,CRN
+BIOL 1101 Final,11111
+BIOL 1101 Final,33333
+BIOL 1101 Final,44444
+```
+
+**Combined groups inside a common group (closure rule):** if a CRN listed in a common group belongs to a combined group, the entire combined group belongs to that common group and still shares one room. Listing one or all members of the combined group is equivalent. Each combined group or lone CRN is a **room unit** that gets its own room. With combined group `{11111, 22222}`, the example above schedules one time block with three rooms: 11111+22222, 33333, and 44444.
+
+**Validation rules** (in addition to the file-level rules V1–V5, V8, V9 above, with "group" meaning common group):
+
+| #   | Rule                                                                                         | Result                                                                                                          |
+| --- | -------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------- |
+| C1  | The same CRN appears in two different common groups                                           | ❌ Upload rejected                                                                                              |
+| C2  | A CRN is not in courses.csv, or has zero enrollment there                                     | ❌ Upload rejected                                                                                              |
+| C3  | Members of one combined group are listed in different common groups                           | ❌ Upload rejected                                                                                              |
+| C4  | A common group has fewer than 2 room units after the closure rule (e.g. it only lists members of one combined group) | ❌ Upload rejected                                                                       |
+| C5  | The group's room units can't all be seated at once (each in its own room; largest unit first into the smallest room that fits, over all rooms, ignoring blockouts) | ⚠️ Saved; reported as `infeasible_groups: [{group, reason}]`. The scheduler leaves the **whole** group unscheduled |
+| C6  | A student is enrolled in 2+ room units of the same common group                                | ⚠️ Saved; reported as `student_overlap_groups: [{group, students}]` (those students have simultaneous exams)    |
+
+Cross-file checks (C2–C4) run once every file passes its own checks; errors in combined_exams.csv and common_exams.csv are reported together, e.g. HTTP 400 `{"message": "File validation failed", "errors": {"common_exams": "<reason>"}}`. The upload response reports the file under `files.common_exams` as `{rows, common_groups, common_crns, infeasible_groups, student_overlap_groups}`.
+
+Valid groups are stored, as listed (closure is applied at scheduling time), in the nullable `datasets.common_exam_groups` JSONB column as `{group_label: [CRN, ...]}`. The scheduler places common groups before all other exams; a group is never split across blocks or partially placed. Common groups can only be set by uploading this file; to change them, upload a new dataset. They are read back with `GET /api/datasets/{dataset_id}/common-exams`.
 
 ## Data Validation
 
@@ -129,7 +166,7 @@ The system automatically:
 - Detects column names from aliases (case-insensitive)
 - Cleans whitespace and formats
 - Converts numeric strings (e.g., "11310.0" → "11310")
-- Rejects the entire upload if a required column is missing or a required value is empty/invalid (courses, enrollments, rooms, common exams); invalid room-blockout rows are skipped individually
+- Rejects the entire upload if a required column is missing or a required value is empty/invalid (courses, enrollments, rooms, combined exams, common exams); invalid room-blockout rows are skipped individually
 - Reports validation errors with row numbers
 
 ### Common Validation Errors
@@ -157,6 +194,8 @@ docker-compose --profile dev exec backend-dev python src/schemas/reset_database.
 
 <img src="figures/db_schemas.svg" alt="Database Schema Diagram" width="1000"/>
 
+`datasets.common_exam_groups` (nullable JSONB) was added after the initial schema. `init_db` adds it on startup to existing Postgres databases with `ALTER TABLE datasets ADD COLUMN IF NOT EXISTS common_exam_groups JSONB DEFAULT NULL` (idempotent; no data migration needed).
+
 ## S3 Storage Structure
 
 Datasets are stored in S3 with the following structure:
@@ -168,6 +207,7 @@ s3://examengine-datasets/
     ├── enrollments.csv
     ├── rooms.csv
     ├── room_blockouts.csv   # only if uploaded
+    ├── combined_exams.csv   # only if uploaded
     └── common_exams.csv     # only if uploaded
 ```
 

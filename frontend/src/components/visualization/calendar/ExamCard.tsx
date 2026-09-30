@@ -1,4 +1,4 @@
-import { AlertCircle, GitMerge } from "lucide-react";
+import { AlertCircle, GitMerge, Layers } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
 import type { Exam } from "@/lib/types/calendar.types";
@@ -7,9 +7,15 @@ interface ExamCardProps {
   exam: Exam;
   onClick?: () => void;
   isMerged?: boolean;
+  isCommon?: boolean;
 }
 
-export function ExamCard({ exam, onClick, isMerged = false }: ExamCardProps) {
+export function ExamCard({
+  exam,
+  onClick,
+  isMerged = false,
+  isCommon = false,
+}: ExamCardProps) {
   const hasConflict = exam.conflicts > 0;
 
   return (
@@ -25,8 +31,19 @@ export function ExamCard({ exam, onClick, isMerged = false }: ExamCardProps) {
           <div className="flex items-center gap-2 mb-1">
             <h3 className="font-bold text-sm">{exam.courseCode}</h3>
             {isMerged && (
-              <div className="flex items-center gap-1 text-blue-600" title="Merged course">
+              <div
+                className="flex items-center gap-1 text-blue-600"
+                title="Combined exam"
+              >
                 <GitMerge className="h-4 w-4" />
+              </div>
+            )}
+            {isCommon && (
+              <div
+                className="flex items-center gap-1 text-violet-600"
+                title="Common exam"
+              >
+                <Layers className="h-4 w-4" />
               </div>
             )}
           </div>

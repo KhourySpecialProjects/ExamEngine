@@ -151,12 +151,20 @@ def get_file_statistics(
             blockout_slots[day_name][block_time] = count
         stats["blockout_slots"] = blockout_slots
 
+    elif file_type == "combined_exams":
+        # Raises DataValidationError for invalid groups, failing the upload
+        from src.domain.adapters import CombinedExamAdapter
+
+        merges = CombinedExamAdapter.from_dataframe(df)
+        stats["exam_groups"] = len(merges)
+        stats["merged_crns"] = sum(len(crns) for crns in merges.values())
+
     elif file_type == "common_exams":
         # Raises DataValidationError for invalid groups, failing the upload
         from src.domain.adapters import CommonExamAdapter
 
-        merges = CommonExamAdapter.from_dataframe(df)
-        stats["exam_groups"] = len(merges)
-        stats["merged_crns"] = sum(len(crns) for crns in merges.values())
+        common_groups = CommonExamAdapter.from_dataframe(df)
+        stats["common_groups"] = len(common_groups)
+        stats["common_crns"] = sum(len(crns) for crns in common_groups.values())
 
     return stats

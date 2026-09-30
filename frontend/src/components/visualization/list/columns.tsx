@@ -1,5 +1,5 @@
 import { type ColumnDef, createColumnHelper } from "@tanstack/react-table";
-import { AlertCircle, Ban, GitMerge } from "lucide-react";
+import { AlertCircle, Ban, GitMerge, Layers } from "lucide-react";
 import { SortableHeader } from "@/components/common/table/SortableHeader";
 import { Badge } from "@/components/ui/badge";
 import type { Exam } from "@/lib/types/calendar.types";
@@ -10,10 +10,12 @@ const CourseCell = ({
   courseCode,
   section,
   isMerged = false,
+  isCommon = false,
 }: {
   courseCode: string;
   section: string;
   isMerged?: boolean;
+  isCommon?: boolean;
 }) => (
   <div>
     <div className="flex items-center gap-2">
@@ -22,9 +24,18 @@ const CourseCell = ({
         <Badge
           variant="outline"
           className="gap-1 text-xs px-1.5 py-0.5 border-blue-300 text-blue-700 bg-blue-50/50 flex items-center"
-          title="Merged course"
+          title="Combined exam"
         >
           <GitMerge className="h-3 w-3" />
+        </Badge>
+      )}
+      {isCommon && (
+        <Badge
+          variant="outline"
+          className="gap-1 text-xs px-1.5 py-0.5 border-violet-300 text-violet-700 bg-violet-50/50 flex items-center"
+          title="Common exam"
+        >
+          <Layers className="h-3 w-3" />
         </Badge>
       )}
     </div>
@@ -47,6 +58,7 @@ const ConflictCell = ({ conflicts }: { conflicts: number }) => (
 
 export function createExamColumns(
   isMerged?: (crn: string) => boolean,
+  isCommon?: (crn: string) => boolean,
 ): ColumnDef<Exam, any>[] {
   return [
     columnHelper.accessor("courseCode", {
@@ -57,21 +69,29 @@ export function createExamColumns(
           courseCode={info.getValue()}
           section={info.row.original.section}
           isMerged={isMerged ? isMerged(info.row.original.section) : false}
+          isCommon={isCommon ? isCommon(info.row.original.section) : false}
         />
       ),
     }),
     columnHelper.accessor("day", {
       id: "day",
       header: ({ column }) => <SortableHeader column={column} label="Day" />,
-      cell: (info) => (
-        <div className="text-sm">
-          {info.row.original.isUnscheduled ? (
+      cell: (info) => {
+        const exam = info.row.original;
+        if (!exam.isUnscheduled) {
+          return <div className="text-sm">{info.getValue()}</div>;
+        }
+        return (
+          <div className="text-sm" title={exam.unscheduledReason}>
             <span className="text-muted-foreground italic">Unscheduled</span>
-          ) : (
-            info.getValue()
-          )}
-        </div>
-      ),
+            {exam.unscheduledGroup && (
+              <div className="text-xs text-orange-700">
+                {exam.unscheduledGroup}
+              </div>
+            )}
+          </div>
+        );
+      },
     }),
     columnHelper.accessor("timeSlot", {
       id: "timeSlot",

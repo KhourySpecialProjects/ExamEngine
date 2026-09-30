@@ -85,6 +85,14 @@ export interface ScheduleData {
   total_exams: number;
 }
 
+/** A combined or common exam group left entirely unscheduled, and why. */
+export interface UnscheduledGroup {
+  kind: "combined" | "common";
+  group: string;
+  reason: string;
+  crns: string[];
+}
+
 export interface ScheduleResult {
   schedule_id: string;
   dataset_id: string;
@@ -100,6 +108,8 @@ export interface ScheduleResult {
   parameters: ScheduleParameters;
   /** Per-slot blocked room counts: {day_name: {block_time: n_rooms_blocked}} */
   blockouts?: Record<string, Record<string, number>>;
+  /** Absent/empty for schedules generated before groups were recorded. */
+  unscheduled_groups?: UnscheduledGroup[];
   is_owner?: boolean;
   is_shared?: boolean;
   created_by_user_id?: string;

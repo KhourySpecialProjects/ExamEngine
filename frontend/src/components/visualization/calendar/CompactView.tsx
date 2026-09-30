@@ -2,6 +2,7 @@ import { Ban } from "lucide-react";
 import { useMemo } from "react";
 import { EmptyScheduleState } from "@/components/common/EmptyScheduleState";
 import { Button } from "@/components/ui/button";
+import { useCommonExams } from "@/lib/hooks/useCommonExams";
 import { useCourseMerges } from "@/lib/hooks/useCourseMerges";
 import { useScheduleData } from "@/lib/hooks/useScheduleData";
 import { useCalendarStore } from "@/lib/store/calendarStore";
@@ -28,7 +29,8 @@ const DAYS = [
 export default function CompactView() {
   const { hasData, isLoading, calendarRows, schedule } = useScheduleData();
   const selectCell = useCalendarStore((state) => state.selectCell);
-  const { isMerged } = useCourseMerges(schedule?.dataset_id);
+  const { merges, isMerged } = useCourseMerges(schedule?.dataset_id);
+  const { isCommon } = useCommonExams(schedule?.dataset_id, merges);
 
   const blockoutMap = useMemo(() => {
     const map = new Map<string, number>();
@@ -77,6 +79,7 @@ export default function CompactView() {
                   building={exam.building}
                   hasConflict={exam.conflicts > 0}
                   isMerged={isMerged(exam.section)}
+                  isCommon={isCommon(exam.section)}
                 />
               ))}
 

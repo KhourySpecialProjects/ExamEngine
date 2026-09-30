@@ -1,6 +1,6 @@
 from collections.abc import Generator
 
-from sqlalchemy import create_engine
+from sqlalchemy import create_engine, text
 from sqlalchemy.orm import Session, sessionmaker
 
 from src.core.config import get_settings
@@ -56,3 +56,22 @@ def init_db() -> None:
     Called during application startup.
     """
     Base.metadata.create_all(bind=engine)
+    _add_missing_columns()
+
+
+def _add_missing_columns() -> None:
+    """
+    Add columns introduced after a table was first created.
+
+    `create_all` never alters existing tables, so additive nullable columns
+    are added here idempotently. Postgres only (tests use other dialects).
+    """
+    if engine.dialect.name != "postgresql":
+        return
+    with engine.begin() as connection:
+        connection.execute(
+            text(
+                "ALTER TABLE datasets "
+                "ADD COLUMN IF NOT EXISTS common_exam_groups JSONB DEFAULT NULL"
+            )
+        )

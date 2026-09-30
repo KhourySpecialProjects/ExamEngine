@@ -7,6 +7,7 @@ import {
   BookOpen,
   Building2,
   GitMerge,
+  Layers,
   TrendingUp,
 } from "lucide-react";
 import { useMemo } from "react";
@@ -30,6 +31,7 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
+import { useCommonExams } from "@/lib/hooks/useCommonExams";
 import { conflictTypeMap, conflictTypeRank } from "@/lib/hooks/useConflictData";
 import { useCourseMerges } from "@/lib/hooks/useCourseMerges";
 import { useDatasetStore } from "@/lib/store/datasetStore";
@@ -52,6 +54,10 @@ export function StatisticsView() {
   const currentSchedule = useSchedulesStore((state) => state.currentSchedule);
   const datasets = useDatasetStore((state) => state.datasets);
   const { merges, isMerged } = useCourseMerges(currentSchedule?.dataset_id);
+  const { commonGroups, isCommon } = useCommonExams(
+    currentSchedule?.dataset_id,
+    merges,
+  );
 
   const stats = useMemo(() => {
     if (!currentSchedule) return null;
@@ -87,6 +93,17 @@ export function StatisticsView() {
       }
     });
 
+    // Common exam statistics (same time block, different rooms)
+    const commonGroupCount = Object.keys(commonGroups || {}).length;
+    let commonSections = 0;
+    let commonStudents = 0;
+    schedule.complete.forEach((exam) => {
+      if (isCommon(exam.CRN)) {
+        commonSections += 1;
+        commonStudents += exam.Size || 0;
+      }
+    });
+
     // Calculate average merge group size
     const avgMergeGroupSize =
       mergeGroupCount > 0 ? mergedCourseCount / mergeGroupCount : 0;
@@ -97,6 +114,7 @@ export function StatisticsView() {
     const timeBlocks: Record<string, number> = {};
 
     let unscheduledCount = 0;
+    const unscheduledCrns: string[] = [];
     let unscheduledStudents = 0;
     let unroomedCount = 0;
     let unroomedStudents = 0;
@@ -105,6 +123,7 @@ export function StatisticsView() {
       if (!exam.Day && !exam.Room) {
         // Truly unscheduled — no slot, no room
         unscheduledCount += 1;
+        unscheduledCrns.push(String(exam.CRN));
         unscheduledStudents += exam.Size || 0;
       } else if (exam.Day && !exam.Room) {
         // Has a slot but no room (blocked out)
@@ -273,6 +292,7 @@ export function StatisticsView() {
         slotsUsed: summary.slots_used,
         backToBackWarnings: totalBackToBackWarnings,
         unscheduledExams: unscheduledCount,
+        unscheduledCrns,
         unscheduledStudents: unscheduledStudents,
         unroomedExams: unroomedCount,
         unroomedStudents: unroomedStudents,
@@ -280,6 +300,9 @@ export function StatisticsView() {
         mergedCourses: mergedCourseCount,
         mergedStudents: mergedStudents,
         avgMergeGroupSize: Math.round(avgMergeGroupSize * 10) / 10,
+        commonGroups: commonGroupCount,
+        commonSections,
+        commonStudents,
         roomsWithBlockouts,
         totalBlockedSlots,
       },
@@ -288,7 +311,7 @@ export function StatisticsView() {
       conflictBreakdown,
       studentsPerDayData,
     };
-  }, [currentSchedule, datasets, merges, isMerged]);
+  }, [currentSchedule, datasets, merges, isMerged, commonGroups, isCommon]);
 
   if (!currentSchedule || !stats) {
     return (
@@ -382,13 +405,13 @@ export function StatisticsView() {
         </Card>
       </div>
 
-      {/* Merge Statistics Card */}
+      {/* Combined Exams Statistics Card */}
       {stats.overview.mergeGroups > 0 && (
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium flex items-center gap-2">
               <GitMerge className="h-4 w-4 text-blue-600" />
-              Merged Courses
+              Combined Exams
             </CardTitle>
           </CardHeader>
           <CardContent>
@@ -398,14 +421,16 @@ export function StatisticsView() {
                   <div className="text-2xl font-bold text-blue-600">
                     {stats.overview.mergeGroups}
                   </div>
-                  <p className="text-xs text-muted-foreground">Merge Groups</p>
+                  <p className="text-xs text-muted-foreground">
+                    Combined Groups
+                  </p>
                 </div>
                 <div>
                   <div className="text-2xl font-bold text-blue-600">
                     {stats.overview.mergedCourses}
                   </div>
                   <p className="text-xs text-muted-foreground">
-                    Courses Merged
+                    Sections Combined
                   </p>
                 </div>
               </div>
@@ -415,7 +440,7 @@ export function StatisticsView() {
                     {stats.overview.mergedStudents}
                   </div>
                   <p className="text-xs text-muted-foreground">
-                    Students in Merges
+                    Students in Combined Exams
                   </p>
                 </div>
                 <div>
@@ -426,6 +451,40 @@ export function StatisticsView() {
                     Avg. Group Size
                   </p>
                 </div>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Common Exams Statistics Card */}
+      {stats.overview.commonGroups > 0 && (
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium flex items-center gap-2">
+              <Layers className="h-4 w-4 text-violet-600" />
+              Common Exams
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="grid grid-cols-3 gap-4">
+              <div>
+                <div className="text-2xl font-bold text-violet-600">
+                  {stats.overview.commonGroups}
+                </div>
+                <p className="text-xs text-muted-foreground">Common Groups</p>
+              </div>
+              <div>
+                <div className="text-2xl font-bold text-violet-600">
+                  {stats.overview.commonSections}
+                </div>
+                <p className="text-xs text-muted-foreground">Sections</p>
+              </div>
+              <div>
+                <div className="text-2xl font-bold text-violet-600">
+                  {stats.overview.commonStudents}
+                </div>
+                <p className="text-xs text-muted-foreground">Students</p>
               </div>
             </div>
           </CardContent>
@@ -462,16 +521,16 @@ export function StatisticsView() {
         </Card>
       )}
 
-      {/* Unscheduled Merges Alert */}
+      {/* Unscheduled Exams Alert */}
       {stats.overview.unscheduledExams > 0 && (
         <Card className="border-orange-200 bg-orange-50">
           <CardHeader>
             <CardTitle className="text-sm font-medium flex items-center gap-2">
               <AlertTriangle className="h-4 w-4 text-orange-600" />
-              Unscheduled Merges
+              Unscheduled Exams
             </CardTitle>
             <CardDescription>
-              Some merged courses could not be scheduled due to room capacity
+              Some combined or common exams could not be scheduled due to room
               constraints
             </CardDescription>
           </CardHeader>
@@ -483,10 +542,56 @@ export function StatisticsView() {
               <p className="text-xs text-muted-foreground">
                 {stats.overview.unscheduledStudents} students affected
               </p>
+              {(currentSchedule?.unscheduled_groups ?? []).length > 0 && (
+                <ul className="mt-3 space-y-2">
+                  {(currentSchedule?.unscheduled_groups ?? []).map((group) => (
+                    <li
+                      key={`${group.kind}:${group.group}`}
+                      className="rounded border border-orange-200 bg-white/60 p-2 text-xs"
+                    >
+                      <div className="font-medium text-orange-800">
+                        {group.kind === "common" ? "Common" : "Combined"} exam:{" "}
+                        {group.group}
+                      </div>
+                      <div className="text-muted-foreground">
+                        {group.reason}
+                      </div>
+                      <div className="font-mono text-muted-foreground">
+                        CRNs: {group.crns.join(", ")}
+                      </div>
+                    </li>
+                  ))}
+                </ul>
+              )}
+              {(() => {
+                // CRNs not explained by a saved group (e.g. schedules
+                // generated before groups were recorded) are still listed.
+                const grouped = new Set(
+                  (currentSchedule?.unscheduled_groups ?? []).flatMap(
+                    (group) => group.crns,
+                  ),
+                );
+                const others = stats.overview.unscheduledCrns.filter(
+                  (crn) => !grouped.has(crn),
+                );
+                if (others.length === 0) return null;
+                return (
+                  <div className="mt-3 text-xs">
+                    <div className="font-medium text-orange-800">
+                      {grouped.size > 0
+                        ? "Other unscheduled CRNs"
+                        : "Unscheduled CRNs"}
+                    </div>
+                    <div className="font-mono text-muted-foreground">
+                      {others.join(", ")}
+                    </div>
+                  </div>
+                );
+              })()}
               <p className="text-xs text-muted-foreground mt-2">
                 These exams appear in the list view without a day, time, or room
-                assignment. Consider splitting these merge groups or adding
-                larger rooms to your dataset.
+                assignment. Consider splitting these combined or common groups
+                or adding larger rooms to your dataset.
               </p>
             </div>
           </CardContent>

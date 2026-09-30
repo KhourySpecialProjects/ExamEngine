@@ -36,9 +36,18 @@ const INITIAL_SLOTS: FileSlot[] = [
     optional: true,
   },
   {
+    id: "combined_exams",
+    label: "Combined Exams",
+    description:
+      "Optional — sections sharing one exam, same time & room. CSV: ExamGroup, CRN",
+    file: null,
+    optional: true,
+  },
+  {
     id: "common_exams",
     label: "Common Exams",
-    description: "Optional — Upload CSV with: ExamGroup, CRN",
+    description:
+      "Optional — sections at the same time in different rooms. CSV: CommonGroup, CRN",
     file: null,
     optional: true,
   },
@@ -130,6 +139,9 @@ export const useUploadStore = create<UploadState>((set, get) => ({
       const enrollmentsSlot = state.slots.find((s) => s.id === "enrollments");
       const roomsSlot = state.slots.find((s) => s.id === "rooms");
       const blockoutsSlot = state.slots.find((s) => s.id === "room_blockouts");
+      const combinedExamsSlot = state.slots.find(
+        (s) => s.id === "combined_exams",
+      );
       const commonExamsSlot = state.slots.find((s) => s.id === "common_exams");
 
       if (!coursesSlot?.file || !enrollmentsSlot?.file || !roomsSlot?.file) {
@@ -143,6 +155,9 @@ export const useUploadStore = create<UploadState>((set, get) => ({
         rooms: roomsSlot.file.file,
         ...(blockoutsSlot?.file
           ? { room_blockouts: blockoutsSlot.file.file }
+          : {}),
+        ...(combinedExamsSlot?.file
+          ? { combined_exams: combinedExamsSlot.file.file }
           : {}),
         ...(commonExamsSlot?.file
           ? { common_exams: commonExamsSlot.file.file }
@@ -168,6 +183,11 @@ export const useUploadStore = create<UploadState>((set, get) => ({
       if (blockoutsSlot?.file) {
         get().updateSlotStatus("room_blockouts", "success", {
           rowCount: result.files.room_blockouts?.rows,
+        });
+      }
+      if (combinedExamsSlot?.file) {
+        get().updateSlotStatus("combined_exams", "success", {
+          rowCount: result.files.combined_exams?.rows,
         });
       }
       if (commonExamsSlot?.file) {

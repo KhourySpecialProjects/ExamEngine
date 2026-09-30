@@ -168,6 +168,7 @@ class ScheduleAssembler:
         schedule_block: dict[str, Any],
         permissions: SchedulePermissions,
         blockouts: dict[str, dict[str, int]] | None = None,
+        unscheduled_groups: list[dict[str, Any]] | None = None,
     ) -> dict[str, Any]:
         """
         Build complete schedule detail response.
@@ -188,6 +189,7 @@ class ScheduleAssembler:
             "algorithm": schedule.run.algorithm_name,
             "status": schedule.run.status.value,
             "blockouts": blockouts or {},
+            "unscheduled_groups": unscheduled_groups or [],
             **permissions.to_dict(),
         }
 
@@ -202,6 +204,7 @@ class ScheduleAssembler:
         conflicts: dict[str, Any],
         parameters: dict[str, Any],
         blockouts: dict[str, dict[str, int]] | None = None,
+        unscheduled_groups: list[dict[str, Any]] | None = None,
     ) -> dict[str, Any]:
         """
         Build response for generate_schedule endpoint.
@@ -223,4 +226,5 @@ class ScheduleAssembler:
             },
             "parameters": parameters,
             "blockouts": blockouts or {},
+            "unscheduled_groups": unscheduled_groups or [],
         }

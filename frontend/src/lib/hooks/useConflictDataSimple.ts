@@ -1,4 +1,5 @@
 import { useSchedulesStore } from "@/lib/store/schedulesStore";
+import type { ConflictMetrics } from "@/lib/types/conflict.types";
 import type {
   ConflictBreakdown,
   ScheduleData,
@@ -62,16 +63,6 @@ export type ConflictRow = PersonConflictRow | RecordConflictRow;
 
 export type ConflictDataByType = Record<ConflictType, ConflictRow[]>;
 
-/** Person-based metrics count distinct people; large_courses_not_early counts courses. */
-export interface ConflictMetrics {
-  hard_student_conflicts: number;
-  hard_instructor_conflicts: number;
-  student_gt3_per_day: number;
-  students_back_to_back: number;
-  instructors_back_to_back: number;
-  large_courses_not_early: number;
-}
-
 // Constants
 const INSTRUCTOR_CONFLICT_TYPES: ConflictType[] = [
   "back_to_back_instructor",
@@ -95,6 +86,11 @@ export function isPersonConflictType(type: ConflictType): boolean {
   return PERSON_CONFLICT_TYPES.includes(type);
 }
 
+/** Person conflict types whose person is an instructor, not a student. */
+export function isInstructorConflictType(type: ConflictType): boolean {
+  return INSTRUCTOR_CONFLICT_TYPES.includes(type);
+}
+
 // Helper functions
 function buildExamsByCrn(
   schedule: ScheduleData | undefined,
@@ -107,7 +103,7 @@ function buildExamsByCrn(
 }
 
 function getEntity(conflict: ConflictBreakdown, type: ConflictType): string {
-  const entity = INSTRUCTOR_CONFLICT_TYPES.includes(type)
+  const entity = isInstructorConflictType(type)
     ? conflict.instructor_name || conflict.entity_id
     : conflict.student_id || conflict.entity_id;
   // IDs are strings (leading zeros matter); never coerce to number.

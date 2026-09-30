@@ -23,8 +23,13 @@ const doubleBook = (
   conflicting_course: `CS ${conflictingCrn}`,
 });
 
-const personRows = (breakdown: ConflictBreakdown[]) =>
-  buildConflictRows(breakdown, new Map()) as PersonConflictRow[];
+const personRows = (
+  breakdown: ConflictBreakdown[],
+  examsByCrn = new Map<string, ScheduleExam>(),
+) =>
+  buildConflictRows(breakdown, examsByCrn).filter(
+    (r): r is PersonConflictRow => r.kind === "person",
+  );
 
 describe("buildConflictRows", () => {
   it("collapses a 2-course double-book into one row listing both courses", () => {
@@ -148,7 +153,7 @@ describe("buildConflictRows", () => {
     });
     const math = exam("10", "MATH 1341");
     const phys = exam("11", "PHYS 1151");
-    const rows = buildConflictRows(
+    const rows = personRows(
       [
         {
           conflict_type: "student_gt_max_per_day",
@@ -167,7 +172,7 @@ describe("buildConflictRows", () => {
         ["10", math],
         ["11", phys],
       ]),
-    ) as PersonConflictRow[];
+    );
 
     expect(rows[0].instances[0].courses).toEqual([
       { course: "MATH 1341", crn: "10", exam: math },

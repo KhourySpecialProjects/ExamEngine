@@ -1,6 +1,7 @@
 import { fireEvent, render, screen, within } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { ConflictBreakdown, ScheduleExam } from "@/lib/api/schedules";
+import { useConflictViewStore } from "@/lib/store/conflictViewStore";
 import { useSchedulesStore } from "@/lib/store/schedulesStore";
 import ConflictView from "./ConflictView";
 
@@ -61,6 +62,7 @@ describe("ConflictView", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     sessionStorage.clear();
+    useConflictViewStore.setState({ pageSize: 10 });
     mockSchedule(
       [
         doubleBook("000000001", "Tuesday", "3500", "4535"),
@@ -166,21 +168,42 @@ describe("ConflictView", () => {
       expect(firstEntity()).toBe("000000001");
     });
 
-    it("uses the rows-per-page chosen earlier in this browser session", () => {
-      sessionStorage.setItem("conflictView.pageSize", "25");
+    it("changing rows per page shows that many rows from page 1 and saves it for the session", () => {
+      // Radix Select calls these DOM APIs, which jsdom lacks.
+      Element.prototype.hasPointerCapture ??= () => false;
+      Element.prototype.scrollIntoView ??= () => {};
       thirtyStudents();
       render(<ConflictView />);
+      fireEvent.click(screen.getAllByRole("button", { name: "Next page" })[0]);
+
+      fireEvent.keyDown(
+        screen.getByRole("combobox", { name: "Rows per page" }),
+        { key: "Enter" },
+      );
+      fireEvent.keyDown(screen.getByRole("option", { name: "25" }), {
+        key: "Enter",
+      });
 
       expect(bodyRows()).toHaveLength(25);
+      expect(firstEntity()).toBe("000000001");
       expect(screen.getAllByText("Page 1 of 2")).toHaveLength(2);
+      expect(
+        JSON.parse(sessionStorage.getItem("conflict-view-storage") ?? "{}")
+          .state?.pageSize,
+      ).toBe(25);
     });
 
-    it("ignores a stored rows-per-page that is not an offered size", () => {
-      sessionStorage.setItem("conflictView.pageSize", "7");
+    it("restores rows per page saved earlier in this browser session", async () => {
+      sessionStorage.setItem(
+        "conflict-view-storage",
+        JSON.stringify({ state: { pageSize: 50 }, version: 0 }),
+      );
+      await useConflictViewStore.persist.rehydrate();
       thirtyStudents();
       render(<ConflictView />);
 
-      expect(bodyRows()).toHaveLength(10);
+      expect(bodyRows()).toHaveLength(30);
+      expect(screen.getAllByText("Page 1 of 1")).toHaveLength(2);
     });
   });
 

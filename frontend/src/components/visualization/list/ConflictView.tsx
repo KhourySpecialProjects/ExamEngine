@@ -23,6 +23,14 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
+import {
   ConflictStat,
   conflictDescriptions,
   conflictTypeMap,
@@ -31,15 +39,29 @@ import {
 import {
   type ConflictCourse,
   type ConflictRow,
+  type ConflictType,
+  isInstructorConflictType,
   isPersonConflictType,
+  type RecordConflictRow,
   useConflictDataSimple,
 } from "@/lib/hooks/useConflictDataSimple";
+import {
+  CONFLICT_PAGE_SIZES,
+  useConflictViewStore,
+} from "@/lib/store/conflictViewStore";
 import type { ConflictMetrics } from "@/lib/types/conflict.types";
 import { cn } from "@/lib/utils";
 
-const PAGE_SIZES = [10, 25, 50, 100];
-// Rows-per-page lasts for the browser session only.
-const PAGE_SIZE_STORAGE_KEY = "conflictView.pageSize";
+type RecordColumnKey = keyof Pick<
+  RecordConflictRow,
+  "entity" | "day" | "block" | "course" | "crn" | "size"
+>;
+
+// Record-row columns a conflict type never shows, even when the data has them.
+const HIDDEN_RECORD_COLUMNS: Partial<Record<ConflictType, RecordColumnKey[]>> =
+  {
+    large_course_not_early: ["block"],
+  };
 
 // Legend: conflict type definitions
 function ConflictDefinitions() {
@@ -91,27 +113,25 @@ function CoursePill({ course }: { course: ConflictCourse }) {
 }
 
 function PaginationBar({
-  start,
-  end,
+  page,
+  pageSize,
   total,
   noun,
-  page,
-  totalPages,
   onPage,
-  pageSize,
   onPageSize,
 }: {
-  start: number;
-  end: number;
-  total: number;
-  noun: string;
   page: number;
-  totalPages: number;
-  onPage: (p: number) => void;
   pageSize: number;
+  total: number;
+  /** Pluralized, with a leading space (" students"), or "". */
+  noun: string;
+  onPage: (p: number) => void;
   /** Omit to hide the rows-per-page picker. */
   onPageSize?: (size: number) => void;
 }) {
+  const totalPages = Math.max(1, Math.ceil(total / pageSize));
+  const start = page * pageSize;
+  const end = Math.min(total, start + pageSize);
   const pageButtons = [
     { label: "First page", icon: ChevronsLeft, to: 0 },
     { label: "Previous page", icon: ChevronLeft, to: page - 1 },
@@ -136,7 +156,7 @@ function PaginationBar({
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                {PAGE_SIZES.map((n) => (
+                {CONFLICT_PAGE_SIZES.map((n) => (
                   <SelectItem key={n} value={String(n)}>
                     {n}
                   </SelectItem>
@@ -173,27 +193,21 @@ function ConflictTable({
   rowsForActive,
   activeTabId,
   page,
-  setPageForTab,
+  onPage,
   pageSize,
-  setPageSize,
+  onPageSize,
 }: {
   rowsForActive: ConflictRow[];
-  activeTabId: string;
+  activeTabId: ConflictType;
   page: number;
-  setPageForTab: (tab: string, p: number) => void;
+  onPage: (p: number) => void;
   pageSize: number;
-  setPageSize: (size: number) => void;
+  onPageSize: (size: number) => void;
 }) {
-  const totalPages = Math.max(1, Math.ceil(rowsForActive.length / pageSize));
-  const start = page * pageSize;
-  const end = Math.min(rowsForActive.length, start + pageSize);
-
-  const isInstructorConflict =
-    activeTabId === "back_to_back_instructor" ||
-    activeTabId === "instructor_double_book" ||
-    activeTabId === "instructor_gt_max_per_day";
   const isPersonTab = isPersonConflictType(activeTabId);
-  const entityLabel = isInstructorConflict ? "Instructor" : "NUId";
+  const isInstructorTab = isInstructorConflictType(activeTabId);
+  const entityLabel = isInstructorTab ? "Instructor" : "NUId";
+  const hiddenColumns = HIDDEN_RECORD_COLUMNS[activeTabId] ?? [];
 
   const recordColumns = (
     [
@@ -203,10 +217,10 @@ function ConflictTable({
       { key: "course", label: "Course" },
       { key: "crn", label: "CRN" },
       { key: "size", label: "Size" },
-    ] as const
+    ] satisfies { key: RecordColumnKey; label: string }[]
   ).filter(
     (c) =>
-      !(activeTabId === "large_course_not_early" && c.key === "block") &&
+      !hiddenColumns.includes(c.key) &&
       rowsForActive.some(
         (r) =>
           r.kind === "record" &&
@@ -242,79 +256,72 @@ function ConflictTable({
     : recordColumns.map((c) => ({ label: c.label }));
 
   const pagination = {
-    start,
-    end,
-    total: rowsForActive.length,
-    noun: isPersonTab
-      ? isInstructorConflict
-        ? " instructors"
-        : " students"
-      : "",
     page,
-    totalPages,
-    onPage: (p: number) => setPageForTab(activeTabId, p),
     pageSize,
+    total: rowsForActive.length,
+    noun: isPersonTab ? (isInstructorTab ? " instructors" : " students") : "",
+    onPage,
   };
+  const start = page * pageSize;
 
   return (
     <>
-      <PaginationBar {...pagination} onPageSize={setPageSize} />
-      <table className="w-full min-w-3xl table-fixed text-sm">
-        <thead>
-          <tr className="text-left text-muted-foreground">
+      <PaginationBar {...pagination} onPageSize={onPageSize} />
+      <Table className="min-w-3xl table-fixed">
+        <TableHeader>
+          <TableRow className="hover:bg-transparent">
             {headers.map(({ label, width }) => (
-              <th key={label} className={cn("px-2 py-2", width)}>
+              <TableHead
+                key={label}
+                className={cn("text-muted-foreground", width)}
+              >
                 {label}
-              </th>
+              </TableHead>
             ))}
-          </tr>
-        </thead>
-        <tbody>
-          {rowsForActive.slice(start, end).map((r) => {
+          </TableRow>
+        </TableHeader>
+        <TableBody>
+          {rowsForActive.slice(start, start + pageSize).map((r) => {
             if (r.kind !== "person") {
               return (
-                <tr key={r.id} className="border-t align-top">
+                <TableRow key={r.id} className="align-top">
                   {recordColumns.map((c) => (
-                    <td key={c.key} className="px-2 py-2">
-                      {r[c.key] || "—"}
-                    </td>
+                    <TableCell key={c.key}>{r[c.key] || "—"}</TableCell>
                   ))}
-                </tr>
+                </TableRow>
               );
             }
             const span = r.instances.length;
+            // Hover highlighting is off: it would light up one sub-row of a
+            // person but not the cells spanning the whole group.
             return r.instances.map((inst, i) => (
-              <tr
+              <TableRow
                 key={`${r.id}|${inst.day}|${inst.time}`}
                 className={cn(
-                  "align-top",
-                  i === 0
-                    ? "border-t"
-                    : "border-t border-dashed border-muted-foreground/20",
+                  "align-top hover:bg-transparent",
+                  i < span - 1 && "border-dashed border-muted-foreground/20",
                 )}
               >
                 {i === 0 && (
                   <>
-                    <td
+                    <TableCell
                       rowSpan={span}
-                      className="px-2 py-2 font-medium break-words"
+                      className="align-top font-medium whitespace-normal break-words"
                     >
                       {r.entity || "—"}
-                    </td>
-                    <td rowSpan={span} className="px-2 py-2">
+                    </TableCell>
+                    <TableCell rowSpan={span} className="align-top">
                       {r.conflictCount}
-                    </td>
+                    </TableCell>
                   </>
                 )}
-                <td className="px-2 py-1.5 whitespace-nowrap">
-                  {inst.day || "—"}
-                </td>
+                <TableCell className="align-top">{inst.day || "—"}</TableCell>
                 {showCourses && (
-                  <td className="px-2 py-1.5 whitespace-nowrap tabular-nums">
+                  <TableCell className="align-top tabular-nums">
                     {inst.time || "—"}
-                  </td>
+                  </TableCell>
                 )}
-                <td className="px-2 py-1.5">
+                <TableCell className="align-top whitespace-normal">
                   <div className="flex flex-wrap gap-1">
                     {showCourses
                       ? inst.courses.map((c) => (
@@ -331,13 +338,12 @@ function ConflictTable({
                         ))}
                     {showCourses && inst.courses.length === 0 && "—"}
                   </div>
-                </td>
-              </tr>
+                </TableCell>
+              </TableRow>
             ));
           })}
-        </tbody>
-      </table>
-
+        </TableBody>
+      </Table>
       <PaginationBar {...pagination} />
     </>
   );
@@ -355,9 +361,6 @@ export default function ConflictView({
     rowsByType,
     types,
   } = useConflictDataSimple();
-  const conflictTypeRows: Record<string, ConflictRow[]> = {
-    ...(rowsByType || {}),
-  };
 
   // Prefer backend-provided metrics when available
   const finalMerged = {
@@ -436,26 +439,14 @@ export default function ConflictView({
     return pageByTab[tabId] ?? 0;
   }
 
-  const [pageSize, setPageSizeState] = useState(() => {
-    const stored =
-      typeof window === "undefined"
-        ? Number.NaN
-        : Number(sessionStorage.getItem(PAGE_SIZE_STORAGE_KEY));
-    return PAGE_SIZES.includes(stored) ? stored : PAGE_SIZES[0];
-  });
-
-  function setPageSize(size: number) {
-    sessionStorage.setItem(PAGE_SIZE_STORAGE_KEY, String(size));
-    setPageSizeState(size);
-    // Old page indexes are meaningless at the new size.
-    setPageByTab({});
-  }
+  const pageSize = useConflictViewStore((s) => s.pageSize);
+  const setPageSize = useConflictViewStore((s) => s.setPageSize);
 
   const [activeTab, setActiveTab] = useState<string>(
     effectiveTabs[0]?.id ?? "back_to_back",
   );
 
-  const rowsForActive = conflictTypeRows[activeTab] ?? [];
+  const rowsForActive = rowsByType[activeTab] ?? [];
   const page = getPage(activeTab);
 
   return (
@@ -516,16 +507,18 @@ export default function ConflictView({
               </CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="overflow-auto">
-                <ConflictTable
-                  rowsForActive={rowsForActive}
-                  activeTabId={activeTab}
-                  page={page}
-                  pageSize={pageSize}
-                  setPageSize={setPageSize}
-                  setPageForTab={setPage}
-                />
-              </div>
+              <ConflictTable
+                rowsForActive={rowsForActive}
+                activeTabId={activeTab}
+                page={page}
+                onPage={(p) => setPage(activeTab, p)}
+                pageSize={pageSize}
+                onPageSize={(size) => {
+                  setPageSize(size);
+                  // Old page indexes are meaningless at the new size.
+                  setPageByTab({});
+                }}
+              />
             </CardContent>
           </Card>
 

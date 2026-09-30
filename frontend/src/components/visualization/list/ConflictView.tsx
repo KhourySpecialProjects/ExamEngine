@@ -3,26 +3,43 @@ import {
   AlertTriangle,
   Briefcase,
   Calendar,
+  ChevronLeft,
+  ChevronRight,
+  ChevronsLeft,
+  ChevronsRight,
   Clock,
   GraduationCap,
   UserX,
 } from "lucide-react";
 import { useState } from "react";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import {
   ConflictStat,
   conflictDescriptions,
   conflictTypeMap,
   getIconForType,
-  PAGE_SIZE,
 } from "@/lib/hooks/useConflictData";
 import {
+  type ConflictCourse,
   type ConflictRow,
   isPersonConflictType,
   useConflictDataSimple,
 } from "@/lib/hooks/useConflictDataSimple";
 import type { ConflictMetrics } from "@/lib/types/conflict.types";
+import { cn } from "@/lib/utils";
+
+const PAGE_SIZES = [10, 25, 50, 100];
+// Rows-per-page lasts for the browser session only.
+const PAGE_SIZE_STORAGE_KEY = "conflictView.pageSize";
 
 // Legend: conflict type definitions
 function ConflictDefinitions() {
@@ -48,32 +65,139 @@ function ConflictDefinitions() {
   );
 }
 
-// Paginated table for a conflict tab. Person-based tabs have one row per
-// student/instructor listing all of their conflicting exams.
+function courseTooltip({ course, crn, exam }: ConflictCourse): string {
+  const lines = [[course, crn && `CRN ${crn}`].filter(Boolean).join(" · ")];
+  if (exam?.Room) lines.push(`Room: ${exam.Room} (capacity ${exam.Capacity})`);
+  if (exam?.Size != null) lines.push(`Enrolled: ${exam.Size}`);
+  if (exam?.Instructor) lines.push(`Instructor: ${exam.Instructor}`);
+  return lines.join("\n");
+}
+
+function CoursePill({ course }: { course: ConflictCourse }) {
+  return (
+    <Badge
+      variant="outline"
+      title={courseTooltip(course)}
+      className="w-40 justify-between cursor-default border-yellow-200 bg-yellow-50 text-yellow-950"
+    >
+      <span className="truncate font-semibold">
+        {course.course || course.crn}
+      </span>
+      {course.course && course.crn && (
+        <span className="tabular-nums opacity-70">{course.crn}</span>
+      )}
+    </Badge>
+  );
+}
+
+function PaginationBar({
+  start,
+  end,
+  total,
+  noun,
+  page,
+  totalPages,
+  onPage,
+  pageSize,
+  onPageSize,
+}: {
+  start: number;
+  end: number;
+  total: number;
+  noun: string;
+  page: number;
+  totalPages: number;
+  onPage: (p: number) => void;
+  pageSize: number;
+  /** Omit to hide the rows-per-page picker. */
+  onPageSize?: (size: number) => void;
+}) {
+  const pageButtons = [
+    { label: "First page", icon: ChevronsLeft, to: 0 },
+    { label: "Previous page", icon: ChevronLeft, to: page - 1 },
+    { label: "Next page", icon: ChevronRight, to: page + 1 },
+    { label: "Last page", icon: ChevronsRight, to: totalPages - 1 },
+  ];
+  return (
+    <div className="flex flex-wrap items-center justify-between gap-2 py-2">
+      <div className="text-sm text-muted-foreground">
+        Showing {total === 0 ? 0 : start + 1}-{end} of {total}
+        {noun}
+      </div>
+      <div className="flex items-center gap-2">
+        {onPageSize && (
+          <>
+            <span className="text-sm text-muted-foreground">Rows per page</span>
+            <Select
+              value={String(pageSize)}
+              onValueChange={(v) => onPageSize(Number(v))}
+            >
+              <SelectTrigger size="sm" aria-label="Rows per page">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {PAGE_SIZES.map((n) => (
+                  <SelectItem key={n} value={String(n)}>
+                    {n}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </>
+        )}
+        <span className="text-sm text-muted-foreground tabular-nums">
+          Page {page + 1} of {totalPages}
+        </span>
+        {pageButtons.map(({ label, icon: Icon, to }) => (
+          <Button
+            key={label}
+            variant="outline"
+            size="icon-sm"
+            aria-label={label}
+            title={label}
+            disabled={to < 0 || to >= totalPages || to === page}
+            onClick={() => onPage(to)}
+          >
+            <Icon />
+          </Button>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// Paginated table for a conflict tab. Person-based tabs keep one logical row
+// per student/instructor: NUId and count span one sub-row per conflict.
+// Fixed layout keeps column widths stable across pages.
 function ConflictTable({
   rowsForActive,
   activeTabId,
   page,
   setPageForTab,
+  pageSize,
+  setPageSize,
 }: {
   rowsForActive: ConflictRow[];
   activeTabId: string;
   page: number;
   setPageForTab: (tab: string, p: number) => void;
+  pageSize: number;
+  setPageSize: (size: number) => void;
 }) {
-  const totalPages = Math.max(1, Math.ceil(rowsForActive.length / PAGE_SIZE));
-  const start = page * PAGE_SIZE;
-  const end = Math.min(rowsForActive.length, start + PAGE_SIZE);
+  const totalPages = Math.max(1, Math.ceil(rowsForActive.length / pageSize));
+  const start = page * pageSize;
+  const end = Math.min(rowsForActive.length, start + pageSize);
 
   const isInstructorConflict =
     activeTabId === "back_to_back_instructor" ||
     activeTabId === "instructor_double_book" ||
     activeTabId === "instructor_gt_max_per_day";
   const isPersonTab = isPersonConflictType(activeTabId);
+  const entityLabel = isInstructorConflict ? "Instructor" : "NUId";
 
   const recordColumns = (
     [
-      { key: "entity", label: isInstructorConflict ? "Instructor" : "NUId" },
+      { key: "entity", label: entityLabel },
       { key: "day", label: "Day" },
       { key: "block", label: "Block" },
       { key: "course", label: "Course" },
@@ -91,92 +215,130 @@ function ConflictTable({
       ),
   );
 
-  const headers = isPersonTab
-    ? [
-        isInstructorConflict ? "Instructor" : "NUId",
-        "Conflicts",
-        "Conflicting exams",
-      ]
-    : recordColumns.map((c) => c.label);
+  // Back-to-back records carry only time slots (no courses): show the slots
+  // as pills instead of an always-empty exams column.
+  const showCourses = rowsForActive.some(
+    (r) => r.kind === "person" && r.instances.some((i) => i.courses.length),
+  );
+
+  // Person tabs: percentage widths so columns spread with the table instead
+  // of bunching left, while staying independent of page contents. The pills
+  // column takes the rest. Record tabs split the width evenly.
+  const headers: { label: string; width?: string }[] = isPersonTab
+    ? showCourses
+      ? [
+          { label: entityLabel, width: "w-[15%]" },
+          { label: "Conflicts", width: "w-[10%]" },
+          { label: "Day", width: "w-[12%]" },
+          { label: "Time", width: "w-[15%]" },
+          { label: "Conflicting exams" },
+        ]
+      : [
+          { label: entityLabel, width: "w-[18%]" },
+          { label: "Conflicts", width: "w-[12%]" },
+          { label: "Day", width: "w-[15%]" },
+          { label: "Exam times" },
+        ]
+    : recordColumns.map((c) => ({ label: c.label }));
+
+  const pagination = {
+    start,
+    end,
+    total: rowsForActive.length,
+    noun: isPersonTab
+      ? isInstructorConflict
+        ? " instructors"
+        : " students"
+      : "",
+    page,
+    totalPages,
+    onPage: (p: number) => setPageForTab(activeTabId, p),
+    pageSize,
+  };
 
   return (
     <>
-      <table className="w-full table-auto text-sm">
+      <PaginationBar {...pagination} onPageSize={setPageSize} />
+      <table className="w-full min-w-3xl table-fixed text-sm">
         <thead>
           <tr className="text-left text-muted-foreground">
-            {headers.map((label) => (
-              <th key={label} className="px-2 py-2">
+            {headers.map(({ label, width }) => (
+              <th key={label} className={cn("px-2 py-2", width)}>
                 {label}
               </th>
             ))}
           </tr>
         </thead>
         <tbody>
-          {rowsForActive.slice(start, end).map((r) => (
-            <tr key={r.id} className="border-t align-top">
-              {r.kind === "person" ? (
-                <>
-                  <td className="px-2 py-2">{r.entity || "—"}</td>
-                  <td className="px-2 py-2">{r.conflictCount}</td>
-                  <td className="px-2 py-2">
-                    <ul className="space-y-0.5">
-                      {r.instances.map((inst) => {
-                        const when = [inst.day, inst.time]
-                          .filter(Boolean)
-                          .join(" ");
-                        const exams = inst.courses
-                          .map((c) =>
-                            c.course && c.crn
-                              ? `${c.course} (${c.crn})`
-                              : c.course || c.crn,
-                          )
-                          .join(", ");
-                        return (
-                          <li key={`${inst.day}|${inst.time}`}>
-                            {exams ? `${when || "—"}: ${exams}` : when || "—"}
-                          </li>
-                        );
-                      })}
-                    </ul>
+          {rowsForActive.slice(start, end).map((r) => {
+            if (r.kind !== "person") {
+              return (
+                <tr key={r.id} className="border-t align-top">
+                  {recordColumns.map((c) => (
+                    <td key={c.key} className="px-2 py-2">
+                      {r[c.key] || "—"}
+                    </td>
+                  ))}
+                </tr>
+              );
+            }
+            const span = r.instances.length;
+            return r.instances.map((inst, i) => (
+              <tr
+                key={`${r.id}|${inst.day}|${inst.time}`}
+                className={cn(
+                  "align-top",
+                  i === 0
+                    ? "border-t"
+                    : "border-t border-dashed border-muted-foreground/20",
+                )}
+              >
+                {i === 0 && (
+                  <>
+                    <td
+                      rowSpan={span}
+                      className="px-2 py-2 font-medium break-words"
+                    >
+                      {r.entity || "—"}
+                    </td>
+                    <td rowSpan={span} className="px-2 py-2">
+                      {r.conflictCount}
+                    </td>
+                  </>
+                )}
+                <td className="px-2 py-1.5 whitespace-nowrap">
+                  {inst.day || "—"}
+                </td>
+                {showCourses && (
+                  <td className="px-2 py-1.5 whitespace-nowrap tabular-nums">
+                    {inst.time || "—"}
                   </td>
-                </>
-              ) : (
-                recordColumns.map((c) => (
-                  <td key={c.key} className="px-2 py-2">
-                    {r[c.key] || "—"}
-                  </td>
-                ))
-              )}
-            </tr>
-          ))}
+                )}
+                <td className="px-2 py-1.5">
+                  <div className="flex flex-wrap gap-1">
+                    {showCourses
+                      ? inst.courses.map((c) => (
+                          <CoursePill key={c.crn || c.course} course={c} />
+                        ))
+                      : inst.slots.map((slot) => (
+                          <Badge
+                            key={slot}
+                            variant="secondary"
+                            className="w-32 tabular-nums"
+                          >
+                            {slot}
+                          </Badge>
+                        ))}
+                    {showCourses && inst.courses.length === 0 && "—"}
+                  </div>
+                </td>
+              </tr>
+            ));
+          })}
         </tbody>
       </table>
 
-      <div className="flex items-center justify-between mt-2">
-        <div className="text-sm text-muted-foreground">
-          Showing {rowsForActive.length === 0 ? 0 : start + 1}-{end} of{" "}
-          {rowsForActive.length}
-          {isPersonTab && (isInstructorConflict ? " instructors" : " students")}
-        </div>
-        <div className="flex gap-2">
-          <Button
-            size="sm"
-            disabled={page <= 0}
-            onClick={() => setPageForTab(activeTabId, Math.max(0, page - 1))}
-          >
-            Prev
-          </Button>
-          <Button
-            size="sm"
-            disabled={page >= totalPages - 1}
-            onClick={() =>
-              setPageForTab(activeTabId, Math.min(totalPages - 1, page + 1))
-            }
-          >
-            Next
-          </Button>
-        </div>
-      </div>
+      <PaginationBar {...pagination} />
     </>
   );
 }
@@ -274,6 +436,21 @@ export default function ConflictView({
     return pageByTab[tabId] ?? 0;
   }
 
+  const [pageSize, setPageSizeState] = useState(() => {
+    const stored =
+      typeof window === "undefined"
+        ? Number.NaN
+        : Number(sessionStorage.getItem(PAGE_SIZE_STORAGE_KEY));
+    return PAGE_SIZES.includes(stored) ? stored : PAGE_SIZES[0];
+  });
+
+  function setPageSize(size: number) {
+    sessionStorage.setItem(PAGE_SIZE_STORAGE_KEY, String(size));
+    setPageSizeState(size);
+    // Old page indexes are meaningless at the new size.
+    setPageByTab({});
+  }
+
   const [activeTab, setActiveTab] = useState<string>(
     effectiveTabs[0]?.id ?? "back_to_back",
   );
@@ -344,6 +521,8 @@ export default function ConflictView({
                   rowsForActive={rowsForActive}
                   activeTabId={activeTab}
                   page={page}
+                  pageSize={pageSize}
+                  setPageSize={setPageSize}
                   setPageForTab={setPage}
                 />
               </div>

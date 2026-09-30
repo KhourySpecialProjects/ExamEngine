@@ -1,5 +1,9 @@
 import { useSchedulesStore } from "@/lib/store/schedulesStore";
-import type { ConflictBreakdown, ScheduleData } from "../api/schedules";
+import type {
+  ConflictBreakdown,
+  ScheduleData,
+  ScheduleExam,
+} from "../api/schedules";
 
 // Types
 export type ConflictType =
@@ -16,12 +20,17 @@ export type ConflictType =
 export interface ConflictCourse {
   course: string;
   crn: string;
+  /** The scheduled exam for this CRN (room, size, instructor), when known. */
+  exam?: ScheduleExam;
 }
 
 /** One conflict occurrence for a person: a day + time slot and the exams involved. */
 export interface ConflictInstance {
   day: string;
+  /** Display/grouping label: `slots` joined. */
   time: string;
+  /** Individual time slots, e.g. each block of a back-to-back run. */
+  slots: string[];
   courses: ConflictCourse[];
 }
 
@@ -87,16 +96,12 @@ export function isPersonConflictType(type: ConflictType): boolean {
 }
 
 // Helper functions
-function buildCrnToCourseMap(
+function buildExamsByCrn(
   schedule: ScheduleData | undefined,
-): Map<string, string> {
-  const map = new Map<string, string>();
-  if (!schedule?.complete) return map;
-
-  for (const exam of schedule.complete) {
-    if (exam.CRN && exam.Course) {
-      map.set(String(exam.CRN), exam.Course);
-    }
+): Map<string, ScheduleExam> {
+  const map = new Map<string, ScheduleExam>();
+  for (const exam of schedule?.complete ?? []) {
+    if (exam.CRN) map.set(String(exam.CRN), exam);
   }
   return map;
 }
@@ -109,14 +114,14 @@ function getEntity(conflict: ConflictBreakdown, type: ConflictType): string {
   return entity == null ? "" : String(entity);
 }
 
-function getTimeLabel(conflict: ConflictBreakdown): string {
-  if (conflict.block_time) return conflict.block_time;
+function getSlots(conflict: ConflictBreakdown): string[] {
+  if (conflict.block_time) return [conflict.block_time];
   const blockTimes = (conflict.block_times ?? []).filter(Boolean);
-  if (blockTimes.length > 0) return blockTimes.join(", ");
+  if (blockTimes.length > 0) return blockTimes;
   const blocks = conflict.blocks?.length
     ? conflict.blocks
     : [conflict.block].filter((b) => b != null);
-  return blocks.length > 0 ? `Block ${blocks.join(", ")}` : "";
+  return blocks.map((b) => `Block ${b}`);
 }
 
 /** [day index Mon..Sun, first block index]; unknown values sort last. */
@@ -139,7 +144,7 @@ function getSortKey(conflict: ConflictBreakdown): [number, number] {
 /** The record's own course plus its conflicting courses. */
 function getCourses(
   conflict: ConflictBreakdown,
-  crnToCourseMap: Map<string, string>,
+  examsByCrn: Map<string, ScheduleExam>,
 ): ConflictCourse[] {
   const conflictingCrns = conflict.conflicting_crns ?? [];
   const conflictingCourses = conflict.conflicting_courses ?? [];
@@ -156,10 +161,11 @@ function getCourses(
   const courses: ConflictCourse[] = [];
   for (const [rawCrn, name] of pairs) {
     const crn = rawCrn == null ? "" : String(rawCrn);
+    const exam = crn ? examsByCrn.get(crn) : undefined;
     // The backend reports "Unknown" when it could not resolve a course code.
-    const course =
-      (name && name !== "Unknown" ? name : crnToCourseMap.get(crn)) || "";
-    if (crn || course) courses.push({ course, crn });
+    const course = (name && name !== "Unknown" ? name : exam?.Course) || "";
+    if (!crn && !course) continue;
+    courses.push(exam ? { course, crn, exam } : { course, crn });
   }
   return courses;
 }
@@ -169,8 +175,12 @@ function mergeCourses(target: ConflictCourse[], incoming: ConflictCourse[]) {
     const existing = target.find((t) =>
       c.crn ? t.crn === c.crn : !t.crn && t.course === c.course,
     );
-    if (!existing) target.push({ ...c });
-    else if (!existing.course) existing.course = c.course;
+    if (!existing) {
+      target.push({ ...c });
+      continue;
+    }
+    if (!existing.course) existing.course = c.course;
+    if (!existing.exam && c.exam) existing.exam = c.exam;
   }
 }
 
@@ -182,7 +192,7 @@ function mergeCourses(target: ConflictCourse[], incoming: ConflictCourse[]) {
  */
 export function buildConflictRows(
   breakdown: ConflictBreakdown[],
-  crnToCourseMap: Map<string, string>,
+  examsByCrn: Map<string, ScheduleExam>,
 ): ConflictRow[] {
   const rows: ConflictRow[] = [];
   const personRows = new Map<
@@ -235,17 +245,18 @@ export function buildConflictRows(
     }
 
     const day = conflict.day || "";
-    const time = getTimeLabel(conflict);
+    const slots = getSlots(conflict);
+    const time = slots.join(", ");
     const instanceKey = `${day}\u0000${time}`;
     let entry = group.instances.get(instanceKey);
     if (!entry) {
       entry = {
-        instance: { day, time, courses: [] },
+        instance: { day, time, slots, courses: [] },
         sortKey: getSortKey(conflict),
       };
       group.instances.set(instanceKey, entry);
     }
-    mergeCourses(entry.instance.courses, getCourses(conflict, crnToCourseMap));
+    mergeCourses(entry.instance.courses, getCourses(conflict, examsByCrn));
   });
 
   for (const { row, instances } of personRows.values()) {
@@ -297,9 +308,9 @@ function calculateMetrics(rowsByType: ConflictDataByType): ConflictMetrics {
 export function useConflictDataSimple() {
   const currentSchedule = useSchedulesStore((s) => s.currentSchedule);
   const breakdown = currentSchedule?.conflicts?.breakdown ?? [];
-  const crnToCourseMap = buildCrnToCourseMap(currentSchedule?.schedule);
+  const examsByCrn = buildExamsByCrn(currentSchedule?.schedule);
 
-  const rows = buildConflictRows(breakdown, crnToCourseMap);
+  const rows = buildConflictRows(breakdown, examsByCrn);
   const rowsByType = groupRowsByType(rows);
   const metrics = calculateMetrics(rowsByType);
   const types = Object.keys(rowsByType);

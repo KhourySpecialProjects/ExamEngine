@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import type { ConflictBreakdown } from "../api/schedules";
+import type { ConflictBreakdown, ScheduleExam } from "../api/schedules";
 import {
   buildConflictRows,
   type PersonConflictRow,
@@ -37,6 +37,7 @@ describe("buildConflictRows", () => {
       {
         day: "Monday",
         time: "9AM-11AM",
+        slots: ["9AM-11AM"],
         courses: [
           { course: "CS 1", crn: "1" },
           { course: "CS 2", crn: "2" },
@@ -102,7 +103,7 @@ describe("buildConflictRows", () => {
     );
   });
 
-  it("groups back-to-back by instructor using block times, without courses", () => {
+  it("groups back-to-back by instructor using block times as slots, without courses", () => {
     const record = (day: string, blocks: number[], times: string[]) => ({
       conflict_type: "back_to_back_instructor",
       entity_id: "Dr. Smith",
@@ -119,12 +120,34 @@ describe("buildConflictRows", () => {
     expect(rows).toHaveLength(1);
     expect(rows[0].entity).toBe("Dr. Smith");
     expect(rows[0].instances).toEqual([
-      { day: "Monday", time: "11:30AM-1:30PM, 2PM-4PM", courses: [] },
-      { day: "Tuesday", time: "9AM-11AM, 11:30AM-1:30PM", courses: [] },
+      {
+        day: "Monday",
+        time: "11:30AM-1:30PM, 2PM-4PM",
+        slots: ["11:30AM-1:30PM", "2PM-4PM"],
+        courses: [],
+      },
+      {
+        day: "Tuesday",
+        time: "9AM-11AM, 11:30AM-1:30PM",
+        slots: ["9AM-11AM", "11:30AM-1:30PM"],
+        courses: [],
+      },
     ]);
   });
 
-  it("fills missing course codes from the schedule's CRN map", () => {
+  it("fills missing course codes and exam details from the schedule by CRN", () => {
+    const exam = (crn: string, course: string): ScheduleExam => ({
+      CRN: crn,
+      Course: course,
+      Day: "Friday",
+      Block: "1",
+      Room: "WVH 210",
+      Capacity: 100,
+      Size: 40,
+      Valid: true,
+    });
+    const math = exam("10", "MATH 1341");
+    const phys = exam("11", "PHYS 1151");
     const rows = buildConflictRows(
       [
         {
@@ -141,14 +164,14 @@ describe("buildConflictRows", () => {
         },
       ],
       new Map([
-        ["10", "MATH 1341"],
-        ["11", "PHYS 1151"],
+        ["10", math],
+        ["11", phys],
       ]),
     ) as PersonConflictRow[];
 
     expect(rows[0].instances[0].courses).toEqual([
-      { course: "MATH 1341", crn: "10" },
-      { course: "PHYS 1151", crn: "11" },
+      { course: "MATH 1341", crn: "10", exam: math },
+      { course: "PHYS 1151", crn: "11", exam: phys },
     ]);
   });
 

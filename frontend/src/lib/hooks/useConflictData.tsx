@@ -16,8 +16,6 @@ import type { ConflictMetrics } from "@/lib/types/conflict.types";
 
 import { cn } from "@/lib/utils";
 
-export const PAGE_SIZE = 10;
-
 /**
  * Format a number for display in the UI.
  * - returns an em-dash for null/undefined/NaN

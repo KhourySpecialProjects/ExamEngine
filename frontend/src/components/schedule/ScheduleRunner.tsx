@@ -1,9 +1,10 @@
 "use client";
 
-import { AlertCircle, Loader2, ArrowRightCircle } from "lucide-react";
+import { AlertCircle, ArrowRightCircle, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
+import { ButtonGroup } from "@/components/ui/button-group";
 import {
   Dialog,
   DialogContent,
@@ -72,7 +73,11 @@ export function ScheduleRunner() {
   return (
     <Dialog>
       <DialogTrigger asChild>
-        <Button id="generate-id" className="w-full bg-emerald-700 hover:bg-emerald-800 text-white" disabled={!selectedDatasetId}>
+        <Button
+          id="generate-id"
+          className="w-full bg-emerald-700 hover:bg-emerald-800 text-white"
+          disabled={!selectedDatasetId}
+        >
           <ArrowRightCircle className="h-4 w-4" />
           Generate Schedule
         </Button>
@@ -195,6 +200,36 @@ export function ScheduleRunner() {
 
             <Separator />
 
+            {/* Exam Blocks Per Day */}
+            <div className="flex items-center justify-between">
+              <div className="space-y-1">
+                <Label>Exam Blocks Per Day</Label>
+                <p className="text-xs text-muted-foreground">
+                  4 uses the four earliest blocks (no 7PM-9PM exams)
+                </p>
+              </div>
+              <ButtonGroup aria-label="Exam blocks per day">
+                {([4, 5] as const).map((blocks) => (
+                  <Button
+                    key={blocks}
+                    size="sm"
+                    variant={
+                      parameters.blocks_per_day === blocks
+                        ? "default"
+                        : "outline"
+                    }
+                    aria-pressed={parameters.blocks_per_day === blocks}
+                    onClick={() => setParameters({ blocks_per_day: blocks })}
+                    disabled={isGenerating}
+                  >
+                    {blocks}
+                  </Button>
+                ))}
+              </ButtonGroup>
+            </div>
+
+            <Separator />
+
             {/* Avoid Back-to-Back */}
             <div className="flex items-center justify-between">
               <div className="space-y-1">
@@ -220,8 +255,8 @@ export function ScheduleRunner() {
               <div className="space-y-1">
                 <Label>Prioritize Large Classes</Label>
                 <p className="text-xs text-muted-foreground">
-                  Schedule the highest-enrollment courses first to secure optimal
-                  time slots.
+                  Schedule the highest-enrollment courses first to secure
+                  optimal time slots.
                 </p>
               </div>
               <Switch

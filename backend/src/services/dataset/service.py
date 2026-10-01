@@ -1,5 +1,8 @@
 import asyncio
+import io
+import re
 import uuid
+import zipfile
 from datetime import datetime
 from typing import Any
 from uuid import UUID
@@ -675,6 +678,51 @@ class DatasetService:
             raise DatasetNotFoundError(f"Dataset {dataset_id} not found")
         return dataset.common_exam_groups
 
+    def list_all_datasets(self) -> list[dict[str, Any]]:
+        """List every active dataset across all users, with its owner (admin)."""
+        return [
+            {
+                "dataset_id": str(d.dataset_id),
+                "dataset_name": d.dataset_name,
+                "created_at": d.upload_date.isoformat(),
+                "owner_name": d.user.name,
+                "owner_email": d.user.email,
+                "file_types": [_entry_type(entry) for entry in d.file_paths],
+            }
+            for d in self.dataset_repo.get_all_active_with_owner()
+        ]
+
+    async def build_dataset_zip(self, dataset_id: UUID) -> tuple[str, bytes]:
+        """
+        Zip every stored file of an active dataset, regardless of owner (admin).
+
+        Returns:
+            (download filename, zip bytes); each file is stored as `<type>.csv`.
+        """
+        dataset = self.dataset_repo.get_by_id(dataset_id)
+        if not dataset or dataset.deleted_at is not None:
+            raise DatasetNotFoundError(f"Dataset {dataset_id} not found")
+
+        contents = await asyncio.gather(
+            *(
+                asyncio.to_thread(storage.download_file, entry["storage_key"])
+                for entry in dataset.file_paths
+            )
+        )
+
+        buffer = io.BytesIO()
+        with zipfile.ZipFile(buffer, "w", zipfile.ZIP_DEFLATED) as archive:
+            for entry, content in zip(dataset.file_paths, contents, strict=True):
+                file_type = _entry_type(entry)
+                if content is None:
+                    raise StorageError(
+                        f"Failed to download {file_type}",
+                        detail={"storage_key": entry["storage_key"]},
+                    )
+                archive.writestr(f"{file_type}.csv", content)
+
+        return f"{_download_name(dataset.dataset_name)}.zip", buffer.getvalue()
+
 
 def _entry_type(file_entry: dict[str, Any]) -> str:
     """
@@ -693,3 +741,8 @@ def _entry_type(file_entry: dict[str, Any]) -> str:
 def _files_metadata(file_paths: list[dict[str, Any]]) -> dict[str, Any]:
     """Map each stored file's type to its upload metadata."""
     return {_entry_type(entry): entry["metadata"] for entry in file_paths}
+
+
+def _download_name(dataset_name: str) -> str:
+    """Dataset name reduced to characters safe in a Content-Disposition filename."""
+    return re.sub(r"[^A-Za-z0-9._-]+", "_", dataset_name).strip("._") or "dataset"

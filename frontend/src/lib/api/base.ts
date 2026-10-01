@@ -71,36 +71,14 @@ export class BaseAPI {
       );
 
       if (!response.ok) {
-        const error = await response.json().catch(() => ({
+        const body: unknown = await response.json().catch(() => ({
           detail: `Request failed with status ${response.status}`,
         }));
-        console.error(`[API Error]`, error);
-
-        // Handle validation errors (422) - extract detail from nested structure
-        if (response.status === 422 && error.detail) {
-          // Pydantic validation errors are in error.detail array
-          if (Array.isArray(error.detail)) {
-            const errorMessages = error.detail
-              .map((e: any) => {
-                const field = e.loc ? e.loc.join(".") : "field";
-                return `${field}: ${e.msg}`;
-              })
-              .join("; ");
-            throw new Error(`Validation error: ${errorMessages}`);
-          }
-          // If detail is a string
-          if (typeof error.detail === "string") {
-            throw new Error(error.detail);
-          }
-        }
-
-        // Object details (e.g. {message, errors}) are passed on as JSON so
-        // callers can parse them; String() would yield "[object Object]".
-        const detail =
-          error.detail && typeof error.detail === "object"
-            ? JSON.stringify(error.detail)
-            : error.detail;
-        throw new Error(detail || error.message || JSON.stringify(error));
+        const message = errorMessage(response.status, body);
+        console.error(
+          `[API Error] ${response.status} ${options.method || "GET"} ${fullUrl}: ${message}`,
+        );
+        throw new Error(message);
       }
 
       if (response.status === 204) return {} as T;
@@ -127,4 +105,31 @@ export class BaseAPI {
       throw error;
     }
   }
+}
+
+/** Text of a failed response; callers show (and some parse) the thrown message. */
+function errorMessage(status: number, body: unknown): string {
+  const detail = field(body, "detail");
+  // Pydantic validation errors: detail is a list of {loc, msg}
+  if (status === 422 && Array.isArray(detail)) {
+    const issues = detail
+      .map((issue: unknown) => {
+        const loc = field(issue, "loc");
+        return `${Array.isArray(loc) ? loc.join(".") : "field"}: ${field(issue, "msg")}`;
+      })
+      .join("; ");
+    return `Validation error: ${issues}`;
+  }
+  // Object details (e.g. {message, errors}) are passed on as JSON so callers
+  // can parse them; String() would yield "[object Object]".
+  if (detail && typeof detail === "object") return JSON.stringify(detail);
+  if (detail) return String(detail);
+  const message = field(body, "message");
+  return message ? String(message) : JSON.stringify(body);
+}
+
+function field(value: unknown, key: string): unknown {
+  return value && typeof value === "object"
+    ? Reflect.get(value, key)
+    : undefined;
 }

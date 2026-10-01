@@ -98,6 +98,7 @@ class Scheduler:
         self,
         dataset: SchedulingDataset,
         max_days: int = 7,
+        blocks_per_day: int = BLOCKS_PER_DAY,
         student_max_per_day: int = 2,
         instructor_max_per_day: int = 2,
         weight_large_late: int = 1,
@@ -112,6 +113,8 @@ class Scheduler:
         Args:
             dataset: Scheduling dataset with courses, students, rooms
             max_days: Maximum number of days to schedule across
+            blocks_per_day: Exam blocks used each day, the earliest first
+                (1..BLOCKS_PER_DAY); later blocks are never assigned.
             student_max_per_day: Maximum exams per student per day
             instructor_max_per_day: Maximum exams per instructor per day
             weight_large_late: Penalty weight for large courses scheduled late
@@ -122,9 +125,15 @@ class Scheduler:
                 distinct rooms.
 
         Raises:
-            ValueError: a CRN is in two combined groups or two common groups, or
-                a combined group is split across common groups.
+            ValueError: blocks_per_day is outside 1..BLOCKS_PER_DAY, a CRN is in
+                two combined groups or two common groups, or a combined group is
+                split across common groups.
         """
+        if not 1 <= blocks_per_day <= BLOCKS_PER_DAY:
+            raise ValueError(
+                f"blocks_per_day must be between 1 and {BLOCKS_PER_DAY}, "
+                f"got {blocks_per_day}"
+            )
         self.dataset = dataset
         self.max_days = max_days
         self.state = SchedulingState()
@@ -152,7 +161,7 @@ class Scheduler:
 
         # Build available time slots
         self.available_slots = [
-            (day, block) for day in range(max_days) for block in range(BLOCKS_PER_DAY)
+            (day, block) for day in range(max_days) for block in range(blocks_per_day)
         ]
 
         # State

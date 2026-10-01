@@ -41,11 +41,15 @@ DSATUR balances speed and solution quality, making it ideal for real-time schedu
 
 ### Hard Constraints (Must satisfy)
 
-| Constraint           | Description                              |
-| -------------------- | ---------------------------------------- |
-| No student conflicts | Student can't have 2 exams at same time  |
-| Room capacity        | Room must fit course enrollment          |
-| Time slot limits     | Use only available time slots (25 total) |
+| Constraint           | Description                                                     |
+| -------------------- | --------------------------------------------------------------- |
+| No student conflicts | Student can't have 2 exams at same time                         |
+| Room capacity        | Room must fit course enrollment                                 |
+| Time slot limits     | Use only available time slots (`max_days` × `blocks_per_day`)   |
+
+### Time Slots
+
+Each day has up to 5 exam blocks: 9AM-11AM, 11:30AM-1:30PM, 2PM-4PM, 4:30PM-6:30PM, 7PM-9PM. The Generate Schedule dialog chooses 4 or 5 blocks per day (`blocks_per_day`, default 5); with 4 the 7PM-9PM block is never used. `max_days` (1–7, Monday first) sets the number of days.
 
 ### Soft Constraints (Optimize for)
 
@@ -58,7 +62,7 @@ DSATUR balances speed and solution quality, making it ideal for real-time schedu
 
 ### Constraint Relaxation
 
-When 25 time slots are insufficient:
+When the available time slots are insufficient:
 
 1. Allow controlled back-to-back exams
 2. Extend exam period (add slots)
@@ -125,7 +129,7 @@ def tabu_search(initial_solution, iterations=1000):
 
 ### Constraint Relaxation
 
-When 25 time slots are insufficient:
+When the available time slots are insufficient:
 
 1. Allow controlled back-to-back exams
 2. Extend exam period (add slots)

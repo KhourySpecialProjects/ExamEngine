@@ -1133,3 +1133,45 @@ class TestSchedulerCommonExams:
         assert result.room_assignments["A"] == result.room_assignments["B"]
         assert result.assignments["C"] == result.assignments["D"]
         assert result.room_assignments["C"] != result.room_assignments["D"]
+
+
+class TestSchedulerBlocksPerDay:
+    """blocks_per_day keeps exams in the earliest blocks of each day."""
+
+    @staticmethod
+    def _five_mutual_conflicts():
+        """Five CRNs one student shares: each needs its own block."""
+        crns = ["A", "B", "C", "D", "E"]
+        return _group_dataset(
+            dict.fromkeys(crns, 10), {"R1": 50}, students={"S1": crns}
+        )
+
+    def test_five_blocks_uses_the_last_block(self):
+        result = Scheduler(
+            dataset=self._five_mutual_conflicts(), max_days=1, student_max_per_day=5
+        ).schedule()
+
+        assert sorted(block for _, block in result.assignments.values()) == [
+            0,
+            1,
+            2,
+            3,
+            4,
+        ]
+
+    def test_four_blocks_never_assigns_the_last_block(self):
+        result = Scheduler(
+            dataset=self._five_mutual_conflicts(),
+            max_days=2,
+            blocks_per_day=4,
+            student_max_per_day=5,
+        ).schedule()
+
+        assert set(result.assignments) == {"A", "B", "C", "D", "E"}
+        assert {block for _, block in result.assignments.values()} <= {0, 1, 2, 3}
+        assert len(set(result.assignments.values())) == 5
+
+    @pytest.mark.parametrize("blocks", [0, 6])
+    def test_out_of_range_blocks_per_day_raises(self, blocks):
+        with pytest.raises(ValueError, match="blocks_per_day"):
+            Scheduler(dataset=self._five_mutual_conflicts(), blocks_per_day=blocks)

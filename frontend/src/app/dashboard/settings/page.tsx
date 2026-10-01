@@ -1,8 +1,9 @@
 "use client";
 
-import { MoveLeft, User, Users } from "lucide-react";
+import { Database, MoveLeft, User, Users } from "lucide-react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Suspense, useEffect, useState } from "react";
+import { AdminDatasets } from "@/components/admin/AdminDatasets";
 import { AdminUserManagement } from "@/components/admin/AdminUserManagement";
 import { ChangePasswordForm } from "@/components/settings/ChangePasswordForm";
 import {
@@ -93,6 +94,12 @@ function SettingsContent() {
               User Management
             </TabsTrigger>
           )}
+          {isAdmin && (
+            <TabsTrigger value="datasets">
+              <Database className="mr-2 h-4 w-4" />
+              Datasets
+            </TabsTrigger>
+          )}
         </TabsList>
 
         <TabsContent value="account" className="mt-6">
@@ -109,6 +116,20 @@ function SettingsContent() {
                 </p>
               </div>
               <AdminUserManagement />
+            </div>
+          </TabsContent>
+        )}
+
+        {isAdmin && (
+          <TabsContent value="datasets" className="mt-6">
+            <div className="space-y-4">
+              <div>
+                <h2 className="text-lg font-semibold">Datasets</h2>
+                <p className="text-sm text-muted-foreground">
+                  View every uploaded dataset and download its CSVs as a zip
+                </p>
+              </div>
+              <AdminDatasets />
             </div>
           </TabsContent>
         )}

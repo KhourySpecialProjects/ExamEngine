@@ -18,6 +18,7 @@ export const useSchedulesStore = create<SchedulesState>((set, get) => ({
     instructor_max_per_day: 2,
     avoid_back_to_back: true,
     max_days: 7,
+    blocks_per_day: 5,
   },
 
   deleteSchedule: async (scheduleId: string) => {

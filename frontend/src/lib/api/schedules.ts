@@ -5,6 +5,8 @@ export interface ScheduleParameters {
   instructor_max_per_day?: number;
   avoid_back_to_back?: boolean;
   max_days?: number;
+  /** Exam blocks per day: 4 (drops 7PM-9PM) or 5. */
+  blocks_per_day?: 4 | 5;
   prioritize_large_courses?: boolean;
 }
 
@@ -188,6 +190,12 @@ export class SchedulesAPI extends BaseAPI {
     }
     if (parameters.max_days !== undefined) {
       queryParams.append("max_days", parameters.max_days.toString());
+    }
+    if (parameters.blocks_per_day !== undefined) {
+      queryParams.append(
+        "blocks_per_day",
+        parameters.blocks_per_day.toString(),
+      );
     }
     if (parameters.prioritize_large_courses !== undefined) {
       queryParams.append(

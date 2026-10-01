@@ -1,6 +1,6 @@
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
@@ -23,6 +23,7 @@ async def generate_schedule_from_dataset(
     instructor_max_per_day: int = 3,
     avoid_back_to_back: bool = True,
     max_days: int = 7,
+    blocks_per_day: int = Query(5, ge=4, le=5),
     prioritize_large_courses: bool = False,
     current_user: Users = Depends(get_current_user),
     schedule_service: ScheduleService = Depends(get_schedule_service),
@@ -42,6 +43,7 @@ async def generate_schedule_from_dataset(
             instructor_max_per_day,
             avoid_back_to_back,
             max_days,
+            blocks_per_day,
             prioritize_large_courses,
         )
         return result

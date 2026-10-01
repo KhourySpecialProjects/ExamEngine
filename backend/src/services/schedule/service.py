@@ -11,6 +11,7 @@ from src.core.exceptions import (
 from src.domain.assemblers import ConflictAssembler, ScheduleAssembler
 from src.domain.constants import (
     BLOCK_TIMES,
+    BLOCKS_PER_DAY,
     DAY_NAMES,
 )
 from src.domain.factories import DatasetFactory
@@ -78,6 +79,7 @@ class ScheduleService:
         instructor_max_per_day: int = 3,
         avoid_back_to_back: bool = True,
         max_days: int = 7,
+        blocks_per_day: int = BLOCKS_PER_DAY,
         prioritize_large_courses: bool = False,
     ) -> dict[str, Any]:
         """Generate complete exam schedule from dataset."""
@@ -92,6 +94,7 @@ class ScheduleService:
             "instructor_max_per_day": instructor_max_per_day,
             "avoid_back_to_back": avoid_back_to_back,
             "max_days": max_days,
+            "blocks_per_day": blocks_per_day,
             "prioritize_large_courses": prioritize_large_courses,
         }
 
@@ -128,6 +131,7 @@ class ScheduleService:
                 sched = Scheduler(
                     dataset=dataset,
                     max_days=max_days,
+                    blocks_per_day=blocks_per_day,
                     student_max_per_day=student_max_per_day,
                     instructor_max_per_day=instructor_max_per_day,
                     merges=merges,

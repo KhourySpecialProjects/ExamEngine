@@ -1,7 +1,8 @@
-import { render, screen, fireEvent, waitFor } from "@testing-library/react";
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import type { ReactNode } from "react";
+import { beforeEach, describe, expect, it, vi } from "vitest";
+import { useSchedulesStore } from "@/lib/store/schedulesStore";
 import { ScheduleRunner } from "./ScheduleRunner";
-
 
 vi.mock("sonner", () => ({
   toast: {
@@ -33,8 +34,16 @@ vi.mock("@/components/ui/dialog", () => ({
 }));
 
 vi.mock("@/components/ui/button", () => ({
-  Button: ({ children, onClick, disabled }: any) => (
-    <button disabled={disabled} onClick={onClick}>
+  Button: ({
+    children,
+    onClick,
+    disabled,
+  }: {
+    children?: ReactNode;
+    onClick?: () => void;
+    disabled?: boolean;
+  }) => (
+    <button type="button" disabled={disabled} onClick={onClick}>
       {children}
     </button>
   ),
@@ -53,8 +62,16 @@ vi.mock("@/components/ui/slider", () => ({
 }));
 
 vi.mock("@/components/ui/switch", () => ({
-  Switch: ({ checked, onCheckedChange }: any) => (
-    <button onClick={() => onCheckedChange(!checked)}>toggle</button>
+  Switch: ({
+    checked,
+    onCheckedChange,
+  }: {
+    checked?: boolean;
+    onCheckedChange: (checked: boolean) => void;
+  }) => (
+    <button type="button" onClick={() => onCheckedChange(!checked)}>
+      toggle
+    </button>
   ),
 }));
 
@@ -64,7 +81,7 @@ vi.mock("@/components/ui/alert", () => ({
 }));
 
 vi.mock("@/components/ui/label", () => ({
-  Label: ({ children }: any) => <label>{children}</label>,
+  Label: ({ children }: { children?: ReactNode }) => <span>{children}</span>,
 }));
 
 vi.mock("@/components/ui/separator", () => ({
@@ -108,38 +125,35 @@ describe("ScheduleRunner", () => {
   it("renders Optimize button", () => {
     render(<ScheduleRunner />);
     expect(
-    screen.getByText((content) =>
-      content.includes("Optimize Exam Schedule")
-    )
-  ).toBeTruthy();
+      screen.getByText((content) => content.includes("Optimize Exam Schedule")),
+    ).toBeTruthy();
   });
 
   it("shows selected dataset info", () => {
     render(<ScheduleRunner />);
     expect(
-    screen.getByText((content) =>
-      content.includes("Test") && content.includes("Dataset")
-    )
-  ).toBeTruthy();
+      screen.getByText(
+        (content) => content.includes("Test") && content.includes("Dataset"),
+      ),
+    ).toBeTruthy();
 
-  expect(
-    screen.getByText((content) =>
-      content.includes("10") && content.includes("courses")
-    )
-  ).toBeTruthy();
+    expect(
+      screen.getByText(
+        (content) => content.includes("10") && content.includes("courses"),
+      ),
+    ).toBeTruthy();
 
-  expect(
-    screen.getByText((content) =>
-      content.includes("100") && content.includes("students")
-    )
-  ).toBeTruthy();
-  expect(
-    screen.getByText((content) =>
-      content.includes("5") && content.includes("rooms")
-    )
-  ).toBeTruthy();
+    expect(
+      screen.getByText(
+        (content) => content.includes("100") && content.includes("students"),
+      ),
+    ).toBeTruthy();
+    expect(
+      screen.getByText(
+        (content) => content.includes("5") && content.includes("rooms"),
+      ),
+    ).toBeTruthy();
   });
-
 
   it("successfully generates schedule", async () => {
     baseScheduleState.generateSchedule.mockResolvedValue({
@@ -148,13 +162,14 @@ describe("ScheduleRunner", () => {
 
     render(<ScheduleRunner />);
     const buttons = screen.getAllByText("Generate Schedule");
-    const enabledButton = buttons.find(btn => !(btn as HTMLButtonElement).disabled);
+    const enabledButton = buttons.find(
+      (btn) => !(btn as HTMLButtonElement).disabled,
+    );
 
     if (!enabledButton) {
       throw new Error("No enabled button found for 'Generate Schedule'");
     }
     fireEvent.click(enabledButton);
-
 
     const { toast } = await import("sonner");
 
@@ -163,7 +178,6 @@ describe("ScheduleRunner", () => {
       expect(toast.success).toBeDefined();
     });
   });
-
 
   it("shows current schedule info when available", () => {
     mockUseScheduleStore.mockReturnValue({
@@ -181,7 +195,6 @@ describe("ScheduleRunner", () => {
     const elems = screen.getAllByText(/5/i, { exact: false });
     expect(elems.length).toBeGreaterThan(0);
 
-
     const elements = screen.getAllByText(/2/i, { exact: false });
     expect(elements.length).toBeGreaterThan(0);
 
@@ -196,5 +209,16 @@ describe("ScheduleRunner", () => {
     });
 
     render(<ScheduleRunner />);
+  });
+
+  it("switches exam blocks per day between 4 and 5", () => {
+    render(<ScheduleRunner />);
+    expect(useSchedulesStore.getState().parameters.blocks_per_day).toBe(5);
+
+    fireEvent.click(screen.getByRole("button", { name: "4" }));
+    expect(useSchedulesStore.getState().parameters.blocks_per_day).toBe(4);
+
+    fireEvent.click(screen.getByRole("button", { name: "5" }));
+    expect(useSchedulesStore.getState().parameters.blocks_per_day).toBe(5);
   });
 });

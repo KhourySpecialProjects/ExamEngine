@@ -1,304 +1,41 @@
-// biome-ignore-all lint/suspicious/noExplicitAny: conflict breakdown items lack strict types
-"use client";
-
 import {
-  AlertTriangle,
   Ban,
   BookOpen,
   Building2,
+  Clock,
   GitMerge,
-  TrendingUp,
+  Layers,
+  Users,
 } from "lucide-react";
-import { useMemo } from "react";
-import {
-  Bar,
-  BarChart,
-  CartesianGrid,
-  Cell,
-  Legend,
-  Pie,
-  PieChart,
-  ResponsiveContainer,
-  Tooltip,
-  XAxis,
-  YAxis,
-} from "recharts";
 import {
   Card,
-  CardContent,
   CardDescription,
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import { useCourseMerges } from "@/lib/hooks/useCourseMerges";
-import { useDatasetStore } from "@/lib/store/datasetStore";
+import { useConflictDataSimple } from "@/lib/hooks/useConflictDataSimple";
+import { useScheduleStats } from "@/lib/hooks/useScheduleStats";
 import { useSchedulesStore } from "@/lib/store/schedulesStore";
+import { DistributionCharts } from "./DistributionCharts";
+import { ProblemsSection } from "./ProblemsSection";
+import { StatCard, StatGroupCard } from "./StatCard";
 
-const COLORS = {
-  primary: "#3b82f6",
-  success: "#10b981",
-  warning: "#f59e0b",
-  danger: "#ef4444",
-  info: "#6366f1",
-};
-
-interface ConflictData {
-  name: string;
-  value: number;
-}
-
-export function StatisticsView() {
+/**
+ * Statistics tab: problems first, then the overview, exam groups and room
+ * constraints, then how exams are spread over the exam period.
+ */
+export function StatisticsView({
+  onShowConflicts,
+}: {
+  /** Switches the schedule page to the Conflicts tab. */
+  onShowConflicts?: () => void;
+}) {
   const currentSchedule = useSchedulesStore((state) => state.currentSchedule);
-  const datasets = useDatasetStore((state) => state.datasets);
-  const { merges, isMerged } = useCourseMerges(currentSchedule?.dataset_id);
+  const stats = useScheduleStats(currentSchedule);
+  // Same people counts as the Conflicts tab's summary cards.
+  const { metrics: conflicts } = useConflictDataSimple();
 
-  const stats = useMemo(() => {
-    if (!currentSchedule) return null;
-
-    const schedule = currentSchedule.schedule;
-    const summary = currentSchedule.summary;
-    const conflicts = currentSchedule.conflicts;
-
-    // Try to get unique student count from dataset if available
-    const dataset = datasets.find(
-      (d) => d.dataset_id === currentSchedule.dataset_id,
-    );
-    const uniqueStudents = dataset?.files?.enrollments?.unique_students || null;
-
-    // Calculate merge statistics
-    const mergeGroups = Object.values(merges || {});
-    const mergeGroupCount = mergeGroups.length;
-    const mergedCrns = new Set<string>();
-    for (const group of mergeGroups) {
-      if (Array.isArray(group)) {
-        for (const crn of group) {
-          mergedCrns.add(String(crn).trim());
-        }
-      }
-    }
-    const mergedCourseCount = mergedCrns.size;
-
-    // Calculate total students in merged courses
-    let mergedStudents = 0;
-    schedule.complete.forEach((exam) => {
-      if (isMerged(exam.CRN)) {
-        mergedStudents += exam.Size || 0;
-      }
-    });
-
-    // Calculate average merge group size
-    const avgMergeGroupSize =
-      mergeGroupCount > 0 ? mergedCourseCount / mergeGroupCount : 0;
-
-    // Calculate exams per day
-    const examsPerDay: Record<string, number> = {};
-    const studentsPerDay: Record<string, number> = {};
-    const timeBlocks: Record<string, number> = {};
-
-    let unscheduledCount = 0;
-    let unscheduledStudents = 0;
-    let unroomedCount = 0;
-    let unroomedStudents = 0;
-
-    schedule.complete.forEach((exam) => {
-      if (!exam.Day && !exam.Room) {
-        // Truly unscheduled — no slot, no room
-        unscheduledCount += 1;
-        unscheduledStudents += exam.Size || 0;
-      } else if (exam.Day && !exam.Room) {
-        // Has a slot but no room (blocked out)
-        unroomedCount += 1;
-        unroomedStudents += exam.Size || 0;
-      } else {
-        examsPerDay[exam.Day] = (examsPerDay[exam.Day] || 0) + 1;
-        studentsPerDay[exam.Day] =
-          (studentsPerDay[exam.Day] || 0) + (exam.Size || 0);
-        timeBlocks[exam.Block] = (timeBlocks[exam.Block] || 0) + 1;
-      }
-    });
-
-    // Calculate room utilization - average across all exam-room assignments
-    // This calculates utilization per exam (students/capacity) and averages them
-    let totalUtilization = 0;
-    let examCount = 0;
-
-    schedule.complete.forEach((exam) => {
-      // Ensure Capacity and Size are numbers
-      const capacity = Number(exam.Capacity) || 0;
-      const size = Number(exam.Size) || 0;
-
-      if (capacity > 0) {
-        const utilization = Math.min((size / capacity) * 100, 100); // Cap at 100%
-        totalUtilization += utilization;
-        examCount += 1;
-      }
-    });
-
-    const roomUtilization = examCount > 0 ? totalUtilization / examCount : 0;
-
-    // Calculate conflict breakdown - only include hard conflicts (not back-to-back warnings)
-    const conflictBreakdown: ConflictData[] = [];
-    const conflictTypes: Record<string, number> = {};
-
-    // Process conflicts from breakdown - filter out back-to-back warnings for pie chart
-    if (conflicts.breakdown && Array.isArray(conflicts.breakdown)) {
-      conflicts.breakdown.forEach((conflict: any) => {
-        const type = conflict.conflict_type || conflict.violation || "unknown";
-        // Only count hard conflicts (exclude back-to-back which are soft warnings)
-        if (
-          type !== "back_to_back" &&
-          type !== "back_to_back_student" &&
-          type !== "back_to_back_instructor"
-        ) {
-          conflictTypes[type] = (conflictTypes[type] || 0) + 1;
-        }
-      });
-    }
-
-    if (Object.keys(conflictTypes).length === 0 && summary.real_conflicts > 0) {
-      conflictTypes.unknown = summary.real_conflicts;
-      // Debug: log this issue (safely handle missing breakdown)
-      const breakdownCount = Array.isArray(conflicts?.breakdown)
-        ? conflicts.breakdown.length
-        : 0;
-      console.warn(
-        `Conflict mismatch: ${summary.real_conflicts} conflicts reported but ${breakdownCount} items in breakdown.`,
-        "Breakdown items:",
-        conflicts?.breakdown,
-      );
-    }
-
-    // Map conflict types to readable names
-    const conflictTypeMap: Record<string, string> = {
-      student_double_book: "Student Double-Book",
-      student_gt_max_per_day: "Student Per-Day Limit",
-      instructor_double_book: "Instructor Double-Book",
-      instructor_gt_max_per_day: "Instructor Per-Day Limit",
-      back_to_back: "Back-to-Back",
-      back_to_back_student: "Back-to-Back (Students)",
-      back_to_back_instructor: "Back-to-Back (Instructors)",
-      unknown: "Uncategorized Conflicts",
-    };
-
-    Object.entries(conflictTypes).forEach(([type, count]) => {
-      if (count > 0) {
-        conflictBreakdown.push({
-          name: conflictTypeMap[type] || type,
-          value: count,
-        });
-      }
-    });
-
-    // Prepare data for charts
-    const dayData = Object.entries(examsPerDay)
-      .map(([day, count]) => ({
-        name: day,
-        exams: count,
-      }))
-      .sort((a, b) => {
-        const dayOrder = [
-          "Monday",
-          "Tuesday",
-          "Wednesday",
-          "Thursday",
-          "Friday",
-          "Saturday",
-          "Sunday",
-        ];
-        return dayOrder.indexOf(a.name) - dayOrder.indexOf(b.name);
-      });
-
-    // Prepare students per day data for pie chart
-    const studentsPerDayData = Object.entries(studentsPerDay)
-      .map(([day, count]) => ({
-        name: day,
-        value: count,
-      }))
-      .sort((a, b) => {
-        const dayOrder = [
-          "Monday",
-          "Tuesday",
-          "Wednesday",
-          "Thursday",
-          "Friday",
-          "Saturday",
-          "Sunday",
-        ];
-        return dayOrder.indexOf(a.name) - dayOrder.indexOf(b.name);
-      });
-
-    const blockData = Object.entries(timeBlocks)
-      .map(([block, count]) => ({
-        name: block,
-        exams: count,
-      }))
-      .sort((a, b) => {
-        // Extract block number from string like "1 (8:00 AM - 9:30 AM)"
-        const getBlockNum = (str: string) => {
-          const match = str.match(/^(\d+)/);
-          return match ? parseInt(match[1], 10) : 0;
-        };
-        return getBlockNum(a.name) - getBlockNum(b.name);
-      });
-
-    // Calculate schedule efficiency (percentage of exams placed successfully)
-    const scheduleEfficiency =
-      summary.num_classes > 0
-        ? (schedule.total_exams / summary.num_classes) * 100
-        : 0;
-
-    // Calculate unique students
-    // Note: summary.num_students is the sum of all enrollments (not unique students)
-    // Try to get the actual unique student count from the dataset
-    // If not available, fall back to summary.num_students (which is sum of enrollments)
-    const totalUniqueStudents = uniqueStudents || summary.num_students || 0;
-
-    // Calculate back-to-back warnings from metrics
-    const breakdown = conflicts.breakdown || [];
-    const studentsBackToBack = breakdown.filter(
-      (c: any) =>
-        c.conflict_type === "back_to_back" ||
-        c.conflict_type === "back_to_back_student",
-    ).length;
-    const instructorsBackToBack = breakdown.filter(
-      (c: any) => c.conflict_type === "back_to_back_instructor",
-    ).length;
-    const totalBackToBackWarnings = studentsBackToBack + instructorsBackToBack;
-
-    // Blockout stats from dataset file metadata (no extra fetch needed)
-    const blockoutsMeta = dataset?.files?.room_blockouts;
-    const roomsWithBlockouts = blockoutsMeta?.unique_rooms_blocked ?? 0;
-    const totalBlockedSlots = blockoutsMeta?.total_blockout_entries ?? 0;
-
-    return {
-      overview: {
-        totalExams: schedule.total_exams,
-        totalConflicts: summary.real_conflicts,
-        roomUtilization: Math.round(roomUtilization * 10) / 10,
-        scheduleEfficiency: Math.round(scheduleEfficiency * 10) / 10,
-        totalStudents: totalUniqueStudents,
-        totalRooms: summary.num_rooms,
-        slotsUsed: summary.slots_used,
-        backToBackWarnings: totalBackToBackWarnings,
-        unscheduledExams: unscheduledCount,
-        unscheduledStudents: unscheduledStudents,
-        unroomedExams: unroomedCount,
-        unroomedStudents: unroomedStudents,
-        mergeGroups: mergeGroupCount,
-        mergedCourses: mergedCourseCount,
-        mergedStudents: mergedStudents,
-        avgMergeGroupSize: Math.round(avgMergeGroupSize * 10) / 10,
-        roomsWithBlockouts,
-        totalBlockedSlots,
-      },
-      dayData,
-      blockData,
-      conflictBreakdown,
-      studentsPerDayData,
-    };
-  }, [currentSchedule, datasets, merges, isMerged]);
-
-  if (!currentSchedule || !stats) {
+  if (!stats) {
     return (
       <Card>
         <CardHeader>
@@ -311,357 +48,111 @@ export function StatisticsView() {
     );
   }
 
+  const placedPercent =
+    stats.totalExams > 0
+      ? Math.round((stats.placedExams / stats.totalExams) * 1000) / 10
+      : 0;
+  const groupCards = [
+    stats.combined.groups > 0 && (
+      <StatGroupCard
+        key="combined"
+        title="Combined exams"
+        icon={GitMerge}
+        items={[
+          { label: "Groups", value: stats.combined.groups },
+          { label: "Sections", value: stats.combined.sections },
+          { label: "Students", value: stats.combined.students },
+        ]}
+      />
+    ),
+    stats.common.groups > 0 && (
+      <StatGroupCard
+        key="common"
+        title="Common exams"
+        icon={Layers}
+        items={[
+          { label: "Groups", value: stats.common.groups },
+          { label: "Sections", value: stats.common.sections },
+          { label: "Students", value: stats.common.students },
+        ]}
+      />
+    ),
+    stats.blockouts.rooms > 0 && (
+      <StatGroupCard
+        key="blockouts"
+        title="Room blockouts"
+        icon={Ban}
+        items={[
+          { label: "Rooms blocked", value: stats.blockouts.rooms },
+          { label: "Blocked slots", value: stats.blockouts.slots },
+        ]}
+      />
+    ),
+  ].filter(Boolean);
+
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between gap-2">
-        <div className="pl-2">
-          <h1 className="text-2xl font-bold">Statistics View</h1>
-          <p className="text-muted-foreground">
-            Analytics and insights about your exam schedule
-          </p>
+      <div className="pl-2">
+        <h1 className="text-2xl font-bold">Statistics View</h1>
+        <p className="text-muted-foreground">
+          Analytics and insights about your exam schedule
+        </p>
+      </div>
+
+      <ProblemsSection
+        stats={stats}
+        conflicts={conflicts}
+        onShowConflicts={onShowConflicts}
+      />
+
+      <section aria-labelledby="stats-overview" className="space-y-3">
+        <h2 id="stats-overview" className="pl-2 text-lg font-semibold">
+          Overview
+        </h2>
+        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+          <StatCard
+            title="Exams scheduled"
+            icon={BookOpen}
+            value={`${stats.placedExams.toLocaleString()} / ${stats.totalExams.toLocaleString()}`}
+            detail={`${placedPercent}% have a day, time and room`}
+          />
+          <StatCard
+            title="Students"
+            icon={Users}
+            value={stats.uniqueStudents?.toLocaleString() ?? "—"}
+            detail={
+              stats.uniqueStudents == null
+                ? "Dataset details not available"
+                : "Unique students enrolled"
+            }
+          />
+          <StatCard
+            title="Room utilization"
+            icon={Building2}
+            value={`${stats.roomUtilization}%`}
+            detail={`Average seats filled across ${stats.roomsUsed.toLocaleString()} rooms used`}
+          />
+          <StatCard
+            title="Time slots used"
+            icon={Clock}
+            value={stats.slotsUsed.toLocaleString()}
+            detail="Day and block pairs with at least one exam"
+          />
         </div>
-      </div>
-      {/* Overview Cards */}
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Total Exams</CardTitle>
-            <BookOpen className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">
-              {stats.overview.totalExams}
-            </div>
-            <p className="text-xs text-muted-foreground">
-              {stats.overview.totalStudents} students enrolled
-            </p>
-          </CardContent>
-        </Card>
+      </section>
 
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Conflicts</CardTitle>
-            <AlertTriangle className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-destructive">
-              {stats.overview.totalConflicts}
-            </div>
-            <p className="text-xs text-muted-foreground">
-              {stats.overview.backToBackWarnings > 0 && (
-                <>{stats.overview.backToBackWarnings} back-to-back warnings</>
-              )}
-            </p>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">
-              Room Utilization
-            </CardTitle>
-            <Building2 className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">
-              {stats.overview.roomUtilization}%
-            </div>
-            <p className="text-xs text-muted-foreground">
-              {stats.overview.totalRooms} rooms available
-            </p>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">
-              Schedule Efficiency
-            </CardTitle>
-            <TrendingUp className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">
-              {stats.overview.scheduleEfficiency}%
-            </div>
-            <p className="text-xs text-muted-foreground">
-              {stats.overview.slotsUsed} time slots used
-            </p>
-          </CardContent>
-        </Card>
-      </div>
-
-      {/* Merge Statistics Card */}
-      {stats.overview.mergeGroups > 0 && (
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium flex items-center gap-2">
-              <GitMerge className="h-4 w-4 text-blue-600" />
-              Merged Courses
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-3">
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <div className="text-2xl font-bold text-blue-600">
-                    {stats.overview.mergeGroups}
-                  </div>
-                  <p className="text-xs text-muted-foreground">Merge Groups</p>
-                </div>
-                <div>
-                  <div className="text-2xl font-bold text-blue-600">
-                    {stats.overview.mergedCourses}
-                  </div>
-                  <p className="text-xs text-muted-foreground">
-                    Courses Merged
-                  </p>
-                </div>
-              </div>
-              <div className="grid grid-cols-2 gap-4 pt-2 border-t">
-                <div>
-                  <div className="text-lg font-semibold text-blue-600">
-                    {stats.overview.mergedStudents}
-                  </div>
-                  <p className="text-xs text-muted-foreground">
-                    Students in Merges
-                  </p>
-                </div>
-                <div>
-                  <div className="text-lg font-semibold text-blue-600">
-                    {stats.overview.avgMergeGroupSize}
-                  </div>
-                  <p className="text-xs text-muted-foreground">
-                    Avg. Group Size
-                  </p>
-                </div>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
+      {groupCards.length > 0 && (
+        <section aria-labelledby="stats-groups" className="space-y-3">
+          <h2 id="stats-groups" className="pl-2 text-lg font-semibold">
+            Exam groups and room constraints
+          </h2>
+          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+            {groupCards}
+          </div>
+        </section>
       )}
 
-      {/* Room Blockouts Card */}
-      {stats.overview.roomsWithBlockouts > 0 && (
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium flex items-center gap-2">
-              <Ban className="h-4 w-4 text-orange-500" />
-              Room Blockouts
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <div className="text-2xl font-bold text-orange-500">
-                  {stats.overview.roomsWithBlockouts}
-                </div>
-                <p className="text-xs text-muted-foreground">
-                  Rooms Constrained
-                </p>
-              </div>
-              <div>
-                <div className="text-2xl font-bold text-orange-500">
-                  {stats.overview.totalBlockedSlots}
-                </div>
-                <p className="text-xs text-muted-foreground">Blocked Slots</p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-      )}
-
-      {/* Unscheduled Merges Alert */}
-      {stats.overview.unscheduledExams > 0 && (
-        <Card className="border-orange-200 bg-orange-50">
-          <CardHeader>
-            <CardTitle className="text-sm font-medium flex items-center gap-2">
-              <AlertTriangle className="h-4 w-4 text-orange-600" />
-              Unscheduled Merges
-            </CardTitle>
-            <CardDescription>
-              Some merged courses could not be scheduled due to room capacity
-              constraints
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-2">
-              <div className="text-2xl font-bold text-orange-700">
-                {stats.overview.unscheduledExams}
-              </div>
-              <p className="text-xs text-muted-foreground">
-                {stats.overview.unscheduledStudents} students affected
-              </p>
-              <p className="text-xs text-muted-foreground mt-2">
-                These exams appear in the list view without a day, time, or room
-                assignment. Consider splitting these merge groups or adding
-                larger rooms to your dataset.
-              </p>
-            </div>
-          </CardContent>
-        </Card>
-      )}
-
-      {/* Unroomed Exams Alert */}
-      {stats.overview.unroomedExams > 0 && (
-        <Card className="border-orange-200 bg-orange-50">
-          <CardHeader>
-            <CardTitle className="text-sm font-medium flex items-center gap-2">
-              <Ban className="h-4 w-4 text-orange-600" />
-              Unroomed Exams
-            </CardTitle>
-            <CardDescription>
-              Some exams have a scheduled time slot but no room — every
-              available room was blocked at their assigned slot
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-2">
-              <div className="text-2xl font-bold text-orange-700">
-                {stats.overview.unroomedExams}
-              </div>
-              <p className="text-xs text-muted-foreground">
-                {stats.overview.unroomedStudents} students affected
-              </p>
-              <p className="text-xs text-muted-foreground mt-2">
-                These exams appear in the list view with their day and time but
-                no room. Consider reducing blockout entries or adding more rooms
-                to your dataset.
-              </p>
-            </div>
-          </CardContent>
-        </Card>
-      )}
-
-      {/* Charts Grid */}
-      <div className="grid gap-4 md:grid-cols-2">
-        {/* Exams Per Day Bar Chart */}
-        <Card>
-          <CardHeader>
-            <CardTitle>Exams Per Day</CardTitle>
-            <CardDescription>
-              Distribution of exams across the exam period
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <ResponsiveContainer width="100%" height={300}>
-              <BarChart data={stats.dayData}>
-                <CartesianGrid strokeDasharray="3 3" />
-                <XAxis
-                  dataKey="name"
-                  angle={-45}
-                  textAnchor="end"
-                  height={80}
-                />
-                <YAxis />
-                <Tooltip />
-                <Bar dataKey="exams" fill={COLORS.primary} />
-              </BarChart>
-            </ResponsiveContainer>
-          </CardContent>
-        </Card>
-
-        {/* Students Per Day Pie Chart */}
-        <Card>
-          <CardHeader>
-            <CardTitle>Students Taking Exams by Day</CardTitle>
-            <CardDescription>
-              Distribution of student exam instances across days
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            {stats.studentsPerDayData.length > 0 ? (
-              <ResponsiveContainer width="100%" height={300}>
-                <PieChart>
-                  <Pie
-                    data={stats.studentsPerDayData}
-                    cx="50%"
-                    cy="50%"
-                    labelLine={false}
-                    label={({ percent, name }) => {
-                      // Show percentage and day name for larger segments
-                      if (
-                        percent > 0.05 ||
-                        stats.studentsPerDayData.length === 1
-                      ) {
-                        return `${name}: ${(percent * 100).toFixed(0)}%`;
-                      }
-                      return "";
-                    }}
-                    outerRadius={80}
-                    fill="#8884d8"
-                    dataKey="value"
-                  >
-                    {stats.studentsPerDayData.map((entry, index) => (
-                      <Cell
-                        key={entry.name}
-                        fill={
-                          [
-                            COLORS.primary,
-                            COLORS.success,
-                            COLORS.warning,
-                            COLORS.info,
-                            COLORS.danger,
-                            "#8b5cf6",
-                            "#ec4899",
-                          ][index % 7]
-                        }
-                      />
-                    ))}
-                  </Pie>
-                  <Tooltip
-                    formatter={(value: number, name: string, props: any) => {
-                      // Show full name in tooltip
-                      const fullName = props.payload?.name || name;
-                      return [
-                        `${value.toLocaleString()} student${value !== 1 ? "s" : ""}`,
-                        fullName,
-                      ];
-                    }}
-                  />
-                  <Legend
-                    formatter={(value: string) => {
-                      return value;
-                    }}
-                    wrapperStyle={{ paddingTop: "20px" }}
-                  />
-                </PieChart>
-              </ResponsiveContainer>
-            ) : (
-              <div className="flex items-center justify-center h-[300px] text-muted-foreground">
-                No exam data available
-              </div>
-            )}
-          </CardContent>
-        </Card>
-      </div>
-
-      {/* Time Block Distribution */}
-      {stats.blockData.length > 0 && (
-        <Card>
-          <CardHeader>
-            <CardTitle>Exams Per Time Block</CardTitle>
-            <CardDescription>
-              Distribution of exams across different time slots
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <ResponsiveContainer width="100%" height={300}>
-              <BarChart data={stats.blockData}>
-                <CartesianGrid strokeDasharray="3 3" />
-                <XAxis
-                  dataKey="name"
-                  angle={-45}
-                  textAnchor="end"
-                  height={100}
-                />
-                <YAxis />
-                <Tooltip />
-                <Bar dataKey="exams" fill={COLORS.info} />
-              </BarChart>
-            </ResponsiveContainer>
-          </CardContent>
-        </Card>
-      )}
+      <DistributionCharts stats={stats} />
     </div>
   );
 }

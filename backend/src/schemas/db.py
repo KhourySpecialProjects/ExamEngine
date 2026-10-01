@@ -124,6 +124,12 @@ class Datasets(Base):
     course_merges: Mapped[dict[str, list[str]] | None] = mapped_column(
         MutableDict.as_mutable(JSONB), nullable=True, default=None
     )
+    # Common exams: dict mapping common group label to its CRNs (as listed).
+    # CRNs share one time block but sit in different rooms; a listed CRN that
+    # belongs to a course_merges group brings its whole combined group along.
+    common_exam_groups: Mapped[dict[str, list[str]] | None] = mapped_column(
+        MutableDict.as_mutable(JSONB), nullable=True, default=None
+    )
     courses: Mapped[list["Courses"]] = relationship(
         "Courses",
         back_populates="dataset",

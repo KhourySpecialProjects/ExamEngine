@@ -17,6 +17,8 @@ export class DatasetsAPI extends BaseAPI {
       enrollments: File;
       rooms: File;
       room_blockouts?: File;
+      combined_exams?: File;
+      common_exams?: File;
     },
   ): Promise<DatasetMetadata> {
     const formData = new FormData();
@@ -25,6 +27,12 @@ export class DatasetsAPI extends BaseAPI {
     formData.append("rooms", files.rooms);
     if (files.room_blockouts) {
       formData.append("room_blockouts", files.room_blockouts);
+    }
+    if (files.combined_exams) {
+      formData.append("combined_exams", files.combined_exams);
+    }
+    if (files.common_exams) {
+      formData.append("common_exams", files.common_exams);
     }
     if (datasetName?.trim()) {
       formData.append("dataset_name", datasetName.trim());
@@ -46,36 +54,7 @@ export class DatasetsAPI extends BaseAPI {
     return this.request(`/datasets/${datasetId}/merges`);
   }
 
-  async validateCourseMerge(
-    datasetId: string,
-    crns: string[],
-  ): Promise<{
-    is_valid: boolean;
-    has_suitable_room?: boolean;
-    message: string;
-    warning_type?: string;
-    total_enrollment?: number;
-    max_room_capacity?: number;
-  }> {
-    return this.request(`/datasets/${datasetId}/merges/validate`, {
-      method: "POST",
-      body: JSON.stringify({ crns: crns }),
-    });
-  }
-
-  async setCourseMerges(
-    datasetId: string,
-    merges: Record<string, string[]>,
-  ): Promise<{ message: string; validation: Record<string, any> }> {
-    return this.request(`/datasets/${datasetId}/merges`, {
-      method: "POST",
-      body: JSON.stringify({ merges }),
-    });
-  }
-
-  async clearCourseMerges(datasetId: string): Promise<{ message: string }> {
-    return this.request(`/datasets/${datasetId}/merges`, {
-      method: "DELETE",
-    });
+  async getCommonExams(datasetId: string): Promise<Record<string, string[]>> {
+    return this.request(`/datasets/${datasetId}/common-exams`);
   }
 }

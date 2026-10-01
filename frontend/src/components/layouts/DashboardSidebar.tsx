@@ -1,6 +1,7 @@
 "use client";
 
 import {
+  AlertTriangle,
   Building,
   Calendar,
   Database,
@@ -11,10 +12,10 @@ import {
   Users,
 } from "lucide-react";
 import { useEffect } from "react";
+import { datasetGroupWarnings } from "@/lib/datasetWarnings";
 import { useDatasetStore } from "@/lib/store/datasetStore";
 import { getTimeAgo } from "@/lib/utils";
 import { DatasetBar } from "../dataset/DatasetBar";
-import { MergeCoursesDialog } from "../dataset/MergeCoursesDialog";
 import { ScheduleRunner } from "../schedule/ScheduleRunner";
 import { Button } from "../ui/button";
 import { Uploader } from "../upload/Uploader";
@@ -28,6 +29,9 @@ export function DashboardSidebar({ isOpen = true, onToggle }: SidebarProps) {
   const { datasets, fetchDatasets, getSelectedDataset } = useDatasetStore();
 
   const selectedDataset = getSelectedDataset();
+  const groupWarnings = selectedDataset
+    ? datasetGroupWarnings(selectedDataset)
+    : [];
   useEffect(() => {
     // Fetch datasets on mount
     if (datasets.length === 0) {
@@ -120,6 +124,27 @@ export function DashboardSidebar({ isOpen = true, onToggle }: SidebarProps) {
                     </span>
                   </div>
                 </div>
+
+                {groupWarnings.length > 0 && (
+                  <div className="rounded-md border border-orange-200 bg-orange-50 p-2 text-xs">
+                    <div className="flex items-center gap-1.5 font-medium text-orange-800">
+                      <AlertTriangle className="h-3.5 w-3.5" />
+                      {groupWarnings.length} exam group
+                      {groupWarnings.length === 1 ? "" : "s"} will be
+                      unscheduled
+                    </div>
+                    <ul className="mt-1 space-y-1 text-orange-900">
+                      {groupWarnings.map((w) => (
+                        <li key={`${w.kind}:${w.group}`}>
+                          <span className="font-medium">{w.group}</span>{" "}
+                          <span className="text-orange-800/80">
+                            ({w.kind}): {w.message}
+                          </span>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
               </div>
             ) : (
               <div className="mt-3 text-sm text-muted-foreground text-center py-4">
@@ -130,11 +155,6 @@ export function DashboardSidebar({ isOpen = true, onToggle }: SidebarProps) {
                 )}
               </div>
             )}
-            
-            {/* Merge Courses Button */}
-            <div className="w-full mt-6">
-              <MergeCoursesDialog />
-            </div>
           </section>
 
           <section>

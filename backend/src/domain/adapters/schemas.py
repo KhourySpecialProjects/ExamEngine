@@ -229,6 +229,8 @@ class EnrollmentSchema:
         ColumnDefinition(
             canonical_name="Student_PIDM",
             aliases=[
+                "NUID",
+                "NU ID",
                 "Student ID",
                 "PIDM",
                 "Student Number",
@@ -379,6 +381,89 @@ class RoomBlockoutSchema:
         return [cls.V1_COLUMNS]
 
 
+class CombinedExamSchema:
+    """Schema for combined exam (merged sections) CSV files.
+
+    Expected CSV format (one row per group/CRN pair):
+        ExamGroup,CRN
+        CS Foundations Final,11310
+        CS Foundations Final,11311
+
+    Sections that share an Exam_Group label sit one exam: same time block and
+    same room.
+    """
+
+    V1_COLUMNS = [
+        ColumnDefinition(
+            canonical_name="Exam_Group",
+            aliases=[
+                "ExamGroup",
+                "Exam Group",
+                "Common Exam",
+                "merge_group",
+                "merge_group_id",
+                "Group",
+                "group_id",
+            ],
+            data_type=ColumnType.STRING,
+            required=True,
+            transformer=clean_string,
+            validator=validate_non_empty_string,
+        ),
+        ColumnDefinition(
+            canonical_name="Course_Reference_Number",
+            aliases=["crn", "CRN", "Course Registration Number"],
+            data_type=ColumnType.STRING,
+            required=True,
+            transformer=clean_crn,
+            validator=validate_non_empty_string,
+        ),
+    ]
+
+    @classmethod
+    def get_all_versions(cls) -> list[list[ColumnDefinition]]:
+        """Return all known schema versions."""
+        return [cls.V1_COLUMNS]
+
+
+class CommonExamSchema:
+    """Schema for common exam CSV files.
+
+    Expected CSV format (one row per group/CRN pair):
+        Common_Group,CRN
+        BIOL 1101 Final,11111
+        BIOL 1101 Final,33333
+
+    Sections that share a Common_Group label sit in the same time block but in
+    different rooms. The group header aliases are deliberately disjoint from the
+    combined exam file's, so a combined file uploaded as common exams fails.
+    """
+
+    V1_COLUMNS = [
+        ColumnDefinition(
+            canonical_name="Common_Group",
+            aliases=["CommonGroup", "Common Group", "Common_Group", "common_group"],
+            data_type=ColumnType.STRING,
+            required=True,
+            transformer=clean_string,
+            validator=validate_non_empty_string,
+        ),
+        ColumnDefinition(
+            canonical_name="Course_Reference_Number",
+            aliases=["crn", "CRN", "Course Registration Number"],
+            data_type=ColumnType.STRING,
+            required=True,
+            transformer=clean_crn,
+            validator=validate_non_empty_string,
+        ),
+    ]
+
+    @classmethod
+    def get_all_versions(cls) -> list[list[ColumnDefinition]]:
+        """Return all known schema versions."""
+        return [cls.V1_COLUMNS]
+
+
 # SCHEMA REGISTRY
 
 SCHEMA_REGISTRY = {
@@ -386,6 +471,8 @@ SCHEMA_REGISTRY = {
     "enrollments": EnrollmentSchema,
     "rooms": RoomSchema,
     "room_blockouts": RoomBlockoutSchema,
+    "combined_exams": CombinedExamSchema,
+    "common_exams": CommonExamSchema,
 }
 
 
@@ -394,7 +481,8 @@ def get_schema(file_type: str) -> type | None:
     Get schema class for a file type.
 
     Args:
-        file_type: One of "courses", "enrollments", "rooms"
+        file_type: One of "courses", "enrollments", "rooms", "room_blockouts",
+            "combined_exams", "common_exams"
 
     Returns:
         Schema class or None if not found

@@ -8,20 +8,24 @@ export interface ScheduleParameters {
   prioritize_large_courses?: boolean;
 }
 
+/** One flat `conflicts.breakdown` record; populated fields vary by `conflict_type`. */
 export interface ConflictBreakdown {
-  student_id?: string;
-  entity_id?: string;
+  student_id?: string | null;
+  entity_id?: string | null;
+  instructor_name?: string | null;
   day: string;
   block?: number;
   block_time?: string;
   conflict_type: string;
   blocks?: number[];
+  block_times?: string[];
   crn?: string;
   course?: string;
-  conflicting_crn?: string;
-  conflicting_course?: string;
+  conflicting_crn?: string | null;
+  conflicting_course?: string | null;
   conflicting_crns?: string[];
   conflicting_courses?: string[];
+  size?: number;
 }
 
 export interface ScheduleFailure {
@@ -81,6 +85,14 @@ export interface ScheduleData {
   total_exams: number;
 }
 
+/** A combined or common exam group left entirely unscheduled, and why. */
+export interface UnscheduledGroup {
+  kind: "combined" | "common";
+  group: string;
+  reason: string;
+  crns: string[];
+}
+
 export interface ScheduleResult {
   schedule_id: string;
   dataset_id: string;
@@ -96,6 +108,8 @@ export interface ScheduleResult {
   parameters: ScheduleParameters;
   /** Per-slot blocked room counts: {day_name: {block_time: n_rooms_blocked}} */
   blockouts?: Record<string, Record<string, number>>;
+  /** Absent/empty for schedules generated before groups were recorded. */
+  unscheduled_groups?: UnscheduledGroup[];
   is_owner?: boolean;
   is_shared?: boolean;
   created_by_user_id?: string;

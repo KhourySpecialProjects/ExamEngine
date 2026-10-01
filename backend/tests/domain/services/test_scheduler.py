@@ -818,3 +818,318 @@ class TestSchedulerRoomBlockouts:
                 assert room != "Room A", (
                     f"{crn} placed in blocked Room A at day=0 block={block}"
                 )
+
+
+def _group_dataset(
+    enrollments: dict[str, int],
+    rooms: dict[str, int],
+    students: dict[str, list[str]] | None = None,
+    blockouts: dict[str, frozenset[tuple[int, int]]] | None = None,
+):
+    """Small SchedulingDataset: CRN → size, room → capacity, student → CRNs."""
+    from collections import defaultdict
+
+    from src.domain.models import Course, Room, SchedulingDataset, Student
+
+    courses = {
+        crn: Course(
+            crn=crn,
+            course_code=f"BIOL {crn}",
+            enrollment_count=size,
+            instructor_names=set(),
+            department="BIOL",
+            examination_term="202510",
+        )
+        for crn, size in enrollments.items()
+    }
+    students = students or {}
+    students_by_crn: dict[str, set[str]] = defaultdict(set)
+    for sid, crns in students.items():
+        for crn in crns:
+            students_by_crn[crn].add(sid)
+    return SchedulingDataset(
+        courses=courses,
+        students={
+            sid: Student(student_id=sid, enrolled_crns=frozenset(crns))
+            for sid, crns in students.items()
+        },
+        rooms=[Room(name=name, capacity=cap) for name, cap in rooms.items()],
+        students_by_crn={crn: frozenset(s) for crn, s in students_by_crn.items()},
+        instructors_by_crn={},
+        room_blockouts=blockouts or {},
+    )
+
+
+class TestSchedulerCommonExams:
+    """Common groups: one time block, a distinct room per room unit."""
+
+    def test_common_group_shares_block_with_distinct_fitting_rooms(self):
+        dataset = _group_dataset(
+            {"A": 30, "B": 30, "C": 30, "D": 5},
+            {"R1": 40, "R2": 40, "R3": 40, "R4": 10},
+        )
+        result = Scheduler(
+            dataset=dataset, max_days=2, common_groups={"G": ["A", "B", "C"]}
+        ).schedule()
+
+        assert result.assignments["A"] == result.assignments["B"]
+        assert result.assignments["A"] == result.assignments["C"]
+        rooms = [result.room_assignments[crn] for crn in ("A", "B", "C")]
+        assert sorted(rooms) == ["R1", "R2", "R3"]
+        assert not result.unscheduled_groups
+        assert not result.unscheduled_crns
+
+    def test_common_group_with_combined_member(self):
+        """Combined {11111,22222} inside common BIOL101 → 3 rooms, one block."""
+        dataset = _group_dataset(
+            {"11111": 20, "22222": 15, "33333": 25, "44444": 10},
+            {"Big": 40, "Mid1": 30, "Mid2": 30, "Small": 20},
+        )
+        result = Scheduler(
+            dataset=dataset,
+            max_days=2,
+            merges={"M1": ["11111", "22222"]},
+            # Listing one member of the combined group pulls in the whole group
+            common_groups={"BIOL101": ["11111", "33333", "44444"]},
+        ).schedule()
+
+        slots = {result.assignments[crn] for crn in dataset.courses}
+        assert len(slots) == 1
+        combined_room = result.room_assignments["11111"]
+        assert result.room_assignments["22222"] == combined_room
+        rooms = {
+            combined_room,
+            result.room_assignments["33333"],
+            result.room_assignments["44444"],
+        }
+        assert len(rooms) == 3
+        capacity = {r.name: r.capacity for r in dataset.rooms}
+        assert capacity[combined_room] >= 35
+
+    def test_common_groups_ordered_before_larger_single_exams(self):
+        dataset = _group_dataset({"L": 90, "C1": 80, "C2": 20}, {"A": 100, "B": 30})
+        scheduler = Scheduler(
+            dataset=dataset, max_days=1, common_groups={"G": ["C1", "C2"]}
+        )
+        scheduler._build_conflict_graph()
+        scheduler._color_graph()
+
+        ordering = scheduler._get_course_ordering(prioritize_large=True)
+        assert ordering[0] in {"C1", "C2"}
+
+    def test_reserved_common_rooms_win_over_single_exam_in_same_block(self):
+        dataset = _group_dataset({"L": 90, "C1": 80, "C2": 20}, {"A": 100, "B": 30})
+        scheduler = Scheduler(
+            dataset=dataset, max_days=1, common_groups={"G": ["C1", "C2"]}
+        )
+        scheduler._build_conflict_graph()
+        scheduler._color_graph()
+        scheduler._assign_time_slots(prioritize_large=True)
+
+        # Force the large single exam into the group's block, ahead of it in
+        # room-assignment order: the reservation must still hold.
+        slot = scheduler.assignments["C1"]
+        others = {c: s for c, s in scheduler.assignments.items() if c != "L"}
+        scheduler.assignments = {"L": slot, **others}
+        room_assignments, unroomed = scheduler._assign_rooms()
+
+        assert room_assignments["C1"] == "A"
+        assert room_assignments["C2"] == "B"
+        assert "L" in unroomed
+
+    def test_over_capacity_combined_member_unschedules_whole_common_group(self):
+        dataset = _group_dataset(
+            {"X": 30, "Y": 30, "Z": 10, "W": 10}, {"R1": 50, "R2": 50}
+        )
+        result = Scheduler(
+            dataset=dataset,
+            max_days=2,
+            merges={"M": ["X", "Y"]},
+            common_groups={"G": ["X", "Z"]},
+        ).schedule()
+
+        # Reported once, under the common group; the reason names the combined one
+        [group] = result.unscheduled_groups
+        assert (group.kind, group.label, group.crns) == ("common", "G", ["X", "Y", "Z"])
+        assert "M" in group.reason
+        assert result.unscheduled_crns == {"X", "Y", "Z"}
+        for crn in ("X", "Y", "Z"):
+            assert crn not in result.assignments
+            assert crn not in result.room_assignments
+        assert "W" in result.assignments
+
+    def test_over_capacity_standalone_combined_group_is_reported(self):
+        dataset = _group_dataset({"X": 30, "Y": 30, "Z": 10}, {"R1": 50, "R2": 50})
+        result = Scheduler(
+            dataset=dataset, max_days=2, merges={"M": ["Y", "X"]}
+        ).schedule()
+
+        [group] = result.unscheduled_groups
+        assert (group.kind, group.label, group.crns) == ("combined", "M", ["X", "Y"])
+        assert group.to_dict()["group"] == "M"
+        assert result.unscheduled_crns == {"X", "Y"}
+        assert "Z" in result.assignments
+
+    def test_too_few_rooms_unschedules_whole_common_group(self):
+        dataset = _group_dataset({"A": 10, "B": 10, "C": 10}, {"R1": 50, "R2": 50})
+        result = Scheduler(
+            dataset=dataset, max_days=2, common_groups={"G": ["A", "B", "C"]}
+        ).schedule()
+
+        assert [g.label for g in result.unscheduled_groups] == ["G"]
+        assert result.unscheduled_crns == {"A", "B", "C"}
+        assert not result.assignments
+
+    def test_slot_without_enough_unblocked_rooms_is_skipped(self):
+        day0 = frozenset((0, b) for b in range(5))
+        dataset = _group_dataset(
+            {"A": 10, "B": 10}, {"R1": 50, "R2": 50}, blockouts={"R1": day0}
+        )
+        result = Scheduler(
+            dataset=dataset, max_days=2, common_groups={"G": ["A", "B"]}
+        ).schedule()
+
+        day, _block = result.assignments["A"]
+        assert day == 1
+        assert result.assignments["B"] == result.assignments["A"]
+        assert {result.room_assignments["A"], result.room_assignments["B"]} == {
+            "R1",
+            "R2",
+        }
+
+    def test_no_admissible_slot_unschedules_whole_group(self):
+        everywhere = frozenset((d, b) for d in range(2) for b in range(5))
+        dataset = _group_dataset(
+            {"A": 10, "B": 10, "S": 10},
+            {"R1": 50, "R2": 50},
+            blockouts={"R1": everywhere},
+        )
+        result = Scheduler(
+            dataset=dataset, max_days=2, common_groups={"G": ["A", "B"]}
+        ).schedule()
+
+        assert [g.label for g in result.unscheduled_groups] == ["G"]
+        assert result.unscheduled_crns == {"A", "B"}
+        assert set(result.assignments) == {"S"}
+        assert result.room_assignments["S"] == "R2"
+
+    def test_combined_group_never_gets_an_undersized_room(self):
+        # The common group needs R100 + R30 and can only use slot (0, 0), where
+        # R100 is not blocked. The 50-seat combined group then has no fitting
+        # room anywhere: it must stay unscheduled, not fall back to R30.
+        not_first = frozenset((0, b) for b in range(1, 5))
+        dataset = _group_dataset(
+            {"A": 80, "B": 20, "X": 25, "Y": 25},
+            {"R100": 100, "R30": 30, "R10": 10},
+            blockouts={"R100": not_first},
+        )
+        result = Scheduler(
+            dataset=dataset,
+            max_days=1,
+            merges={"M": ["X", "Y"]},
+            common_groups={"G": ["A", "B"]},
+        ).schedule()
+
+        assert result.room_assignments["A"] == "R100"
+        [group] = result.unscheduled_groups
+        assert (group.kind, group.label, group.crns) == ("combined", "M", ["X", "Y"])
+        assert "X" not in result.assignments
+        assert "X" not in result.room_assignments
+
+    def test_combined_group_takes_the_block_where_a_fitting_room_is_free(self):
+        # R100 is free only at (0, 3); the combined group must go there.
+        not_three = frozenset((0, b) for b in range(5) if b != 3)
+        dataset = _group_dataset(
+            {"X": 25, "Y": 25, "S": 5},
+            {"R100": 100, "R30": 30},
+            blockouts={"R100": not_three},
+        )
+        result = Scheduler(
+            dataset=dataset, max_days=1, merges={"M": ["X", "Y"]}
+        ).schedule()
+
+        assert result.assignments["X"] == result.assignments["Y"] == (0, 3)
+        assert result.room_assignments["X"] == result.room_assignments["Y"] == "R100"
+        assert not result.unscheduled_groups
+
+    def test_later_common_group_avoids_rooms_reserved_by_earlier_one(self):
+        dataset = _group_dataset(
+            {"A": 10, "B": 10, "C": 10, "D": 10},
+            {"R1": 50, "R2": 50, "R3": 50},
+        )
+        result = Scheduler(
+            dataset=dataset,
+            max_days=1,
+            common_groups={"G1": ["A", "B"], "G2": ["C", "D"]},
+        ).schedule()
+
+        by_slot: dict[tuple[int, int], list[str]] = {}
+        for crn, slot in result.assignments.items():
+            by_slot.setdefault(slot, []).append(result.room_assignments[crn])
+        for rooms in by_slot.values():
+            assert len(rooms) == len(set(rooms))
+        assert result.assignments["A"] != result.assignments["C"]
+
+    def test_student_in_two_room_units_is_a_hard_conflict(self):
+        dataset = _group_dataset(
+            {"A": 1, "B": 1},
+            {"R1": 50, "R2": 50},
+            students={"S1": ["A", "B"]},
+        )
+        result = Scheduler(
+            dataset=dataset, max_days=1, common_groups={"G": ["A", "B"]}
+        ).schedule()
+
+        double_books = [
+            c for c in result.conflicts if c.conflict_type == "student_double_book"
+        ]
+        assert len(double_books) == 1
+        assert double_books[0].entity_id == "S1"
+        assert {double_books[0].crn, double_books[0].conflicting_crn} == {"A", "B"}
+
+    def test_student_in_one_combined_unit_is_not_a_conflict(self):
+        dataset = _group_dataset(
+            {"A": 1, "B": 1, "C": 1},
+            {"R1": 50, "R2": 50},
+            students={"S1": ["A", "B"]},
+        )
+        result = Scheduler(
+            dataset=dataset,
+            max_days=1,
+            merges={"M": ["A", "B"]},
+            common_groups={"G": ["A", "C"]},
+        ).schedule()
+
+        assert not result.conflicts
+
+    def test_combined_group_split_across_common_groups_raises(self):
+        dataset = _group_dataset({"A": 1, "B": 1, "C": 1}, {"R1": 50})
+        with pytest.raises(ValueError, match="split across common groups"):
+            Scheduler(
+                dataset=dataset,
+                merges={"M": ["A", "B"]},
+                common_groups={"G1": ["A", "C"], "G2": ["B"]},
+            )
+
+    def test_crn_in_two_common_groups_raises(self):
+        dataset = _group_dataset({"A": 1, "B": 1, "C": 1}, {"R1": 50})
+        with pytest.raises(ValueError, match="multiple common groups"):
+            Scheduler(
+                dataset=dataset, common_groups={"G1": ["A", "B"], "G2": ["A", "C"]}
+            )
+
+    def test_labels_shared_between_files_do_not_collide(self):
+        """Combined label "1" and common label "1" are distinct groups."""
+        dataset = _group_dataset(
+            {"A": 10, "B": 10, "C": 10, "D": 10}, {"R1": 50, "R2": 50}
+        )
+        result = Scheduler(
+            dataset=dataset,
+            max_days=2,
+            merges={"1": ["A", "B"]},
+            common_groups={"1": ["C", "D"]},
+        ).schedule()
+
+        assert result.room_assignments["A"] == result.room_assignments["B"]
+        assert result.assignments["C"] == result.assignments["D"]
+        assert result.room_assignments["C"] != result.room_assignments["D"]

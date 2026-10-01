@@ -16,8 +16,6 @@ import type { ConflictMetrics } from "@/lib/types/conflict.types";
 
 import { cn } from "@/lib/utils";
 
-export const PAGE_SIZE = 10;
-
 /**
  * Format a number for display in the UI.
  * - returns an em-dash for null/undefined/NaN
@@ -43,6 +41,7 @@ export function computeAggregatesFromExams(
     instructors_back_to_back: 0,
     large_courses_not_early: 0,
     student_gt3_per_day: 0,
+    instructor_gt_max_per_day: 0,
   };
 
   if (!Array.isArray(allExams)) return init;
@@ -107,6 +106,7 @@ export function computeTotalsFromBreakdown(
     instructors_back_to_back: 0,
     large_courses_not_early: 0,
     student_gt3_per_day: 0,
+    instructor_gt_max_per_day: 0,
   };
   if (!Array.isArray(bd) || bd.length === 0) return init;
 
@@ -183,14 +183,38 @@ export function computeTotalsFromBreakdown(
   return init;
 }
 
+/**
+ * Conflict types the backend emits, in display order: student types first,
+ * then instructor types, then course-level types. Drives the tab order and
+ * the definitions legend; unlisted types sort after these.
+ */
+export const CONFLICT_TYPE_ORDER = [
+  "student_double_book",
+  "student_gt_max_per_day",
+  "back_to_back",
+  "instructor_double_book",
+  "instructor_gt_max_per_day",
+  "back_to_back_instructor",
+  "large_course_not_early",
+];
+
+/** Sort key for CONFLICT_TYPE_ORDER; unlisted types rank last. */
+export function conflictTypeRank(type: string): number {
+  const i = CONFLICT_TYPE_ORDER.indexOf(type);
+  return i === -1 ? CONFLICT_TYPE_ORDER.length : i;
+}
+
+// Labels start with who is affected ("Student …" / "Instructor …").
+// back_to_back is the backend's type for students.
 export const conflictTypeMap: Record<string, string> = {
   student_double_book: "Student Double-Book",
   student_gt_max_per_day: "Student Per-Day Limit",
-  student_gt3_per_day: "Student has more than 2 exams per day",
+  student_gt3_per_day: "Student 3+ Exams Per Day",
+  back_to_back: "Student Back-to-Back",
+  back_to_back_student: "Student Back-to-Back",
   instructor_double_book: "Instructor Double-Book",
-  back_to_back: "Back-to-Back",
-  back_to_back_student: "Back-to-Back (Students)",
-  back_to_back_instructor: "Back-to-Back (Instructors)",
+  instructor_gt_max_per_day: "Instructor Per-Day Limit",
+  back_to_back_instructor: "Instructor Back-to-Back",
   large_course_not_early: "Large Course Not Early",
   unknown: "Uncategorized",
 };
@@ -198,20 +222,22 @@ export const conflictTypeMap: Record<string, string> = {
 export const conflictDescriptions: Record<string, string> = {
   student_double_book:
     "A student is scheduled for more than one exam at the same time. Requires resolution.",
-  instructor_double_book:
-    "An instructor is scheduled to proctor/teach more than one exam at the same time.",
-  back_to_back:
-    "Exams scheduled back-to-back for the same entity (student/instructor) with no gap.",
-  back_to_back_student:
-    "A student has two exams scheduled in immediately consecutive blocks.",
-  back_to_back_instructor:
-    "An instructor has back-to-back assignments with no break.",
-  large_course_not_early:
-    "Large-enrollment courses that are not scheduled in earlier (preferred) time slots.",
+  student_gt_max_per_day:
+    "A student has more exams in one day than the configured maximum.",
   student_gt3_per_day:
     "Students scheduled for more than 3 exams in a single day.",
-  student_gt_max_per_day:
-    "Students exceeding the configured maximum exams per day.",
+  back_to_back:
+    "A student has exams in consecutive time blocks on the same day.",
+  back_to_back_student:
+    "A student has exams in consecutive time blocks on the same day.",
+  instructor_double_book:
+    "An instructor is scheduled to proctor/teach more than one exam at the same time.",
+  instructor_gt_max_per_day:
+    "An instructor has more exams in one day than the configured maximum.",
+  back_to_back_instructor:
+    "An instructor has exams in consecutive time blocks on the same day.",
+  large_course_not_early:
+    "Large-enrollment courses that are not scheduled in earlier (preferred) time slots.",
   unknown: "Uncategorized or unknown conflict type.",
 };
 
@@ -247,6 +273,8 @@ export function getIconForType(type: string) {
     t.includes("student_gt")
   )
     return <AlertTriangle className="w-4 h-4 text-rose-600" />;
+  if (t.includes("instructor_gt_max_per_day"))
+    return <AlertTriangle className="w-4 h-4 text-amber-600" />;
   if (t.includes("student") && !t.includes("double"))
     return <User className="w-4 h-4 text-rose-600" />;
   if (t.includes("instructor") && !t.includes("double"))
@@ -257,8 +285,18 @@ export function getIconForType(type: string) {
  * Small presentational card that shows a single conflict metric.
  * Styled consistently with StatCard from StatsOverview.
  */
+export type ConflictAudience = "Student" | "Instructor" | "Course";
+
+const audienceStyles: Record<ConflictAudience, string> = {
+  Student: "border-sky-200 bg-sky-50 text-sky-900",
+  Instructor: "border-violet-200 bg-violet-50 text-violet-900",
+  Course: "border-slate-200 bg-slate-50 text-slate-700",
+};
+
 interface Props {
   label: string;
+  /** Who the conflict affects, shown as a pill under the title. */
+  audience?: ConflictAudience;
   value: number | null | undefined;
   subtitle?: string;
   icon?: React.ReactNode;
@@ -295,6 +333,7 @@ const variantConfig = {
 
 export function ConflictStat({
   label,
+  audience,
   value,
   subtitle,
   icon,
@@ -310,11 +349,21 @@ export function ConflictStat({
         styles.border,
       )}
     >
-      <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+      {/* Icon sits on the pill row so the title gets the full card width;
+          px-3 (not the Card default px-6) keeps titles on one line when all
+          seven cards share a row. */}
+      <CardHeader className="flex flex-col gap-1.5 space-y-0 px-3 pb-2">
         <CardTitle className="text-sm font-medium">{label}</CardTitle>
-        {icon}
+        <div className="flex w-full items-center justify-between gap-2">
+          {audience && (
+            <Badge variant="outline" className={audienceStyles[audience]}>
+              {audience}
+            </Badge>
+          )}
+          {icon}
+        </div>
       </CardHeader>
-      <CardContent>
+      <CardContent className="px-3">
         <div
           className={cn(
             "text-3xl font-bold tracking-tight",

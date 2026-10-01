@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import { use, useEffect, useState } from "react";
 import { toast } from "sonner";
 import { ViewTabSwitcher } from "@/components/common/ViewTabSwitcher";
+import { ShareScheduleDialog } from "@/components/schedule/ShareScheduleDialog";
 import { StatisticsView } from "@/components/statistics/StatisticsView";
 import {
   Breadcrumb,
@@ -21,11 +22,10 @@ import DensityView from "@/components/visualization/calendar/DensityView";
 import { ExamListDialog } from "@/components/visualization/calendar/ExamListDialog";
 import ConflictView from "@/components/visualization/list/ConflictView";
 import ListView from "@/components/visualization/list/ListView";
-import { ShareScheduleDialog } from "@/components/schedule/ShareScheduleDialog";
 import { useScheduleData } from "@/lib/hooks/useScheduleData";
+import { useAuthStore } from "@/lib/store/authStore";
 import { useSchedulesStore } from "@/lib/store/schedulesStore";
 import { exportScheduleRowsAsCsv } from "@/lib/utils";
-import { useAuthStore } from "@/lib/store/authStore";
 
 type ViewType = "density" | "compact" | "list" | "statistics" | "conflicts";
 
@@ -159,7 +159,9 @@ export default function SchedulePage({
       {activeView === "density" && <DensityView />}
       {activeView === "compact" && <CompactView />}
       {activeView === "list" && <ListView />}
-      {activeView === "statistics" && <StatisticsView />}
+      {activeView === "statistics" && (
+        <StatisticsView onShowConflicts={() => setActiveView("conflicts")} />
+      )}
       {activeView === "conflicts" && <ConflictView />}
 
       <ExamListDialog />

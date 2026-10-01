@@ -11,8 +11,9 @@ import {
 import { useMemo, useState } from "react";
 import { createExamColumns } from "@/components/visualization/list/columns";
 import type { Exam } from "../types/calendar.types";
-import { useScheduleData } from "./useScheduleData";
+import { useCommonExams } from "./useCommonExams";
 import { useCourseMerges } from "./useCourseMerges";
+import { useScheduleData } from "./useScheduleData";
 
 /**
  * Custom global filter function that searches ALL exam fields
@@ -52,7 +53,8 @@ function examGlobalFilterFn(
  */
 export function useExamTable() {
   const { allExams, schedule } = useScheduleData();
-  const { isMerged } = useCourseMerges(schedule?.dataset_id);
+  const { merges, isMerged } = useCourseMerges(schedule?.dataset_id);
+  const { isCommon } = useCommonExams(schedule?.dataset_id, merges);
 
   // Table state management
   const [sorting, setSorting] = useState<SortingState>([]);
@@ -60,7 +62,10 @@ export function useExamTable() {
   const [globalFilter, setGlobalFilter] = useState("");
 
   // Memoize columns to prevent recreation on every render
-  const columns = useMemo(() => createExamColumns(isMerged), [isMerged]);
+  const columns = useMemo(
+    () => createExamColumns(isMerged, isCommon),
+    [isMerged, isCommon],
+  );
 
   // Configure TanStack Table
   const table = useReactTable({

@@ -13,13 +13,14 @@ const INITIAL_SLOTS: FileSlot[] = [
   {
     id: "courses",
     label: "Courses Data",
-    description: "Upload CSV with: CRN, CourseID, num_students",
+    description:
+      "Upload CSV with: CRN, CourseID, num_students, Instructor (optional; needed for instructor limits)",
     file: null,
   },
   {
     id: "enrollments",
     label: "Enrollment Data",
-    description: "Upload CSV with: Student_PIDM, CRN, Instructor Name",
+    description: "Upload CSV with: NUID, CRN",
     file: null,
   },
   {
@@ -32,6 +33,22 @@ const INITIAL_SLOTS: FileSlot[] = [
     id: "room_blockouts",
     label: "Room Blockouts",
     description: "Optional — Upload CSV with: Room, Day, Block",
+    file: null,
+    optional: true,
+  },
+  {
+    id: "combined_exams",
+    label: "Combined Exams",
+    description:
+      "Optional — sections sharing one exam, same time & room. CSV: ExamGroup, CRN",
+    file: null,
+    optional: true,
+  },
+  {
+    id: "common_exams",
+    label: "Common Exams",
+    description:
+      "Optional — sections at the same time in different rooms. CSV: CommonGroup, CRN",
     file: null,
     optional: true,
   },
@@ -123,6 +140,10 @@ export const useUploadStore = create<UploadState>((set, get) => ({
       const enrollmentsSlot = state.slots.find((s) => s.id === "enrollments");
       const roomsSlot = state.slots.find((s) => s.id === "rooms");
       const blockoutsSlot = state.slots.find((s) => s.id === "room_blockouts");
+      const combinedExamsSlot = state.slots.find(
+        (s) => s.id === "combined_exams",
+      );
+      const commonExamsSlot = state.slots.find((s) => s.id === "common_exams");
 
       if (!coursesSlot?.file || !enrollmentsSlot?.file || !roomsSlot?.file) {
         throw new Error("Missing required files");
@@ -135,6 +156,12 @@ export const useUploadStore = create<UploadState>((set, get) => ({
         rooms: roomsSlot.file.file,
         ...(blockoutsSlot?.file
           ? { room_blockouts: blockoutsSlot.file.file }
+          : {}),
+        ...(combinedExamsSlot?.file
+          ? { combined_exams: combinedExamsSlot.file.file }
+          : {}),
+        ...(commonExamsSlot?.file
+          ? { common_exams: commonExamsSlot.file.file }
           : {}),
       });
 
@@ -159,14 +186,37 @@ export const useUploadStore = create<UploadState>((set, get) => ({
           rowCount: result.files.room_blockouts?.rows,
         });
       }
+      if (combinedExamsSlot?.file) {
+        get().updateSlotStatus("combined_exams", "success", {
+          rowCount: result.files.combined_exams?.rows,
+        });
+      }
+      if (commonExamsSlot?.file) {
+        get().updateSlotStatus("common_exams", "success", {
+          rowCount: result.files.common_exams?.rows,
+        });
+      }
 
       return result;
     } catch (error) {
-      // Mark all uploading files as error
-      state.slots.forEach((slot) => {
+      // Mark all uploading files as error. Read fresh state: the `state`
+      // snapshot above predates the switch to "uploading".
+      const message = error instanceof Error ? error.message : "Upload failed";
+      let fileErrors: Record<string, string> = {};
+      try {
+        fileErrors = JSON.parse(message).errors ?? {};
+      } catch {
+        // Not a structured validation error; use the message as-is.
+      }
+      const hasFileErrors = Object.keys(fileErrors).length > 0;
+      get().slots.forEach((slot) => {
         if (slot.file?.status === "uploading") {
           get().updateSlotStatus(slot.id, "error", {
-            error: error instanceof Error ? error.message : "Upload failed",
+            error:
+              fileErrors[slot.id] ??
+              (hasFileErrors
+                ? "Not uploaded: another file failed validation"
+                : message),
           });
         }
       });

@@ -19,7 +19,9 @@ from src.core.exceptions import (
 from src.domain.adapters import (
     CombinedExamAdapter,
     CommonExamAdapter,
+    CourseAdapter,
     CSVSchemaDetector,
+    RoomAdapter,
     read_upload_csv,
 )
 from src.domain.adapters.schemas import clean_crn
@@ -77,6 +79,7 @@ class DatasetService:
         validated_files = await self._validate_and_parse_files(uploaded_files)
 
         course_merges, common_exam_groups = self._validate_exam_groups(validated_files)
+        self._flag_oversized_sections(validated_files)
 
         try:
             storage_keys = await self._upload_files_to_storage(
@@ -247,6 +250,42 @@ class DatasetService:
             raise ValidationError("File validation failed", detail={"errors": errors})
 
         return merges, common_groups
+
+    def _flag_oversized_sections(self, validated_files: dict[str, Any]) -> None:
+        """
+        Record courses larger than every room in `courses.oversized_sections`.
+
+        The upload is kept: the scheduler never seats a section over a room's
+        capacity, so these sections are left unscheduled. Zero-enrollment courses
+        are dropped first, as the scheduler drops them. Nothing is flagged when the
+        rooms file has no usable rooms (the scheduler reports that on its own) or
+        the files cannot be read into domain objects (generation reports that).
+        """
+        contents = validated_files["contents"]
+        try:
+            courses_df, _ = self._filter_nonzero_enrollment(
+                read_upload_csv(contents["courses"], "courses")
+            )
+            courses = CourseAdapter.from_dataframe(courses_df)
+            rooms = RoomAdapter.from_dataframe(
+                read_upload_csv(contents["rooms"], "rooms")
+            )
+        except (DataValidationError, SchemaDetectionError):
+            return
+        if not rooms:
+            return
+
+        largest_room = max(room.capacity for room in rooms)
+        validated_files["metadata"]["courses"]["oversized_sections"] = [
+            {
+                "crn": crn,
+                "course": course.course_code,
+                "enrollment": course.enrollment_count,
+                "largest_room": largest_room,
+            }
+            for crn, course in sorted(courses.items())
+            if course.enrollment_count > largest_room
+        ]
 
     def _load_reference_dataset(
         self, contents: dict[str, bytes], error_key: str

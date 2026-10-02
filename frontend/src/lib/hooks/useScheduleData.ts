@@ -51,7 +51,9 @@ export function useScheduleData() {
             day: "",
             timeSlot: "",
             isUnscheduled: true,
-            unscheduledGroup: group?.group,
+            // A section's "group" is its own CRN; only name real groups.
+            unscheduledGroup:
+              group?.kind === "section" ? undefined : group?.group,
             unscheduledReason: group?.reason,
           });
         } else if (exam.Day && !exam.Room) {

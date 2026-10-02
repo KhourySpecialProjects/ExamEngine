@@ -74,7 +74,7 @@ def test_zero_padded_student_id_reported_in_conflicts():
     dataset = DatasetFactory.from_dataframes_to_scheduling_dataset(
         courses_df=read_upload_csv(courses_csv.encode(), "courses"),
         enrollment_df=read_upload_csv(enrollments_csv.encode(), "enrollments"),
-        rooms_df=read_upload_csv(b"Room,Capacity\nHall A,10\n", "rooms"),
+        rooms_df=read_upload_csv(b"Room,Capacity\nHall A,10\nHall B,10\n", "rooms"),
     )
     assert set(dataset.students) == {"001234567"}
 

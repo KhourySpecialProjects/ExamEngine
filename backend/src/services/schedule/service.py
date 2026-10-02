@@ -410,18 +410,16 @@ class ScheduleService:
     def _summarize_placement(result: ScheduleResult) -> tuple[int, int]:
         """Count (num_classes, unplaced_exams) from an algorithm result.
 
-        An exam is "unplaced" when it has no usable slot+room: either unroomed
-        (a slot but no room, tracked in result.unassigned) or a member of a
-        combined/common group that could not be scheduled at all
-        (result.unscheduled_crns), whose CRNs get neither slot nor room. Both are
-        persisted by _save_exam_assignments, so this MUST match the row-based
-        count in _calculate_summary_stats to keep the generate and retrieve
-        responses consistent.
+        An exam is "unplaced" when it has no slot and no room because it could
+        not be seated (result.unscheduled_crns); the schedulers never leave a
+        placed exam without a room. _save_exam_assignments persists these as
+        null-slot rows, so this MUST match the row-based count in
+        _calculate_summary_stats to keep the generate and retrieve responses
+        consistent.
         """
         unscheduled = result.unscheduled_crns - result.assignments.keys()
         num_classes = len(result.assignments) + len(unscheduled)
-        unplaced_exams = len(result.unassigned) + len(unscheduled)
-        return num_classes, unplaced_exams
+        return num_classes, len(unscheduled)
 
     def _build_generation_response(
         self,
@@ -446,9 +444,6 @@ class ScheduleService:
         # Build schedule list
         schedule_list = []
         for crn, (day_idx, block_idx) in result.assignments.items():
-            if crn in result.unassigned:
-                # Has a slot but no room — added separately below
-                continue
             room_name = result.room_assignments.get(crn, "")
             instructors = result.instructors_by_crn.get(crn, set())
 
@@ -464,26 +459,6 @@ class ScheduleService:
                     instructor=", ".join(instructors) if instructors else "",
                     has_conflict=False,
                 )
-            )
-
-        # Add unroomed exams (have a slot but no room due to blockouts)
-        for crn in result.unassigned:
-            if crn not in result.assignments:
-                continue
-            day_idx, block_idx = result.assignments[crn]
-            instructors = result.instructors_by_crn.get(crn, set())
-            schedule_list.append(
-                {
-                    "CRN": crn,
-                    "Course": result.course_codes.get(crn, ""),
-                    "Day": DAY_NAMES[day_idx],
-                    "Block": f"{block_idx} ({BLOCK_TIMES.get(block_idx, '')})",
-                    "Room": "",  # No room assigned
-                    "Capacity": 0,
-                    "Size": result.course_sizes.get(crn, 0),
-                    "Valid": True,
-                    "Instructor": ", ".join(instructors) if instructors else "",
-                }
             )
 
         # Add exams of unscheduled combined/common groups to complete list
@@ -547,10 +522,6 @@ class ScheduleService:
         calendar: dict[str, dict[str, list]] = {}
 
         for crn, (day_idx, block_idx) in result.assignments.items():
-            if crn in result.unassigned:
-                # Has a slot but no room — excluded from the calendar view
-                continue
-
             day_name = DAY_NAMES[day_idx]
             block_time = BLOCK_TIMES.get(block_idx, f"Block {block_idx}")
 
@@ -634,25 +605,6 @@ class ScheduleService:
                     "course_id": course_id,
                     "time_slot_id": time_slot.time_slot_id,
                     "room_id": room_id,
-                }
-            )
-
-        # Save unroomed assignments (have a time slot but no room due to blockouts)
-        for crn in result.unassigned:
-            course_id = course_mapping.get(crn)
-            if not course_id or crn not in result.assignments:
-                continue
-            day_idx, block_idx = result.assignments[crn]
-            time_slot = self.time_slot_repo.get_or_create_slot(
-                dataset_id=dataset_id,
-                day=DAY_NAMES[day_idx],
-                block_index=block_idx,
-            )
-            assignments_to_create.append(
-                {
-                    "course_id": course_id,
-                    "time_slot_id": time_slot.time_slot_id,
-                    "room_id": None,
                 }
             )
 

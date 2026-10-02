@@ -23,6 +23,8 @@ Contains course/section information. One row per CRN — if a CRN appears on mul
 
 > If `instructor_name` is absent (or blank on a row), that section is excluded from all instructor constraints — the scheduler will not track faculty exams-per-day or instructor back-to-back for it.
 
+> A section whose enrollment exceeds the largest room in rooms.csv is not rejected: exams are never seated over a room's capacity, so the scheduler leaves it unscheduled. The upload response lists such sections (zero-enrollment ones excluded) under `files.courses.oversized_sections` as `[{crn, course, enrollment, largest_room}]`, sorted by CRN, and the UI warns about them after upload and in the sidebar.
+
 **Example:**
 
 ```csv

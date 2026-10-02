@@ -4,6 +4,11 @@ from uuid import UUID
 from src.domain.value_objects import SchedulePermissions
 
 
+def _over_capacity(capacity: int, size: int) -> bool:
+    """True if the room's capacity is known (positive) and below the exam's size."""
+    return 0 < capacity < size
+
+
 class ScheduleAssembler:
     """
     Builds consistent API responses for schedule endpoints.
@@ -25,7 +30,9 @@ class ScheduleAssembler:
         """
         Build standard exam record for 'complete' list.
 
-        Used by both generate_schedule and get_schedule_with_details.
+        Used by both generate_schedule and get_schedule_with_details. `Valid` is
+        also false when a known room capacity is below the exam's size (schedules
+        generated before rooms were capped can contain such rows).
         """
         return {
             "CRN": crn,
@@ -35,7 +42,7 @@ class ScheduleAssembler:
             "Room": room,
             "Capacity": capacity,
             "Size": size,
-            "Valid": not has_conflict,
+            "Valid": not has_conflict and not _over_capacity(capacity, size),
             "Instructor": instructor,
         }
 

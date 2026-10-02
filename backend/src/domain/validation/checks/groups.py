@@ -126,7 +126,8 @@ def unscheduled_consistent(ctx: ValidationContext) -> CheckResult:
 
     seen: set[tuple[str, str]] = set()
     for entry in entries:
-        name = f"Unscheduled {entry.kind} group '{entry.label}'"
+        noun = "section" if entry.kind == "section" else f"{entry.kind} group"
+        name = f"Unscheduled {noun} '{entry.label}'"
         if (entry.kind, entry.label) in seen:
             issues.append(f"{name} is listed more than once")
         seen.add((entry.kind, entry.label))
@@ -135,11 +136,17 @@ def unscheduled_consistent(ctx: ValidationContext) -> CheckResult:
             members = ctx.snapshot.combined_groups.get(entry.label)
         elif entry.kind == "common":
             members = ctx.common_group_crns.get(entry.label)
+        elif entry.kind == "section":
+            # A lone CRN; members of a group are reported under their group.
+            unit = ctx.time_group(entry.label)
+            if unit != f"crn:{entry.label}":
+                issues.append(f"{name} is in {unit_label(unit)}")
+            members = [entry.label] if entry.label in in_schedule else None
         else:
             issues.append(f"{name}: unknown kind")
             continue
         if members is None:
-            issues.append(f"{name} is not a {entry.kind} group of this dataset")
+            issues.append(f"{name} is not a {noun} of this dataset")
         else:
             expected = set(members) & in_schedule
             if entry.crns != expected:

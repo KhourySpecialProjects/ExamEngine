@@ -3,7 +3,7 @@
 ``Scheduler`` (Algorithm 1) colours the conflict graph with DSATUR but then only
 uses the colours to *order* exams for a single greedy pass with a lexicographic
 penalty. This engine keeps all of ``Scheduler``'s group machinery (combined and
-common groups, room reservation, blockouts, room assignment) and replaces the
+common groups, blockouts, capacity-safe room seating) and replaces the
 slot-choice phase with:
 
 1. a weighted objective evaluated incrementally per move,
@@ -25,9 +25,9 @@ from src.domain.constants import (
     EARLY_WEEK_CUTOFF,
     LARGE_COURSE_THRESHOLD,
 )
-from src.domain.models import Room, SchedulingDataset
+from src.domain.models import SchedulingDataset
 from src.domain.services.conflict_detector import Conflict
-from src.domain.services.scheduler import Scheduler, ScheduleResult
+from src.domain.services.scheduler import Scheduler, ScheduleResult, seats_fit
 
 
 HARD = 10_000
@@ -37,8 +37,6 @@ _P_SWAP = 0.05
 _P_DIRECTED = 0.50
 _RESCAN_EVERY = 1500
 _CLOCK_EVERY = 256
-
-Plan = dict[str, str]  # room unit → room name
 
 
 class AnnealingScheduler(Scheduler):
@@ -117,7 +115,7 @@ class AnnealingScheduler(Scheduler):
         self._construct()
         self._improve()
         self._finalize()
-        room_assignments, unroomed = self._assign_rooms()
+        room_assignments = self._assign_rooms()
 
         return ScheduleResult(
             assignments=dict(self.assignments),
@@ -126,7 +124,6 @@ class AnnealingScheduler(Scheduler):
             colors=dict(self.colors),
             unscheduled_groups=list(self.unscheduled_groups.values()),
             unscheduled_crns=set(self.unscheduled_crns),
-            unassigned=unroomed,
         )
 
     # ------------------------------------------------------------------
@@ -148,7 +145,7 @@ class AnnealingScheduler(Scheduler):
         self._tg_instructors: list[list[str]] = []
         self._tg_late: list[list[int]] = []
         self._tg_units: list[list[str]] = []
-        self._tg_reserving: list[bool] = []
+        self._tg_sizes: list[list[int]] = []  # room-unit sizes, largest first
         self._tg_enroll: list[int] = []
         self._tg_wdeg: list[int] = []
         for tg in self._tgs:
@@ -171,17 +168,16 @@ class AnnealingScheduler(Scheduler):
             self._tg_late.append(late)
             units = self.time_groups[tg]
             self._tg_units.append(units)
-            self._tg_reserving.append(tg in self.room_reserving_groups)
+            self._tg_sizes.append(
+                sorted((self.unit_enrollment[u] for u in units), reverse=True)
+            )
             self._tg_enroll.append(sum(self.unit_enrollment[u] for u in units))
             self._tg_wdeg.append(wdeg)
 
-        # Rooms usable at each slot (blockouts applied)
-        blockouts = ds.room_blockouts
-        self._unblocked_rooms: list[list[Room]] = [
-            [r for r in ds.rooms if slot not in blockouts.get(r.name, frozenset())]
-            for slot in self.available_slots
+        # Room capacities usable at each slot (blockouts applied), largest first
+        self._slot_caps: list[list[int]] = [
+            self.slot_capacities[slot] for slot in self.available_slots
         ]
-        self._slot_room_cap = [len(rooms) for rooms in self._unblocked_rooms]
 
         # Neighbours: time groups sharing a student or an instructor
         self._nbrs: list[set[int]] = [set() for _ in range(n)]
@@ -199,11 +195,11 @@ class AnnealingScheduler(Scheduler):
 
         # Mutable state
         self._slot_of = [-1] * n
-        self._plan: list[Plan] = [{} for _ in range(n)]
         self._st_cnt: dict[str, list[int]] = defaultdict(lambda: [0] * self.nslots)
         self._in_cnt: dict[str, list[int]] = defaultdict(lambda: [0] * self.nslots)
         self._slot_units = [0] * self.nslots
-        self._slot_reserved: list[set[str]] = [set() for _ in range(self.nslots)]
+        # Room-unit sizes placed at each slot (unordered)
+        self._slot_sizes: list[list[int]] = [[] for _ in range(self.nslots)]
         self._active: list[int] = []  # placed groups (SA move candidates)
         self._order: list[int] = []  # MRV placement order
         self.cost = 0
@@ -252,15 +248,10 @@ class AnnealingScheduler(Scheduler):
             cnt[new] -= 1
         return after - before
 
-    def _overflow(self, slot: int, units: int) -> int:
-        extra = units - self._slot_room_cap[slot]
-        return extra if extra > 0 else 0
-
     def _delta(self, i: int, new: int) -> int:
         """Objective change if group i moves to slot ``new`` (−1 = unplace).
 
-        Room feasibility of room-reserving groups is not included; use
-        ``_room_plan`` for that.
+        Room feasibility is not included; check ``_fits`` before moving.
         """
         old = self._slot_of[i]
         if old == new:
@@ -279,23 +270,20 @@ class AnnealingScheduler(Scheduler):
         if old >= 0:
             d -= late[old // self._bpd]
             n_old = self._slot_units[old]
-            d += HARD * (self._overflow(old, n_old - k) - self._overflow(old, n_old))
             d += w_bal * ((n_old - k) ** 2 - n_old**2)
         if new >= 0:
             d += late[new // self._bpd]
             n_new = self._slot_units[new]
-            d += HARD * (self._overflow(new, n_new + k) - self._overflow(new, n_new))
             d += w_bal * ((n_new + k) ** 2 - n_new**2)
         return d
 
-    def _room_plan(self, i: int, slot: int) -> Plan | None:
-        """Rooms for a room-reserving group at ``slot``; None if it cannot fit."""
-        reserved = self._slot_reserved[slot]
-        free = [r for r in self._unblocked_rooms[slot] if r.name not in reserved]
-        return self._pack_units(self._tg_units[i], free)
+    def _fits(self, i: int, slot: int) -> bool:
+        """True if group i's room units can join those already at ``slot``."""
+        sizes = sorted(self._slot_sizes[slot] + self._tg_sizes[i], reverse=True)
+        return seats_fit(sizes, self._slot_caps[slot])
 
-    def _move(self, i: int, new: int, plan: Plan | None = None) -> None:
-        """Apply a move (cost delta computed here); ``plan`` for reserving groups."""
+    def _move(self, i: int, new: int) -> None:
+        """Apply a move (cost delta computed here). Callers check ``_fits``."""
         old = self._slot_of[i]
         if old == new:
             return
@@ -315,15 +303,11 @@ class AnnealingScheduler(Scheduler):
         k = len(self._tg_units[i])
         if old >= 0:
             self._slot_units[old] -= k
-            self._slot_reserved[old].difference_update(self._plan[i].values())
+            for size in self._tg_sizes[i]:
+                self._slot_sizes[old].remove(size)
         if new >= 0:
             self._slot_units[new] += k
-            if self._tg_reserving[i]:
-                assert plan is not None
-                self._plan[i] = plan
-                self._slot_reserved[new].update(plan.values())
-        else:
-            self._plan[i] = {}
+            self._slot_sizes[new].extend(self._tg_sizes[i])
         self._slot_of[i] = new
 
     def recompute_cost(self) -> int:
@@ -345,38 +329,28 @@ class AnnealingScheduler(Scheduler):
         w_bal = self.weight_slot_balance
         for slot in range(self.nslots):
             n = self._slot_units[slot]
-            total += HARD * self._overflow(slot, n) + w_bal * n * n
+            total += w_bal * n * n
         return total
 
     # ------------------------------------------------------------------
     # Construction: MRV
     # ------------------------------------------------------------------
 
-    def _best_slot(self, i: int) -> tuple[int, Plan | None] | None:
-        """Lowest-cost slot for group i, or None if a reserving group fits nowhere."""
+    def _best_slot(self, i: int) -> int | None:
+        """Lowest-cost slot where group i fits, or None if it fits nowhere."""
         best: tuple[int, int] | None = None
-        best_plan: Plan | None = None
-        reserving = self._tg_reserving[i]
         for slot in range(self.nslots):
-            plan = None
-            if reserving:
-                plan = self._room_plan(i, slot)
-                if plan is None:
-                    continue
+            if not self._fits(i, slot):
+                continue
             key = (self._delta(i, slot), slot)
             if best is None or key < best:
-                best, best_plan = key, plan
-        if best is None:
-            return None
-        return best[1], best_plan
+                best = key
+        return None if best is None else best[1]
 
     def _count_free(self, i: int) -> int:
-        reserving = self._tg_reserving[i]
         free = 0
         for slot in range(self.nslots):
-            if reserving and self._room_plan(i, slot) is None:
-                continue
-            if self._delta(i, slot) < HARD:
+            if self._fits(i, slot) and self._delta(i, slot) < HARD:
                 free += 1
         return free
 
@@ -390,12 +364,11 @@ class AnnealingScheduler(Scheduler):
                 key=lambda j: (free[j], -self._tg_wdeg[j], -self._tg_enroll[j], j),
             )
             unplaced.remove(i)
-            choice = self._best_slot(i)
-            if choice is None:
+            slot = self._best_slot(i)
+            if slot is None:
                 self._mark_unscheduled(self._tgs[i], self._no_room_reason(i))
                 continue
-            slot, plan = choice
-            self._move(i, slot, plan)
+            self._move(i, slot)
             self._active.append(i)
             self._order.append(i)
             for j in self._nbrs[i]:
@@ -425,7 +398,7 @@ class AnnealingScheduler(Scheduler):
             return
         rng = random.Random(self.seed)  # noqa: S311
         best_cost = self.cost
-        best_state = (list(self._slot_of), [dict(p) for p in self._plan])
+        best_state = list(self._slot_of)
         start = time.monotonic()
         deadline = start + budget
         temperature = _T_START
@@ -448,25 +421,21 @@ class AnnealingScheduler(Scheduler):
             else:
                 if violating and r < _P_SWAP + _P_DIRECTED:
                     i = rng.choice(violating)
-                    choice = self._best_slot(i)
-                    if choice is None:
+                    slot = self._best_slot(i)
+                    if slot is None:
                         continue
-                    slot, plan = choice
                 else:
                     i = active[rng.randrange(len(active))]
                     slot = rng.randrange(self.nslots)
-                    plan = None
-                    if self._tg_reserving[i]:
-                        plan = self._room_plan(i, slot)
-                        if plan is None:
-                            continue
+                    if not self._fits(i, slot):
+                        continue
                 d = self._delta(i, slot)
                 if d <= 0 or rng.random() < math.exp(-d / temperature):
-                    self._move(i, slot, plan)
+                    self._move(i, slot)
 
             if self.cost < best_cost:
                 best_cost = self.cost
-                best_state = (list(self._slot_of), [dict(p) for p in self._plan])
+                best_state = list(self._slot_of)
 
         self._restore(best_state)
 
@@ -478,19 +447,15 @@ class AnnealingScheduler(Scheduler):
         if not ia and not ib:
             return
         before = self.cost
-        saved_plans = {i: self._plan[i] for i in ia + ib}
         for i in ia + ib:
             self._move(i, -1)
         feasible = True
         for group, target in ((ib, sa), (ia, sb)):
             for i in group:
-                plan = None
-                if self._tg_reserving[i]:
-                    plan = self._room_plan(i, target)
-                    if plan is None:
-                        feasible = False
-                        break
-                self._move(i, target, plan)
+                if not self._fits(i, target):
+                    feasible = False
+                    break
+                self._move(i, target)
             if not feasible:
                 break
         d = self.cost - before
@@ -500,14 +465,13 @@ class AnnealingScheduler(Scheduler):
             self._move(i, -1)
         for group, target in ((ia, sa), (ib, sb)):
             for i in group:
-                self._move(i, target, saved_plans[i] if self._tg_reserving[i] else None)
+                self._move(i, target)
 
-    def _restore(self, state: tuple[list[int], list[Plan]]) -> None:
-        slots, plans = state
+    def _restore(self, slots: list[int]) -> None:
         for i in self._active:
             self._move(i, -1)
         for i in self._active:
-            self._move(i, slots[i], plans[i] if self._tg_reserving[i] else None)
+            self._move(i, slots[i])
 
     # ------------------------------------------------------------------
     # Finalize: assignments, reservations, conflicts from the final state
@@ -522,10 +486,7 @@ class AnnealingScheduler(Scheduler):
             day, block = self.available_slots[slot]
             for crn in self.time_group_crns[self._tgs[i]]:
                 self.assignments[crn] = (day, block)
-            for unit, room_name in self._plan[i].items():
-                self.reserved_rooms[(day, block)].add(room_name)
-                for crn in self.room_units[unit]:
-                    self.reserved_room_by_crn[crn] = room_name
+            self.slot_units[(day, block)].extend(self._tg_units[i])
         self.conflicts = self._recompute_conflicts()
 
     def _recompute_conflicts(self) -> list[Conflict]:

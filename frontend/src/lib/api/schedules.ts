@@ -90,9 +90,12 @@ export interface ScheduleData {
   total_exams: number;
 }
 
-/** A combined or common exam group left entirely unscheduled, and why. */
+/**
+ * An exam left entirely unscheduled, and why: a combined or common group, or a
+ * single section in no group (`group` is then its CRN and `crns` just that CRN).
+ */
 export interface UnscheduledGroup {
-  kind: "combined" | "common";
+  kind: "section" | "combined" | "common";
   group: string;
   reason: string;
   crns: string[];

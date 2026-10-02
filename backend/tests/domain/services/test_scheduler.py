@@ -719,8 +719,8 @@ class TestSchedulerRoomBlockouts:
 
         assert set(result1.assignments.keys()) == set(result2.assignments.keys())
 
-    def test_all_rooms_blocked_at_slot_course_gets_no_room(self):
-        """When all rooms are blocked at every slot, the course gets no room assignment."""
+    def test_all_rooms_blocked_at_every_slot_leaves_course_unscheduled(self):
+        """A course with no unblocked room at any slot is unscheduled, with why."""
         blockouts = {"Room A": frozenset((d, b) for d in range(7) for b in range(5))}
 
         dataset = self._make_dataset(
@@ -733,9 +733,12 @@ class TestSchedulerRoomBlockouts:
         scheduler = Scheduler(dataset=dataset, max_days=3)
         result = scheduler.schedule()
 
-        # Course still gets a time slot but no room since all are blocked
-        assert "C1" in result.assignments
+        assert "C1" not in result.assignments
         assert "C1" not in result.room_assignments
+        assert [(g.kind, g.label, g.crns) for g in result.unscheduled_groups] == [
+            ("section", "C1", ["C1"])
+        ]
+        assert "free, unblocked room" in result.unscheduled_groups[0].reason
 
     def test_blockout_from_dataframe_end_to_end(self):
         """Full pipeline: parse blockouts CSV → factory → scheduler respects constraint."""
@@ -917,25 +920,15 @@ class TestSchedulerCommonExams:
         ordering = scheduler._get_course_ordering(prioritize_large=True)
         assert ordering[0] in {"C1", "C2"}
 
-    def test_reserved_common_rooms_win_over_single_exam_in_same_block(self):
+    def test_single_exam_never_takes_a_room_too_small_for_it(self):
+        # One day, 5 blocks; the common group needs both rooms, L needs room A.
         dataset = _group_dataset({"L": 90, "C1": 80, "C2": 20}, {"A": 100, "B": 30})
-        scheduler = Scheduler(
+        result = Scheduler(
             dataset=dataset, max_days=1, common_groups={"G": ["C1", "C2"]}
-        )
-        scheduler._build_conflict_graph()
-        scheduler._color_graph()
-        scheduler._assign_time_slots(prioritize_large=True)
+        ).schedule()
 
-        # Force the large single exam into the group's block, ahead of it in
-        # room-assignment order: the reservation must still hold.
-        slot = scheduler.assignments["C1"]
-        others = {c: s for c, s in scheduler.assignments.items() if c != "L"}
-        scheduler.assignments = {"L": slot, **others}
-        room_assignments, unroomed = scheduler._assign_rooms()
-
-        assert room_assignments["C1"] == "A"
-        assert room_assignments["C2"] == "B"
-        assert "L" in unroomed
+        assert result.room_assignments == {"L": "A", "C1": "A", "C2": "B"}
+        assert result.assignments["L"] != result.assignments["C1"]
 
     def test_over_capacity_combined_member_unschedules_whole_common_group(self):
         dataset = _group_dataset(

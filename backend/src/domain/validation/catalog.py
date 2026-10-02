@@ -112,8 +112,8 @@ CHECKS: tuple[Check, ...] = (
     Check(
         "groups.unscheduled_consistent",
         "Unscheduled groups consistent",
-        "Groups listed as unscheduled match the dataset, give a reason and have no "
-        "placed exams.",
+        "Groups and sections listed as unscheduled match the dataset, give a reason "
+        "and have no placed exams; a section is listed only if it is in no group.",
         "groups",
         groups.unscheduled_consistent,
     ),

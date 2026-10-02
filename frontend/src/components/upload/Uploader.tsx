@@ -66,6 +66,15 @@ export function Uploader() {
         id: uploadToast,
         description: `${result.dataset_name} uploaded with ${result.files.courses.rows} courses`,
       });
+      const oversizedSections = result.files.courses.oversized_sections ?? [];
+      if (oversizedSections.length > 0) {
+        const crns = oversizedSections
+          .map((s) => `CRN ${s.crn} (${s.enrollment})`)
+          .join(", ");
+        toast.warning("Some sections are larger than every room", {
+          description: `${crns}: enrollment exceeds the largest room (${oversizedSections[0].largest_room} seats), so these will be left unscheduled.`,
+        });
+      }
       const overCapacityGroups =
         result.files.combined_exams?.over_capacity_groups ?? [];
       if (overCapacityGroups.length > 0) {

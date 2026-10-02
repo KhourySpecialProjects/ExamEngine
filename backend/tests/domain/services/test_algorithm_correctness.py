@@ -410,11 +410,6 @@ class TestScheduleCompleteness:
         }
         assert unknown == set(), f"Unknown rooms assigned: {unknown}"
 
-    def test_unassigned_empty_without_blockouts(self, dense_realistic_dataset):
-        """With no room blockouts every course should receive a room."""
-        result = Scheduler(dataset=dense_realistic_dataset, max_days=7).schedule()
-        assert result.unassigned == set()
-
 
 # ---------------------------------------------------------------------------
 # 4. Determinism

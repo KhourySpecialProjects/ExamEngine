@@ -221,4 +221,23 @@ describe("ScheduleRunner", () => {
     fireEvent.click(screen.getByRole("button", { name: "5" }));
     expect(useSchedulesStore.getState().parameters.blocks_per_day).toBe(5);
   });
+
+  it("selects algorithm and optimization time", () => {
+    render(<ScheduleRunner />);
+    expect(useSchedulesStore.getState().parameters.algorithm).toBe("dsatur");
+    expect(screen.queryByText("Optimization Time")).toBeNull();
+
+    fireEvent.click(screen.getByRole("button", { name: "Optimized" }));
+    expect(useSchedulesStore.getState().parameters.algorithm).toBe("annealing");
+    expect(screen.getByText("Optimization Time")).toBeTruthy();
+
+    fireEvent.click(screen.getByRole("button", { name: "30s" }));
+    expect(useSchedulesStore.getState().parameters.time_budget_seconds).toBe(
+      30,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Classic" }));
+    expect(useSchedulesStore.getState().parameters.algorithm).toBe("dsatur");
+    expect(screen.queryByText("Optimization Time")).toBeNull();
+  });
 });

@@ -97,37 +97,85 @@ A CRN in two combined groups, a CRN in two common groups, or a combined group sp
 
 Unsatisfiable groups are never split or partially placed. `ScheduleResult.unscheduled_groups` lists each one as `UnscheduledGroup(kind, label, reason, crns)` (`kind` is `combined` or `common`; a combined group inside an unscheduled common group is reported once, under the common group), and `ScheduleResult.unscheduled_crns` lists every CRN left with neither block nor room. The CRNs are persisted as assignments with no time slot and no room; the groups are saved in the schedule's conflict analysis and returned as `unscheduled_groups` (`[{kind, group, reason, crns}]`) by `POST /api/schedule/generate/{dataset_id}` and `GET /api/schedule/{schedule_id}` (empty for schedules generated before this was recorded). The UI shows them on the Statistics "Unscheduled Exams" card and on the List view's unscheduled rows; groups the upload already knows cannot fit are also listed under the dataset in the sidebar.
 
-## Future Improvements
+## Algorithm 2: Saturation + Annealing
 
-### Tabu Search Enhancement
+The Generate Schedule dialog offers two algorithms (`algorithm` query parameter on
+`POST /api/schedule/generate/{dataset_id}`; stored as `run.algorithm_name`):
 
-For further optimization after DSATUR:
+| UI name | `algorithm` | `algorithm_name` | Engine |
+| --- | --- | --- | --- |
+| **Classic** — DSATUR greedy | `dsatur` (default) | `DSATUR` | `Scheduler` (everything above) |
+| **Optimized** — Saturation + Annealing | `annealing` | `Annealing` | `AnnealingScheduler` |
 
-```python
-def tabu_search(initial_solution, iterations=1000):
-    """
-    Local search to improve DSATUR solution.
+`AnnealingScheduler` (`backend/src/domain/services/annealing_scheduler.py`) subclasses
+`Scheduler` and keeps its group machinery unchanged — combined/common groups, upfront
+feasibility, `_pack_units` room reservation, blockouts, `_assign_rooms`,
+`ScheduleResult`. Only the slot-choice phase differs.
 
-    Moves: Swap time slots between courses and evaluate cost.
-    Tabu: Prevent cycling by tracking recent moves.
-    """
-    best = current = initial_solution
-    tabu_list = []
+### Why a second algorithm
 
-    for _ in range(iterations):
-        neighbors = generate_neighbors(current)
-        neighbors = [n for n in neighbors if n not in tabu_list]
+Algorithm 1 colours the conflict graph but uses the colours only to *order* exams for a
+single greedy pass, and compares slots lexicographically (`SoftPenalty.as_tuple`), so
+`large_course_late` always outranks `back_to_back_students` and the configured weights
+never trade against each other. On `sample_data_large` (19-colourable, 35 slots) it
+still leaves 7 student double-bookings; Algorithm 2 finds a schedule with none.
 
-        current = best_neighbor(neighbors)
-        tabu_list.append(current)
+### Objective
 
-        if evaluate(current) < evaluate(best):
-            best = current
+One weighted sum, evaluated incrementally per move (only the moved group's students and
+instructors on the two affected days):
 
-    return best
+```
+cost = HARD · (student double-bookings + student over-max/day
+             + instructor double-bookings + instructor over-max/day
+             + room units beyond the unblocked rooms of a block)
+     + weight_b2b_student    · student adjacent-block pairs
+     + weight_b2b_instructor · instructor adjacent-block pairs
+     + weight_large_late     · Σ days late (large courses after Wednesday)
+     + weight_slot_balance   · Σ_blocks (exams in block)²
 ```
 
-### Constraint Relaxation
+`HARD = 10_000`, so no soft gain can buy a hard violation, while soft terms trade by
+their weights. Room-reserving groups (common, or containing a combined group) are only
+ever placed in a block where `_pack_units` finds distinct free, unblocked rooms.
+
+The quadratic `weight_slot_balance` term (default 1) is what keeps every block in use:
+without it the back-to-back term alone makes an alternating 9AM / 2PM / 7PM pattern
+optimal whenever rooms allow, leaving the 11:30AM and 4:30PM blocks empty. The marginal
+cost of adding an exam to a block holding `n` is `2n + 1`, so empty blocks fill first
+and the optimizer trades a few back-to-backs for an even load.
+
+### Phases
+
+1. **MRV construction** (DSATUR's saturation rule applied to the real slot domain):
+   repeatedly place the time group with the fewest remaining violation-free blocks
+   (ties: weighted degree, then enrollment) in its lowest-cost block. Only neighbours of
+   the placed group have their counts refreshed. A room-reserving group with no
+   admissible block is left unscheduled, as in Algorithm 1.
+2. **Conflict-directed simulated annealing** for `time_budget_seconds` (dialog: 5/15/30 s;
+   0 skips this phase; stops early when the cost reaches 0). Moves: random group → random
+   block; a group currently in a hard violation → its best block (half of the moves);
+   swap the contents of two blocks. Geometric cooling 30 → 0.3; best state kept.
+3. **Finalize**: `conflicts` are recomputed from the final assignment (a student sits
+   once per room unit, an instructor once per time group, as Algorithm 1 reports), then
+   rooms are assigned exactly as in Algorithm 1.
+
+`prioritize_large_courses` is accepted and ignored by Algorithm 2. The dialog's **Avoid
+Back-to-Back Exams** switch affects only Algorithm 2: off sets both back-to-back weights
+to 0 (Algorithm 1 has never read it).
+
+### Measured on `sample_data_large` (400 exams, 5000 students, 35 rooms)
+
+hard = double-bookings + over-2-per-day; b2b = student-days with adjacent exams.
+
+| days × blocks | Classic | Optimized (15 s, balance 1) |
+| --- | --- | --- |
+| 7 × 5 | hard 19, b2b 243 | hard 0, b2b 92, every block used (≤ 14 exams/block) |
+| 7 × 5, balance 0 | — | hard 0, b2b 0, only blocks 9AM / 2PM / 7PM used |
+| 5 × 4 | hard 167, b2b 1600 | hard ≈ 65 |
+| 4 × 4 (16 blocks < 19 colours) | hard 580 | hard ≈ 405 |
+
+## Constraint Relaxation
 
 When the available time slots are insufficient:
 

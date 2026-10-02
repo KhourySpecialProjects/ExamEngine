@@ -19,6 +19,8 @@ export const useSchedulesStore = create<SchedulesState>((set, get) => ({
     avoid_back_to_back: true,
     max_days: 7,
     blocks_per_day: 5,
+    algorithm: "dsatur",
+    time_budget_seconds: 15,
   },
 
   deleteSchedule: async (scheduleId: string) => {
@@ -76,7 +78,7 @@ export const useSchedulesStore = create<SchedulesState>((set, get) => ({
           schedule_name: name,
           created_at: new Date().toISOString(),
           created_by_user_name: useAuthStore.getState().user?.name || "You",
-          algorithm: "DSATUR",
+          algorithm: params.algorithm === "annealing" ? "Annealing" : "DSATUR",
           parameters: params,
           status: "Running",
           dataset_id: datasetId,

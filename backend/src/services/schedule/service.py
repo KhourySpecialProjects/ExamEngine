@@ -16,6 +16,7 @@ from src.domain.constants import (
 )
 from src.domain.factories import DatasetFactory
 from src.domain.models import Course, Room
+from src.domain.services.annealing_scheduler import AnnealingScheduler
 from src.domain.services.schedule_analyzer import ScheduleAnalysis, ScheduleAnalyzer
 from src.domain.services.scheduler import Scheduler, ScheduleResult
 from src.repo.conflict_analyses import ConflictAnalysesRepo
@@ -29,6 +30,9 @@ from src.repo.time_slot import TimeSlotRepo
 from src.schemas.db import StatusEnum
 from src.services.dataset.service import DatasetService
 from src.services.schedule.permissions import SchedulePermissionService
+
+
+ALGORITHM_DISPLAY_NAMES = {"dsatur": "DSATUR", "annealing": "Annealing"}
 
 
 class ScheduleService:
@@ -81,6 +85,8 @@ class ScheduleService:
         max_days: int = 7,
         blocks_per_day: int = BLOCKS_PER_DAY,
         prioritize_large_courses: bool = False,
+        algorithm: str = "dsatur",
+        time_budget_seconds: int = 15,
     ) -> dict[str, Any]:
         """Generate complete exam schedule from dataset."""
 
@@ -89,6 +95,11 @@ class ScheduleService:
                 f"Schedule name '{schedule_name}' already exists",
                 detail={"field": "schedule_name"},
             )
+        if algorithm not in ALGORITHM_DISPLAY_NAMES:
+            raise ValidationError(
+                f"Unknown scheduling algorithm '{algorithm}'",
+                detail={"field": "algorithm"},
+            )
         parameters = {
             "student_max_per_day": student_max_per_day,
             "instructor_max_per_day": instructor_max_per_day,
@@ -96,6 +107,8 @@ class ScheduleService:
             "max_days": max_days,
             "blocks_per_day": blocks_per_day,
             "prioritize_large_courses": prioritize_large_courses,
+            "algorithm": algorithm,
+            "time_budget_seconds": time_budget_seconds,
         }
 
         # 1. Create schedule and run records
@@ -103,7 +116,7 @@ class ScheduleService:
             schedule_name=schedule_name,
             dataset_id=dataset_id,
             user_id=user_id,
-            algorithm_name="DSATUR",
+            algorithm_name=ALGORITHM_DISPLAY_NAMES[algorithm],
             parameters=parameters,
         )
 
@@ -128,15 +141,31 @@ class ScheduleService:
                     rooms_df=files["rooms"],
                     blockouts_df=files.get("room_blockouts"),
                 )
-                sched = Scheduler(
-                    dataset=dataset,
-                    max_days=max_days,
-                    blocks_per_day=blocks_per_day,
-                    student_max_per_day=student_max_per_day,
-                    instructor_max_per_day=instructor_max_per_day,
-                    merges=merges,
-                    common_groups=common_groups,
-                )
+                scheduler_kwargs = {
+                    "dataset": dataset,
+                    "max_days": max_days,
+                    "blocks_per_day": blocks_per_day,
+                    "student_max_per_day": student_max_per_day,
+                    "instructor_max_per_day": instructor_max_per_day,
+                    "merges": merges,
+                    "common_groups": common_groups,
+                }
+                if algorithm == "annealing":
+                    # The Avoid Back-to-Back switch only affects Algorithm 2: off
+                    # drops the back-to-back terms from its objective. Algorithm 1
+                    # ignores it.
+                    b2b_kwargs = (
+                        {}
+                        if avoid_back_to_back
+                        else {"weight_b2b_student": 0, "weight_b2b_instructor": 0}
+                    )
+                    sched = AnnealingScheduler(
+                        **scheduler_kwargs,
+                        **b2b_kwargs,
+                        time_budget_seconds=time_budget_seconds,
+                    )
+                else:
+                    sched = Scheduler(**scheduler_kwargs)
                 sched_result = sched.schedule(
                     prioritize_large_courses=prioritize_large_courses
                 )

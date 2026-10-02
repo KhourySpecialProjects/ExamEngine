@@ -8,6 +8,9 @@ export interface ScheduleParameters {
   /** Exam blocks per day: 4 (drops 7PM-9PM) or 5. */
   blocks_per_day?: 4 | 5;
   prioritize_large_courses?: boolean;
+  algorithm?: "dsatur" | "annealing";
+  /** Annealing search time budget in seconds. */
+  time_budget_seconds?: 5 | 15 | 30;
 }
 
 /** One flat `conflicts.breakdown` record; populated fields vary by `conflict_type`. */
@@ -195,6 +198,15 @@ export class SchedulesAPI extends BaseAPI {
       queryParams.append(
         "blocks_per_day",
         parameters.blocks_per_day.toString(),
+      );
+    }
+    if (parameters.algorithm !== undefined) {
+      queryParams.append("algorithm", parameters.algorithm);
+    }
+    if (parameters.time_budget_seconds !== undefined) {
+      queryParams.append(
+        "time_budget_seconds",
+        parameters.time_budget_seconds.toString(),
       );
     }
     if (parameters.prioritize_large_courses !== undefined) {

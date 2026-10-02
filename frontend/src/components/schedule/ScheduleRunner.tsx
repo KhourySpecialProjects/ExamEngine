@@ -51,7 +51,10 @@ export function ScheduleRunner() {
     }
 
     const toastId = toast.loading("Generating schedule...", {
-      description: "Running DSATUR algorithm",
+      description:
+        parameters.algorithm === "annealing"
+          ? `Running Optimized (annealing, ${parameters.time_budget_seconds ?? 15}s)`
+          : "Running Classic (DSATUR)",
     });
 
     try {
@@ -227,6 +230,72 @@ export function ScheduleRunner() {
                 ))}
               </ButtonGroup>
             </div>
+
+            <Separator />
+
+            {/* Algorithm */}
+            <div className="flex items-center justify-between">
+              <div className="space-y-1">
+                <Label>Algorithm</Label>
+                <p className="text-xs text-muted-foreground">
+                  {parameters.algorithm === "annealing"
+                    ? "Saturation + annealing — searches for fewer conflicts and back-to-backs"
+                    : "DSATUR greedy — the original one-pass scheduler"}
+                </p>
+              </div>
+              <ButtonGroup aria-label="Algorithm">
+                {(
+                  [
+                    ["dsatur", "Classic"],
+                    ["annealing", "Optimized"],
+                  ] as const
+                ).map(([algorithm, label]) => (
+                  <Button
+                    key={algorithm}
+                    size="sm"
+                    variant={
+                      parameters.algorithm === algorithm ? "default" : "outline"
+                    }
+                    aria-pressed={parameters.algorithm === algorithm}
+                    onClick={() => setParameters({ algorithm })}
+                    disabled={isGenerating}
+                  >
+                    {label}
+                  </Button>
+                ))}
+              </ButtonGroup>
+            </div>
+
+            {parameters.algorithm === "annealing" && (
+              <div className="flex items-center justify-between">
+                <div className="space-y-1">
+                  <Label>Optimization Time</Label>
+                  <p className="text-xs text-muted-foreground">
+                    Longer runs find better schedules
+                  </p>
+                </div>
+                <ButtonGroup aria-label="Optimization time">
+                  {([5, 15, 30] as const).map((seconds) => (
+                    <Button
+                      key={seconds}
+                      size="sm"
+                      variant={
+                        parameters.time_budget_seconds === seconds
+                          ? "default"
+                          : "outline"
+                      }
+                      aria-pressed={parameters.time_budget_seconds === seconds}
+                      onClick={() =>
+                        setParameters({ time_budget_seconds: seconds })
+                      }
+                      disabled={isGenerating}
+                    >
+                      {seconds}s
+                    </Button>
+                  ))}
+                </ButtonGroup>
+              </div>
+            )}
 
             <Separator />
 

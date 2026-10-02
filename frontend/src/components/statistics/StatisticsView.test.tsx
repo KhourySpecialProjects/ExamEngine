@@ -1,6 +1,10 @@
 import { fireEvent, render, screen, within } from "@testing-library/react";
 import { beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
-import type { ConflictBreakdown, ScheduleExam } from "@/lib/api/schedules";
+import type {
+  ConflictBreakdown,
+  ScheduleExam,
+  UnscheduledGroup,
+} from "@/lib/api/schedules";
 import { useSchedulesStore } from "@/lib/store/schedulesStore";
 import { StatisticsView } from "./StatisticsView";
 
@@ -43,11 +47,13 @@ const exam = (
 function mockSchedule(
   complete: ScheduleExam[] | null,
   breakdown: ConflictBreakdown[] = [],
+  unscheduledGroups: UnscheduledGroup[] = [],
 ) {
   const currentSchedule = complete && {
     dataset_id: "d1",
     schedule: { complete, calendar: {}, total_exams: complete.length },
     conflicts: { total: breakdown.length, details: {}, breakdown },
+    unscheduled_groups: unscheduledGroups,
   };
   const state = { currentSchedule } as unknown as Parameters<
     Parameters<typeof useSchedulesStore>[0]
@@ -105,6 +111,23 @@ describe("StatisticsView", () => {
     expect(headings.indexOf("Needs attention")).toBeLessThan(
       headings.indexOf("Overview"),
     );
+  });
+
+  it("names an unscheduled section by CRN with the scheduler's reason", () => {
+    const reason = "450 students; largest room seats 400";
+    mockSchedule(
+      [exam("1", "Monday", "A"), exam("2", "", "", 450)],
+      [],
+      [{ kind: "section", group: "2", reason, crns: ["2"] }],
+    );
+    render(<StatisticsView />);
+
+    const card = within(problems()).getByRole("region", {
+      name: "Unscheduled exams",
+    });
+    expect(card.textContent).toContain(`Section: CRN 2${reason}`);
+    // The section explains its only CRN: no CRN list, no "other CRN" list.
+    expect(card.textContent).not.toMatch(/\b1 (other )?CRN\b/);
   });
 
   it("counts people in hard conflicts like the Conflicts tab and links to it", () => {

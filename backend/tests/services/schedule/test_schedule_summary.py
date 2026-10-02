@@ -5,14 +5,12 @@ The generate endpoint builds its summary from the in-memory ScheduleResult,
 while the retrieve endpoint rebuilds it from persisted assignment rows. Both
 must report the SAME num_classes / unplaced_exams for the same schedule.
 
-An exam is "unplaced" when it lacks a usable slot+room. Two disjoint cases:
-  - unroomed: has a slot but every room was blocked/full (ScheduleResult.unassigned)
-  - unscheduled group: a combined/common group that could not be scheduled at
-    all (ScheduleResult.unscheduled_crns); its CRNs get neither slot nor room.
+An exam is "unplaced" when it could not be seated: its CRN is in
+ScheduleResult.unscheduled_crns and gets neither slot nor room. The schedulers
+never leave a placed exam without a room.
 
-These previously diverged: generate counted only `unassigned`, while retrieve
-also counted the null-slot unscheduled-group rows. See _summarize_placement and
-_calculate_summary_stats.
+These previously diverged: generate and retrieve counted unplaced exams
+differently. See _summarize_placement and _calculate_summary_stats.
 """
 
 from types import SimpleNamespace
@@ -22,13 +20,12 @@ from src.services.schedule.service import ScheduleService
 
 
 def _make_result() -> ScheduleResult:
-    """Placed P1/P2, unroomed UR (slot, no room), unscheduled group mg1 -> M1/M2."""
+    """Placed P1/P2/P3, unscheduled group mg1 -> M1/M2."""
     return ScheduleResult(
-        assignments={"P1": (0, 0), "P2": (0, 1), "UR": (1, 0)},
-        room_assignments={"P1": "Room A", "P2": "Room B"},  # UR has no room
+        assignments={"P1": (0, 0), "P2": (0, 1), "P3": (1, 0)},
+        room_assignments={"P1": "Room A", "P2": "Room B", "P3": "Room A"},
         conflicts=[],
         colors={},
-        unassigned={"UR"},
         unscheduled_groups=[
             UnscheduledGroup(
                 kind="combined", label="mg1", reason="too big", crns=["M1", "M2"]
@@ -46,11 +43,10 @@ def _persisted_rows_from(result):
     course = SimpleNamespace(enrollment_count=10)
     rows = []
     for crn in result.assignments:
-        has_room = crn in result.room_assignments and crn not in result.unassigned
         rows.append(
             SimpleNamespace(
                 time_slot=slot,
-                room=room if has_room else None,
+                room=room if crn in result.room_assignments else None,
                 course=course,
             )
         )
@@ -60,23 +56,22 @@ def _persisted_rows_from(result):
 
 
 class TestSummarizePlacement:
-    def test_counts_unscheduled_groups_and_unroomed_as_unplaced(self):
+    def test_counts_unscheduled_crns_as_unplaced(self):
         num_classes, unplaced = ScheduleService._summarize_placement(_make_result())
 
-        # 3 with slots (P1, P2, UR) + 2 unscheduled-group CRNs (M1, M2)
+        # 3 placed (P1, P2, P3) + 2 unscheduled-group CRNs (M1, M2)
         assert num_classes == 5
-        # unroomed UR + unscheduled-group M1, M2
-        assert unplaced == 3
+        assert unplaced == 2
 
-    def test_no_unscheduled_groups_counts_only_assignments(self):
+    def test_no_unscheduled_crns_means_nothing_unplaced(self):
         result = _make_result()
         result.unscheduled_groups = []
         result.unscheduled_crns = set()
 
         num_classes, unplaced = ScheduleService._summarize_placement(result)
 
-        assert num_classes == 3  # P1, P2, UR
-        assert unplaced == 1  # UR only
+        assert num_classes == 3
+        assert unplaced == 0
 
     def test_generate_and_retrieve_counts_agree(self):
         """The core invariant: generate (result-based) == retrieve (row-based)."""

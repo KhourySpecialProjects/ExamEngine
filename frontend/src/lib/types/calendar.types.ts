@@ -12,7 +12,7 @@ export interface Exam {
   timeSlot: string;
   isUnscheduled?: boolean; // True if exam has no time slot or room assignment
   unscheduledGroup?: string; // Combined/common group that could not be scheduled
-  unscheduledReason?: string; // Why that group could not be scheduled
+  unscheduledReason?: string; // Why that exam (or its group) could not be scheduled
   isUnroomed?: boolean; // True if exam has a slot but no room (all rooms blocked at that slot)
 }
 

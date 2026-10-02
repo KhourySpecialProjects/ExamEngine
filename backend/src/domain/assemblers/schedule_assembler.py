@@ -4,6 +4,11 @@ from uuid import UUID
 from src.domain.value_objects import SchedulePermissions
 
 
+def _over_capacity(capacity: int, size: int) -> bool:
+    """True if the room's capacity is known (positive) and below the exam's size."""
+    return 0 < capacity < size
+
+
 class ScheduleAssembler:
     """
     Builds consistent API responses for schedule endpoints.
@@ -25,7 +30,9 @@ class ScheduleAssembler:
         """
         Build standard exam record for 'complete' list.
 
-        Used by both generate_schedule and get_schedule_with_details.
+        Used by both generate_schedule and get_schedule_with_details. `Valid` is
+        also false when a known room capacity is below the exam's size (schedules
+        generated before rooms were capped can contain such rows).
         """
         return {
             "CRN": crn,
@@ -35,7 +42,7 @@ class ScheduleAssembler:
             "Room": room,
             "Capacity": capacity,
             "Size": size,
-            "Valid": not has_conflict,
+            "Valid": not has_conflict and not _over_capacity(capacity, size),
             "Instructor": instructor,
         }
 
@@ -162,7 +169,6 @@ class ScheduleAssembler:
     @staticmethod
     def build_full_response(
         schedule,
-        dataset_name: str,
         summary: dict[str, Any],
         conflicts: dict[str, Any],
         schedule_block: dict[str, Any],
@@ -175,12 +181,15 @@ class ScheduleAssembler:
 
         Used by get_schedule_with_details to ensure consistent shape.
         """
+        dataset = schedule.run.dataset
         return {
             "schedule_id": str(schedule.schedule_id),
             "schedule_name": schedule.schedule_name,
             "created_at": schedule.created_at.isoformat(),
-            "dataset_id": str(schedule.run.dataset.dataset_id),
-            "dataset_name": dataset_name,
+            "dataset_id": str(dataset.dataset_id),
+            "dataset_name": dataset.dataset_name,
+            "dataset_uploaded_at": dataset.upload_date.isoformat(),
+            "dataset_deleted": dataset.deleted_at is not None,
             "summary": summary,
             "conflicts": conflicts,
             "failures": [],  # Legacy field

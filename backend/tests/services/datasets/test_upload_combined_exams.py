@@ -153,3 +153,36 @@ async def test_no_combined_exams_file_leaves_course_merges_unset(repo, storage):
 
     assert repo.created[0].course_merges is None
     assert "combined_exams" not in result["files"]
+
+
+async def test_sections_larger_than_every_room_are_saved_with_warning(repo, storage):
+    courses = COURSES_CSV + b"1007,BIO 1000,90\n1006,CHEM 1000,71\n1008,ART 1000,0\n"
+
+    result = await _upload(repo, None, courses=courses)
+
+    assert len(repo.created) == 1
+    assert result["files"]["courses"]["oversized_sections"] == [
+        {"crn": "1006", "course": "CHEM 1000", "enrollment": 71, "largest_room": 70},
+        {"crn": "1007", "course": "BIO 1000", "enrollment": 90, "largest_room": 70},
+    ]
+
+
+async def test_sections_fitting_the_largest_room_are_not_flagged(repo, storage):
+    result = await _upload(repo, None, courses=COURSES_CSV + b"1006,CHEM 1000,70\n")
+
+    assert result["files"]["courses"]["oversized_sections"] == []
+
+
+async def test_oversized_section_in_a_group_is_reported_only_under_its_group(
+    repo, storage
+):
+    courses = COURSES_CSV + b"1006,CHEM 1000,71\n"
+
+    result = await _upload(
+        repo, b"ExamGroup,CRN\nChem,1006\nChem,1004\n", courses=courses
+    )
+
+    assert result["files"]["courses"]["oversized_sections"] == []
+    assert [
+        g["group"] for g in result["files"]["combined_exams"]["over_capacity_groups"]
+    ] == ["Chem"]

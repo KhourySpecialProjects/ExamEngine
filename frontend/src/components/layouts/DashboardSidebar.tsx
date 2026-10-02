@@ -129,14 +129,18 @@ export function DashboardSidebar({ isOpen = true, onToggle }: SidebarProps) {
                   <div className="rounded-md border border-orange-200 bg-orange-50 p-2 text-xs">
                     <div className="flex items-center gap-1.5 font-medium text-orange-800">
                       <AlertTriangle className="h-3.5 w-3.5" />
-                      {groupWarnings.length} exam group
-                      {groupWarnings.length === 1 ? "" : "s"} will be
-                      unscheduled
+                      {groupWarnings.length}{" "}
+                      {groupWarnings.length === 1
+                        ? "group or section"
+                        : "groups or sections"}{" "}
+                      will be unscheduled
                     </div>
                     <ul className="mt-1 space-y-1 text-orange-900">
                       {groupWarnings.map((w) => (
                         <li key={`${w.kind}:${w.group}`}>
-                          <span className="font-medium">{w.group}</span>{" "}
+                          <span className="font-medium">
+                            {w.kind === "section" ? `CRN ${w.group}` : w.group}
+                          </span>{" "}
                           <span className="text-orange-800/80">
                             ({w.kind}): {w.message}
                           </span>

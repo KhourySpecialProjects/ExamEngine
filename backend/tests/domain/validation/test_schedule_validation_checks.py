@@ -521,6 +521,44 @@ def test_unscheduled_group_with_placed_exam_fails():
     )
 
 
+def _section(crn: str, crns: list[str] | None = None) -> dict:
+    return {"kind": "section", "group": crn, "reason": "Too big", "crns": crns or [crn]}
+
+
+def test_unscheduled_section_accounts_for_its_crn():
+    snap = snapshot(
+        rows=rows(row("300", None, None, None)),
+        analysis=analysis(unscheduled=[_section("300")]),
+    )
+
+    assert run("groups.unscheduled_consistent", snap).status == "pass"
+    accounted = run("coverage.crn_accounted", snap)
+    assert accounted.status == "pass"
+    assert "2 placed, 1 in unscheduled groups" in accounted.summary
+
+
+@pytest.mark.parametrize(
+    ("entry", "problem"),
+    [
+        (_section("300", ["300", "100"]), "lists CRN 100 not in the group"),
+        (_section("999"), "is not a section of this dataset"),
+        (_section("100"), "is in combined group 'G'"),
+        (_section("200"), "has placed exams: CRN 200"),
+    ],
+)
+def test_inconsistent_unscheduled_section_fails(entry, problem):
+    snap = snapshot(
+        combined_groups={"G": ("100", "300")},
+        rows=rows(row("100", None, None, None), row("300", None, None, None)),
+        analysis=analysis(unscheduled=[entry]),
+    )
+
+    result = run("groups.unscheduled_consistent", snap)
+
+    assert result.status == "fail"
+    assert any(problem in example for example in result.examples)
+
+
 def test_group_checks_skip_without_groups():
     assert run("groups.combined_together", snapshot()).summary == (
         "This dataset has no combined exam groups."

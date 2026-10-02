@@ -15,12 +15,20 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
+import type { UnscheduledGroup } from "@/lib/api/schedules";
 import type { ExamIssue, ScheduleStats } from "@/lib/hooks/useScheduleStats";
 import type { ConflictMetrics } from "@/lib/types/conflict.types";
 import { cn } from "@/lib/utils";
 
 const plural = (n: number, word: string) =>
   `${n.toLocaleString()} ${word}${n === 1 ? "" : "s"}`;
+
+/** Heading prefix of an unscheduled entry, followed by its group label or CRN. */
+const UNSCHEDULED_TITLES: Record<UnscheduledGroup["kind"], string> = {
+  section: "Section: CRN",
+  combined: "Combined exam:",
+  common: "Common exam:",
+};
 
 function ProblemCard({
   title,
@@ -200,15 +208,16 @@ export function ProblemsSection({
                   className="rounded border border-orange-200 bg-white/60 p-2 text-xs"
                 >
                   <div className="font-medium text-orange-800">
-                    {group.kind === "common" ? "Common" : "Combined"} exam:{" "}
-                    {group.group}
+                    {UNSCHEDULED_TITLES[group.kind]} {group.group}
                   </div>
                   <div className="text-muted-foreground">{group.reason}</div>
-                  <Collapsible summary={plural(group.crns.length, "CRN")}>
-                    <div className="font-mono text-muted-foreground">
-                      {group.crns.join(", ")}
-                    </div>
-                  </Collapsible>
+                  {group.kind !== "section" && (
+                    <Collapsible summary={plural(group.crns.length, "CRN")}>
+                      <div className="font-mono text-muted-foreground">
+                        {group.crns.join(", ")}
+                      </div>
+                    </Collapsible>
+                  )}
                 </div>
               ))}
               {unscheduled.otherCrns.length > 0 && (

@@ -20,11 +20,21 @@ export interface BaseFileMetadata {
   size_bytes: number;
 }
 
+/** A section larger than every room; the scheduler leaves it unscheduled. */
+export interface OversizedSection {
+  crn: string;
+  course: string;
+  enrollment: number;
+  largest_room: number;
+}
+
 export interface CoursesFileMetadata extends BaseFileMetadata {
   unique_crns: number;
   total_students: number;
   avg_class_size: number;
   subjects: number;
+  /** Absent for datasets uploaded before sections were checked. */
+  oversized_sections?: OversizedSection[];
 }
 
 export interface EnrollmentsFileMetadata extends BaseFileMetadata {

@@ -104,12 +104,17 @@ describe("computeScheduleStats", () => {
     ]);
   });
 
-  it("lists only unscheduled CRNs that no reported group explains", () => {
+  it("lists only unscheduled CRNs that no reported group or section explains", () => {
     const s = stats(
-      [exam("1", "", "", "", 10, 0), exam("2", "", "", "", 10, 0)],
+      [
+        exam("1", "", "", "", 10, 0),
+        exam("2", "", "", "", 10, 0),
+        exam("3", "", "", "", 500, 0),
+      ],
       {
         unscheduledGroups: [
           { kind: "combined", group: "G", reason: "too big", crns: ["1"] },
+          { kind: "section", group: "3", reason: "too big", crns: ["3"] },
         ],
       },
     );

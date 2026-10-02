@@ -16,6 +16,7 @@ from src.domain.constants import (
 )
 from src.domain.factories import DatasetFactory
 from src.domain.models import Course, Room
+from src.domain.services.annealing_scheduler import AnnealingScheduler
 from src.domain.services.schedule_analyzer import ScheduleAnalysis, ScheduleAnalyzer
 from src.domain.services.scheduler import Scheduler, ScheduleResult
 from src.repo.conflict_analyses import ConflictAnalysesRepo
@@ -29,6 +30,9 @@ from src.repo.time_slot import TimeSlotRepo
 from src.schemas.db import StatusEnum
 from src.services.dataset.service import DatasetService
 from src.services.schedule.permissions import SchedulePermissionService
+
+
+ALGORITHM_DISPLAY_NAMES = {"dsatur": "DSATUR", "annealing": "Annealing"}
 
 
 class ScheduleService:
@@ -81,6 +85,8 @@ class ScheduleService:
         max_days: int = 7,
         blocks_per_day: int = BLOCKS_PER_DAY,
         prioritize_large_courses: bool = False,
+        algorithm: str = "dsatur",
+        time_budget_seconds: int = 15,
     ) -> dict[str, Any]:
         """Generate complete exam schedule from dataset."""
 
@@ -89,6 +95,11 @@ class ScheduleService:
                 f"Schedule name '{schedule_name}' already exists",
                 detail={"field": "schedule_name"},
             )
+        if algorithm not in ALGORITHM_DISPLAY_NAMES:
+            raise ValidationError(
+                f"Unknown scheduling algorithm '{algorithm}'",
+                detail={"field": "algorithm"},
+            )
         parameters = {
             "student_max_per_day": student_max_per_day,
             "instructor_max_per_day": instructor_max_per_day,
@@ -96,6 +107,8 @@ class ScheduleService:
             "max_days": max_days,
             "blocks_per_day": blocks_per_day,
             "prioritize_large_courses": prioritize_large_courses,
+            "algorithm": algorithm,
+            "time_budget_seconds": time_budget_seconds,
         }
 
         # 1. Create schedule and run records
@@ -103,7 +116,7 @@ class ScheduleService:
             schedule_name=schedule_name,
             dataset_id=dataset_id,
             user_id=user_id,
-            algorithm_name="DSATUR",
+            algorithm_name=ALGORITHM_DISPLAY_NAMES[algorithm],
             parameters=parameters,
         )
 
@@ -128,15 +141,31 @@ class ScheduleService:
                     rooms_df=files["rooms"],
                     blockouts_df=files.get("room_blockouts"),
                 )
-                sched = Scheduler(
-                    dataset=dataset,
-                    max_days=max_days,
-                    blocks_per_day=blocks_per_day,
-                    student_max_per_day=student_max_per_day,
-                    instructor_max_per_day=instructor_max_per_day,
-                    merges=merges,
-                    common_groups=common_groups,
-                )
+                scheduler_kwargs = {
+                    "dataset": dataset,
+                    "max_days": max_days,
+                    "blocks_per_day": blocks_per_day,
+                    "student_max_per_day": student_max_per_day,
+                    "instructor_max_per_day": instructor_max_per_day,
+                    "merges": merges,
+                    "common_groups": common_groups,
+                }
+                if algorithm == "annealing":
+                    # The Avoid Back-to-Back switch only affects Algorithm 2: off
+                    # drops the back-to-back terms from its objective. Algorithm 1
+                    # ignores it.
+                    b2b_kwargs = (
+                        {}
+                        if avoid_back_to_back
+                        else {"weight_b2b_student": 0, "weight_b2b_instructor": 0}
+                    )
+                    sched = AnnealingScheduler(
+                        **scheduler_kwargs,
+                        **b2b_kwargs,
+                        time_budget_seconds=time_budget_seconds,
+                    )
+                else:
+                    sched = Scheduler(**scheduler_kwargs)
                 sched_result = sched.schedule(
                     prioritize_large_courses=prioritize_large_courses
                 )
@@ -381,18 +410,16 @@ class ScheduleService:
     def _summarize_placement(result: ScheduleResult) -> tuple[int, int]:
         """Count (num_classes, unplaced_exams) from an algorithm result.
 
-        An exam is "unplaced" when it has no usable slot+room: either unroomed
-        (a slot but no room, tracked in result.unassigned) or a member of a
-        combined/common group that could not be scheduled at all
-        (result.unscheduled_crns), whose CRNs get neither slot nor room. Both are
-        persisted by _save_exam_assignments, so this MUST match the row-based
-        count in _calculate_summary_stats to keep the generate and retrieve
-        responses consistent.
+        An exam is "unplaced" when it has no slot and no room because it could
+        not be seated (result.unscheduled_crns); the schedulers never leave a
+        placed exam without a room. _save_exam_assignments persists these as
+        null-slot rows, so this MUST match the row-based count in
+        _calculate_summary_stats to keep the generate and retrieve responses
+        consistent.
         """
         unscheduled = result.unscheduled_crns - result.assignments.keys()
         num_classes = len(result.assignments) + len(unscheduled)
-        unplaced_exams = len(result.unassigned) + len(unscheduled)
-        return num_classes, unplaced_exams
+        return num_classes, len(unscheduled)
 
     def _build_generation_response(
         self,
@@ -417,9 +444,6 @@ class ScheduleService:
         # Build schedule list
         schedule_list = []
         for crn, (day_idx, block_idx) in result.assignments.items():
-            if crn in result.unassigned:
-                # Has a slot but no room — added separately below
-                continue
             room_name = result.room_assignments.get(crn, "")
             instructors = result.instructors_by_crn.get(crn, set())
 
@@ -437,27 +461,7 @@ class ScheduleService:
                 )
             )
 
-        # Add unroomed exams (have a slot but no room due to blockouts)
-        for crn in result.unassigned:
-            if crn not in result.assignments:
-                continue
-            day_idx, block_idx = result.assignments[crn]
-            instructors = result.instructors_by_crn.get(crn, set())
-            schedule_list.append(
-                {
-                    "CRN": crn,
-                    "Course": result.course_codes.get(crn, ""),
-                    "Day": DAY_NAMES[day_idx],
-                    "Block": f"{block_idx} ({BLOCK_TIMES.get(block_idx, '')})",
-                    "Room": "",  # No room assigned
-                    "Capacity": 0,
-                    "Size": result.course_sizes.get(crn, 0),
-                    "Valid": True,
-                    "Instructor": ", ".join(instructors) if instructors else "",
-                }
-            )
-
-        # Add exams of unscheduled combined/common groups to complete list
+        # Add unscheduled exams (groups and sections) to the complete list
         for crn in sorted(result.unscheduled_crns):
             course = scheduling_dataset.courses.get(crn)
             if course is None:
@@ -518,10 +522,6 @@ class ScheduleService:
         calendar: dict[str, dict[str, list]] = {}
 
         for crn, (day_idx, block_idx) in result.assignments.items():
-            if crn in result.unassigned:
-                # Has a slot but no room — excluded from the calendar view
-                continue
-
             day_name = DAY_NAMES[day_idx]
             block_time = BLOCK_TIMES.get(block_idx, f"Block {block_idx}")
 
@@ -605,25 +605,6 @@ class ScheduleService:
                     "course_id": course_id,
                     "time_slot_id": time_slot.time_slot_id,
                     "room_id": room_id,
-                }
-            )
-
-        # Save unroomed assignments (have a time slot but no room due to blockouts)
-        for crn in result.unassigned:
-            course_id = course_mapping.get(crn)
-            if not course_id or crn not in result.assignments:
-                continue
-            day_idx, block_idx = result.assignments[crn]
-            time_slot = self.time_slot_repo.get_or_create_slot(
-                dataset_id=dataset_id,
-                day=DAY_NAMES[day_idx],
-                block_index=block_idx,
-            )
-            assignments_to_create.append(
-                {
-                    "course_id": course_id,
-                    "time_slot_id": time_slot.time_slot_id,
-                    "room_id": None,
                 }
             )
 

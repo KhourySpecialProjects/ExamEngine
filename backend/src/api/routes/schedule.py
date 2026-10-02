@@ -1,3 +1,4 @@
+from typing import Literal
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
@@ -25,6 +26,8 @@ async def generate_schedule_from_dataset(
     max_days: int = 7,
     blocks_per_day: int = Query(5, ge=4, le=5),
     prioritize_large_courses: bool = False,
+    algorithm: Literal["dsatur", "annealing"] = "dsatur",
+    time_budget_seconds: int = Query(15, ge=0, le=120),
     current_user: Users = Depends(get_current_user),
     schedule_service: ScheduleService = Depends(get_schedule_service),
 ):
@@ -45,6 +48,8 @@ async def generate_schedule_from_dataset(
             max_days,
             blocks_per_day,
             prioritize_large_courses,
+            algorithm,
+            time_budget_seconds,
         )
         return result
     except Exception as e:

@@ -17,12 +17,25 @@ _CRN_PREFIX = "crn:"
 _COMMON_PREFIX = "common:"
 
 
+def seats_fit(sizes_desc: list[int], capacities_desc: list[int]) -> bool:
+    """True if every exam can have its own room at least its size.
+
+    Both lists are sorted largest first. Rooms that fit an exam also fit every
+    smaller exam, so a seating exists iff the k-th largest exam fits the k-th
+    largest room for every k.
+    """
+    return len(sizes_desc) <= len(capacities_desc) and all(
+        size <= capacity
+        for size, capacity in zip(sizes_desc, capacities_desc, strict=False)
+    )
+
+
 @dataclass(frozen=True)
 class UnscheduledGroup:
-    """A combined or common group left entirely unscheduled, and why."""
+    """A combined group, common group or single section left unscheduled, and why."""
 
-    kind: str  # "combined" or "common"
-    label: str
+    kind: str  # "combined", "common" or "section"
+    label: str  # group label, or the CRN for a section
     reason: str
     crns: list[str]
 
@@ -61,12 +74,11 @@ class ScheduleResult:
         default_factory=dict
     )  # CRN → {names}
 
-    # Unplaced courses (empty if all placed)
-    unassigned: set[str] = field(default_factory=set)  # slot but no room
-    # Combined/common groups left unscheduled, with the reason. A combined group
-    # inside an unscheduled common group is reported once, under the common group.
+    # Combined groups, common groups and single sections left unscheduled, with
+    # the reason. A combined group inside an unscheduled common group is reported
+    # once, under the common group.
     unscheduled_groups: list[UnscheduledGroup] = field(default_factory=list)
-    # CRNs with neither slot nor room because their group was not scheduled
+    # CRNs with neither slot nor room because they could not be seated
     unscheduled_crns: set[str] = field(default_factory=set)
 
 
@@ -77,9 +89,9 @@ class Scheduler:
     This class orchestrates the scheduling workflow using domain objects:
     1. Build conflict graph from SchedulingDataset
     2. Color graph using coloring algorithm (time groups contracted)
-    3. Assign time slots minimizing conflicts and penalties (common groups first,
-       reserving their rooms)
-    4. Assign rooms based on capacity
+    3. Assign time slots minimizing conflicts and penalties (common groups
+       first); a slot is only used if every exam there still fits its own room
+    4. Seat each slot's exams, largest first, in rooms at least their size
 
     Terminology:
     - Combined group (``merges``): CRNs sharing one exam — same slot, same room.
@@ -90,8 +102,9 @@ class Scheduler:
     - Time group: a common group (its room units) or a lone room unit; all its
       CRNs get the same slot.
 
-    Every exam is placed except the members of combined/common groups that cannot
-    be satisfied; those groups are left unscheduled as a whole.
+    Rooms are never over capacity. Every exam is placed except combined groups,
+    common groups and single sections that cannot be seated; those are left
+    unscheduled as a whole, with a reason.
     """
 
     def __init__(
@@ -139,6 +152,11 @@ class Scheduler:
         self.state = SchedulingState()
         self.merges = merges or {}
         self.common_groups = common_groups or {}
+        # One entry per room name (last row wins, as when rooms are saved): a
+        # name listed twice is still one room and can hold one exam at a time.
+        self.rooms: list[Room] = list(
+            {room.name: room for room in dataset.rooms}.values()
+        )
 
         self._build_groups()
 
@@ -163,15 +181,28 @@ class Scheduler:
         self.available_slots = [
             (day, block) for day in range(max_days) for block in range(blocks_per_day)
         ]
+        # Room capacities usable at each slot (blockouts applied), largest first,
+        # and the room units placed at each slot. A group is only placed where
+        # every unit at that slot can still have its own room at least its size.
+        blockouts = dataset.room_blockouts
+        self.slot_capacities: dict[tuple[int, int], list[int]] = {
+            slot: sorted(
+                (
+                    room.capacity
+                    for room in self.rooms
+                    if slot not in blockouts.get(room.name, frozenset())
+                ),
+                reverse=True,
+            )
+            for slot in self.available_slots
+        }
+        self.slot_units: dict[tuple[int, int], list[str]] = defaultdict(list)
 
         # State
         self.graph: nx.Graph | None = None
         self.colors: dict[str, int] = {}
         self.assignments: dict[str, tuple[int, int]] = {}
         self.conflicts: list[Conflict] = []
-        # Rooms reserved for common groups at placement time
-        self.reserved_rooms: dict[tuple[int, int], set[str]] = defaultdict(set)
-        self.reserved_room_by_crn: dict[str, str] = {}
 
     # ------------------------------------------------------------------
     # Group structure
@@ -263,21 +294,18 @@ class Scheduler:
         self.crn_to_time_group: dict[str, str] = {
             crn: unit_to_time_group[unit] for crn, unit in self.crn_to_room_unit.items()
         }
-        # Groups whose rooms are chosen and reserved with their time block:
-        # common groups and any group containing a combined unit. They never fall
-        # back to an undersized room; with no fitting room they stay unscheduled.
-        self.room_reserving_groups: set[str] = {
-            tg
-            for tg, units in self.time_groups.items()
-            if tg in self.common_time_groups
-            or any(unit in self.unit_to_merge_label for unit in units)
-        }
 
     def _mark_unscheduled(self, tg: str, reason: str) -> None:
         """Leave a whole time group unscheduled, recording why."""
         crns = self.time_group_crns[tg]
+        if tg in self.common_time_groups:
+            kind = "common"
+        elif tg in self.unit_to_merge_label:
+            kind = "combined"
+        else:
+            kind = "section"
         self.unscheduled_groups[tg] = UnscheduledGroup(
-            kind="common" if tg in self.common_time_groups else "combined",
+            kind=kind,
             label=self.time_group_label[tg],
             reason=reason,
             crns=sorted(crns),
@@ -285,10 +313,23 @@ class Scheduler:
         self.unscheduled_crns.update(crns)
 
     def _identify_unschedulable_groups(self) -> None:
-        """Mark combined/common groups that no room inventory can ever satisfy."""
-        rooms = self.dataset.rooms
+        """Mark groups and sections that no room inventory can ever seat."""
+        rooms = self.rooms
         max_capacity = max((room.capacity for room in rooms), default=0)
+        # Capacities can be parsed as floats; show whole seats.
+        seats = f"{max_capacity:g}"
 
+        for unit, crns in self.room_units.items():
+            tg = self.crn_to_time_group[crns[0]]
+            if unit in self.unit_to_merge_label or tg in self.common_time_groups:
+                continue
+            enrollment = self.unit_enrollment[unit]
+            if not rooms:
+                self._mark_unscheduled(tg, "No rooms are available")
+            elif enrollment > max_capacity:
+                self._mark_unscheduled(
+                    tg, f"{enrollment} students; largest room seats {seats}"
+                )
         oversized_units: dict[str, str] = {}
         for unit in self.unit_to_merge_label:
             enrollment = self.unit_enrollment[unit]
@@ -297,7 +338,7 @@ class Scheduler:
             elif enrollment > max_capacity:
                 oversized_units[unit] = (
                     f"Combined enrollment {enrollment} exceeds the largest room "
-                    f"capacity {max_capacity}"
+                    f"capacity {seats}"
                 )
             else:
                 continue
@@ -317,7 +358,7 @@ class Scheduler:
                     f"Contains combined group "
                     f"{self.unit_to_merge_label[oversized]} with "
                     f"{self.unit_enrollment[oversized]} students, more than the "
-                    f"largest room capacity {max_capacity}",
+                    f"largest room capacity {seats}",
                 )
             elif self._pack_units(units, rooms) is None:
                 self._mark_unscheduled(
@@ -368,7 +409,7 @@ class Scheduler:
         self._build_conflict_graph()
         self._color_graph()
         self._assign_time_slots(prioritize_large_courses)
-        room_assignments, unroomed = self._assign_rooms()
+        room_assignments = self._assign_rooms()
 
         return ScheduleResult(
             assignments=dict(self.assignments),
@@ -377,7 +418,6 @@ class Scheduler:
             colors=dict(self.colors),
             unscheduled_groups=list(self.unscheduled_groups.values()),
             unscheduled_crns=set(self.unscheduled_crns),
-            unassigned=unroomed,
         )
 
     def _build_conflict_graph(self):
@@ -508,24 +548,20 @@ class Scheduler:
                 self._mark_unscheduled(tg, reason)
                 continue
 
-            (day, block), slot_conflicts, room_plan = choice
+            (day, block), slot_conflicts = choice
             placed.add(tg)
             self.conflicts.extend(slot_conflicts)
             for member in self.time_group_crns[tg]:
                 self.assignments[member] = (day, block)
                 self.state.record_placement(member, day, block, self.dataset)
-
-            for unit, room_name in room_plan.items():
-                self.reserved_rooms[(day, block)].add(room_name)
-                for member in self.room_units[unit]:
-                    self.reserved_room_by_crn[member] = room_name
+            self.slot_units[(day, block)].extend(self.time_groups[tg])
 
     def _get_course_ordering(self, prioritize_large: bool) -> list[str]:
         """
         Get ordering of courses for scheduling, one representative per time group.
 
         Common groups come first (most room units, then largest total enrollment),
-        so their rooms are reserved before anything else competes for them. The
+        so their room units claim seats before anything else competes for them. The
         remaining time groups follow the color-based (or size-based) ordering.
         """
         common_reps: list[str] = []
@@ -591,39 +627,25 @@ class Scheduler:
 
     def _find_best_slot(
         self, crn: str
-    ) -> tuple[tuple[int, int], list[Conflict], dict[str, str]] | None:
+    ) -> tuple[tuple[int, int], list[Conflict]] | None:
         """Find the slot with minimum conflicts and penalties for the CRN's group.
 
-        Conflicts and penalties are summed over every CRN in the time group. For a
-        room-reserving group (common, or containing a combined group) a slot is
-        admissible only if all of its room units fit into distinct rooms that are
-        neither blocked nor already reserved at that slot.
+        Conflicts and penalties are summed over every CRN in the time group. A
+        slot is admissible only if every room unit already there plus the group's
+        own can each have a distinct, unblocked room at least its size.
 
         Returns:
-            (slot, conflicts, room_plan) where room_plan maps room unit → room
-            (empty for other groups), or None if no slot is admissible.
+            (slot, conflicts), or None if no slot is admissible.
         """
         tg = self.crn_to_time_group[crn]
         crns_to_check = self.time_group_crns[tg]
-        reserves_rooms = tg in self.room_reserving_groups
-        blockouts = self.dataset.room_blockouts
+        units = self.time_groups[tg]
 
         candidates = []
 
         for day, block in self.available_slots:
-            room_plan: dict[str, str] = {}
-            if reserves_rooms:
-                reserved = self.reserved_rooms[(day, block)]
-                free_rooms = [
-                    r
-                    for r in self.dataset.rooms
-                    if r.name not in reserved
-                    and (day, block) not in blockouts.get(r.name, frozenset())
-                ]
-                plan = self._pack_units(self.time_groups[tg], free_rooms)
-                if plan is None:
-                    continue
-                room_plan = plan
+            if not self._units_fit((day, block), units):
+                continue
 
             all_conflicts = []
             for check_crn in crns_to_check:
@@ -645,14 +667,22 @@ class Scheduler:
                 combined.slot_exam_count += p.slot_exam_count
 
             key = (len(all_conflicts), combined.as_tuple(day, block))
-            candidates.append((key, day, block, all_conflicts, room_plan))
+            candidates.append((key, day, block, all_conflicts))
 
         if not candidates:
             return None
 
-        _, day, block, conflicts, room_plan = min(candidates, key=lambda x: x[0])
+        _, day, block, conflicts = min(candidates, key=lambda x: x[0])
         conflicts = conflicts + self._intra_group_conflicts(tg, day, block)
-        return (day, block), conflicts, room_plan
+        return (day, block), conflicts
+
+    def _units_fit(self, slot: tuple[int, int], units: list[str]) -> bool:
+        """True if ``units`` can join the room units already placed at ``slot``."""
+        sizes = sorted(
+            (self.unit_enrollment[u] for u in (*self.slot_units[slot], *units)),
+            reverse=True,
+        )
+        return seats_fit(sizes, self.slot_capacities[slot])
 
     def _intra_group_conflicts(self, tg: str, day: int, block: int) -> list[Conflict]:
         """Double-bookings forced by a student sitting 2+ room units of one group.
@@ -689,63 +719,28 @@ class Scheduler:
                     )
         return conflicts
 
-    def _assign_rooms(self) -> tuple[dict[str, str], set[str]]:
-        """Assign rooms to courses based on capacity.
+    def _assign_rooms(self) -> dict[str, str]:
+        """Seat every placed room unit, slot by slot, largest unit first.
 
-        Rooms reserved for common and combined groups during slot assignment are
-        kept; every other room unit gets the smallest free, unblocked room that
-        fits, falling back to the largest free room.
+        Slots were only chosen where their units fit (``_units_fit``), so every
+        unit gets a distinct, unblocked room at least its size; no room is ever
+        over capacity.
 
         Returns:
-            room_assignments: CRN → room_name for all placed courses
-            unroomed: CRNs that have a time slot but could not be assigned any room
-                      (e.g. every available room is blocked at their slot)
+            CRN → room name for every placed course.
         """
-        room_assignments = dict(self.reserved_room_by_crn)
-        unroomed: set[str] = set()
-        used_rooms: dict[tuple[int, int], set[str]] = defaultdict(set)
-        for slot, names in self.reserved_rooms.items():
-            used_rooms[slot].update(names)
-
-        rooms_by_capacity = sorted(self.dataset.rooms, key=lambda r: r.capacity)
         blockouts = self.dataset.room_blockouts
-
-        assigned_units: set[str] = set()
-
-        for crn, (day, block) in self.assignments.items():
-            if crn in room_assignments:
-                continue
-            unit = self.crn_to_room_unit[crn]
-            if unit in assigned_units:
-                continue
-            assigned_units.add(unit)
-
-            slot = (day, block)
-            enrollment = self.unit_enrollment[unit]
-            members = self.room_units[unit]
-
-            def is_free(r: Room, slot: tuple[int, int] = slot) -> bool:
-                return r.name not in used_rooms[slot] and slot not in blockouts.get(
-                    r.name, frozenset()
-                )
-
-            # Smallest room that fits; fallback: largest free room
-            room = next(
-                (
-                    r
-                    for r in rooms_by_capacity
-                    if r.capacity >= enrollment and is_free(r)
-                ),
-                None,
-            ) or next((r for r in reversed(rooms_by_capacity) if is_free(r)), None)
-
-            if room is None:
-                # Every room is either in use or blocked at this slot.
-                unroomed.update(members)
-                continue
-
-            for member in members:
-                room_assignments[member] = room.name
-            used_rooms[slot].add(room.name)
-
-        return room_assignments, unroomed
+        room_assignments: dict[str, str] = {}
+        for slot, units in self.slot_units.items():
+            rooms = [
+                room
+                for room in self.rooms
+                if slot not in blockouts.get(room.name, frozenset())
+            ]
+            plan = self._pack_units(units, rooms)
+            if plan is None:
+                raise RuntimeError(f"Exams placed at slot {slot} do not fit its rooms")
+            for unit, room_name in plan.items():
+                for crn in self.room_units[unit]:
+                    room_assignments[crn] = room_name
+        return room_assignments

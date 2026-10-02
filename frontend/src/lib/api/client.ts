@@ -2,6 +2,7 @@ import { AdminAPI } from "./admin";
 import { AuthAPI } from "./auth";
 import { DatasetsAPI } from "./datasets";
 import { SchedulesAPI } from "./schedules";
+import { ValidationAPI } from "./validation";
 
 /**
  * Get the appropriate API base URL based on execution context
@@ -29,6 +30,7 @@ class ApiClient {
   public auth: AuthAPI;
   public datasets: DatasetsAPI;
   public schedules: SchedulesAPI;
+  public validation: ValidationAPI;
   public baseUrl: string;
 
   constructor(baseUrl?: string) {
@@ -37,6 +39,7 @@ class ApiClient {
     this.auth = new AuthAPI(this.baseUrl);
     this.datasets = new DatasetsAPI(this.baseUrl);
     this.schedules = new SchedulesAPI(this.baseUrl);
+    this.validation = new ValidationAPI(this.baseUrl);
     this.admin = new AdminAPI(this.baseUrl);
 
     // Log the URL being used (only in development)

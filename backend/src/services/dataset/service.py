@@ -641,7 +641,7 @@ class DatasetService:
 
     async def _download_and_parse(self, file_entry: dict) -> tuple[str, pd.DataFrame]:
         """Download one file and parse it."""
-        file_type = _entry_type(file_entry)
+        file_type = entry_type(file_entry)
         storage_key = file_entry["storage_key"]
 
         content = await asyncio.to_thread(storage.download_file, storage_key)
@@ -687,7 +687,7 @@ class DatasetService:
                 "created_at": d.upload_date.isoformat(),
                 "owner_name": d.user.name,
                 "owner_email": d.user.email,
-                "file_types": [_entry_type(entry) for entry in d.file_paths],
+                "file_types": [entry_type(entry) for entry in d.file_paths],
             }
             for d in self.dataset_repo.get_all_active_with_owner()
         ]
@@ -712,7 +712,7 @@ class DatasetService:
 
         files: dict[str, bytes] = {}
         for entry, content in zip(dataset.file_paths, contents, strict=True):
-            file_type = _entry_type(entry)
+            file_type = entry_type(entry)
             if content is None:
                 raise StorageError(
                     f"Failed to download {file_type}",
@@ -724,7 +724,7 @@ class DatasetService:
         return f"{_download_name(dataset.dataset_name)}.zip", archive
 
 
-def _entry_type(file_entry: dict[str, Any]) -> str:
+def entry_type(file_entry: dict[str, Any]) -> str:
     """
     File type of a stored `file_paths` entry.
 
@@ -740,7 +740,7 @@ def _entry_type(file_entry: dict[str, Any]) -> str:
 
 def _files_metadata(file_paths: list[dict[str, Any]]) -> dict[str, Any]:
     """Map each stored file's type to its upload metadata."""
-    return {_entry_type(entry): entry["metadata"] for entry in file_paths}
+    return {entry_type(entry): entry["metadata"] for entry in file_paths}
 
 
 def _download_name(dataset_name: str) -> str:

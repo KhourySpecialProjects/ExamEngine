@@ -105,6 +105,10 @@ export interface ScheduleResult {
   schedule_id: string;
   dataset_id: string;
   dataset_name: string;
+  /** Detail responses only. */
+  dataset_uploaded_at?: string;
+  /** Detail responses only: the dataset was deleted after generation. */
+  dataset_deleted?: boolean;
   schedule_name: string;
   created_at?: string;
   algorithm?: string;

@@ -277,7 +277,6 @@ class ScheduleService:
 
         return ScheduleAssembler.build_full_response(
             schedule=schedule,
-            dataset_name=schedule.run.dataset.dataset_name,
             summary=summary,
             conflicts=conflicts,
             schedule_block=ScheduleAssembler.build_schedule_block(

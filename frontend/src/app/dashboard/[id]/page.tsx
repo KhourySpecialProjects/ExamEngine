@@ -7,6 +7,7 @@ import { use, useEffect, useState } from "react";
 import { toast } from "sonner";
 import { ViewTabSwitcher } from "@/components/common/ViewTabSwitcher";
 import { ShareScheduleDialog } from "@/components/schedule/ShareScheduleDialog";
+import { ValidateScheduleDialog } from "@/components/schedule/ValidateScheduleDialog";
 import { StatisticsView } from "@/components/statistics/StatisticsView";
 import {
   Breadcrumb,
@@ -143,6 +144,12 @@ export default function SchedulePage({
               onShareUpdate={() => {
                 // Optionally refresh schedule data
               }}
+            />
+          )}
+          {schedule && (
+            <ValidateScheduleDialog
+              scheduleId={scheduleId}
+              scheduleName={schedule.schedule_name}
             />
           )}
           <Button

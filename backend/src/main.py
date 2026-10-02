@@ -4,9 +4,10 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.exc import IntegrityError
 
-from src.api.routes import admin, auth, datasets, schedule
+from src.api.routes import admin, auth, datasets, schedule, validation
 from src.core.config import get_settings
 from src.core.database import SessionLocal, init_db
+from src.core.logging import configure_logging
 from src.repo.user import UserRepo
 from src.utils.password import get_password_hash
 
@@ -47,6 +48,7 @@ def seed_initial_admin() -> None:
 async def lifespan(app: FastAPI):
     """Lifespan event handler - runs on startup and shutdown"""
     # Startup
+    configure_logging()
     init_db()
     seed_initial_admin()
 
@@ -80,6 +82,7 @@ app.include_router(schedule.router, prefix="/api")
 app.include_router(datasets.router, prefix="/api")
 app.include_router(auth.router, prefix="/api")
 app.include_router(admin.router, prefix="/api")
+app.include_router(validation.router, prefix="/api")
 
 
 @app.get("/")

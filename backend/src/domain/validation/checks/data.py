@@ -21,13 +21,6 @@ _SOFT_TYPES = (
 )
 
 
-def _stored_instructors(value: str | None) -> set[str]:
-    """Stored instructor_name joins several names with '; '."""
-    if not value:
-        return set()
-    return {name.strip() for name in value.split(";") if name.strip()}
-
-
 def stored_course_matches_file(ctx: ValidationContext) -> CheckResult:
     courses = ctx.course_by_crn
     mismatches: list[str] = []
@@ -43,8 +36,8 @@ def stored_course_matches_file(ctx: ValidationContext) -> CheckResult:
                 f"enrollment {row.enrollment_count} stored, "
                 f"{course.total_enrollment} in file"
             )
-        file_instructors = {course.instructor} if course.instructor else set()
-        if _stored_instructors(row.instructor) != file_instructors:
+        # The app stores the file's instructor cell as-is (never split on ';').
+        if (row.instructor or "") != (course.instructor or ""):
             parts.append(
                 f"instructor '{row.instructor or ''}' stored, "
                 f"'{course.instructor or ''}' in file"

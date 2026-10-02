@@ -27,7 +27,7 @@ class CheckResult:
     error: BaseException | None = field(default=None, compare=False)
 
 
-class CheckSkipped(Exception):  # noqa: N818 - control flow, not an error
+class CheckSkippedError(Exception):
     """Raised inside a check when it does not apply; becomes a `skipped` result."""
 
     def __init__(self, summary: str):

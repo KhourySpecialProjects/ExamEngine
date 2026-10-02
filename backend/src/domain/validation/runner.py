@@ -5,7 +5,7 @@ from dataclasses import dataclass
 
 from src.domain.validation.catalog import CHECKS, Check
 from src.domain.validation.context import ValidationContext
-from src.domain.validation.results import CheckResult, CheckSkipped, skipped
+from src.domain.validation.results import CheckResult, CheckSkippedError, skipped
 from src.domain.validation.snapshot import ValidationSnapshot
 
 
@@ -24,7 +24,7 @@ def run_check(check: Check, ctx: ValidationContext) -> CheckResult:
     """Run one check; a crash becomes a `fail` result carrying the exception."""
     try:
         return check.run(ctx)
-    except CheckSkipped as skip:
+    except CheckSkippedError as skip:
         return skipped(skip.summary)
     except Exception as exc:
         return CheckResult(

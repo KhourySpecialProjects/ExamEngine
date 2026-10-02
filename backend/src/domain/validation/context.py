@@ -1,7 +1,7 @@
 """Derived views of a snapshot shared by the checks.
 
 Each view is computed on first use and reused by later checks of the same run.
-Accessors for files raise CheckSkipped when the file is not available, so a
+Accessors for files raise CheckSkippedError when the file is not available, so a
 check simply asks for what it needs.
 """
 
@@ -12,7 +12,7 @@ from functools import cached_property
 from typing import Any
 
 from src.domain.constants import BLOCK_TIMES, DAY_NAMES
-from src.domain.validation.results import CheckSkipped
+from src.domain.validation.results import CheckSkippedError
 from src.domain.validation.snapshot import (
     CourseRecord,
     DatasetFiles,
@@ -93,38 +93,38 @@ class ValidationContext:
 
     def files(self) -> DatasetFiles:
         if self.snapshot.files is None:
-            raise CheckSkipped(FILES_UNAVAILABLE)
+            raise CheckSkippedError(FILES_UNAVAILABLE)
         return self.snapshot.files
 
     def courses(self) -> tuple[CourseRecord, ...]:
         courses = self.files().courses
         if courses is None:
-            raise CheckSkipped(unreadable_summary("courses"))
+            raise CheckSkippedError(unreadable_summary("courses"))
         return courses
 
     def enrollments(self) -> tuple[EnrollmentRecord, ...]:
         enrollments = self.files().enrollments
         if enrollments is None:
-            raise CheckSkipped(unreadable_summary("enrollments"))
+            raise CheckSkippedError(unreadable_summary("enrollments"))
         return enrollments
 
     def rooms(self) -> tuple[RoomRecord, ...]:
         rooms = self.files().rooms
         if rooms is None:
-            raise CheckSkipped(unreadable_summary("rooms"))
+            raise CheckSkippedError(unreadable_summary("rooms"))
         return rooms
 
     def blockouts(self) -> Mapping[str, frozenset[Slot]]:
         files = self.files()
         if not files.blockouts_uploaded:
-            raise CheckSkipped(NO_BLOCKOUT_FILE)
+            raise CheckSkippedError(NO_BLOCKOUT_FILE)
         if files.blockouts is None:
-            raise CheckSkipped(unreadable_summary("room_blockouts"))
+            raise CheckSkippedError(unreadable_summary("room_blockouts"))
         return files.blockouts
 
     def analysis(self) -> Mapping[str, Any]:
         if self.snapshot.analysis is None:
-            raise CheckSkipped(NO_ANALYSIS)
+            raise CheckSkippedError(NO_ANALYSIS)
         return self.snapshot.analysis
 
     # ------------------------------------------------------------------

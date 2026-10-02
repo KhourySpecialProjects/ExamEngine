@@ -11,7 +11,7 @@ from src.domain.validation.context import (
 )
 from src.domain.validation.results import (
     CheckResult,
-    CheckSkipped,
+    CheckSkippedError,
     passed,
     plural,
     problems,
@@ -112,6 +112,7 @@ def common_same_slot(ctx: ValidationContext) -> CheckResult:
 
 
 def unscheduled_consistent(ctx: ValidationContext) -> CheckResult:
+    ctx.analysis()  # The unscheduled groups are part of the stored analysis.
     entries, malformed = ctx.unscheduled_entries
     if not entries and not malformed:
         return passed("No groups are listed as unscheduled.")
@@ -120,7 +121,7 @@ def unscheduled_consistent(ctx: ValidationContext) -> CheckResult:
     in_schedule = set(ctx.rows_by_crn)
     try:
         in_schedule |= set(ctx.course_by_crn) - ctx.zero_enrollment_crns
-    except CheckSkipped:
+    except CheckSkippedError:
         pass  # Without the courses file, the schedule rows define what exists.
 
     seen: set[tuple[str, str]] = set()

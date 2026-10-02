@@ -32,7 +32,7 @@ from src.repo.dataset import DatasetRepo
 from src.repo.exam_assignment import ExamAssignmentRepo
 from src.repo.schedule import ScheduleRepo
 from src.schemas.db import Datasets, ExamAssignments
-from src.services.dataset.service import _entry_type
+from src.services.dataset.service import entry_type
 from src.services.storage import storage
 
 
@@ -121,9 +121,9 @@ async def _load_files(
     if dataset is None or dataset.deleted_at is not None:
         return None
     keys = {
-        _entry_type(entry): entry["storage_key"]
+        entry_type(entry): entry["storage_key"]
         for entry in dataset.file_paths
-        if _entry_type(entry) in _VALIDATED_FILES
+        if entry_type(entry) in _VALIDATED_FILES
     }
     try:
         contents = await asyncio.gather(

@@ -34,16 +34,20 @@ def crn_accounted(ctx: ValidationContext) -> CheckResult:
     courses = ctx.course_by_crn
     placed = ctx.placements.keys()
     with_reason = ctx.unscheduled_crns_with_reason
+    has_reasons = ctx.snapshot.analysis is not None
 
     n_placed = n_unscheduled = n_zero = 0
     missing: list[str] = []
     unexplained: list[str] = []
+    no_analysis: list[str] = []
     for crn in sorted(courses):
         if crn in placed:
             n_placed += 1
         elif crn in ctx.rows_by_crn:
             if crn in with_reason:
                 n_unscheduled += 1
+            elif not has_reasons:
+                no_analysis.append(f"CRN {crn} is unscheduled")
             else:
                 unexplained.append(
                     f"CRN {crn} is unscheduled but no unscheduled group gives a reason"
@@ -62,6 +66,13 @@ def crn_accounted(ctx: ValidationContext) -> CheckResult:
             f"Found {plural(len(missing), 'CRN')} missing from the schedule and "
             f"{len(unexplained)} unscheduled without a reason.",
             missing + unexplained,
+        )
+    if no_analysis:
+        return problems(
+            "warn",
+            f"Found {plural(len(no_analysis), 'unscheduled CRN')}; this schedule "
+            "has no stored conflict analysis to give their reasons.",
+            no_analysis,
         )
     return passed(
         f"All {len(courses)} CRNs are accounted for: {n_placed} placed, "

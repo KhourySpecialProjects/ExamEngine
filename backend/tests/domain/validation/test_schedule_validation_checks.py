@@ -690,6 +690,62 @@ def test_reported_instructor_back_to_back_warns():
     assert result.status == "warn"
 
 
+def test_missed_instructor_back_to_back_fails():
+    # Ada: CRN 100 Monday block 1, CRN 300 Monday block 2; nothing stored.
+    result = run(
+        "conflicts.instructor_back_to_back",
+        snapshot(rows=rows(row("100", 0, 1, "R1"))),
+    )
+
+    assert result.status == "fail"
+    assert result.examples == (
+        "Missed: instructor Ada, Monday: 11:30AM-1:30PM, 2PM-4PM",
+    )
+
+
+@pytest.mark.parametrize("blocks_per_day", [4, 5])
+def test_instructor_last_block_then_next_morning_is_not_back_to_back(
+    blocks_per_day,
+):
+    # Ada: CRN 300 in Monday's last block, CRN 100 first thing Tuesday.
+    overnight = snapshot(
+        rows=rows(
+            row("300", 0, blocks_per_day - 1, "R2", enrollment=1),
+            row("100", 1, 0, "R2"),
+            row("200", 1, 1, "R1", instructor="Bob"),
+        ),
+        parameters=RunParameters(blocks_per_day=blocks_per_day),
+    )
+
+    result = run("conflicts.instructor_back_to_back", overnight)
+
+    assert result.status == "pass"
+    assert result.examples == ()
+
+
+def test_instructor_cell_containing_semicolon_matches_as_stored():
+    co_taught = "Doe, J; Roe, R"
+    snap = snapshot(
+        rows=rows(row("100", instructor=co_taught)),
+        files=files(courses=(course("100", 2, co_taught), *BASE_FILES.courses[1:])),
+    )
+
+    assert run("data.stored_course_matches_file", snap).status == "pass"
+
+
+def test_without_stored_analysis_unscheduled_reasons_are_not_judged():
+    unscheduled = snapshot(
+        rows=rows(row("300", None, None, None, enrollment=1)), analysis=None
+    )
+
+    accounted = run("coverage.crn_accounted", unscheduled)
+    groups = run("groups.unscheduled_consistent", unscheduled)
+
+    assert accounted.status == "warn"
+    assert accounted.examples == ("CRN 300 is unscheduled",)
+    assert groups.status == "skipped"
+
+
 def test_large_course_late_in_week():
     big = files(courses=(course("100", 150, "Ada"), *BASE_FILES.courses[1:]))
     thursday = snapshot(files=big, rows=rows(row("100", 3, 0, "R1")))

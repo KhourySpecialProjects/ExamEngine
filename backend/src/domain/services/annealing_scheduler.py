@@ -200,6 +200,17 @@ class AnnealingScheduler(Scheduler):
         self._slot_units = [0] * self.nslots
         # Room-unit sizes placed at each slot (unordered)
         self._slot_sizes: list[list[int]] = [[] for _ in range(self.nslots)]
+        # Largest single room unit each slot can still seat; None = recompute.
+        self._max_single: list[int | float | None] = [None] * self.nslots
+        # Per student/instructor bitmask (bit = slot index) of slots where one
+        # more exam adds a hard violation: slots already holding one of their
+        # exams, and every slot of a day already at their daily limit.
+        self._st_busy: dict[str, int] = defaultdict(int)
+        self._in_busy: dict[str, int] = defaultdict(int)
+        self._all_slots = (1 << self.nslots) - 1
+        self._day_bits = [
+            ((1 << bpd) - 1) << (day * bpd) for day in range(self.max_days)
+        ]
         self._active: list[int] = []  # placed groups (SA move candidates)
         self._order: list[int] = []  # MRV placement order
         self.cost = 0
@@ -279,8 +290,54 @@ class AnnealingScheduler(Scheduler):
 
     def _fits(self, i: int, slot: int) -> bool:
         """True if group i's room units can join those already at ``slot``."""
-        sizes = sorted(self._slot_sizes[slot] + self._tg_sizes[i], reverse=True)
-        return seats_fit(sizes, self._slot_caps[slot])
+        sizes = self._tg_sizes[i]
+        if len(sizes) == 1:
+            return sizes[0] <= self._max_single_at(slot)
+        merged = sorted(self._slot_sizes[slot] + sizes, reverse=True)
+        return seats_fit(merged, self._slot_caps[slot])
+
+    def _max_single_at(self, slot: int) -> int | float:
+        """Largest single room unit ``slot`` can still seat (−1 if none).
+
+        Fitting is monotone in size and only changes at room capacities, so the
+        answer is the largest capacity that still fits (binary search).
+        """
+        cached = self._max_single[slot]
+        if cached is not None:
+            return cached
+        caps = self._slot_caps[slot]
+        placed = self._slot_sizes[slot]
+        candidates = sorted(set(caps))
+        best: int | float = -1
+        lo, hi = 0, len(candidates) - 1
+        while lo <= hi:
+            mid = (lo + hi) // 2
+            if seats_fit(sorted([*placed, candidates[mid]], reverse=True), caps):
+                best = candidates[mid]
+                lo = mid + 1
+            else:
+                hi = mid - 1
+        self._max_single[slot] = best
+        return best
+
+    def _refresh_busy(
+        self, busy: dict[str, int], key: str, cnt: list[int], mx: int, days: set[int]
+    ) -> None:
+        """Recompute an entity's busy bits for ``days`` from its slot counts."""
+        bpd = self._bpd
+        mask = busy[key]
+        for day in days:
+            base = day * bpd
+            counts = cnt[base : base + bpd]
+            if sum(counts) >= mx:
+                bits = self._day_bits[day]
+            else:
+                bits = 0
+                for block, count in enumerate(counts):
+                    if count:
+                        bits |= 1 << (base + block)
+            mask = (mask & ~self._day_bits[day]) | bits
+        busy[key] = mask
 
     def _move(self, i: int, new: int) -> None:
         """Apply a move (cost delta computed here). Callers check ``_fits``."""
@@ -288,26 +345,32 @@ class AnnealingScheduler(Scheduler):
         if old == new:
             return
         self.cost += self._delta(i, new)
+        days = {slot // self._bpd for slot in (old, new) if slot >= 0}
+        s_max, i_max = self.student_max_per_day, self.instructor_max_per_day
         for s in self._tg_students[i]:
             cnt = self._st_cnt[s]
             if old >= 0:
                 cnt[old] -= 1
             if new >= 0:
                 cnt[new] += 1
+            self._refresh_busy(self._st_busy, s, cnt, s_max, days)
         for t in self._tg_instructors[i]:
             cnt = self._in_cnt[t]
             if old >= 0:
                 cnt[old] -= 1
             if new >= 0:
                 cnt[new] += 1
+            self._refresh_busy(self._in_busy, t, cnt, i_max, days)
         k = len(self._tg_units[i])
         if old >= 0:
             self._slot_units[old] -= k
             for size in self._tg_sizes[i]:
                 self._slot_sizes[old].remove(size)
+            self._max_single[old] = None
         if new >= 0:
             self._slot_units[new] += k
             self._slot_sizes[new].extend(self._tg_sizes[i])
+            self._max_single[new] = None
         self._slot_of[i] = new
 
     def recompute_cost(self) -> int:
@@ -348,11 +411,20 @@ class AnnealingScheduler(Scheduler):
         return None if best is None else best[1]
 
     def _count_free(self, i: int) -> int:
-        free = 0
-        for slot in range(self.nslots):
-            if self._fits(i, slot) and self._delta(i, slot) < HARD:
-                free += 1
-        return free
+        """Slots where unplaced group i fits and adds no hard violation."""
+        blocked = 0
+        for s in self._tg_students[i]:
+            blocked |= self._st_busy.get(s, 0)
+        for t in self._tg_instructors[i]:
+            blocked |= self._in_busy.get(t, 0)
+        free = self._all_slots & ~blocked
+        count = 0
+        while free:
+            low = free & -free
+            free ^= low
+            if self._fits(i, low.bit_length() - 1):
+                count += 1
+        return count
 
     def _construct(self) -> None:
         n = len(self._tgs)
@@ -474,7 +546,7 @@ class AnnealingScheduler(Scheduler):
             self._move(i, slots[i])
 
     # ------------------------------------------------------------------
-    # Finalize: assignments, reservations, conflicts from the final state
+    # Finalize: assignments and conflicts from the final state
     # ------------------------------------------------------------------
 
     def _finalize(self) -> None:

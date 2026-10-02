@@ -44,14 +44,13 @@ def _dataset(
     )
 
 
-def _schedulers(dataset, **kwargs):
-    return [
-        Scheduler(dataset=dataset, **kwargs),
-        AnnealingScheduler(dataset=dataset, time_budget_seconds=0.2, **kwargs),
-    ]
-
-
 ALGORITHMS = ["dsatur", "annealing"]
+
+
+def _scheduler(algorithm: str, dataset, **kwargs):
+    if algorithm == "dsatur":
+        return Scheduler(dataset=dataset, **kwargs)
+    return AnnealingScheduler(dataset=dataset, time_budget_seconds=0.2, **kwargs)
 
 
 def _seated(dataset, result):
@@ -79,40 +78,38 @@ def _random_dataset(seed: int):
     return _dataset(sizes, rooms, students, blocked), merges, commons
 
 
+@pytest.mark.parametrize("algorithm", ALGORITHMS)
 @pytest.mark.parametrize("seed", range(8))
-def test_no_room_is_ever_over_capacity(seed):
+def test_no_room_is_ever_over_capacity(algorithm, seed):
     dataset, merges, commons = _random_dataset(seed)
     capacity = {room.name: room.capacity for room in dataset.rooms}
+    scheduler = _scheduler(
+        algorithm, dataset, max_days=2, merges=merges, common_groups=commons
+    )
 
-    for scheduler in _schedulers(
-        dataset, max_days=2, merges=merges, common_groups=commons
-    ):
-        result = scheduler.schedule()
+    result = scheduler.schedule()
 
-        for (slot, room), students in _seated(dataset, result).items():
-            assert students <= capacity[room], (type(scheduler).__name__, slot, room)
-            assert slot not in dataset.room_blockouts.get(room, frozenset())
-        # Every course is either seated or reported unscheduled, never roomless.
-        for crn in dataset.courses:
-            assert (crn in result.room_assignments) != (crn in result.unscheduled_crns)
-        assert set(result.assignments) == set(result.room_assignments)
+    for (slot, room), students in _seated(dataset, result).items():
+        assert students <= capacity[room], (slot, room)
+        assert slot not in dataset.room_blockouts.get(room, frozenset())
+    # Every course is either seated or reported unscheduled, never roomless.
+    for crn in dataset.courses:
+        assert (crn in result.room_assignments) != (crn in result.unscheduled_crns)
+    assert set(result.assignments) == set(result.room_assignments)
 
 
 @pytest.mark.parametrize("algorithm", ALGORITHMS)
 def test_section_larger_than_every_room_is_unscheduled_with_reason(algorithm):
-    dataset = _dataset({"BIG": 579, "OK": 50}, {"Hall": 400})
-    scheduler = dict(zip(ALGORITHMS, _schedulers(dataset, max_days=1), strict=True))[
-        algorithm
-    ]
+    dataset = _dataset({"BIG": 130, "OK": 50}, {"Hall": 100})
 
-    result = scheduler.schedule()
+    result = _scheduler(algorithm, dataset, max_days=1).schedule()
 
     assert "BIG" not in result.assignments
     assert [g.to_dict() for g in result.unscheduled_groups] == [
         {
             "kind": "section",
             "group": "BIG",
-            "reason": "579 students; largest room seats 400",
+            "reason": "130 students; largest room seats 100",
             "crns": ["BIG"],
         }
     ]
@@ -121,15 +118,12 @@ def test_section_larger_than_every_room_is_unscheduled_with_reason(algorithm):
 
 @pytest.mark.parametrize("algorithm", ALGORITHMS)
 def test_section_keeps_the_one_room_that_fits_it(algorithm):
-    # One slot. 451 fits no room; 273 fits only the 275-seat room.
+    # One slot. HUGE fits no room; MID fits only the 100-seat room.
     dataset = _dataset(
-        {"HUGE": 451, "MID": 273}, {"Big": 275, "Small": 257}, {"s1": ["HUGE", "MID"]}
+        {"HUGE": 120, "MID": 95}, {"Big": 100, "Small": 90}, {"s1": ["HUGE", "MID"]}
     )
-    scheduler = dict(
-        zip(ALGORITHMS, _schedulers(dataset, max_days=1, blocks_per_day=1), strict=True)
-    )[algorithm]
 
-    result = scheduler.schedule()
+    result = _scheduler(algorithm, dataset, max_days=1, blocks_per_day=1).schedule()
 
     assert result.room_assignments == {"MID": "Big"}
     assert result.unscheduled_crns == {"HUGE"}
@@ -139,14 +133,22 @@ def test_section_keeps_the_one_room_that_fits_it(algorithm):
 def test_two_sections_competing_for_one_room_never_share_or_overflow(algorithm):
     # Both need the 100-seat room; with one slot only one can be seated.
     dataset = _dataset({"A": 90, "B": 80}, {"Big": 100, "Small": 30})
-    scheduler = dict(
-        zip(ALGORITHMS, _schedulers(dataset, max_days=1, blocks_per_day=1), strict=True)
-    )[algorithm]
 
-    result = scheduler.schedule()
+    result = _scheduler(algorithm, dataset, max_days=1, blocks_per_day=1).schedule()
 
     assert list(result.room_assignments.values()) == ["Big"]
     assert len(result.unscheduled_crns) == 1
     (group,) = result.unscheduled_groups
     assert group.kind == "section"
     assert "room large enough" in group.reason
+
+
+@pytest.mark.parametrize("algorithm", ALGORITHMS)
+def test_room_listed_twice_still_holds_one_exam_at_a_time(algorithm):
+    dataset = _dataset({"A": 40, "B": 40}, {"Hall": 50})
+    dataset.rooms.append(Room(name="Hall", capacity=50))
+
+    result = _scheduler(algorithm, dataset, max_days=1, blocks_per_day=1).schedule()
+
+    assert list(result.room_assignments.values()) == ["Hall"]
+    assert len(result.unscheduled_crns) == 1

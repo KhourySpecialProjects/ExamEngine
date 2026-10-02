@@ -152,6 +152,11 @@ class Scheduler:
         self.state = SchedulingState()
         self.merges = merges or {}
         self.common_groups = common_groups or {}
+        # One entry per room name (last row wins, as when rooms are saved): a
+        # name listed twice is still one room and can hold one exam at a time.
+        self.rooms: list[Room] = list(
+            {room.name: room for room in dataset.rooms}.values()
+        )
 
         self._build_groups()
 
@@ -184,7 +189,7 @@ class Scheduler:
             slot: sorted(
                 (
                     room.capacity
-                    for room in dataset.rooms
+                    for room in self.rooms
                     if slot not in blockouts.get(room.name, frozenset())
                 ),
                 reverse=True,
@@ -309,9 +314,9 @@ class Scheduler:
 
     def _identify_unschedulable_groups(self) -> None:
         """Mark groups and sections that no room inventory can ever seat."""
-        rooms = self.dataset.rooms
+        rooms = self.rooms
         max_capacity = max((room.capacity for room in rooms), default=0)
-        # Capacities can be parsed as floats (e.g. 275.0); show whole seats.
+        # Capacities can be parsed as floats; show whole seats.
         seats = f"{max_capacity:g}"
 
         for unit, crns in self.room_units.items():
@@ -556,7 +561,7 @@ class Scheduler:
         Get ordering of courses for scheduling, one representative per time group.
 
         Common groups come first (most room units, then largest total enrollment),
-        so their rooms are reserved before anything else competes for them. The
+        so their room units claim seats before anything else competes for them. The
         remaining time groups follow the color-based (or size-based) ordering.
         """
         common_reps: list[str] = []
@@ -729,7 +734,7 @@ class Scheduler:
         for slot, units in self.slot_units.items():
             rooms = [
                 room
-                for room in self.dataset.rooms
+                for room in self.rooms
                 if slot not in blockouts.get(room.name, frozenset())
             ]
             plan = self._pack_units(units, rooms)

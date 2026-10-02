@@ -171,3 +171,18 @@ async def test_sections_fitting_the_largest_room_are_not_flagged(repo, storage):
     result = await _upload(repo, None, courses=COURSES_CSV + b"1006,CHEM 1000,70\n")
 
     assert result["files"]["courses"]["oversized_sections"] == []
+
+
+async def test_oversized_section_in_a_group_is_reported_only_under_its_group(
+    repo, storage
+):
+    courses = COURSES_CSV + b"1006,CHEM 1000,71\n"
+
+    result = await _upload(
+        repo, b"ExamGroup,CRN\nChem,1006\nChem,1004\n", courses=courses
+    )
+
+    assert result["files"]["courses"]["oversized_sections"] == []
+    assert [
+        g["group"] for g in result["files"]["combined_exams"]["over_capacity_groups"]
+    ] == ["Chem"]

@@ -8,7 +8,7 @@ import pytest
 from src.domain.factories.dataset_factory import DatasetFactory
 from src.domain.models import Course, Room, SchedulingDataset, Student
 from src.domain.services.annealing_scheduler import HARD, AnnealingScheduler
-from src.domain.services.scheduler import Scheduler
+from src.domain.services.scheduler import Scheduler, seats_fit
 
 
 pytestmark = pytest.mark.unit
@@ -78,6 +78,35 @@ class TestObjective:
         for _ in range(300):
             s._move(rng.randrange(n), rng.randrange(-1, s.nslots))
         assert s.cost == s.recompute_cost()
+
+    def test_cached_free_slots_and_fits_match_brute_force_after_random_moves(
+        self, sample_census_data, sample_enrollment_data, sample_classroom_data
+    ):
+        dataset = DatasetFactory.from_dataframes_to_scheduling_dataset(
+            sample_census_data, sample_enrollment_data, sample_classroom_data
+        )
+        s = AnnealingScheduler(dataset, max_days=2, time_budget_seconds=0)
+        s._build_conflict_graph()
+        s._init_model()
+        rng = random.Random(11)  # noqa: S311
+        n = len(s._tgs)
+        for _ in range(200):
+            s._move(rng.randrange(n), rng.randrange(-1, s.nslots))
+
+        def fits(i, slot):
+            sizes = sorted(s._slot_sizes[slot] + s._tg_sizes[i], reverse=True)
+            return seats_fit(sizes, s._slot_caps[slot])
+
+        for i in range(n):
+            assert [s._fits(i, slot) for slot in range(s.nslots)] == [
+                fits(i, slot) for slot in range(s.nslots)
+            ]
+            if s._slot_of[i] == -1:
+                expected = sum(
+                    fits(i, slot) and s._delta(i, slot) < HARD
+                    for slot in range(s.nslots)
+                )
+                assert s._count_free(i) == expected
 
     def test_hard_violations_cost_more_than_any_soft_term(self):
         # Two exams sharing a student: same slot costs HARD, adjacent costs 6.

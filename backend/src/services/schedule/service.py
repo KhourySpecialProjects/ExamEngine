@@ -461,7 +461,7 @@ class ScheduleService:
                 )
             )
 
-        # Add exams of unscheduled combined/common groups to complete list
+        # Add unscheduled exams (groups and sections) to the complete list
         for crn in sorted(result.unscheduled_crns):
             course = scheduling_dataset.courses.get(crn)
             if course is None:

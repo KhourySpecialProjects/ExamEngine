@@ -16,6 +16,7 @@ from src.schemas.db import Users
 from src.services.auth import AuthService
 from src.services.dataset import DatasetService
 from src.services.schedule import ScheduleService
+from src.services.schedule_validation import ScheduleValidationService
 
 
 settings = get_settings()
@@ -125,6 +126,18 @@ def get_schedule_service(db: Session = Depends(get_db)) -> ScheduleService:
         time_slot_repo,
         room_repo,
         dataset_service,
+    )
+
+
+def get_schedule_validation_service(
+    db: Session = Depends(get_db),
+) -> ScheduleValidationService:
+    """Dependency injection for ScheduleValidationService."""
+    return ScheduleValidationService(
+        ScheduleRepo(db),
+        ExamAssignmentRepo(db),
+        ConflictAnalysesRepo(db),
+        DatasetRepo(db),
     )
 
 

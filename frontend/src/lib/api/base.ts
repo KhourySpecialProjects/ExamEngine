@@ -57,6 +57,7 @@ export class BaseAPI {
         headers: finalHeaders,
         body: options.body,
         credentials: "include", // Always include cookies
+        signal: options.signal,
       };
 
       // Debug logging before request

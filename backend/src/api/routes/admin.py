@@ -298,7 +298,7 @@ async def demote_from_admin(
 
 
 @router.get("/datasets")
-async def list_all_datasets(
+def list_all_datasets(
     admin_user: Users = Depends(get_admin_user),
     dataset_service: DatasetService = Depends(get_dataset_service),
 ):

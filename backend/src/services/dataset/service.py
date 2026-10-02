@@ -710,18 +710,18 @@ class DatasetService:
             )
         )
 
-        buffer = io.BytesIO()
-        with zipfile.ZipFile(buffer, "w", zipfile.ZIP_DEFLATED) as archive:
-            for entry, content in zip(dataset.file_paths, contents, strict=True):
-                file_type = _entry_type(entry)
-                if content is None:
-                    raise StorageError(
-                        f"Failed to download {file_type}",
-                        detail={"storage_key": entry["storage_key"]},
-                    )
-                archive.writestr(f"{file_type}.csv", content)
+        files: dict[str, bytes] = {}
+        for entry, content in zip(dataset.file_paths, contents, strict=True):
+            file_type = _entry_type(entry)
+            if content is None:
+                raise StorageError(
+                    f"Failed to download {file_type}",
+                    detail={"storage_key": entry["storage_key"]},
+                )
+            files[f"{file_type}.csv"] = content
 
-        return f"{_download_name(dataset.dataset_name)}.zip", buffer.getvalue()
+        archive = await asyncio.to_thread(_zip_files, files)
+        return f"{_download_name(dataset.dataset_name)}.zip", archive
 
 
 def _entry_type(file_entry: dict[str, Any]) -> str:
@@ -746,3 +746,12 @@ def _files_metadata(file_paths: list[dict[str, Any]]) -> dict[str, Any]:
 def _download_name(dataset_name: str) -> str:
     """Dataset name reduced to characters safe in a Content-Disposition filename."""
     return re.sub(r"[^A-Za-z0-9._-]+", "_", dataset_name).strip("._") or "dataset"
+
+
+def _zip_files(files: dict[str, bytes]) -> bytes:
+    """Deflate archive name -> content pairs into zip bytes (CPU-bound)."""
+    buffer = io.BytesIO()
+    with zipfile.ZipFile(buffer, "w", zipfile.ZIP_DEFLATED) as archive:
+        for name, content in files.items():
+            archive.writestr(name, content)
+    return buffer.getvalue()

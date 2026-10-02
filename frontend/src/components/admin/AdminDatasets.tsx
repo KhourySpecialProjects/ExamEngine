@@ -27,6 +27,7 @@ import { downloadBlob } from "@/lib/utils";
 export function AdminDatasets() {
   const [datasets, setDatasets] = useState<AdminDataset[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [downloadingId, setDownloadingId] = useState<string | null>(null);
 
   useEffect(() => {
@@ -34,9 +35,7 @@ export function AdminDatasets() {
       .getAllDatasets()
       .then(setDatasets)
       .catch((error) => {
-        toast.error("Failed to load datasets", {
-          description: error instanceof Error ? error.message : undefined,
-        });
+        setLoadError(error instanceof Error ? error.message : "Unknown error");
       })
       .finally(() => setIsLoading(false));
   }, []);
@@ -60,6 +59,14 @@ export function AdminDatasets() {
       <div className="flex items-center justify-center py-12">
         <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
       </div>
+    );
+  }
+
+  if (loadError) {
+    return (
+      <p className="text-sm text-destructive text-center py-12">
+        Failed to load datasets: {loadError}
+      </p>
     );
   }
 
@@ -116,7 +123,7 @@ export function AdminDatasets() {
                       size="sm"
                       variant="outline"
                       onClick={() => handleDownload(dataset)}
-                      disabled={downloadingId === dataset.dataset_id}
+                      disabled={downloadingId !== null}
                     >
                       {downloadingId === dataset.dataset_id ? (
                         <Loader2 className="mr-2 h-4 w-4 animate-spin" />

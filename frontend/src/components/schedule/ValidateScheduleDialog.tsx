@@ -4,6 +4,7 @@ import {
   AlertTriangle,
   CheckCircle2,
   Circle,
+  Info,
   Loader2,
   ShieldCheck,
   XCircle,
@@ -21,6 +22,11 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
 import { apiClient } from "@/lib/api/client";
 import type {
   ValidationCategory,
@@ -208,7 +214,7 @@ export function ValidateScheduleDialog({
           Validate Schedule
         </Button>
       </DialogTrigger>
-      <DialogContent className="sm:max-w-3xl">
+      <DialogContent className="sm:max-w-5xl">
         <DialogHeader>
           <DialogTitle>
             Validate Schedule{scheduleName ? `: ${scheduleName}` : ""}
@@ -258,7 +264,7 @@ export function ValidateScheduleDialog({
                   <h3 className="text-sm font-semibold">
                     {CATEGORY_TITLES[group.category]}
                   </h3>
-                  <ul className="space-y-2">
+                  <ul className="grid gap-x-6 gap-y-2 md:grid-cols-2">
                     {group.checks.map((check) => (
                       <CheckRow
                         key={check.id}
@@ -294,26 +300,54 @@ function CheckRow({ check, row }: { check: ValidationCheck; row: RowState }) {
       className={cn("flex gap-3", style.className)}
     >
       <Icon className={cn("mt-0.5 h-4 w-4 shrink-0", style.iconClassName)} />
-      <div className="min-w-0 space-y-1">
-        <div className="flex items-center gap-2">
+      <div className="min-w-0 flex-1 space-y-0.5">
+        <div className="flex items-center gap-1.5">
           <span className="text-sm font-medium">{check.title}</span>
+          <CheckInfo check={check} />
           {row.status === "skipped" && (
             <Badge variant="outline" className="text-amber-600">
               Skipped
             </Badge>
           )}
         </div>
-        <p className="text-xs opacity-75">{check.description}</p>
         {"summary" in row && <ResultDetails result={row} />}
       </div>
     </li>
   );
 }
 
+/** ⓘ button showing what a check verifies: hover with a mouse, tap or keyboard. */
+function CheckInfo({ check }: { check: ValidationCheck }) {
+  const [open, setOpen] = useState(false);
+  return (
+    <Popover open={open} onOpenChange={setOpen}>
+      <PopoverTrigger asChild>
+        <button
+          type="button"
+          aria-label={`About: ${check.title}`}
+          className="shrink-0 rounded-full text-muted-foreground hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          // Touch taps fire pointerenter before click; only a mouse hovers.
+          onPointerEnter={(e) => e.pointerType === "mouse" && setOpen(true)}
+          onPointerLeave={(e) => e.pointerType === "mouse" && setOpen(false)}
+        >
+          <Info className="h-3.5 w-3.5" />
+        </button>
+      </PopoverTrigger>
+      <PopoverContent
+        side="top"
+        className="w-64 p-3 text-xs"
+        onOpenAutoFocus={(event) => event.preventDefault()}
+      >
+        {check.description}
+      </PopoverContent>
+    </Popover>
+  );
+}
+
 function ResultDetails({ result }: { result: ValidationResult }) {
   const more = result.count - result.examples.length;
   return (
-    <div className="space-y-1 text-sm">
+    <div className="space-y-1 text-xs">
       <p>{result.summary}</p>
       {result.examples.length > 0 && (
         <details className="text-xs">

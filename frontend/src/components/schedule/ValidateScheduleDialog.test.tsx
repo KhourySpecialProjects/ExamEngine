@@ -108,6 +108,20 @@ describe("ValidateScheduleDialog", () => {
     expect(runValidation).not.toHaveBeenCalled();
   });
 
+  it("shows a check's description only from its info button", async () => {
+    render(<ValidateScheduleDialog scheduleId="s1" />);
+    fireEvent.click(screen.getByRole("button", { name: "Validate Schedule" }));
+    await screen.findByRole("button", { name: "Run Validation" });
+
+    expect(screen.queryByText("Description rooms.capacity")).toBeNull();
+
+    fireEvent.click(
+      screen.getByRole("button", { name: "About: Title rooms.capacity" }),
+    );
+
+    expect(await screen.findByText("Description rooms.capacity")).toBeTruthy();
+  });
+
   it("reports a failed catalog load inline", async () => {
     getChecks.mockRejectedValue(new Error("Not authenticated"));
 

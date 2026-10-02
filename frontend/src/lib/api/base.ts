@@ -5,9 +5,11 @@ export class BaseAPI {
     this.baseUrl = baseUrl;
   }
 
+  /** `parse` reads a successful response body; defaults to JSON. */
   protected async request<T>(
     endpoint: string,
     options: RequestInit = {},
+    parse: (response: Response) => Promise<T> = (response) => response.json(),
   ): Promise<T> {
     const fullUrl = `${this.baseUrl}${endpoint}`;
     console.log(`[API Request] ${options.method || "GET"} ${fullUrl}`);
@@ -82,7 +84,7 @@ export class BaseAPI {
       }
 
       if (response.status === 204) return {} as T;
-      return response.json();
+      return parse(response);
     } catch (error) {
       // Enhanced error logging for debugging
       if (error instanceof TypeError && error.message.includes("fetch")) {

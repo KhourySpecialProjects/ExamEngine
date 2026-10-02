@@ -2,7 +2,7 @@ from datetime import datetime
 from uuid import UUID
 
 from sqlalchemy import select
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, selectinload
 
 from src.schemas.db import Datasets
 
@@ -41,6 +41,16 @@ class DatasetRepo(BaseRepo[Datasets]):
             .order_by(Datasets.upload_date.desc())
             .offset(skip)
             .limit(limit)
+        )
+        return list(self.db.execute(stmt).scalars().all())
+
+    def get_all_active_with_owner(self) -> list[Datasets]:
+        """Get every non-deleted dataset across all users, newest first."""
+        stmt = (
+            select(Datasets)
+            .where(Datasets.deleted_at.is_(None))
+            .options(selectinload(Datasets.user))
+            .order_by(Datasets.upload_date.desc())
         )
         return list(self.db.execute(stmt).scalars().all())
 

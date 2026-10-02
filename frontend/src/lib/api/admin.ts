@@ -17,6 +17,15 @@ export interface UserInviteRequest {
   email: string;
 }
 
+export interface AdminDataset {
+  dataset_id: string;
+  dataset_name: string;
+  created_at: string;
+  owner_name: string;
+  owner_email: string;
+  file_types: string[];
+}
+
 export class AdminAPI extends BaseAPI {
   async getPendingUsers(): Promise<UserResponse[]> {
     return this.request("/admin/users/pending", {
@@ -66,5 +75,20 @@ export class AdminAPI extends BaseAPI {
     return this.request(`/admin/users/${userId}/demote`, {
       method: "POST",
     });
+  }
+
+  async getAllDatasets(): Promise<AdminDataset[]> {
+    return this.request("/admin/datasets", {
+      method: "GET",
+    });
+  }
+
+  /** Zip of the dataset's stored CSVs, one `<type>.csv` per file. */
+  async downloadDataset(datasetId: string): Promise<Blob> {
+    return this.request(
+      `/admin/datasets/${datasetId}/download`,
+      { method: "GET" },
+      (response) => response.blob(),
+    );
   }
 }

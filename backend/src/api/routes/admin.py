@@ -1,19 +1,22 @@
 """
-Admin API routes for user management.
+Admin API routes for user and dataset management.
 
-Handles user approval, rejection, and invitation.
+Handles user approval, rejection, and invitation, and system-wide dataset
+listing and download.
 """
 
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Response, status
 from pydantic import BaseModel, EmailStr
 from sqlalchemy.orm import Session
 
-from src.api.deps import get_admin_user, get_auth_service, get_db
+from src.api.deps import get_admin_user, get_auth_service, get_dataset_service, get_db
+from src.core.exceptions import DatasetNotFoundError, StorageError
 from src.repo.user import UserRepo
 from src.schemas.db import Users
 from src.services.auth import AuthService
+from src.services.dataset import DatasetService
 
 
 router = APIRouter(prefix="/admin", tags=["admin"])
@@ -292,3 +295,32 @@ async def demote_from_admin(
         "message": "User demoted to regular user successfully",
         "user": UserResponse.from_user(updated_user),
     }
+
+
+@router.get("/datasets")
+def list_all_datasets(
+    admin_user: Users = Depends(get_admin_user),
+    dataset_service: DatasetService = Depends(get_dataset_service),
+):
+    """List every active dataset across all users (admin only)."""
+    return dataset_service.list_all_datasets()
+
+
+@router.get("/datasets/{dataset_id}/download")
+async def download_dataset(
+    dataset_id: UUID,
+    admin_user: Users = Depends(get_admin_user),
+    dataset_service: DatasetService = Depends(get_dataset_service),
+):
+    """Download any active dataset's stored CSVs as a zip (admin only)."""
+    try:
+        filename, content = await dataset_service.build_dataset_zip(dataset_id)
+    except DatasetNotFoundError as e:
+        raise HTTPException(status_code=404, detail=e.message) from e
+    except StorageError as e:
+        raise HTTPException(status_code=500, detail=e.message) from e
+    return Response(
+        content=content,
+        media_type="application/zip",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )

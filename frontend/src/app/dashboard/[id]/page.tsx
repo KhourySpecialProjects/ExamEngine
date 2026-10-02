@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import { use, useEffect, useState } from "react";
 import { toast } from "sonner";
 import { ViewTabSwitcher } from "@/components/common/ViewTabSwitcher";
+import { ScheduleDetails } from "@/components/schedule/ScheduleDetails";
 import { ShareScheduleDialog } from "@/components/schedule/ShareScheduleDialog";
 import { ValidateScheduleDialog } from "@/components/schedule/ValidateScheduleDialog";
 import { StatisticsView } from "@/components/statistics/StatisticsView";
@@ -110,30 +111,7 @@ export default function SchedulePage({
           </BreadcrumbList>
         </Breadcrumb>
       </div>
-      {schedule && (
-        <div className="flex items-center gap-4 text-sm text-muted-foreground">
-          {schedule.is_shared && schedule.shared_by_user_name ? (
-            <div className="flex items-center gap-2">
-              <span>Shared by</span>
-              <span className="font-medium text-foreground">
-                {schedule.shared_by_user_name}
-              </span>
-              <span className="mx-1">•</span>
-              <span>Created by</span>
-              <span className="font-medium text-foreground">
-                {schedule.created_by_user_name || "Unknown"}
-              </span>
-            </div>
-          ) : (
-            <div className="flex items-center gap-2">
-              <span>Created by</span>
-              <span className="font-medium text-foreground">
-                {schedule.created_by_user_name || "Unknown"}
-              </span>
-            </div>
-          )}
-        </div>
-      )}
+      {schedule && <ScheduleDetails schedule={schedule} />}
       <div className="flex items-center justify-between">
         <ViewTabSwitcher activeView={activeView} onViewChange={setActiveView} />
         <div className="flex items-center gap-3">

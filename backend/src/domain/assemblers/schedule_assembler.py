@@ -169,7 +169,6 @@ class ScheduleAssembler:
     @staticmethod
     def build_full_response(
         schedule,
-        dataset_name: str,
         summary: dict[str, Any],
         conflicts: dict[str, Any],
         schedule_block: dict[str, Any],
@@ -182,12 +181,15 @@ class ScheduleAssembler:
 
         Used by get_schedule_with_details to ensure consistent shape.
         """
+        dataset = schedule.run.dataset
         return {
             "schedule_id": str(schedule.schedule_id),
             "schedule_name": schedule.schedule_name,
             "created_at": schedule.created_at.isoformat(),
-            "dataset_id": str(schedule.run.dataset.dataset_id),
-            "dataset_name": dataset_name,
+            "dataset_id": str(dataset.dataset_id),
+            "dataset_name": dataset.dataset_name,
+            "dataset_uploaded_at": dataset.upload_date.isoformat(),
+            "dataset_deleted": dataset.deleted_at is not None,
             "summary": summary,
             "conflicts": conflicts,
             "failures": [],  # Legacy field

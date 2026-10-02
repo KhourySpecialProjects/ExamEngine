@@ -647,19 +647,30 @@ def test_instructor_over_daily_limit():
     assert result.examples == ("Missed: instructor Ada, Monday: 2 exams (limit 1)",)
 
 
-def test_student_back_to_back_and_overnight_note():
+def test_student_back_to_back_same_day_adjacent_blocks():
     adjacent = snapshot(rows=rows(row("200", 0, 1, "R1")))
-    overnight = snapshot(rows=rows(row("100", 0, 4, "R1"), row("200", 1, 0, "R1")))
 
     result = run("conflicts.student_back_to_back", adjacent)
-    note = run("conflicts.student_back_to_back", overnight)
 
     assert result.status == "fail"
     assert result.examples == (
         "Missed: student 001234567, Monday: 9AM-11AM, 11:30AM-1:30PM",
     )
-    assert note.status == "pass"
-    assert "1 overnight pair" in note.summary
+
+
+@pytest.mark.parametrize("blocks_per_day", [4, 5])
+def test_last_block_then_next_morning_is_not_back_to_back(blocks_per_day):
+    last = blocks_per_day - 1
+    overnight = snapshot(
+        rows=rows(row("100", 0, last, "R1"), row("200", 1, 0, "R1")),
+        parameters=RunParameters(blocks_per_day=blocks_per_day),
+    )
+
+    result = run("conflicts.student_back_to_back", overnight)
+
+    assert result.status == "pass"
+    assert result.count == 0
+    assert result.examples == ()
 
 
 def test_reported_instructor_back_to_back_warns():

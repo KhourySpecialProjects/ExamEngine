@@ -94,7 +94,6 @@ def _compare(
     describe: Callable[[Key], str],
     noun: str,
     nouns: str,
-    note: str = "",
 ) -> CheckResult:
     """fail on any missed/invented key, warn if all reported, else pass."""
     missed = sorted(recomputed.keys() - stored)
@@ -114,7 +113,7 @@ def _compare(
             summary += " could not be read."
         return problems(
             "fail",
-            summary + note,
+            summary,
             examples,
             count=len(missed) + len(phantom) + len(unreadable),
         )
@@ -122,10 +121,10 @@ def _compare(
         return problems(
             "warn",
             f"Found {plural(len(recomputed), noun, nouns)}; all reported in the "
-            "stored analysis." + note,
+            "stored analysis.",
             [f"{describe(key)}: {recomputed[key]}" for key in sorted(recomputed)],
         )
-    return passed(f"No {nouns}, and none reported." + note)
+    return passed(f"No {nouns}, and none reported.")
 
 
 def _hard_key(entry: Mapping[str, Any]) -> Key:
@@ -169,16 +168,13 @@ def _over_daily_limit(
     return over
 
 
-def _back_to_back(
-    schedule: Mapping[str, Mapping[Slot, set[str]]], blocks_per_day: int
-) -> tuple[dict[Key, str], int]:
-    """(entity, day) with exams in adjacent blocks, and the overnight pair count.
+def _back_to_back(schedule: Mapping[str, Mapping[Slot, set[str]]]) -> dict[Key, str]:
+    """(entity, day) with exams in adjacent blocks of that same day.
 
-    An overnight pair is the last block of one day followed by the first block
-    of the next; it is reported for information only.
+    The last block of one day and the first block of the next are not
+    back-to-back.
     """
     found: dict[Key, str] = {}
-    overnight = 0
     for entity, slots in schedule.items():
         blocks_by_day: dict[int, set[int]] = defaultdict(set)
         for day, block in slots:
@@ -188,18 +184,7 @@ def _back_to_back(
                 found[(entity, day)] = ", ".join(
                     BLOCK_TIMES.get(block, f"block {block}") for block in sorted(blocks)
                 )
-            if blocks_per_day - 1 in blocks and 0 in blocks_by_day.get(day + 1, ()):
-                overnight += 1
-    return found, overnight
-
-
-def _overnight_note(overnight: int) -> str:
-    if not overnight:
-        return ""
-    return (
-        f" Also {plural(overnight, 'overnight pair')} (last block of a day, then "
-        "the first block of the next); for information only."
-    )
+    return found
 
 
 def _student_slot(key: Key) -> str:
@@ -288,9 +273,7 @@ def instructor_over_max_per_day(ctx: ValidationContext) -> CheckResult:
 
 
 def student_back_to_back(ctx: ValidationContext) -> CheckResult:
-    recomputed, overnight = _back_to_back(
-        ctx.student_slot_units, ctx.params.blocks_per_day
-    )
+    recomputed = _back_to_back(ctx.student_slot_units)
     stored, unreadable = _stored_keys(
         ctx,
         "soft_conflicts",
@@ -304,14 +287,11 @@ def student_back_to_back(ctx: ValidationContext) -> CheckResult:
         _student_day,
         "student day with back-to-back exams",
         "student days with back-to-back exams",
-        _overnight_note(overnight),
     )
 
 
 def instructor_back_to_back(ctx: ValidationContext) -> CheckResult:
-    recomputed, overnight = _back_to_back(
-        ctx.instructor_slot_groups, ctx.params.blocks_per_day
-    )
+    recomputed = _back_to_back(ctx.instructor_slot_groups)
     stored, unreadable = _stored_keys(
         ctx,
         "soft_conflicts",
@@ -325,7 +305,6 @@ def instructor_back_to_back(ctx: ValidationContext) -> CheckResult:
         _instructor_day,
         "instructor day with back-to-back exams",
         "instructor days with back-to-back exams",
-        _overnight_note(overnight),
     )
 
 

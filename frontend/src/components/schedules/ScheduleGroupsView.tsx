@@ -115,14 +115,18 @@ function GroupTable({
     enableSorting: false,
   });
   return (
-    <Table>
+    // Same fixed widths in every group, so columns line up across datasets.
+    <Table className="min-w-[880px] table-fixed">
       <TableHeader className="bg-muted/60">
         {table.getHeaderGroups().map((headerGroup) => (
           <TableRow key={headerGroup.id}>
             {headerGroup.headers.map((header) => (
               <TableHead
                 key={header.id}
-                className="h-9 text-xs font-semibold uppercase tracking-wide text-muted-foreground"
+                className={cn(
+                  "h-9 text-xs font-semibold uppercase tracking-wide text-muted-foreground",
+                  header.column.columnDef.meta?.width,
+                )}
               >
                 {flexRender(
                   header.column.columnDef.header,
@@ -140,7 +144,10 @@ function GroupTable({
             className="hover:bg-muted/50 transition-colors"
           >
             {row.getVisibleCells().map((cell) => (
-              <TableCell key={cell.id}>
+              <TableCell
+                key={cell.id}
+                className="whitespace-normal break-words"
+              >
                 {flexRender(cell.column.columnDef.cell, cell.getContext())}
               </TableCell>
             ))}

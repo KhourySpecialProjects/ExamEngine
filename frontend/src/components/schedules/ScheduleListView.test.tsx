@@ -79,8 +79,12 @@ describe("ScheduleListView", () => {
     render(<ScheduleListView schedules={twelve()} />);
     expect(names()).toHaveLength(10);
 
-    fireEvent.click(screen.getByRole("button", { name: "Next page" }));
+    // Bars above and below the table drive the same page.
+    fireEvent.click(screen.getAllByRole("button", { name: "Next page" })[1]);
     expect(names()).toEqual(["S02", "S01"]);
+    fireEvent.click(screen.getAllByRole("button", { name: "First page" })[0]);
+    expect(names()[0]).toBe("S12");
+    fireEvent.click(screen.getAllByRole("button", { name: "Next page" })[0]);
 
     chooseRowsPerPage("25");
     expect(names()).toHaveLength(12);
@@ -112,13 +116,13 @@ describe("ScheduleListView", () => {
       schedule("Fall run", "2026-01-01T09:00:00", "Fall 2026"),
     ];
     render(<ScheduleListView schedules={schedules} />);
-    fireEvent.click(screen.getByRole("button", { name: "Next page" }));
+    fireEvent.click(screen.getAllByRole("button", { name: "Next page" })[0]);
 
     fireEvent.change(screen.getByPlaceholderText("Search schedules..."), {
       target: { value: "fall 2026" },
     });
 
     expect(names()).toEqual(["Fall run"]);
-    expect(screen.getByText("Page 1 of 1")).toBeTruthy();
+    expect(screen.getAllByText("Page 1 of 1")).toHaveLength(2);
   });
 });

@@ -23,10 +23,25 @@ export function ScheduleListView({
     onDelete,
   );
   const setPageSize = useSchedulesViewStore((s) => s.setPageSize);
+  const bar = {
+    page: pageIndex,
+    pageSize,
+    total: table.getFilteredRowModel().rows.length,
+    noun: " schedules",
+    onPage: setPageIndex,
+  };
 
   return (
     <div className="space-y-4">
       <DataTableFilters table={table} searchPlaceholder="Search schedules..." />
+
+      <PaginationBar
+        {...bar}
+        onPageSize={(size) => {
+          setPageSize(size);
+          setPageIndex(0);
+        }}
+      />
 
       <div className="overflow-hidden rounded-xl border bg-card shadow-sm">
         <Table>
@@ -68,17 +83,7 @@ export function ScheduleListView({
         </Table>
       </div>
 
-      <PaginationBar
-        page={pageIndex}
-        pageSize={pageSize}
-        total={table.getFilteredRowModel().rows.length}
-        noun=" schedules"
-        onPage={setPageIndex}
-        onPageSize={(size) => {
-          setPageSize(size);
-          setPageIndex(0);
-        }}
-      />
+      <PaginationBar {...bar} />
     </div>
   );
 }

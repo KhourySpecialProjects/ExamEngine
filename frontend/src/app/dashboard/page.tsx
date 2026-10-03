@@ -1,8 +1,9 @@
 "use client";
 
-import { Loader2 } from "lucide-react";
+import { Layers, List, Loader2 } from "lucide-react";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
+import { ScheduleGroupsView } from "@/components/schedules/ScheduleGroupsView";
 import { ScheduleListView } from "@/components/schedules/ScheduleListView";
 import {
   AlertDialog,
@@ -14,8 +15,18 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+import { Button } from "@/components/ui/button";
+import { ButtonGroup } from "@/components/ui/button-group";
 import { useSchedulesStore } from "@/lib/store/schedulesStore";
-import { useSchedulesViewStore } from "@/lib/store/schedulesViewStore";
+import {
+  type SchedulesView,
+  useSchedulesViewStore,
+} from "@/lib/store/schedulesViewStore";
+
+const VIEWS: readonly (readonly [SchedulesView, string, typeof List])[] = [
+  ["list", "List", List],
+  ["dataset", "By dataset", Layers],
+];
 
 export default function DashboardPage() {
   const schedules = useSchedulesStore((state) => state.schedules);
@@ -23,6 +34,8 @@ export default function DashboardPage() {
   const error = useSchedulesStore((state) => state.error);
   const fetchSchedules = useSchedulesStore((state) => state.fetchSchedules);
   const deleteSchedule = useSchedulesStore((state) => state.deleteSchedule);
+  const view = useSchedulesViewStore((state) => state.view);
+  const setView = useSchedulesViewStore((state) => state.setView);
 
   const [pendingDeleteId, setPendingDeleteId] = useState<string | null>(null);
   const [isConfirmOpen, setIsConfirmOpen] = useState(false);
@@ -32,7 +45,7 @@ export default function DashboardPage() {
     : undefined;
 
   useEffect(() => {
-    // Restore this session's page size once mounted (see the store).
+    // Restore this session's view and page sizes once mounted (see the store).
     useSchedulesViewStore.persist.rehydrate();
   }, []);
 
@@ -77,6 +90,20 @@ export default function DashboardPage() {
             View and manage your exam schedules
           </p>
         </div>
+        <ButtonGroup aria-label="Schedules view">
+          {VIEWS.map(([value, label, Icon]) => (
+            <Button
+              key={value}
+              size="sm"
+              variant={view === value ? "default" : "outline"}
+              aria-pressed={view === value}
+              onClick={() => setView(value)}
+            >
+              <Icon className="h-4 w-4" />
+              {label}
+            </Button>
+          ))}
+        </ButtonGroup>
       </div>
 
       {isLoadingList && (
@@ -96,9 +123,13 @@ export default function DashboardPage() {
         </div>
       )}
 
-      {!isLoadingList && !error && (
-        <ScheduleListView schedules={schedules} onDelete={requestDelete} />
-      )}
+      {!isLoadingList &&
+        !error &&
+        (view === "dataset" ? (
+          <ScheduleGroupsView schedules={schedules} onDelete={requestDelete} />
+        ) : (
+          <ScheduleListView schedules={schedules} onDelete={requestDelete} />
+        ))}
 
       <AlertDialog
         open={isConfirmOpen}

@@ -15,6 +15,7 @@ export function SortableHeader<TData, TValue>({
   column,
   label,
 }: SortableHeaderProps<TData, TValue>) {
+  if (!column.getCanSort()) return <span>{label}</span>;
   const sorted = column.getIsSorted();
   const Icon =
     sorted === "asc" ? ArrowUp : sorted === "desc" ? ArrowDown : ArrowUpDown;

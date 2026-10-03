@@ -43,9 +43,11 @@ const timeFormat = new Intl.DateTimeFormat("en-US", {
 
 export function createScheduleColumns(
   onDelete?: (scheduleId: string) => void,
+  /** The By-dataset view shows the dataset in the group header instead. */
+  { showDataset = true }: { showDataset?: boolean } = {},
   // biome-ignore lint/suspicious/noExplicitAny: table types needs to be flexible
 ): ColumnDef<ScheduleListItem, any>[] {
-  return [
+  const columns = [
     columnHelper.accessor("schedule_name", {
       id: "schedule_name",
       meta: { width: "w-[18%]" },
@@ -221,4 +223,5 @@ export function createScheduleColumns(
       },
     }),
   ];
+  return showDataset ? columns : columns.filter((c) => c.id !== "dataset");
 }

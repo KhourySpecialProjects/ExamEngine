@@ -48,6 +48,7 @@ export function createScheduleColumns(
   return [
     columnHelper.accessor("schedule_name", {
       id: "schedule_name",
+      meta: { width: "w-[18%]" },
       header: ({ column }) => (
         <SortableHeader column={column} label="Schedule Name" />
       ),
@@ -63,6 +64,7 @@ export function createScheduleColumns(
 
     columnHelper.accessor("created_at", {
       id: "created_at",
+      meta: { width: "w-[10%]" },
       header: ({ column }) => (
         <SortableHeader column={column} label="Created" />
       ),
@@ -81,6 +83,7 @@ export function createScheduleColumns(
 
     columnHelper.accessor((row) => row.dataset.name, {
       id: "dataset",
+      meta: { width: "w-[13%]" },
       header: ({ column }) => (
         <SortableHeader column={column} label="Dataset" />
       ),
@@ -96,6 +99,7 @@ export function createScheduleColumns(
 
     columnHelper.display({
       id: "created_by",
+      meta: { width: "w-[11%]" },
       header: "Created by",
       cell: (info) => {
         const schedule = info.row.original;
@@ -121,6 +125,7 @@ export function createScheduleColumns(
 
     columnHelper.accessor("total_exams", {
       id: "total_exams",
+      meta: { width: "w-[11%]" },
       header: ({ column }) => (
         <SortableHeader column={column} label="Total Exams" />
       ),
@@ -131,6 +136,7 @@ export function createScheduleColumns(
 
     columnHelper.accessor("algorithm", {
       id: "algorithm",
+      meta: { width: "w-[11%]" },
       header: ({ column }) => (
         <SortableHeader column={column} label="Algorithm" />
       ),
@@ -143,6 +149,7 @@ export function createScheduleColumns(
 
     columnHelper.accessor("status", {
       id: "status",
+      meta: { width: "w-[9%]" },
       header: ({ column }) => <SortableHeader column={column} label="Status" />,
       cell: (info) => (
         <Badge variant={getStatusVariant(info.getValue())}>
@@ -153,6 +160,7 @@ export function createScheduleColumns(
 
     columnHelper.display({
       id: "parameters",
+      meta: { width: "w-[10%]" },
       header: "Parameters",
       cell: (info) => {
         const params = info.row.original.parameters;
@@ -174,6 +182,7 @@ export function createScheduleColumns(
 
     columnHelper.display({
       id: "actions",
+      meta: { width: "w-[7%]" },
       header: "Actions",
       cell: (info) => {
         const schedule = info.row.original;

@@ -44,13 +44,16 @@ export function ScheduleListView({
       />
 
       <div className="overflow-hidden rounded-xl border bg-card shadow-sm">
-        <Table>
+        {/* Fixed layout with percentage widths: columns keep their place
+            from page to page and still scale with the window. */}
+        <Table className="min-w-[960px] table-fixed">
           <TableHeader>
             {table.getHeaderGroups().map((headerGroup) => (
               <TableRow key={headerGroup.id}>
                 {headerGroup.headers.map((header) => (
                   <TableHead
                     key={header.id}
+                    className={header.column.columnDef.meta?.width}
                     aria-sort={
                       header.column.getIsSorted() === "asc"
                         ? "ascending"
@@ -73,6 +76,7 @@ export function ScheduleListView({
           <DataTableBody
             table={table}
             columnCount={table.getAllColumns().length}
+            cellClassName="whitespace-normal break-words"
             emptyMessage="No schedules found"
             emptyDescription={
               schedules.length > 0

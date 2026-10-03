@@ -8,6 +8,8 @@ interface DataTableBodyProps<TData> {
   columnCount: number;
   emptyMessage?: string;
   emptyDescription?: string;
+  /** Extra classes for every cell, e.g. wrapping in a fixed-layout table. */
+  cellClassName?: string;
 }
 
 /**
@@ -19,6 +21,7 @@ export function DataTableBody<TData>({
   columnCount,
   emptyMessage = "No results found",
   emptyDescription = "Try adjusting your search or filters",
+  cellClassName,
 }: DataTableBodyProps<TData>) {
   const rows = table.getRowModel().rows;
 
@@ -47,7 +50,7 @@ export function DataTableBody<TData>({
       {rows.map((row) => (
         <TableRow key={row.id} className="hover:bg-muted/50 transition-colors">
           {row.getVisibleCells().map((cell) => (
-            <TableCell key={cell.id}>
+            <TableCell key={cell.id} className={cellClassName}>
               {flexRender(cell.column.columnDef.cell, cell.getContext())}
             </TableCell>
           ))}

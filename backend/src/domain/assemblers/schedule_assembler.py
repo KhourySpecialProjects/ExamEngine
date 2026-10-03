@@ -1,4 +1,5 @@
-from typing import Any
+import datetime
+from typing import Any, Protocol
 from uuid import UUID
 
 from src.domain.value_objects import SchedulePermissions
@@ -9,7 +10,16 @@ def _over_capacity(capacity: int, size: int) -> bool:
     return 0 < capacity < size
 
 
-def _dataset_summary(dataset) -> dict[str, Any]:
+class StoredDataset(Protocol):
+    """The dataset fields a schedule list item reads (a `Datasets` row)."""
+
+    dataset_name: str
+    upload_date: datetime.datetime
+    deleted_at: datetime.datetime | None
+    file_paths: list[dict[str, Any]]
+
+
+def _dataset_summary(dataset: StoredDataset) -> dict[str, Any]:
     """Name, upload date and size of a schedule's dataset, from stored metadata.
 
     Counts are None when the upload metadata has no such figure.

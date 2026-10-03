@@ -40,7 +40,7 @@ def test_conflict_is_invalid_even_when_room_fits():
     assert _record(70, 30, has_conflict=True)["Valid"] is False
 
 
-def _list_item(dataset) -> dict:
+def _list_item(dataset: SimpleNamespace) -> dict:
     run = SimpleNamespace(
         algorithm_name="DSATUR",
         parameters={},

@@ -75,7 +75,7 @@ describe("ScheduleListView", () => {
     expect(names()).toEqual(["Newest", "Middle", "Old"]);
   });
 
-  it("pages with first/next controls and a rows-per-page choice kept for the session", () => {
+  it("pages with first/next controls and shows the chosen rows per page", () => {
     render(<ScheduleListView schedules={twelve()} />);
     expect(names()).toHaveLength(10);
 
@@ -89,7 +89,30 @@ describe("ScheduleListView", () => {
     chooseRowsPerPage("25");
     expect(names()).toHaveLength(12);
     expect(names()[0]).toBe("S12");
-    expect(useSchedulesViewStore.getState().pageSize).toBe(25);
+  });
+
+  it("restores this session's rows per page on the next visit, ignoring invalid values", async () => {
+    const KEY = "schedules-view-storage";
+    // A later visit starts from the store's defaults and then restores the
+    // saved value. Resetting the store writes the default to storage too, so
+    // put the saved value back before restoring.
+    const nextVisit = async (saved: string | null) => {
+      useSchedulesViewStore.setState({ pageSize: 10 });
+      if (saved !== null) sessionStorage.setItem(KEY, saved);
+      await useSchedulesViewStore.persist.rehydrate();
+    };
+
+    const { unmount } = render(<ScheduleListView schedules={twelve()} />);
+    chooseRowsPerPage("25");
+    unmount();
+
+    await nextVisit(sessionStorage.getItem(KEY));
+    render(<ScheduleListView schedules={twelve()} />);
+    expect(names()).toHaveLength(12);
+
+    // A stale or edited page size never applies.
+    await nextVisit(JSON.stringify({ state: { pageSize: 0 }, version: 0 }));
+    expect(useSchedulesViewStore.getState().pageSize).toBe(10);
   });
 
   it("sorts by dataset and marks deleted datasets", () => {

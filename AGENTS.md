@@ -2,7 +2,9 @@
 
 Orientation for AI agents working in **ExamEngine** — an automated final-exam scheduler for
 Northeastern University. It models scheduling as **graph coloring** (course sections = nodes,
-shared-student conflicts = edges, time slots = colors) and solves it with **DSATUR**.
+shared-student conflicts = edges, time slots = colors). Users pick one of two engines when
+generating: **Classic** (DSATUR greedy) or **Optimized** (saturation construction + simulated
+annealing).
 
 ## Architecture
 
@@ -10,75 +12,149 @@ Monorepo, three deployable pieces + IaC:
 
 | Path | Stack | Role |
 | --- | --- | --- |
-| `backend/` | FastAPI, Python 3.12, SQLAlchemy 2.0, pandas, networkx | REST API + scheduling engine |
+| `backend/` | FastAPI, Python 3.12, SQLAlchemy 2.0, pandas, networkx | REST API + scheduling engines |
 | `frontend/` | Next.js 15 (app router), React 19, TypeScript, Zustand, Shadcn/ui, Tailwind v4 | Web UI |
-| `infrastructure/terraform/` | Terraform, AWS (ECS Fargate, RDS, S3, ALB) | Production infra |
-| `docker-compose.yml` | Postgres 15, nginx, pgadmin | Local + prod orchestration (profiles) |
+| `docker-compose.yml` | Postgres 15, LocalStack (S3), nginx, pgadmin | Local dev (`--profile dev`) and prod-style (`--profile prod`) |
+| `docker-compose.coolify-{dev,staging}.yml` | Postgres, MinIO (S3), backend, frontend, proxy | Coolify deployments of `develop` and `staging` |
+| `infrastructure/terraform/` | Terraform, AWS (ECS Fargate, RDS, S3, ALB) | Production infra (not in active use) |
 
-Data flow: user uploads 3 CSVs (`courses`, `enrollments`, `rooms`) → backend validates/persists →
-DSATUR assigns time slots + rooms → schedule returned to UI. CSV contracts and the DB schema are in
-`docs/DATA.md`.
+Data flow: user uploads CSVs → backend validates, stores the files in S3 (LocalStack locally,
+MinIO on Coolify) and records metadata in Postgres → the chosen engine assigns time slots +
+rooms → schedule and conflict analysis are saved and returned to the UI. Required files:
+`courses`, `enrollments`, `rooms`. Optional: `room_blockouts`, `combined_exams` (same block +
+same room), `common_exams` (same block, different rooms). CSV contracts and the DB schema are in
+`docs/DATA.md`; the algorithms and constraints in `docs/ALGORITHM.md`.
 
 ## Where the important code lives
 
 **Backend** (`backend/src/`):
-- `domain/services/scheduler.py` — **the DSATUR engine; the core of the system.**
+- `domain/services/scheduler.py` — **Classic engine (DSATUR)**; also the shared group/room-seating
+  logic (`seats_fit`, `_assign_rooms`). Rooms are never filled over capacity.
+- `domain/services/annealing_scheduler.py` — **Optimized engine** (`AnnealingScheduler`,
+  subclasses `Scheduler`).
 - `domain/services/` — also `constraint_evaluator.py`, `conflict_detector.py`, `schedule_analyzer.py`.
+- `domain/validation/` — Schedule Validator: independent checks that re-verify a saved schedule
+  against its uploaded files. Deliberately imports no scheduler/analyzer code.
 - `domain/value_objects/` — hard/soft conflicts, penalties, scheduling config + state.
 - `domain/adapters/` — CSV parsing + column-alias schema detection (`csv_adapters.py`, `schemas_detector.py`).
-- `domain/models/`, `domain/factories/`, `domain/assemblers/` — domain entities and construction.
-- `api/routes/` — `schedule.py`, `datasets.py`, `auth.py`, `admin.py`; all mounted under `/api` in `main.py`.
-- `schemas/db.py` — SQLAlchemy DB schema. `core/` — config, DB engine, exceptions.
+- `domain/models/`, `domain/factories/`, `domain/assemblers/` — domain entities, construction,
+  API response shapes.
+- `api/routes/` — `schedule.py`, `datasets.py`, `validation.py`, `auth.py`, `admin.py`; all
+  mounted under `/api` in `main.py`.
+- `schemas/db.py` — SQLAlchemy DB schema. `core/` — config, DB engine, exceptions, logging.
 - `services/`, `repo/` — app-level business logic and DB repositories.
 
-**Frontend** (`frontend/src/`): `app/` (routes), `components/` (feature dirs + `ui/` Shadcn),
-`lib/api/` (API client), `lib/store/` (Zustand), `lib/hooks/`.
+**Frontend** (`frontend/src/`): `app/` (routes; schedule view is `app/dashboard/[id]/page.tsx`),
+`components/` (feature dirs + `ui/` Shadcn), `lib/api/` (API client), `lib/store/` (Zustand),
+`lib/hooks/`. Tests sit next to the code as `*.test.ts(x)`.
+
+## Branches and environments
+
+| Branch | Deploys to | Notes |
+| --- | --- | --- |
+| feature branches | local only | One per Linear issue, cut from `develop` |
+| `develop` | Coolify dev | Integration branch; every feature PR targets it |
+| `staging` | Coolify staging | Promoted from `develop` by PR. In informal use: **its data must survive deploys** |
+| `main` | — | **Not in use.** It is GitHub's default branch, so always pass `--base` to `gh pr create` |
+
+## Development workflow
+
+Follow this for every bug, feature or improvement.
+
+1. **Discuss first.** Talk the problem through with the user and agree on the fix before writing
+   code. Investigate (code, DB, history) to ground the discussion.
+2. **Linear issues before code.** Team "Exam Engine" (key `EXENG`). Create the issue(s) In
+   Progress, assigned to the user, in the current cycle, labeled Feature / Improvement / Bug.
+   Multi-part work: a parent issue plus sub-issues (`parentId`).
+3. **Feature branch.** Cut from up-to-date `origin/develop`, named with the issue's Linear
+   `gitBranchName` (e.g. `exeng-87-schedule-view-...`). Never commit to `develop` or `staging`
+   directly. For stacked sub-issues, branch the later one off the earlier and merge in order.
+4. **Implement and verify.** Run the checks in "Verify your changes", then smoke-test the changed
+   path against the local stack (API calls and/or the browser). The dev containers hot-reload from
+   the main checkout, so the user can look at the branch right away (frontend on host port 3100
+   with the committed override).
+5. **User review.** Let the user try it locally before opening a PR.
+6. **PR into `develop`.** Conventional-commit title with the issue key, e.g.
+   `feat(schedule): ... (EXENG-87)`. Body: "Closes EXENG-N", then What / Verification. Move the
+   issue to In Review. CodeRabbit may review (rate-limited, ~1 review/hour; pushes re-trigger it).
+7. **Merge.** Merge commit (`gh pr merge --merge`); squash only when the branch has `wip:`-style
+   commits. Then delete the branch locally and on GitHub (the repo does not auto-delete).
+   "Closes EXENG-N" moves the issue to Done.
+8. **Promote `develop` → `staging`** only when the user asks:
+   - Check `git merge-tree --write-tree origin/staging origin/develop` merges cleanly.
+   - Data safety: list changes to schema, `core/database.py`, `main.py`, compose files,
+     Dockerfiles, env examples, nginx, dependency manifests; grep added backend code for DB writes
+     and storage calls. Staging data must survive.
+   - Run the full backend and frontend test suites on `develop`.
+   - Code review on two axes, standards and spec (the `code-review` skill), with the findings
+     posted as a PR comment.
+   - PR titled `chore: promote develop to staging (...)` with sections What's included / Data
+     safety / Verification / Deploy checklist (see #135, #138).
+   - Merge with `gh pr merge --merge --match-head-commit <develop sha>`.
+   - The user redeploys the existing Coolify staging resource and smoke-tests it.
+
+**Never put local dataset specifics** (dataset names, CRNs, rooms, student or instructor IDs,
+counts) in PRs, PR comments, issues or committed files. Use synthetic values in tests.
 
 ## Setup
 
 ```bash
 cp .env.example .env
 cp backend/.env.example backend/.env
-cp frontend/.env.example frontend/.env.local
-docker-compose --profile dev up -d      # frontend :3000, backend :8000, db :5432
+docker-compose --profile dev up -d
 ```
 
-Live API contract (ground truth for routes/schemas): **http://localhost:8000/docs** (FastAPI OpenAPI).
+The committed `docker-compose.override.yml` remaps host ports (backend **8100**, db **5434**,
+LocalStack **4576**; frontend 3100) and pins LocalStack to the community v4 image. Container
+ports are unchanged. Live API contract: `http://localhost:<backend port>/docs` (FastAPI OpenAPI).
 
 Local (non-Docker): `npm run install:all` then `npm run dev` (runs backend + frontend concurrently).
 
 ## Verify your changes
 
-Run these before claiming done — they are the CI gates (`.github/workflows/{unit-test,e2e}.yml`):
+**No CI runs on PRs into `develop` or `staging`** — `.github/workflows/{unit-test,e2e}.yml`
+trigger only on `main`/`master` (EXENG-40). Run the checks locally before claiming done:
 
 | Command | Scope |
 | --- | --- |
-| `npm run test` | backend `pytest` + frontend `vitest` |
-| `npm run lint` | backend `ruff check` + frontend `biome check` |
-| `cd backend && pytest -m unit` | fast backend units only (markers: `unit`, `integration`, `slow`) |
+| `cd backend && .venv/bin/pytest -q -p no:cacheprovider --no-cov` | all backend tests |
+| `cd backend && .venv/bin/ruff check --no-fix <files>` | backend lint (`pyproject.toml` sets `fix = true`, so plain `ruff check` rewrites files) |
+| `cd frontend && npx vitest run` | frontend unit tests (bare `vitest` starts watch mode) |
+| `cd frontend && npx tsc --noEmit --incremental false` | frontend type check |
+| `cd frontend && npx biome check <files>` | frontend lint (read-only without `--write`) |
 | `cd frontend && npm run test:e2e` | Playwright e2e (needs `npx playwright install` once) |
 
-Backend runs from `backend/` (`pythonpath=["."]`, `testpaths=["tests"]`). If imports fail:
-`cd backend && pip install -e ".[dev]"`.
+Backend markers: `unit`, `integration`, `slow` (`pytest -m unit`). Backend runs from `backend/`
+(`pythonpath=["."]`, `testpaths=["tests"]`); if imports fail: `cd backend && pip install -e ".[dev]"`.
 
 ## Conventions & gotchas
 
-- **Pre-commit hook is active** (`.husky/pre-commit` → lint-staged): commits auto-run `ruff format`/`ruff check --fix`
-  on `backend/**/*.py` and Biome on `frontend/**/*.{ts,tsx,js,jsx,json}`. Match existing style or the hook rewrites it.
-- **Frontend `lint`/`format` are mutating** — `biome check --write` / `biome format --write`. `npm run lint` edits files.
-- Backend style: PEP 8, type hints everywhere, `ruff` (line-length 88, double quotes). Config in `backend/pyproject.toml`.
+- **Pre-commit hook** (`.husky/pre-commit` → lint-staged) runs `ruff format` + `ruff check --fix`
+  on staged `backend/**/*.py` and Biome format + `check --write` on staged
+  `frontend/**/*.{ts,tsx,js,jsx,json}`. It needs `ruff` on `PATH`:
+  `export PATH=$PWD/backend/.venv/bin:$PATH`. Check `git show --stat` after committing.
+- **`npm run lint` and `npm run format` rewrite files**: `biome check --write` on the frontend,
+  and `ruff check` with `fix = true` (from `backend/pyproject.toml`) on the whole backend. Use the
+  read-only commands above for verification.
+- Don't `ruff format` whole directories: a few backend files are not ruff-formatted yet.
+  Format only the files you touch.
+- Backend style: PEP 8, type hints everywhere, `ruff` (line-length 88, double quotes). Config in
+  `backend/pyproject.toml`. Frontend: TypeScript + Biome (`frontend/biome.json`).
 - Conventional commits (`feat:`, `fix:`, `docs:`, `refactor:`, `test:`, `chore:`).
-- Docker uses **profiles**: `--profile dev` vs `--profile prod`. Bare `docker-compose up` starts nothing meaningful.
-- DB reset (drops + recreates): `cd backend && python src/schemas/reset_database.py`.
+- Docker uses **profiles**: `--profile dev` vs `--profile prod`. Bare `docker-compose up` (and the
+  root `npm run docker:*` scripts, which pass no profile) start nothing meaningful.
+- Local edits to `docker-compose.override.yml` are machine-specific port tweaks: don't commit them.
+- DB reset (drops + recreates all tables):
+  `docker-compose --profile dev exec backend-dev python src/schemas/reset_database.py`. Run it in
+  the container: on the host, `backend/.env` points at port 5432, not the override's 5434.
+- Schema changes have no migration tool: `init_db` runs `create_all` plus explicit
+  `ADD COLUMN IF NOT EXISTS` statements at startup. Prefer JSONB fields on existing tables, and
+  treat any schema change as a staging data-safety item.
+- Timestamps are naive `datetime.now` in the container (UTC) and serialized without a zone.
 - `bcrypt` is pinned to `3.2.0` for passlib compatibility — do not bump casually.
-- Datasets persist to S3 (`s3://.../{dataset_uuid}/{courses,enrollments,rooms}.csv`); needs AWS creds in `backend/.env`.
-
-### Known doc drift (verify against code, not docs, when it matters)
-- `docs/DEVELOPMENT.md` cites `backend/src/schema/reset_database.py` (singular); actual path is `src/schemas/` (plural).
-- `docs/TESTING.md` references `npm run test:watch` / `npm run test:coverage`; those scripts are **not** in
-  `frontend/package.json` (only `test`, `test:e2e`, `lint`, `format`, `clean`). Use `vitest --watch` / `--coverage` directly.
 
 ## Reference docs
 
-`docs/DEVELOPMENT.md` (setup, scripts, architecture) · `docs/ALGORITHM.md` (DSATUR + constraints) ·
+`docs/DEVELOPMENT.md` (setup, scripts, environments) · `docs/ALGORITHM.md` (engines + constraints) ·
 `docs/DATA.md` (CSV formats, DB schema) · `docs/TESTING.md` · `docs/INFRASTRUCTURE.md` (AWS/Terraform).
+Docs can drift; verify against code when it matters.

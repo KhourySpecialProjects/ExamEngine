@@ -92,6 +92,11 @@ Follow this for every bug, feature or improvement.
      safety / Verification / Deploy checklist (see #135, #138).
    - Merge with `gh pr merge --merge --match-head-commit <develop sha>`.
    - The user redeploys the existing Coolify staging resource and smoke-tests it.
+9. **Session notes.** `.session-notes.md` is an untracked, local file with the current state,
+   NEXT UP list, recent history and local tips, carried between agent sessions. Read it at the
+   start of every session. Update it without being asked after each merge or promotion and when
+   the user is wrapping up: what shipped, branch and environment state, open findings, NEXT UP.
+   Never commit it.
 
 **Never put local dataset specifics** (dataset names, CRNs, rooms, student or instructor IDs,
 counts) in PRs, PR comments, issues or committed files. Use synthetic values in tests.

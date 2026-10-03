@@ -14,3 +14,5 @@ Full workflow: `AGENTS.md` → "Development workflow".
 - Never commit local edits to `docker-compose.override.yml`.
 - Promote `develop` → `staging` only when the user asks, after the data-safety check and the
   two-axis code review; merge with `--match-head-commit`.
+- Read `.session-notes.md` at the start of every session. Update it without being asked after
+  each merge or promotion and when the user wraps up. Never commit it.

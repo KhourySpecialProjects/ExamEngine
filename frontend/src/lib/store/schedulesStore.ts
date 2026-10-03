@@ -2,6 +2,7 @@ import { create } from "zustand";
 import { apiClient } from "@/lib/api/client";
 import type { SchedulesState } from "@/lib/types/schedule.types";
 import { useAuthStore } from "./authStore";
+import { useDatasetStore } from "./datasetStore";
 
 export const useSchedulesStore = create<SchedulesState>((set, get) => ({
   // List state
@@ -68,6 +69,8 @@ export const useSchedulesStore = create<SchedulesState>((set, get) => ({
     const name = get().scheduleName?.trim() || "Untitled schedule";
     const params = get().parameters;
     const tempId = `temp-${Date.now()}`;
+    // Generation runs on one of the user's own datasets, so it is listed.
+    const dataset = useDatasetStore.getState().getDatasetById(datasetId);
 
     set((state) => ({
       isGenerating: true,
@@ -82,6 +85,14 @@ export const useSchedulesStore = create<SchedulesState>((set, get) => ({
           parameters: params,
           status: "Running",
           dataset_id: datasetId,
+          dataset: {
+            name: dataset?.dataset_name ?? "",
+            uploaded_at: dataset?.created_at ?? "",
+            deleted: false,
+            courses: dataset?.files.courses?.unique_crns ?? null,
+            students: dataset?.files.enrollments?.unique_students ?? null,
+            rooms: dataset?.files.rooms?.unique_rooms ?? null,
+          },
           total_exams: 0,
         },
         ...state.schedules,

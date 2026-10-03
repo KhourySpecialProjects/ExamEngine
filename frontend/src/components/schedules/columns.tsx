@@ -31,16 +31,15 @@ function getStatusVariant(
   }
 }
 
-function formatDate(dateString: string): string {
-  const date = new Date(dateString);
-  return new Intl.DateTimeFormat("en-US", {
-    month: "short",
-    day: "numeric",
-    year: "numeric",
-    hour: "numeric",
-    minute: "2-digit",
-  }).format(date);
-}
+const dateFormat = new Intl.DateTimeFormat("en-US", {
+  month: "short",
+  day: "numeric",
+  year: "numeric",
+});
+const timeFormat = new Intl.DateTimeFormat("en-US", {
+  hour: "numeric",
+  minute: "2-digit",
+});
 
 export function createScheduleColumns(
   onDelete?: (scheduleId: string) => void,
@@ -67,12 +66,37 @@ export function createScheduleColumns(
       header: ({ column }) => (
         <SortableHeader column={column} label="Created" />
       ),
-      cell: (info) => formatDate(info.getValue()),
+      cell: (info) => {
+        const date = new Date(info.getValue());
+        return (
+          <div className="flex flex-col">
+            <span>{dateFormat.format(date)}</span>
+            <span className="text-xs text-muted-foreground">
+              {timeFormat.format(date)}
+            </span>
+          </div>
+        );
+      },
+    }),
+
+    columnHelper.accessor((row) => row.dataset.name, {
+      id: "dataset",
+      header: ({ column }) => (
+        <SortableHeader column={column} label="Dataset" />
+      ),
+      cell: (info) => (
+        <div className="flex flex-wrap items-center gap-2">
+          <span>{info.getValue() || "Unknown"}</span>
+          {info.row.original.dataset.deleted && (
+            <Badge variant="destructive">Deleted</Badge>
+          )}
+        </div>
+      ),
     }),
 
     columnHelper.display({
       id: "created_by",
-      header: "Created by / Shared by",
+      header: "Created by",
       cell: (info) => {
         const schedule = info.row.original;
         if (schedule.is_shared && schedule.shared_by_user_name) {
@@ -107,7 +131,9 @@ export function createScheduleColumns(
 
     columnHelper.accessor("algorithm", {
       id: "algorithm",
-      header: "Algorithm",
+      header: ({ column }) => (
+        <SortableHeader column={column} label="Algorithm" />
+      ),
       cell: (info) => (
         <Badge variant="outline" className="font-mono">
           {info.getValue()}
@@ -117,7 +143,7 @@ export function createScheduleColumns(
 
     columnHelper.accessor("status", {
       id: "status",
-      header: "Status",
+      header: ({ column }) => <SortableHeader column={column} label="Status" />,
       cell: (info) => (
         <Badge variant={getStatusVariant(info.getValue())}>
           {info.getValue()}

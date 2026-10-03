@@ -1,0 +1,124 @@
+import { fireEvent, render, screen, within } from "@testing-library/react";
+import { beforeEach, describe, expect, it } from "vitest";
+import type { ScheduleListItem } from "@/lib/api/schedules";
+import { useSchedulesViewStore } from "@/lib/store/schedulesViewStore";
+import { ScheduleListView } from "./ScheduleListView";
+
+const schedule = (
+  name: string,
+  createdAt: string,
+  dataset = "Spring",
+  deleted = false,
+): ScheduleListItem => ({
+  schedule_id: name,
+  schedule_name: name,
+  created_at: createdAt,
+  algorithm: "DSATUR",
+  parameters: {},
+  status: "Completed",
+  dataset_id: dataset,
+  dataset: {
+    name: dataset,
+    uploaded_at: "2026-01-01T00:00:00",
+    deleted,
+    courses: 10,
+    students: 100,
+    rooms: 5,
+  },
+  total_exams: 10,
+});
+
+/** Schedule names in table order. */
+const names = () =>
+  within(screen.getByRole("table"))
+    .getAllByRole("row")
+    .slice(1)
+    .map((row) => within(row).getAllByRole("cell")[0].textContent);
+
+const twelve = () =>
+  Array.from({ length: 12 }, (_, i) =>
+    schedule(
+      `S${String(i + 1).padStart(2, "0")}`,
+      `2026-02-${10 + i}T09:00:00`,
+    ),
+  );
+
+const chooseRowsPerPage = (size: string) => {
+  // Radix Select calls these DOM APIs, which jsdom lacks.
+  Element.prototype.hasPointerCapture ??= () => false;
+  Element.prototype.scrollIntoView ??= () => {};
+  fireEvent.keyDown(screen.getByRole("combobox", { name: "Rows per page" }), {
+    key: "Enter",
+  });
+  fireEvent.keyDown(screen.getByRole("option", { name: size }), {
+    key: "Enter",
+  });
+};
+
+beforeEach(() => {
+  sessionStorage.clear();
+  useSchedulesViewStore.setState({ pageSize: 10 });
+});
+
+describe("ScheduleListView", () => {
+  it("opens newest first", () => {
+    render(
+      <ScheduleListView
+        schedules={[
+          schedule("Old", "2026-01-05T09:00:00"),
+          schedule("Newest", "2026-03-01T09:00:00"),
+          schedule("Middle", "2026-02-01T09:00:00"),
+        ]}
+      />,
+    );
+
+    expect(names()).toEqual(["Newest", "Middle", "Old"]);
+  });
+
+  it("pages with first/next controls and a rows-per-page choice kept for the session", () => {
+    render(<ScheduleListView schedules={twelve()} />);
+    expect(names()).toHaveLength(10);
+
+    fireEvent.click(screen.getByRole("button", { name: "Next page" }));
+    expect(names()).toEqual(["S02", "S01"]);
+
+    chooseRowsPerPage("25");
+    expect(names()).toHaveLength(12);
+    expect(names()[0]).toBe("S12");
+    expect(useSchedulesViewStore.getState().pageSize).toBe(25);
+  });
+
+  it("sorts by dataset and marks deleted datasets", () => {
+    render(
+      <ScheduleListView
+        schedules={[
+          schedule("A", "2026-01-01T09:00:00", "Winter"),
+          schedule("B", "2026-01-02T09:00:00", "Autumn", true),
+          schedule("C", "2026-01-03T09:00:00", "Spring"),
+        ]}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: /Dataset/ }));
+
+    expect(names()).toEqual(["B", "C", "A"]);
+    const autumnRow = within(screen.getByRole("table")).getAllByRole("row")[1];
+    expect(within(autumnRow).getByText("Deleted")).toBeTruthy();
+  });
+
+  it("searches dataset names and starts again from page 1", () => {
+    const schedules = [
+      ...twelve(),
+      schedule("Fall run", "2026-01-01T09:00:00", "Fall 2026"),
+    ];
+    render(<ScheduleListView schedules={schedules} />);
+    fireEvent.click(screen.getByRole("button", { name: "Next page" }));
+
+    fireEvent.change(screen.getByPlaceholderText("Search schedules..."), {
+      target: { value: "fall 2026" },
+    });
+
+    expect(names()).toEqual(["Fall run"]);
+    expect(screen.getByText("Page 1 of 1")).toBeTruthy();
+  });
+});

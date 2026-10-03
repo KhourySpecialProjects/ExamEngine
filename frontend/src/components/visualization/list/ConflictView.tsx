@@ -7,10 +7,6 @@ import {
   Briefcase,
   Calendar,
   CalendarX,
-  ChevronLeft,
-  ChevronRight,
-  ChevronsLeft,
-  ChevronsRight,
   Clock,
   GraduationCap,
   SquareArrowOutUpRight,
@@ -18,6 +14,7 @@ import {
 } from "lucide-react";
 import { useState } from "react";
 import { CopyButton } from "@/components/common/CopyButton";
+import { PaginationBar } from "@/components/common/table/PaginationBar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { ButtonGroup } from "@/components/ui/button-group";
@@ -28,13 +25,6 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import {
   Table,
   TableBody,
@@ -71,10 +61,7 @@ import {
   summarizeConflictsByCourse,
   useConflictDataSimple,
 } from "@/lib/hooks/useConflictDataSimple";
-import {
-  CONFLICT_PAGE_SIZES,
-  useConflictViewStore,
-} from "@/lib/store/conflictViewStore";
+import { useConflictViewStore } from "@/lib/store/conflictViewStore";
 import type { ConflictMetrics } from "@/lib/types/conflict.types";
 import { cn } from "@/lib/utils";
 import { CourseConflictDialog } from "./CourseConflictDialog";
@@ -158,80 +145,6 @@ function CoursePill({
         <SquareArrowOutUpRight className="size-3" aria-hidden />
       </button>
     </Badge>
-  );
-}
-
-function PaginationBar({
-  page,
-  pageSize,
-  total,
-  noun,
-  onPage,
-  onPageSize,
-}: {
-  page: number;
-  pageSize: number;
-  total: number;
-  /** Pluralized, with a leading space (" students"), or "". */
-  noun: string;
-  onPage: (p: number) => void;
-  /** Omit to hide the rows-per-page picker. */
-  onPageSize?: (size: number) => void;
-}) {
-  const totalPages = Math.max(1, Math.ceil(total / pageSize));
-  const start = page * pageSize;
-  const end = Math.min(total, start + pageSize);
-  const pageButtons = [
-    { label: "First page", icon: ChevronsLeft, to: 0 },
-    { label: "Previous page", icon: ChevronLeft, to: page - 1 },
-    { label: "Next page", icon: ChevronRight, to: page + 1 },
-    { label: "Last page", icon: ChevronsRight, to: totalPages - 1 },
-  ];
-  return (
-    <div className="flex flex-wrap items-center justify-between gap-2 py-2">
-      <div className="text-sm text-muted-foreground">
-        Showing {total === 0 ? 0 : start + 1}-{end} of {total}
-        {noun}
-      </div>
-      <div className="flex items-center gap-2">
-        {onPageSize && (
-          <>
-            <span className="text-sm text-muted-foreground">Rows per page</span>
-            <Select
-              value={String(pageSize)}
-              onValueChange={(v) => onPageSize(Number(v))}
-            >
-              <SelectTrigger size="sm" aria-label="Rows per page">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {CONFLICT_PAGE_SIZES.map((n) => (
-                  <SelectItem key={n} value={String(n)}>
-                    {n}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </>
-        )}
-        <span className="text-sm text-muted-foreground tabular-nums">
-          Page {page + 1} of {totalPages}
-        </span>
-        {pageButtons.map(({ label, icon: Icon, to }) => (
-          <Button
-            key={label}
-            variant="outline"
-            size="icon-sm"
-            aria-label={label}
-            title={label}
-            disabled={to < 0 || to >= totalPages || to === page}
-            onClick={() => onPage(to)}
-          >
-            <Icon />
-          </Button>
-        ))}
-      </div>
-    </div>
   );
 }
 

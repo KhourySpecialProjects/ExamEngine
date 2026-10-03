@@ -3,10 +3,11 @@
 import { flexRender } from "@tanstack/react-table";
 import { DataTableBody } from "@/components/common/table/DataTableBody";
 import { DataTableFilters } from "@/components/common/table/DataTableFilters";
-import { DataTablePagination } from "@/components/common/table/DataTablePagination";
+import { PaginationBar } from "@/components/common/table/PaginationBar";
 import { Table, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import type { ScheduleListItem } from "@/lib/api/schedules";
 import { useScheduleTable } from "@/lib/hooks/useScheduleTable";
+import { useSchedulesViewStore } from "@/lib/store/schedulesViewStore";
 
 interface ScheduleListViewProps {
   schedules: ScheduleListItem[];
@@ -17,7 +18,11 @@ export function ScheduleListView({
   schedules,
   onDelete,
 }: ScheduleListViewProps) {
-  const { table } = useScheduleTable(schedules, onDelete);
+  const { table, pageIndex, setPageIndex, pageSize } = useScheduleTable(
+    schedules,
+    onDelete,
+  );
+  const setPageSize = useSchedulesViewStore((s) => s.setPageSize);
 
   return (
     <div className="space-y-4">
@@ -29,7 +34,16 @@ export function ScheduleListView({
             {table.getHeaderGroups().map((headerGroup) => (
               <TableRow key={headerGroup.id}>
                 {headerGroup.headers.map((header) => (
-                  <TableHead key={header.id}>
+                  <TableHead
+                    key={header.id}
+                    aria-sort={
+                      header.column.getIsSorted() === "asc"
+                        ? "ascending"
+                        : header.column.getIsSorted() === "desc"
+                          ? "descending"
+                          : undefined
+                    }
+                  >
                     {header.isPlaceholder
                       ? null
                       : flexRender(
@@ -54,7 +68,17 @@ export function ScheduleListView({
         </Table>
       </div>
 
-      <DataTablePagination table={table} itemName="schedules" />
+      <PaginationBar
+        page={pageIndex}
+        pageSize={pageSize}
+        total={table.getFilteredRowModel().rows.length}
+        noun=" schedules"
+        onPage={setPageIndex}
+        onPageSize={(size) => {
+          setPageSize(size);
+          setPageIndex(0);
+        }}
+      />
     </div>
   );
 }

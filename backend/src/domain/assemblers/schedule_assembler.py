@@ -9,6 +9,24 @@ def _over_capacity(capacity: int, size: int) -> bool:
     return 0 < capacity < size
 
 
+def _dataset_summary(dataset) -> dict[str, Any]:
+    """Name, upload date and size of a schedule's dataset, from stored metadata.
+
+    Counts are None when the upload metadata has no such figure.
+    """
+    metadata = {
+        entry["type"]: entry.get("metadata", {}) for entry in dataset.file_paths
+    }
+    return {
+        "name": dataset.dataset_name,
+        "uploaded_at": dataset.upload_date.isoformat(),
+        "deleted": dataset.deleted_at is not None,
+        "courses": metadata.get("courses", {}).get("unique_crns"),
+        "students": metadata.get("enrollments", {}).get("unique_students"),
+        "rooms": metadata.get("rooms", {}).get("unique_rooms"),
+    }
+
+
 class ScheduleAssembler:
     """
     Builds consistent API responses for schedule endpoints.
@@ -150,6 +168,7 @@ class ScheduleAssembler:
             "parameters": schedule.run.parameters,
             "status": schedule.run.status.value,
             "dataset_id": str(schedule.run.dataset_id),
+            "dataset": _dataset_summary(schedule.run.dataset),
             "total_exams": exam_count,
             **permissions.to_dict(),
         }

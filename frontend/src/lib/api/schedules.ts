@@ -130,6 +130,18 @@ export interface ScheduleResult {
   shared_by_user_name?: string | null;
 }
 
+/** The dataset a listed schedule was generated from. */
+export interface ScheduleDatasetSummary {
+  name: string;
+  uploaded_at: string;
+  /** The dataset was deleted after the schedule was generated. */
+  deleted: boolean;
+  /** Null when the upload metadata has no such count. */
+  courses: number | null;
+  students: number | null;
+  rooms: number | null;
+}
+
 export interface ScheduleListItem {
   schedule_id: string;
   schedule_name: string;
@@ -138,6 +150,7 @@ export interface ScheduleListItem {
   parameters: ScheduleParameters;
   status: "Running" | "Completed" | "Failed";
   dataset_id: string;
+  dataset: ScheduleDatasetSummary;
   total_exams: number;
   is_shared?: boolean; // Whether this schedule is shared with the user
   is_owner?: boolean; // Whether the user owns this schedule

@@ -99,9 +99,10 @@ describe("ScheduleGroupsView", () => {
     );
     render(<ScheduleGroupsView schedules={many} />);
     expect(groups()).toHaveLength(10);
-    expect(screen.getByText("Showing 1-10 of 12 datasets")).toBeTruthy();
+    expect(screen.getAllByText("Showing 1-10 of 12 datasets")).toHaveLength(2);
 
-    fireEvent.click(screen.getByRole("button", { name: "Next page" }));
+    // The bar above the groups pages without scrolling past them.
+    fireEvent.click(screen.getAllByRole("button", { name: "Next page" })[0]);
 
     expect(groups().map(([name]) => name)).toEqual(["D1", "D0"]);
   });

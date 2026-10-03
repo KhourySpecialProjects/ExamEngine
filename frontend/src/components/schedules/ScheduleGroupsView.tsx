@@ -116,11 +116,14 @@ function GroupTable({
   });
   return (
     <Table>
-      <TableHeader>
+      <TableHeader className="bg-muted/60">
         {table.getHeaderGroups().map((headerGroup) => (
           <TableRow key={headerGroup.id}>
             {headerGroup.headers.map((header) => (
-              <TableHead key={header.id}>
+              <TableHead
+                key={header.id}
+                className="h-9 text-xs font-semibold uppercase tracking-wide text-muted-foreground"
+              >
                 {flexRender(
                   header.column.columnDef.header,
                   header.getContext(),
@@ -255,6 +258,14 @@ export function ScheduleGroupsView({
 
   const visible = groups.slice(page * pageSize, (page + 1) * pageSize);
 
+  const bar = {
+    page,
+    pageSize,
+    total: groups.length,
+    noun: " datasets",
+    onPage: setPage,
+  };
+
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap items-center gap-4">
@@ -317,6 +328,14 @@ export function ScheduleGroupsView({
         </div>
       </div>
 
+      <PaginationBar
+        {...bar}
+        onPageSize={(size) => {
+          setPageSize(size);
+          setPage(0);
+        }}
+      />
+
       {visible.length === 0 ? (
         <div className="flex h-[300px] flex-col items-center justify-center gap-3 rounded-xl border bg-card text-muted-foreground shadow-sm">
           <div className="rounded-full bg-muted p-4">
@@ -343,17 +362,7 @@ export function ScheduleGroupsView({
         </div>
       )}
 
-      <PaginationBar
-        page={page}
-        pageSize={pageSize}
-        total={groups.length}
-        noun=" datasets"
-        onPage={setPage}
-        onPageSize={(size) => {
-          setPageSize(size);
-          setPage(0);
-        }}
-      />
+      <PaginationBar {...bar} />
     </div>
   );
 }

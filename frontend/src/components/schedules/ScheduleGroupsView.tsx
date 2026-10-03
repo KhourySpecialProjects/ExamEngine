@@ -7,6 +7,7 @@ import {
 } from "@tanstack/react-table";
 import { AlertCircle, ChevronRight, Database, Search, X } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
+import { DataTableBody } from "@/components/common/table/DataTableBody";
 import { PaginationBar } from "@/components/common/table/PaginationBar";
 import { createScheduleColumns } from "@/components/schedules/columns";
 import { Badge } from "@/components/ui/badge";
@@ -19,14 +20,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
+import { Table, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import type { ScheduleListItem } from "@/lib/api/schedules";
 import {
   GROUP_SORT_LABELS,
@@ -137,23 +131,11 @@ function GroupTable({
           </TableRow>
         ))}
       </TableHeader>
-      <TableBody>
-        {table.getRowModel().rows.map((row) => (
-          <TableRow
-            key={row.id}
-            className="hover:bg-muted/50 transition-colors"
-          >
-            {row.getVisibleCells().map((cell) => (
-              <TableCell
-                key={cell.id}
-                className="whitespace-normal break-words"
-              >
-                {flexRender(cell.column.columnDef.cell, cell.getContext())}
-              </TableCell>
-            ))}
-          </TableRow>
-        ))}
-      </TableBody>
+      <DataTableBody
+        table={table}
+        columnCount={columns.length}
+        cellClassName="whitespace-normal break-words"
+      />
     </Table>
   );
 }

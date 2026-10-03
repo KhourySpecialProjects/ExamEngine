@@ -75,5 +75,4 @@ MIT License - see [LICENSE](./LICENSE) for details.
 
 ## Support
 
-- [Open an issue](https://github.com/shuklashreyas/ExamEngine/issues)
 - API docs available at `/docs` endpoint when running

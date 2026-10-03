@@ -70,18 +70,20 @@ when the dev container created it.
 
 ## Test Markers
 
-Registered in `backend/pyproject.toml` (`--strict-markers` is on, so unregistered markers fail):
+Registered in `backend/pyproject.toml` and `tests/conftest.py` (`--strict-markers` is on, so
+unregistered markers fail):
 
 | Marker | Description |
 | --- | --- |
 | `@pytest.mark.unit` | Fast, isolated unit tests |
 | `@pytest.mark.integration` | Integration tests |
 | `@pytest.mark.slow` | Long-running tests |
+| `@pytest.mark.stress` | Stress tests (registered in `conftest.py`) |
 
 `conftest.py` also adds `integration` to tests whose name contains `integration` or
-`real_data`, and `slow` to tests whose name contains `large` or `stress`. A module can mark all
-of its tests with `pytestmark = pytest.mark.unit`. Tests that run the annealing engine with a
-real time budget should be marked `slow`.
+`real_data`, `slow` to tests whose name contains `large` or `stress`, and `stress` to tests whose
+name contains `stress`. A module can mark all of its tests with `pytestmark = pytest.mark.unit`.
+Tests that run the annealing engine with a real time budget should be marked `slow`.
 
 ## CI Workflows
 

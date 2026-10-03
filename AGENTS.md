@@ -71,7 +71,8 @@ Follow this for every bug, feature or improvement.
    directly. For stacked sub-issues, branch the later one off the earlier and merge in order.
 4. **Implement and verify.** Run the checks in "Verify your changes", then smoke-test the changed
    path against the local stack (API calls and/or the browser). The dev containers hot-reload from
-   the main checkout, so the user can look at the branch at http://localhost:3000 right away.
+   the main checkout, so the user can look at the branch right away (frontend on host port 3100
+   with the committed override).
 5. **User review.** Let the user try it locally before opening a PR.
 6. **PR into `develop`.** Conventional-commit title with the issue key, e.g.
    `feat(schedule): ... (EXENG-87)`. Body: "Closes EXENG-N", then What / Verification. Move the
@@ -117,7 +118,7 @@ trigger only on `main`/`master` (EXENG-40). Run the checks locally before claimi
 | Command | Scope |
 | --- | --- |
 | `cd backend && .venv/bin/pytest -q -p no:cacheprovider --no-cov` | all backend tests |
-| `cd backend && .venv/bin/ruff check <files>` | backend lint (read-only) |
+| `cd backend && .venv/bin/ruff check --no-fix <files>` | backend lint (`pyproject.toml` sets `fix = true`, so plain `ruff check` rewrites files) |
 | `cd frontend && npx vitest run` | frontend unit tests (bare `vitest` starts watch mode) |
 | `cd frontend && npx tsc --noEmit --incremental false` | frontend type check |
 | `cd frontend && npx biome check <files>` | frontend lint (read-only without `--write`) |
@@ -132,8 +133,9 @@ Backend markers: `unit`, `integration`, `slow` (`pytest -m unit`). Backend runs 
   on staged `backend/**/*.py` and Biome format + `check --write` on staged
   `frontend/**/*.{ts,tsx,js,jsx,json}`. It needs `ruff` on `PATH`:
   `export PATH=$PWD/backend/.venv/bin:$PATH`. Check `git show --stat` after committing.
-- **`npm run lint` and `npm run format` rewrite files** (`biome check --write`, `ruff check --fix`).
-  Use the read-only commands above for verification.
+- **`npm run lint` and `npm run format` rewrite files**: `biome check --write` on the frontend,
+  and `ruff check` with `fix = true` (from `backend/pyproject.toml`) on the whole backend. Use the
+  read-only commands above for verification.
 - Don't `ruff format` whole directories: a few backend files are not ruff-formatted yet.
   Format only the files you touch.
 - Backend style: PEP 8, type hints everywhere, `ruff` (line-length 88, double quotes). Config in
@@ -142,7 +144,9 @@ Backend markers: `unit`, `integration`, `slow` (`pytest -m unit`). Backend runs 
 - Docker uses **profiles**: `--profile dev` vs `--profile prod`. Bare `docker-compose up` (and the
   root `npm run docker:*` scripts, which pass no profile) start nothing meaningful.
 - Local edits to `docker-compose.override.yml` are machine-specific port tweaks: don't commit them.
-- DB reset (drops + recreates): `cd backend && python src/schemas/reset_database.py`.
+- DB reset (drops + recreates all tables):
+  `docker-compose --profile dev exec backend-dev python src/schemas/reset_database.py`. Run it in
+  the container: on the host, `backend/.env` points at port 5432, not the override's 5434.
 - Schema changes have no migration tool: `init_db` runs `create_all` plus explicit
   `ADD COLUMN IF NOT EXISTS` statements at startup. Prefer JSONB fields on existing tables, and
   treat any schema change as a staging data-safety item.

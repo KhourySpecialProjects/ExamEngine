@@ -68,8 +68,9 @@ cd backend && uvicorn src.main:app --reload --port 8000
 cd frontend && npm run dev
 ```
 
-You still need Postgres and S3 (for example `docker-compose --profile dev up -d db localstack`).
-Without Docker networking:
+You still need Postgres and S3, for example
+`docker-compose --profile dev up -d db localstack localstack-init` (`localstack-init` creates the
+S3 bucket; uploads fail without it). Without Docker networking:
 
 - In `backend/.env`, point `DATABASE_URL` and `AWS_ENDPOINT_URL` at `localhost` and the host
   ports, not the `db` / `localstack` service names.
@@ -93,8 +94,8 @@ The example files are the source of truth; copy them and fill in values.
 | Environment | Compose file | Branch | Storage |
 | --- | --- | --- | --- |
 | Local | `docker-compose.yml` (+ override), `--profile dev` | any | Postgres + LocalStack (S3 is not persisted across restarts) |
-| Coolify dev | `docker-compose.coolify-dev.yml` | `develop` | Postgres + MinIO in-stack; seeds the admin automatically |
-| Coolify staging | `docker-compose.coolify-staging.yml` | `staging` | Postgres + MinIO on named volumes that survive redeploys; seed the admin once with `python script/add_admin.py`; `/docs` disabled |
+| Coolify dev | `docker-compose.coolify-dev.yml` | `develop` | Postgres + MinIO in-stack on named volumes; seeds the admin automatically; `/docs` enabled |
+| Coolify staging | `docker-compose.coolify-staging.yml` | `staging` | Postgres + MinIO in-stack on named volumes (data survives redeploys and is in informal use); seed the admin once with `python script/add_admin.py`; `/docs` disabled |
 | Production (AWS) | `docker-compose.yml --profile prod`, `infrastructure/terraform/` | — | RDS + S3; not in active use |
 
 Each Coolify stack routes `/api/*` to the backend and everything else to the frontend from one
@@ -111,7 +112,7 @@ From the root directory:
 | `npm run dev:backend` / `npm run dev:frontend` | Start one side only |
 | `npm run test` | Backend `pytest` + frontend `vitest` |
 | `npm run test:backend:cov` | Backend tests with HTML + terminal coverage |
-| `npm run lint` | `ruff check` + `biome check --write` (**rewrites frontend files**) |
+| `npm run lint` | `ruff check` + `biome check --write` (**rewrites files**: ruff has `fix = true` in `backend/pyproject.toml`) |
 | `npm run format` | `ruff format` + `ruff check --fix` + `biome format --write` (**rewrites files**) |
 | `npm run build` | Build the frontend for production |
 | `npm run clean` | Remove caches and build output |
@@ -145,6 +146,8 @@ docker-compose --profile prod down
   `backend/pyproject.toml`.
 - Format only the files you change (`ruff format <files>`): a few existing files are not
   ruff-formatted yet, and formatting whole directories pulls unrelated changes into a commit.
+- `pyproject.toml` sets `fix = true`, so plain `ruff check` rewrites files. Check without changing
+  anything with `ruff check --no-fix <files>`.
 
 ### Frontend (TypeScript)
 
@@ -223,15 +226,13 @@ lsof -i :3000
 ### Database Issues
 
 ```bash
-# Reset database (wipes all data)
+# Start over with an empty database (wipes all data, including pgadmin settings)
 docker-compose --profile dev down -v
-docker-compose --profile dev up -d db
-
-# If the schema is still out of date, drop and recreate the tables
-cd backend && python src/schemas/reset_database.py
-
-# Wait for db to be healthy, then start the other services
 docker-compose --profile dev up -d
+
+# Or keep the containers and drop + recreate all tables (run inside the container;
+# on the host, backend/.env points at port 5432 instead of the override's 5434)
+docker-compose --profile dev exec backend-dev python src/schemas/reset_database.py
 ```
 
 ### Python Import Errors

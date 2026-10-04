@@ -71,17 +71,16 @@ export function useCompare() {
     };
   }, [missingKey, attempt]);
 
+  // Every write replaces the history entry (nuqs' default) and drops `base`.
+  const write = (nextIds: string[]) =>
+    setParams({ ids: nextIds.length > 0 ? nextIds : null, base: null });
+
   // An old `?base=` link: that column moves to the front.
   // biome-ignore lint/correctness/useExhaustiveDependencies: runs once per `base` in the URL
   useEffect(() => {
-    if (params.base === null) return;
-    setParams(
-      {
-        ids: setBaseline(urlIds, params.base.toLowerCase()),
-        base: null,
-      },
-      { history: "replace" },
-    );
+    if (params.base !== null) {
+      write(setBaseline(urlIds, params.base.toLowerCase()));
+    }
   }, [params.base]);
 
   const isShown = (id: string) => itemFor(id)?.status === "ok";
@@ -94,9 +93,6 @@ export function useCompare() {
   // loading.
   const nextColors = loading ? colors : assignColors(ids, colors);
   if (nextColors !== colors) setColors(nextColors);
-
-  const write = (nextIds: string[]) =>
-    setParams({ ids: nextIds.length > 0 ? nextIds : null, base: null });
 
   const retry = useCallback(() => {
     setError(null);

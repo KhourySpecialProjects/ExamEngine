@@ -174,8 +174,9 @@ describe("ComparePage", () => {
       screen.getByRole("button", { name: "Column A options" }),
       { key: "Enter" },
     );
+    const remove = await screen.findByRole("menuitem", { name: "Remove" });
     expect(screen.queryByRole("menuitem", { name: "Move left" })).toBeNull();
-    fireEvent.click(await screen.findByRole("menuitem", { name: "Remove" }));
+    fireEvent.click(remove);
 
     await waitFor(() => expect(lastUrl()?.get("ids")).toBe(`${GONE},${A}`));
   });

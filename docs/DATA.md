@@ -372,7 +372,9 @@ the courses, enrollments and room blockouts from the uploaded files, parsed unfi
 `{schedule_id, crn, course_code, instructor_id, size, outcome, settings, candidates,
 no_room_blocks, instructor_exams, sibling_sections, notes}`; `outcome` is `clear`,
 `least_conflicts` or `no_room`, and `candidates` are ranked, each with its block, best-fit room,
-other fitting rooms, conflict counts and the students and instructor affected.
+other fitting rooms, conflict counts and the students and instructor affected. Block lists come
+with their labels in the same order: each `students.back_to_back[]` has `blocks` and
+`block_times`, and `instructor` has `day_blocks` and `day_block_times`.
 
 `POST /api/schedule/{id}/late-add` with `{crn, course_code, instructor_id, day, block, room,
 schedule_name, accept_conflicts}` (`day` 0–6, Monday = 0; `block` 0–4) saves the schedule plus

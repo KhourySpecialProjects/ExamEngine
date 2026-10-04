@@ -203,11 +203,20 @@ def test_owner_gets_ranked_clear_blocks_and_nothing_is_written(db_session):
         "large_course_late": 0,
     }
     assert second["students"]["back_to_back"] == [
-        {"student_id": "S1", "blocks": [0, 1]},
-        {"student_id": "S3", "blocks": [1, 2]},
+        {
+            "student_id": "S1",
+            "blocks": [0, 1],
+            "block_times": ["9AM-11AM", "11:30AM-1:30PM"],
+        },
+        {
+            "student_id": "S3",
+            "blocks": [1, 2],
+            "block_times": ["11:30AM-1:30PM", "2PM-4PM"],
+        },
     ]
     assert second["instructor"]["back_to_back"] is True
     assert second["instructor"]["day_blocks"] == [0, 1]
+    assert second["instructor"]["day_block_times"] == ["9AM-11AM", "11:30AM-1:30PM"]
     assert body["no_room_blocks"] == []
     assert [e["crn"] for e in body["instructor_exams"]] == ["101", "102"]
     assert body["instructor_exams"][1]["day"] is None

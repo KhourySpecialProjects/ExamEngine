@@ -13,6 +13,7 @@ import copy
 import datetime
 import uuid
 from collections import defaultdict
+from collections.abc import Iterable
 from dataclasses import dataclass
 from typing import Any, Literal
 from uuid import UUID
@@ -116,6 +117,8 @@ class StudentOverDailyLimit(BaseModel):
 class StudentBackToBack(BaseModel):
     student_id: str
     blocks: list[int]
+    block_times: list[str]
+    """Labels for `blocks`, same order."""
 
 
 class LateAddStudentConflicts(BaseModel):
@@ -130,6 +133,8 @@ class LateAddInstructorConflicts(BaseModel):
     over_daily_limit: bool
     back_to_back: bool
     day_blocks: list[int]
+    day_block_times: list[str]
+    """Labels for `day_blocks`, same order."""
 
 
 class LateAddCandidate(BaseModel):
@@ -713,7 +718,11 @@ def _candidate(ev: BlockEvaluation) -> LateAddCandidate:
                 for s, n in sorted(ev.student_over_daily_limit.items())
             ],
             back_to_back=[
-                StudentBackToBack(student_id=s, blocks=list(blocks))
+                StudentBackToBack(
+                    student_id=s,
+                    blocks=list(blocks),
+                    block_times=_block_times(blocks),
+                )
                 for s, blocks in sorted(ev.student_back_to_back.items())
             ],
         ),
@@ -723,6 +732,11 @@ def _candidate(ev: BlockEvaluation) -> LateAddCandidate:
             over_daily_limit=ev.instructor_over_daily_limit,
             back_to_back=ev.instructor_back_to_back,
             day_blocks=list(ev.instructor_day_blocks),
+            day_block_times=_block_times(ev.instructor_day_blocks),
         ),
         large_course_late=ev.large_course_late,
     )
+
+
+def _block_times(blocks: Iterable[int]) -> list[str]:
+    return [BLOCK_TIMES[block] for block in blocks]

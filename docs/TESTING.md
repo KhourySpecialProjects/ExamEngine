@@ -21,7 +21,7 @@ backend/
     └── services/             # Application services (datasets, schedule)
 
 frontend/
-├── vitest.config.mts         # jsdom, setup file, v8 coverage
+├── vitest.config.mts         # jsdom, setup file, v8 coverage, testTimeout 15 s
 ├── src/test/setup.ts         # Test setup
 ├── src/**/*.test.ts(x)       # Unit/component tests, next to the code they test
 ├── playwright.config.ts

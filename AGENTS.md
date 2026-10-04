@@ -16,7 +16,7 @@ Monorepo, three deployable pieces + IaC:
 | `frontend/` | Next.js 15 (app router), React 19, TypeScript, Zustand, Shadcn/ui, Tailwind v4 | Web UI |
 | `docker-compose.yml` | Postgres 15, LocalStack (S3), nginx, pgadmin | Local dev (`--profile dev`) and prod-style (`--profile prod`) |
 | `docker-compose.coolify-{dev,staging}.yml` | Postgres, MinIO (S3), backend, frontend, proxy | Coolify deployments of `develop` and `staging` |
-| `infrastructure/terraform/` | Terraform, AWS (ECS Fargate, RDS, S3, ALB) | Production infra (not in active use) |
+| `infrastructure/terraform/` | Terraform, AWS (ECS Fargate, RDS, S3, ALB) | Former production infra: **not in use and likely out of date**, kept for reference |
 
 Data flow: user uploads CSVs → backend validates, stores the files in S3 (LocalStack locally,
 MinIO on Coolify) and records metadata in Postgres → the chosen engine assigns time slots +
@@ -44,9 +44,10 @@ same room), `common_exams` (same block, different rooms). CSV contracts and the 
 - `schemas/db.py` — SQLAlchemy DB schema. `core/` — config, DB engine, exceptions, logging.
 - `services/`, `repo/` — app-level business logic and DB repositories.
 
-**Frontend** (`frontend/src/`): `app/` (routes; schedule view is `app/dashboard/[id]/page.tsx`),
-`components/` (feature dirs + `ui/` Shadcn), `lib/api/` (API client), `lib/store/` (Zustand),
-`lib/hooks/`. Tests sit next to the code as `*.test.ts(x)`.
+**Frontend** (`frontend/src/`): `app/` (routes; schedules list is `app/dashboard/page.tsx` with
+List and By-dataset views, schedule view is `app/dashboard/[id]/page.tsx`), `components/`
+(feature dirs, `common/` shared pieces such as `table/PaginationBar`, `ui/` Shadcn), `lib/api/`
+(API client), `lib/store/` (Zustand), `lib/hooks/`. Tests sit next to the code as `*.test.ts(x)`.
 
 ## Branches and environments
 
@@ -129,7 +130,9 @@ trigger only on `main`/`master` (EXENG-40). Run the checks locally before claimi
 | `cd frontend && npx biome check <files>` | frontend lint (read-only without `--write`) |
 | `cd frontend && npm run test:e2e` | Playwright e2e (needs `npx playwright install` once) |
 
-Backend markers: `unit`, `integration`, `slow` (`pytest -m unit`). Backend runs from `backend/`
+Backend markers: `unit` (set by hand; currently only `test_annealing_scheduler.py`), `integration`,
+`slow`, `stress`. `tests/conftest.py` adds the last three from test names ("integration" or
+"real_data"; "large" or "stress"), e.g. `pytest -m "not slow"`. Backend runs from `backend/`
 (`pythonpath=["."]`, `testpaths=["tests"]`); if imports fail: `cd backend && pip install -e ".[dev]"`.
 
 ## Conventions & gotchas
@@ -138,9 +141,12 @@ Backend markers: `unit`, `integration`, `slow` (`pytest -m unit`). Backend runs 
   on staged `backend/**/*.py` and Biome format + `check --write` on staged
   `frontend/**/*.{ts,tsx,js,jsx,json}`. It needs `ruff` on `PATH`:
   `export PATH=$PWD/backend/.venv/bin:$PATH`. Check `git show --stat` after committing.
-- **`npm run lint` and `npm run format` rewrite files**: `biome check --write` on the frontend,
-  and `ruff check` with `fix = true` (from `backend/pyproject.toml`) on the whole backend. Use the
-  read-only commands above for verification.
+- **`npm run lint` and `npm run format` rewrite files.** `lint` runs `biome check --write` on the
+  frontend and `ruff check .` (with `fix = true` from `backend/pyproject.toml`) on the whole
+  backend. `format` runs `biome format --write` on the frontend and `ruff format . && ruff check
+  --fix .` on the whole backend, so it also reformats files that aren't ruff-formatted yet (next
+  bullet): avoid it.
+  Use the read-only commands above for verification.
 - Don't `ruff format` whole directories: a few backend files are not ruff-formatted yet.
   Format only the files you touch.
 - Backend style: PEP 8, type hints everywhere, `ruff` (line-length 88, double quotes). Config in
@@ -161,5 +167,6 @@ Backend markers: `unit`, `integration`, `slow` (`pytest -m unit`). Backend runs 
 ## Reference docs
 
 `docs/DEVELOPMENT.md` (setup, scripts, environments) · `docs/ALGORITHM.md` (engines + constraints) ·
-`docs/DATA.md` (CSV formats, DB schema) · `docs/TESTING.md` · `docs/INFRASTRUCTURE.md` (AWS/Terraform).
+`docs/DATA.md` (CSV formats, DB schema) · `docs/TESTING.md` · `docs/INFRASTRUCTURE.md` (AWS/Terraform,
+not in use).
 Docs can drift; verify against code when it matters.

@@ -10,7 +10,7 @@ An intelligent exam scheduling system that models final-exam scheduling as graph
 | Document                                   | Description                                 |
 | ------------------------------------------ | ------------------------------------------- |
 | [Development Guide](./docs/DEVELOPMENT.md) | Local setup, running the app, code style    |
-| [Infrastructure](./docs/INFRASTRUCTURE.md) | AWS deployment, Terraform, production setup |
+| [Infrastructure](./docs/INFRASTRUCTURE.md) | AWS/Terraform setup (not in use, likely out of date) |
 | [Testing](./docs/TESTING.md)               | Running tests, CI/CD workflows              |
 | [Data Guide](./docs/DATA.md)                | CSV formats, validation, database schema    |
 | [Algorithm](./docs/ALGORITHM.md)           | Scheduling engines and constraints          |
@@ -21,8 +21,8 @@ ExamEngine solves the complex problem of creating conflict-free exam timetables 
 
 **Key Capabilities:**
 
-- Schedules 15,000+ students across 1,500+ course sections
-- Uses 270 rooms and 25 time slots (days and exam blocks per day are set per run)
+- Tested with schedules of more than 15,000 students and 1,500 exams
+- Exam days (up to 7) and exam blocks per day (4 or 5) are set per run
 - Generates schedules in minutes (vs. weeks manually)
 - Minimizes student conflicts and back-to-back exams, and never seats more students in a room than it holds
 - Configurable per-day exam limits for students and instructors
@@ -37,7 +37,7 @@ ExamEngine solves the complex problem of creating conflict-free exam timetables 
 | Backend        | FastAPI, Python 3.12, SQLAlchemy                                           |
 | Database       | PostgreSQL (15 locally, 16 on Coolify)                                     |
 | File storage   | S3-compatible: LocalStack (local), MinIO (Coolify), S3 (AWS)               |
-| Deployment     | Docker Compose on Coolify (`develop` → dev, `staging` → staging); AWS (ECS Fargate, RDS, S3, ALB) via Terraform for production (not yet in use) |
+| Deployment     | Docker Compose on Coolify (`develop` → dev, `staging` → staging). The AWS Terraform config (ECS Fargate, RDS, S3, ALB) is not in use and likely out of date |
 | CI             | GitHub Actions (runs on `main`/`master` only)                              |
 
 ## Project Structure
@@ -46,7 +46,7 @@ ExamEngine solves the complex problem of creating conflict-free exam timetables 
 ExamEngine/
 ├── frontend/                          # Next.js React application
 ├── backend/                           # FastAPI Python server and scheduling engines
-├── infrastructure/                    # Terraform IaC (AWS)
+├── infrastructure/                    # Terraform IaC (AWS): not in use, kept for reference
 ├── docs/                              # Documentation
 │   ├── DEVELOPMENT.md
 │   ├── INFRASTRUCTURE.md

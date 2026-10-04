@@ -1,5 +1,4 @@
 import { useSchedulesStore } from "@/lib/store/schedulesStore";
-import type { ConflictMetrics } from "@/lib/types/conflict.types";
 import type {
   ConflictBreakdown,
   ScheduleData,
@@ -489,27 +488,6 @@ function groupRowsByType(rows: ConflictRow[]): ConflictDataByType {
   }, {} as ConflictDataByType);
 }
 
-/** Metrics match the tabs: distinct people per person type, courses otherwise. */
-function calculateMetrics(rowsByType: ConflictDataByType): ConflictMetrics {
-  const countRows = (types: ConflictType[]) =>
-    new Set(
-      types.flatMap((t) => (rowsByType[t] ?? []).map((r) => r.entity || r.id)),
-    ).size;
-
-  return {
-    hard_student_conflicts: countRows(["student_double_book"]),
-    hard_instructor_conflicts: countRows(["instructor_double_book"]),
-    student_gt3_per_day: countRows([
-      "student_gt_max_per_day",
-      "student_gt3_per_day",
-    ]),
-    students_back_to_back: countRows(["back_to_back", "back_to_back_student"]),
-    instructors_back_to_back: countRows(["back_to_back_instructor"]),
-    instructor_gt_max_per_day: countRows(["instructor_gt_max_per_day"]),
-    large_courses_not_early: countRows(["large_course_not_early"]),
-  };
-}
-
 export function useConflictDataSimple() {
   const currentSchedule = useSchedulesStore((s) => s.currentSchedule);
   const breakdown = currentSchedule?.conflicts?.breakdown ?? [];
@@ -517,8 +495,7 @@ export function useConflictDataSimple() {
 
   const rows = buildConflictRows(breakdown, examsByCrn);
   const rowsByType = groupRowsByType(rows);
-  const metrics = calculateMetrics(rowsByType);
   const types = Object.keys(rowsByType);
 
-  return { metrics, rowsByType, types };
+  return { rowsByType, types };
 }

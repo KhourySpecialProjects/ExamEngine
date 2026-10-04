@@ -68,14 +68,111 @@ export interface CalendarData {
   };
 }
 
+/** An exam named in a problem list. */
+export interface ExamIssue {
+  crn: string;
+  course: string;
+  size: number;
+}
+
+export interface OverCapacityExam extends ExamIssue {
+  room: string;
+  capacity: number;
+}
+
+export interface GroupStats {
+  groups: number;
+  /** Exams (CRNs, in any state) that belong to a group. */
+  sections: number;
+  /** Enrollment summed over those sections. */
+  students: number;
+}
+
+/** Distinct people (or exams) and how many times, as the Conflicts tab merges them. */
+export interface ConflictCount {
+  people: number;
+  instances: number;
+}
+
+export type ConflictMetric =
+  | "student_double_book"
+  | "instructor_double_book"
+  | "student_over_daily_limit"
+  | "instructor_over_daily_limit"
+  | "student_back_to_back"
+  | "instructor_back_to_back"
+  | "large_courses_late";
+
+/** The settings a run used; null = not recorded by older runs. */
+export interface ScheduleSettings {
+  algorithm: "dsatur" | "annealing";
+  blocks_per_day: number;
+  time_budget_seconds: number | null;
+  max_days: number | null;
+  student_max_per_day: number | null;
+  instructor_max_per_day: number | null;
+  avoid_back_to_back: boolean | null;
+  prioritize_large_courses: boolean | null;
+}
+
+export type FillBucket =
+  | "under_50"
+  | "from_50_to_75"
+  | "from_75_to_90"
+  | "from_90_to_100";
+
+/**
+ * Every number shown about one schedule, computed by the server from saved
+ * rows (the browser doesn't recompute them). Field definitions: docs/DATA.md,
+ * "Schedule summary".
+ */
 export interface ScheduleSummary {
-  num_classes: number;
-  num_students: number;
-  potential_overlaps: number;
-  real_conflicts: number;
-  num_rooms: number;
-  slots_used: number;
-  unplaced_exams: number;
+  settings: ScheduleSettings;
+  /** Settings an older run didn't record, filled with the value used then. */
+  settings_assumed: (keyof ScheduleSettings)[];
+  /** From the dataset's enrollments upload; null when unknown. */
+  unique_students: number | null;
+  exams: {
+    total: number;
+    /** A day, a time and a room. */
+    placed: number;
+    /** No day or time. */
+    unscheduled: number;
+    /** A day and time but no room. */
+    unroomed: number;
+    over_capacity: number;
+  };
+  unscheduled: {
+    exams: ExamIssue[];
+    students: number;
+    /** Groups the scheduler reported, with its reason. */
+    groups: UnscheduledGroup[];
+    /** Unscheduled CRNs no reported group explains (e.g. older schedules). */
+    other_crns: string[];
+  };
+  unroomed: { exams: ExamIssue[]; students: number };
+  /** Largest overflow first. */
+  over_capacity: OverCapacityExam[];
+  conflicts: Record<ConflictMetric, ConflictCount>;
+  rooms: {
+    used: number;
+    /** Mean seats filled per placed exam, capped at 100% per exam (0-100). */
+    average_fill: number;
+    fill_buckets: Record<FillBucket, number>;
+  };
+  calendar: {
+    /** Distinct (day, block) pairs holding an exam, unroomed included. */
+    slots_used: number;
+    days_used: number;
+    /** Placed exams per day, Monday first. */
+    days: { day: string; exams: number; seats: number }[];
+    /** Placed exams per block, earliest first. */
+    blocks: { label: string; exams: number }[];
+    /** Placed exams per [day][block], in `days` and `blocks` order. */
+    matrix: number[][];
+  };
+  groups: { combined: GroupStats; common: GroupStats };
+  blockouts: { rooms: number; slots: number };
 }
 
 export interface ScheduleConflicts {

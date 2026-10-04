@@ -6,7 +6,11 @@ import {
   within,
 } from "@testing-library/react";
 import { beforeEach, describe, expect, it, type Mock, vi } from "vitest";
-import type { ConflictBreakdown, ScheduleExam } from "@/lib/api/schedules";
+import type {
+  ConflictBreakdown,
+  ScheduleExam,
+  ScheduleSummary,
+} from "@/lib/api/schedules";
 import { useConflictViewStore } from "@/lib/store/conflictViewStore";
 import { useSchedulesStore } from "@/lib/store/schedulesStore";
 import ConflictView from "./ConflictView";
@@ -32,15 +36,29 @@ const doubleBook = (
   conflicting_course: `CS ${conflictingCrn}`,
 });
 
+const noConflicts = Object.fromEntries(
+  [
+    "student_double_book",
+    "instructor_double_book",
+    "student_over_daily_limit",
+    "instructor_over_daily_limit",
+    "student_back_to_back",
+    "instructor_back_to_back",
+    "large_courses_late",
+  ].map((metric) => [metric, { people: 0, instances: 0 }]),
+) as ScheduleSummary["conflicts"];
+
 function mockSchedule(
   breakdown: ConflictBreakdown[],
   complete: ScheduleExam[] = [],
+  conflicts: Partial<ScheduleSummary["conflicts"]> = {},
 ) {
   const currentSchedule = {
     conflicts: { total: breakdown.length, details: {}, breakdown },
     schedule: { complete, calendar: {}, total_exams: complete.length },
+    summary: { conflicts: { ...noConflicts, ...conflicts } },
   };
-  // Only currentSchedule is read by the conflict hook.
+  // Only currentSchedule is read by the conflict view.
   const state = { currentSchedule } as unknown as Parameters<
     Parameters<typeof useSchedulesStore>[0]
   >[0];
@@ -555,11 +573,18 @@ describe("ConflictView", () => {
     });
   });
 
-  it("counts students, not conflict records, in the student double-book card", () => {
+  it("shows the server's people count on each card, 0 when it has none", () => {
+    mockSchedule([doubleBook("000000001", "Monday", "2500", "2510")], [], {
+      student_double_book: { people: 2, instances: 3 },
+    });
     render(<ConflictView />);
 
     const subtitle = screen.getByText("Students with overlapping exams");
     expect(subtitle.previousSibling?.textContent).toBe("2");
+    expect(
+      screen.getByText("Instructors with overlapping exams").previousSibling
+        ?.textContent,
+    ).toBe("0");
     // Who is affected is a pill under the title, not part of the title.
     const card = subtitle.closest<HTMLElement>('[data-slot="card"]');
     expect(

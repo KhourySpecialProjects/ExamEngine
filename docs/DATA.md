@@ -321,6 +321,41 @@ JSON written by the scheduler:
 
 `datasets.common_exam_groups` (nullable JSONB) was added after the initial schema. `init_db` adds it on startup to existing Postgres databases with `ALTER TABLE datasets ADD COLUMN IF NOT EXISTS common_exam_groups JSONB DEFAULT NULL` (idempotent; no data migration needed).
 
+### Schedule summary
+
+Every number the app shows about a schedule (Statistics tab, the Conflicts tab's summary cards,
+the settings in the schedule header, the compare page) comes from one server function,
+`backend/src/services/schedule/summary.py`. It reads saved rows only: the schedule's exam
+assignments, the conflict breakdown, the stored unscheduled groups, the run and the dataset's
+stored metadata; never the uploaded files. It is the `summary` field of
+`GET /api/schedule/{id}` (and of the generate response) and of each item of
+`GET /api/schedule/compare`.
+
+| Field | Meaning |
+| --- | --- |
+| `settings` | The run's settings. `algorithm` falls back to `runs.algorithm_name` for runs from before it was recorded; settings a run didn't record are `null`, except `blocks_per_day`, which is 5 (the only option then) |
+| `settings_assumed` | Settings filled in that way (`["blocks_per_day"]` or `[]`) |
+| `unique_students` | From the enrollments upload metadata; `null` when unknown |
+| `exams` | Counts: `total`; `placed` (a day, a time and a room); `unscheduled` (no time slot); `unroomed` (a time slot, no room); `over_capacity` (placed, size > a known capacity) |
+| `unscheduled`, `unroomed` | The exams (`crn`, `course`, `size`) and their summed enrollment. `unscheduled` also has the stored `groups` and `other_crns` (unscheduled CRNs no group explains) |
+| `over_capacity` | `{crn, course, size, room, capacity}`, largest overflow first |
+| `conflicts` | Per type: `people` (distinct students or instructors; distinct exams for `large_courses_late`) and `instances`. Types: `student_double_book`, `instructor_double_book`, `student_over_daily_limit`, `instructor_over_daily_limit`, `student_back_to_back`, `instructor_back_to_back`, `large_courses_late` |
+| `rooms` | `used` (distinct rooms with a placed exam); `average_fill` (mean of size / capacity per placed exam with a known capacity, each capped at 100%, one decimal); `fill_buckets` (`under_50`, `from_50_to_75`, `from_75_to_90`, `from_90_to_100`; lower bound inclusive) |
+| `calendar` | `slots_used` and `days_used` (distinct (day, block) pairs and days holding an exam, unroomed included); `days` (placed exams and seats per day, Monday first); `blocks` (placed exams per block, earliest first); `matrix` (placed exams per `[day][block]` in those orders) |
+| `groups` | `combined` and `common`: group count, and the exams (any state) in them with their summed enrollment. A combined group with any CRN in a common group counts as common as a whole |
+| `blockouts` | Rooms blocked and blocked (room, slot) entries, from the room blockouts upload metadata |
+
+`instances` counts occurrences the way the Conflicts tab merges records: one per person, day and
+time for double-books (a 3-way double-book, stored as 3 pairs, is 1), one per person and day for
+the daily limits, one per record for back-to-back and large courses late. A record without a
+person counts as its own person.
+
+`GET /api/schedule/compare?ids=<id>&ids=<id>…` takes 2–4 distinct schedule IDs (duplicates are
+dropped; otherwise 422) and returns `{schedules: [...]}` in the requested order. A schedule the
+caller can't view, or that doesn't exist, is `{schedule_id, status: "unavailable"}` with nothing
+else. Others are `status: "ok"` with name, `created_at`, `run_status`, `dataset {dataset_id,
+dataset_name, uploaded_at, deleted}`, the owner/share fields and `summary`.
+
 ## S3 Storage Structure
 
 Datasets are stored in S3 with the following structure:

@@ -7,6 +7,7 @@ import { useQueryStates } from "nuqs";
 import { Suspense, use, useEffect } from "react";
 import { toast } from "sonner";
 import { ViewTabSwitcher } from "@/components/common/ViewTabSwitcher";
+import { LateAddDialog } from "@/components/schedule/LateAddDialog";
 import { ScheduleDetails } from "@/components/schedule/ScheduleDetails";
 import { ShareScheduleDialog } from "@/components/schedule/ShareScheduleDialog";
 import { ValidateScheduleDialog } from "@/components/schedule/ValidateScheduleDialog";
@@ -141,6 +142,13 @@ function ScheduleDetailPage({ scheduleId }: { scheduleId: string }) {
             <ValidateScheduleDialog
               scheduleId={scheduleId}
               scheduleName={schedule.schedule_name}
+            />
+          )}
+          {canShare && schedule && (
+            <LateAddDialog
+              scheduleId={scheduleId}
+              scheduleName={schedule.schedule_name}
+              datasetDeleted={schedule.dataset_deleted}
             />
           )}
           <Button

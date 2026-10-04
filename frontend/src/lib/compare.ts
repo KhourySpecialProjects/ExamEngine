@@ -11,7 +11,8 @@ import {
 import { MAX_COMPARED } from "@/lib/scheduleSelection";
 import { type SettingRow, settingRows } from "@/lib/scheduleSettings";
 
-// URL state: /dashboard/compare?ids=a,b,c&base=a
+// URL state: /dashboard/compare?ids=a,b,c. The first column shown is the
+// baseline: the first available id, moved to the front.
 
 const SCHEDULE_ID =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -37,30 +38,48 @@ export function compareIds(ids: readonly string[] | null): string[] {
 }
 
 /**
- * The baseline column: `base` when it is an available column, else the first
- * available one (null when none is).
+ * The columns in the order shown: the first available one (the baseline)
+ * moved to the front, the rest in URL order. Unchanged when none is available.
  */
-export function baselineId(
+export function columnOrder(
   ids: readonly string[],
-  base: string | null,
-  isAvailable: (id: string) => boolean = () => true,
-): string | null {
-  const candidates = ids.filter(isAvailable);
-  return base && candidates.includes(base) ? base : (candidates[0] ?? null);
+  isAvailable: (id: string) => boolean,
+): string[] {
+  const first = ids.find(isAvailable);
+  return first ? setBaseline(ids, first) : [...ids];
 }
 
-/** `id` moved one column left (-1) or right (+1); unchanged at an edge. */
+/** `id` moved to the front (the baseline); the others keep their order. */
+export function setBaseline(ids: readonly string[], id: string): string[] {
+  if (!ids.includes(id)) return [...ids];
+  return [id, ...ids.filter((other) => other !== id)];
+}
+
+/**
+ * `id` moved to where `target` is, shifting the columns between. The
+ * baseline (first column) never moves and nothing passes it.
+ */
+export function reorderColumn(
+  ids: readonly string[],
+  id: string,
+  target: string,
+): string[] {
+  const from = ids.indexOf(id);
+  const to = ids.indexOf(target);
+  if (from < 1 || to < 1) return [...ids];
+  const next = ids.filter((other) => other !== id);
+  next.splice(to, 0, id);
+  return next;
+}
+
+/** `id` moved one column left (-1) or right (+1); never onto or off the baseline. */
 export function moveColumn(
   ids: readonly string[],
   id: string,
   offset: -1 | 1,
 ): string[] {
-  const from = ids.indexOf(id);
-  const to = from + offset;
-  if (from === -1 || to < 0 || to >= ids.length) return [...ids];
-  const next = [...ids];
-  [next[from], next[to]] = [next[to], next[from]];
-  return next;
+  const target = ids[ids.indexOf(id) + offset];
+  return target === undefined ? [...ids] : reorderColumn(ids, id, target);
 }
 
 /** `id` added as the last column, unless it is already shown or the page is full. */
@@ -81,6 +100,32 @@ export const COLUMN_COLORS = [
 
 export function columnLetter(index: number): string {
   return String.fromCharCode(65 + index);
+}
+
+/**
+ * Each column's colour (an index into COLUMN_COLORS), kept while the column
+ * stays so it follows the schedule when columns move. Columns gone free
+ * their colour; new ones take the first free colour. Returns `previous`
+ * itself when nothing changed.
+ */
+export function assignColors(
+  ids: readonly string[],
+  previous: Readonly<Record<string, number>>,
+): Readonly<Record<string, number>> {
+  const next = Object.fromEntries(
+    Object.entries(previous).filter(([id]) => ids.includes(id)),
+  );
+  let changed = Object.keys(next).length !== Object.keys(previous).length;
+  const used = new Set(Object.values(next));
+  for (const id of ids) {
+    if (id in next) continue;
+    let color = 0;
+    while (used.has(color)) color++;
+    next[id] = color;
+    used.add(color);
+    changed = true;
+  }
+  return changed ? next : previous;
 }
 
 // Differences from the baseline

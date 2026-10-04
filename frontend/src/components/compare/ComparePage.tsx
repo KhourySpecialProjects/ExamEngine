@@ -64,18 +64,20 @@ function DifferentDatasetsBanner({ columns }: { columns: GridColumn[] }) {
   );
 }
 
-/** Up to 4 schedules side by side; the URL holds the columns and the baseline. */
+/** Up to 4 schedules side by side; the URL holds the columns, baseline first. */
 export function ComparePage() {
   const compare = useCompare();
   const { ids, base, loading, error } = compare;
 
-  const columns: GridColumn[] = compare.columns.map(({ id, item }, i) => ({
-    id,
-    letter: columnLetter(i),
-    color: COLUMN_COLORS[i],
-    schedule: item?.status === "ok" ? item : null,
-    isBaseline: id === base,
-  }));
+  const columns: GridColumn[] = compare.columns.map(
+    ({ id, item, color }, i) => ({
+      id,
+      letter: columnLetter(i),
+      color: COLUMN_COLORS[color],
+      schedule: item?.status === "ok" ? item : null,
+      isBaseline: id === base,
+    }),
+  );
   const shown = shownColumns(columns);
   const unavailable = compare.columns.filter(
     (c) => c.item?.status === "unavailable",

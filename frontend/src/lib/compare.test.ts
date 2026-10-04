@@ -5,8 +5,8 @@ import {
 } from "@/test/summary";
 import {
   addColumn,
-  baselineId,
   calendarShape,
+  columnOrder,
   compareIds,
   compareSettings,
   delta,
@@ -14,6 +14,8 @@ import {
   isScheduleId,
   moveColumn,
   publishBlockers,
+  reorderColumn,
+  setBaseline,
 } from "./compare";
 
 const A = "0b6f1c1e-0000-4000-8000-00000000000a";
@@ -33,20 +35,21 @@ describe("URL rules", () => {
     expect(compareIds(null)).toEqual([]);
   });
 
-  it("defaults the baseline to the first column and ignores an unknown base", () => {
-    expect(baselineId([A, B], null)).toBe(A);
-    expect(baselineId([A, B], B)).toBe(B);
-    expect(baselineId([A, B], C)).toBe(A);
-    expect(baselineId([], A)).toBeNull();
+  it("shows the first available column first, as the baseline", () => {
+    const all = () => true;
+    const notA = (id: string) => id !== A;
+    const none = () => false;
+
+    expect(columnOrder([A, B, C], all)).toEqual([A, B, C]);
+    expect(columnOrder([A, B, C], notA)).toEqual([B, A, C]);
+    expect(columnOrder([A, B], none)).toEqual([A, B]);
   });
 
-  it("never makes an unavailable column the baseline", () => {
-    const available = (id: string) => id !== A;
-
-    expect(baselineId([A, B, C], null, available)).toBe(B);
-    expect(baselineId([A, B, C], A, available)).toBe(B);
-    expect(baselineId([A, B, C], C, available)).toBe(C);
-    expect(baselineId([A], null, available)).toBeNull();
+  it("sets a baseline by moving it to the front, keeping the others' order", () => {
+    expect(setBaseline([A, B, C, D], C)).toEqual([C, A, B, D]);
+    expect(setBaseline([A, B], A)).toEqual([A, B]);
+    // An old `base=` naming a schedule not in `ids` changes nothing.
+    expect(setBaseline([A, B], E)).toEqual([A, B]);
   });
 
   it("only asks the server about ids that look like schedule ids", () => {
@@ -54,11 +57,19 @@ describe("URL rules", () => {
     expect(isScheduleId("not-a-schedule")).toBe(false);
   });
 
-  it("moves a column one place and stops at the edges", () => {
-    expect(moveColumn([A, B, C], B, -1)).toEqual([B, A, C]);
+  it("moves a column one place, never onto or off the baseline", () => {
+    expect(moveColumn([A, B, C], C, -1)).toEqual([A, C, B]);
     expect(moveColumn([A, B, C], B, 1)).toEqual([A, C, B]);
-    expect(moveColumn([A, B, C], A, -1)).toEqual([A, B, C]);
+    expect(moveColumn([A, B, C], B, -1)).toEqual([A, B, C]);
+    expect(moveColumn([A, B, C], A, 1)).toEqual([A, B, C]);
     expect(moveColumn([A, B, C], C, 1)).toEqual([A, B, C]);
+  });
+
+  it("drops a dragged column in the target's place, never passing the baseline", () => {
+    expect(reorderColumn([A, B, C, D], B, D)).toEqual([A, C, D, B]);
+    expect(reorderColumn([A, B, C, D], D, B)).toEqual([A, D, B, C]);
+    expect(reorderColumn([A, B, C, D], C, A)).toEqual([A, B, C, D]);
+    expect(reorderColumn([A, B, C, D], A, C)).toEqual([A, B, C, D]);
   });
 
   it("adds a column last, never twice and never past 4", () => {

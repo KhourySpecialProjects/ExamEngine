@@ -64,7 +64,7 @@ function DifferentDatasetsBanner({ columns }: { columns: GridColumn[] }) {
   );
 }
 
-/** Up to 4 schedules side by side; the URL holds the columns and the baseline. */
+/** Up to 4 schedules side by side; the URL holds the columns, baseline first. */
 export function ComparePage() {
   const compare = useCompare();
   const { ids, base, loading, error } = compare;

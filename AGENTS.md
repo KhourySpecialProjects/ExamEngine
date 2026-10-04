@@ -47,10 +47,10 @@ same room), `common_exams` (same block, different rooms). CSV contracts and the 
 **Frontend** (`frontend/src/`): `app/` (routes; schedules list is `app/dashboard/page.tsx` with
 List and By-dataset views, schedule view is `app/dashboard/[id]/page.tsx` with its view and
 conflict type in the URL (`?view=conflicts&type=…`, `lib/scheduleView.ts`), Compare is
-`app/dashboard/compare` with its columns and baseline in the URL via `nuqs`), `components/`
-(feature dirs, `common/` shared pieces such as `table/PaginationBar`, `ui/` Shadcn), `lib/api/`
-(API client), `lib/store/` (Zustand), `lib/hooks/`. Generation settings are listed once in
-`lib/scheduleSettings.ts`. Tests sit next to the code as `*.test.ts(x)`.
+`app/dashboard/compare` with its columns in the URL via `nuqs`, the first being the baseline),
+`components/` (feature dirs, `common/` shared pieces such as `table/PaginationBar`, `ui/`
+Shadcn), `lib/api/` (API client), `lib/store/` (Zustand), `lib/hooks/`. Generation settings are
+listed once in `lib/scheduleSettings.ts`. Tests sit next to the code as `*.test.ts(x)`.
 
 ## Branches and environments
 

@@ -1,12 +1,32 @@
 import {
+  type Announcements,
+  closestCenter,
+  DndContext,
+  type DragEndEvent,
+  KeyboardSensor,
+  PointerSensor,
+  type UniqueIdentifier,
+  useSensor,
+  useSensors,
+} from "@dnd-kit/core";
+import {
+  rectSortingStrategy,
+  SortableContext,
+  sortableKeyboardCoordinates,
+  useSortable,
+} from "@dnd-kit/sortable";
+import { CSS } from "@dnd-kit/utilities";
+import {
   ArrowLeft,
   ArrowRight,
   ExternalLink,
   Flag,
+  GripVertical,
   MoreHorizontal,
   Trash2,
 } from "lucide-react";
 import Link from "next/link";
+import type { CSSProperties, ReactNode } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -28,6 +48,8 @@ import {
 export interface ColumnActions {
   setBaseline: (id: string) => void;
   move: (id: string, offset: -1 | 1) => void;
+  /** `id` takes the place of `target` (drag and drop). */
+  reorder: (id: string, target: string) => void;
   remove: (id: string) => void;
 }
 
@@ -64,20 +86,24 @@ function ColumnMenu({
             Set as baseline
           </DropdownMenuItem>
         )}
-        <DropdownMenuItem
-          disabled={index === 0}
-          onSelect={() => actions.move(column.id, -1)}
-        >
-          <ArrowLeft className="h-4 w-4" />
-          Move left
-        </DropdownMenuItem>
-        <DropdownMenuItem
-          disabled={index === count - 1}
-          onSelect={() => actions.move(column.id, 1)}
-        >
-          <ArrowRight className="h-4 w-4" />
-          Move right
-        </DropdownMenuItem>
+        {!column.isBaseline && (
+          <>
+            <DropdownMenuItem
+              disabled={index <= 1}
+              onSelect={() => actions.move(column.id, -1)}
+            >
+              <ArrowLeft className="h-4 w-4" />
+              Move left
+            </DropdownMenuItem>
+            <DropdownMenuItem
+              disabled={index === count - 1}
+              onSelect={() => actions.move(column.id, 1)}
+            >
+              <ArrowRight className="h-4 w-4" />
+              Move right
+            </DropdownMenuItem>
+          </>
+        )}
         <DropdownMenuSeparator />
         <DropdownMenuItem
           variant="destructive"
@@ -96,20 +122,33 @@ function ColumnHeader({
   index,
   count,
   actions,
+  sortable,
 }: {
   column: GridColumn;
   index: number;
   count: number;
   actions: ColumnActions;
+  /** Set on the columns that can be dragged (all but the baseline). */
+  sortable?: {
+    ref: (node: HTMLElement | null) => void;
+    style: CSSProperties;
+    handle: ReactNode;
+    dragging: boolean;
+  };
 }) {
   const schedule = column.schedule;
   return (
     <div
-      className="min-w-0 rounded-lg border-t-4 bg-card p-3 shadow-sm"
-      style={{ borderTopColor: column.color.fill }}
+      ref={sortable?.ref}
+      className={cn(
+        "min-w-0 rounded-lg border-t-4 bg-card p-3 shadow-sm",
+        sortable?.dragging && "relative z-20 shadow-lg",
+      )}
+      style={{ borderTopColor: column.color.fill, ...sortable?.style }}
       data-testid={`compare-column-${column.letter}`}
     >
       <div className="flex items-center gap-2">
+        {sortable?.handle}
         <ColumnBadge column={column} />
         {column.isBaseline && <Badge variant="secondary">Baseline</Badge>}
         {schedule && schedule.run_status !== "Completed" && (
@@ -169,30 +208,126 @@ function ColumnHeader({
   );
 }
 
+function SortableColumnHeader(props: {
+  column: GridColumn;
+  index: number;
+  count: number;
+  actions: ColumnActions;
+}) {
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    setActivatorNodeRef,
+    transform,
+    transition,
+    isDragging,
+  } = useSortable({ id: props.column.id });
+  return (
+    <ColumnHeader
+      {...props}
+      sortable={{
+        ref: setNodeRef,
+        style: { transform: CSS.Translate.toString(transform), transition },
+        dragging: isDragging,
+        handle: (
+          <button
+            ref={setActivatorNodeRef}
+            type="button"
+            className="-ml-1 shrink-0 cursor-grab touch-none rounded p-0.5 text-muted-foreground hover:bg-accent active:cursor-grabbing"
+            {...attributes}
+            {...listeners}
+            aria-label={`Drag column ${props.column.letter} to reorder`}
+          >
+            <GripVertical className="h-4 w-4" aria-hidden />
+          </button>
+        ),
+      }}
+    />
+  );
+}
+
+/** Screen reader messages naming the columns, not their ids. */
+function announcements(columns: GridColumn[]): Announcements {
+  const name = (id: UniqueIdentifier) => {
+    const column = columns.find((c) => c.id === id);
+    if (!column) return "column";
+    return `column ${column.letter}, ${column.schedule?.schedule_name ?? "not available"}`;
+  };
+  return {
+    onDragStart: ({ active }) => `Picked up ${name(active.id)}.`,
+    onDragOver: ({ active, over }) =>
+      over
+        ? `${name(active.id)} is over the place of ${name(over.id)}.`
+        : `${name(active.id)} is not over a column.`,
+    onDragEnd: ({ active, over }) =>
+      over
+        ? `${name(active.id)} was dropped in the place of ${name(over.id)}.`
+        : `${name(active.id)} was dropped.`,
+    onDragCancel: ({ active }) =>
+      `Dragging was cancelled. ${name(active.id)} was dropped.`,
+  };
+}
+
 /**
  * One card per column. Wide layout: aligned over the metric columns and
  * sticky while the page scrolls. Narrow: a plain list of the schedules.
+ * Every column but the baseline (always first) can be dragged by its grip.
  */
 export function CompareHeader({ actions }: { actions: ColumnActions }) {
   const columns = useGridColumns();
+  const sensors = useSensors(
+    useSensor(PointerSensor),
+    useSensor(KeyboardSensor, {
+      coordinateGetter: sortableKeyboardCoordinates,
+    }),
+  );
+  const [baseline, ...others] = columns;
+
+  const onDragEnd = ({ active, over }: DragEndEvent) => {
+    if (over && active.id !== over.id) {
+      actions.reorder(String(active.id), String(over.id));
+    }
+  };
+
   return (
-    <div
-      className={cn(
-        "grid gap-2 sm:grid-cols-2",
-        "@4xl:sticky @4xl:top-0 @4xl:z-10 @4xl:bg-gray-50/95 @4xl:py-2 @4xl:backdrop-blur",
-        WIDE_ROW,
-      )}
+    <DndContext
+      sensors={sensors}
+      collisionDetection={closestCenter}
+      onDragEnd={onDragEnd}
+      accessibility={{ announcements: announcements(columns) }}
     >
-      <div className="hidden @4xl:block" />
-      {columns.map((column, index) => (
-        <ColumnHeader
-          key={column.id}
-          column={column}
-          index={index}
-          count={columns.length}
-          actions={actions}
-        />
-      ))}
-    </div>
+      <div
+        className={cn(
+          "grid gap-2 sm:grid-cols-2",
+          "@4xl:sticky @4xl:top-0 @4xl:z-10 @4xl:bg-gray-50/95 @4xl:py-2 @4xl:backdrop-blur",
+          WIDE_ROW,
+        )}
+      >
+        <div className="hidden @4xl:block" />
+        {baseline && (
+          <ColumnHeader
+            column={baseline}
+            index={0}
+            count={columns.length}
+            actions={actions}
+          />
+        )}
+        <SortableContext
+          items={others.map((c) => c.id)}
+          strategy={rectSortingStrategy}
+        >
+          {others.map((column, i) => (
+            <SortableColumnHeader
+              key={column.id}
+              column={column}
+              index={i + 1}
+              count={columns.length}
+              actions={actions}
+            />
+          ))}
+        </SortableContext>
+      </div>
+    </DndContext>
   );
 }

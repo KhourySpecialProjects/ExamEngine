@@ -114,36 +114,6 @@ class DatasetService:
             "user_id": str(user_id),
         }
 
-    def get_dataset_info(self, dataset_id: UUID, user_id: UUID) -> dict[str, Any]:
-        """
-        Get dataset metadata without downloading files.
-
-        Useful for displaying dataset information in the UI
-        without the overhead of downloading CSV files from S3.
-
-        Args:
-            dataset_id: UUID of dataset
-            user_id: ID of user (for authorization)
-
-        Returns:
-            Dataset metadata including file statistics
-
-        Raises:
-            DatasetNotFoundError: If dataset doesn't exist or user lacks access
-        """
-        dataset = self.dataset_repo.get_by_id_for_user(dataset_id, user_id)
-        if not dataset:
-            raise DatasetNotFoundError(
-                f"Dataset {dataset_id} not found or access denied"
-            )
-
-        return {
-            "dataset_id": str(dataset.dataset_id),
-            "dataset_name": dataset.dataset_name,
-            "created_at": dataset.upload_date.isoformat(),
-            "files": _files_metadata(dataset.file_paths),
-        }
-
     async def _validate_and_parse_files(
         self, files: dict[str, UploadFile]
     ) -> dict[str, Any]:

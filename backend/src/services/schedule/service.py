@@ -201,10 +201,6 @@ class ScheduleService:
             # 7. Mark complete
             self.run_repo.update_status(run.run_id, StatusEnum.Completed)
 
-            # 8. Respond with the saved schedule, exactly as GET /schedule/{id}
-            # returns it, so both endpoints show the same rows.
-            return await self.get_schedule_with_details(schedule.schedule_id, user_id)
-
         except DatasetNotFoundError:
             self.run_repo.update_status(run.run_id, StatusEnum.Failed)
             raise
@@ -212,6 +208,16 @@ class ScheduleService:
             self.schedule_repo.db.rollback()
             self.run_repo.update_status(run.run_id, StatusEnum.Failed)
             raise ScheduleGenerationError(f"Schedule generation failed: {e}") from e
+
+        # 8. Respond with the saved schedule, exactly as GET /schedule/{id} returns
+        # it, so both endpoints show the same rows. Everything is committed by
+        # now, so a failure here must not mark the run Failed.
+        saved = await self.get_schedule_with_details(schedule.schedule_id, user_id)
+        if saved is None:
+            raise ScheduleGenerationError(
+                f"Schedule {schedule.schedule_id} was saved but could not be loaded"
+            )
+        return saved
 
     async def list_schedules_for_user(self, user_id: UUID) -> list[dict[str, Any]]:
         """List all schedules for user with metadata and permissions."""

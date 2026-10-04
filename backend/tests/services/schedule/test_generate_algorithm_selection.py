@@ -1,4 +1,4 @@
-"""ScheduleService.generate_schedule picks the engine from `algorithm`."""
+"""ScheduleService.generate_schedule: engine choice from `algorithm`, run status."""
 
 import asyncio
 from types import SimpleNamespace
@@ -7,7 +7,8 @@ from uuid import uuid4
 
 import pytest
 
-from src.core.exceptions import ValidationError
+from src.core.exceptions import ScheduleGenerationError, ValidationError
+from src.schemas.db import StatusEnum
 from src.services.schedule import service as service_module
 from src.services.schedule.service import ScheduleService
 
@@ -101,3 +102,22 @@ def test_unknown_algorithm_is_rejected_before_any_run_is_created():
     with pytest.raises(ValidationError):
         _generate(svc, algorithm="bogus")
     svc.schedule_repo.create_schedule_with_run.assert_not_called()
+
+
+def test_failing_read_back_leaves_the_saved_run_completed():
+    svc = _service()
+    svc.get_schedule_with_details = AsyncMock(side_effect=RuntimeError("read"))
+
+    with pytest.raises(RuntimeError):
+        _generate(svc)
+
+    statuses = [c.args[1] for c in svc.run_repo.update_status.call_args_list]
+    assert statuses == [StatusEnum.Completed]
+
+
+def test_saved_schedule_that_cannot_be_loaded_is_an_error():
+    svc = _service()
+    svc.get_schedule_with_details = AsyncMock(return_value=None)
+
+    with pytest.raises(ScheduleGenerationError):
+        _generate(svc)

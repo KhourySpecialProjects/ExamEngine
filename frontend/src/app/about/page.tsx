@@ -72,7 +72,7 @@ const workflowSteps = [
   {
     title: "Upload & validate",
     description:
-      "Drag in course, enrollment, and room CSVs, plus optional room blockouts, combined exams, and common exams. We flag issues instantly so you start with clean data.",
+      "Drag in course, enrollment, and room CSVs, plus optional room blockouts, combined exams, and common exams. Uploads are checked right away, so missing columns, invalid exam groups, and sections too big for any room are flagged before you generate.",
     icon: Sparkles,
   },
   {
@@ -82,9 +82,9 @@ const workflowSteps = [
     icon: Timer,
   },
   {
-    title: "Publish & monitor",
+    title: "Validate, share & export",
     description:
-      "Share schedules, export CSVs, and keep an audit trail so late changes and approvals stay organized.",
+      "Re-check any schedule against its uploaded files with the Schedule Validator, share it view-only with teammates, and export it as CSV.",
     icon: CheckCircle2,
   },
 ];
@@ -105,6 +105,7 @@ const foundationHighlights = [
     details: [
       "Controls for max exams per day",
       "Back-to-back avoidance in the Optimized engine",
+      "Rooms are never filled over capacity",
     ],
   },
   {
@@ -173,7 +174,7 @@ export default function AboutPage() {
           </div>
 
           <h1 className="text-3xl font-semibold leading-tight text-gray-900 sm:text-4xl lg:text-5xl">
-            ExamEngine turns complex exam planning into fast, conflict-free
+            ExamEngine turns complex exam planning into fast, conflict-aware
             scheduling.
           </h1>
           <p className="mt-6 max-w-2xl text-lg text-muted-foreground">
@@ -205,7 +206,8 @@ export default function AboutPage() {
 
           <div className="mt-10 flex items-center gap-3 rounded-2xl border border-gray-200 bg-white px-4 py-3 text-sm text-muted-foreground">
             <ShieldCheck className="h-4 w-4 text-emerald-600" />
-            Built with secure roles and auditable scheduling history
+            Admin-approved accounts, and every schedule records its dataset,
+            settings and author
           </div>
 
           <div className="mt-12 grid w-full gap-4 rounded-3xl border border-gray-100 bg-gray-50/80 p-6 sm:grid-cols-3">
@@ -237,7 +239,7 @@ export default function AboutPage() {
             </h2>
             <p className="mt-4 text-lg text-muted-foreground">
               Replace brittle spreadsheets with a platform that was designed for
-              complex academic logistics and fast approvals.
+              complex academic logistics.
             </p>
           </div>
 
@@ -331,11 +333,11 @@ export default function AboutPage() {
               Workflow
             </p>
             <h2 className="mt-2 text-3xl font-semibold">
-              A transparent process from intake to publish
+              A clear process from upload to export
             </h2>
             <p className="mt-4 text-lg text-white/80">
-              Every stage is documented so stakeholders know who changed what,
-              when, and why.
+              Every schedule records its dataset, settings, who generated it and
+              when, so stakeholders can see how it was made.
             </p>
           </div>
 
@@ -373,22 +375,22 @@ export default function AboutPage() {
               So what?
             </p>
             <h2 className="mt-3 text-3xl font-semibold text-gray-900">
-              Every feature ties back to shared data, faster approvals, and
+              Every feature ties back to clean data, clear trade-offs, and
               export-ready schedules.
             </h2>
             <div className="mt-5 space-y-4 text-base text-muted-foreground">
               <p>
-                The login system means Registrar teammates can share one secure
-                workspace, pick up where someone left off, and keep data synced
-                without re-uploading files. Combined with per-user storage, each
-                dataset and generated schedule stays accessible when leadership
-                needs an audit trail.
+                Each teammate signs in to their own workspace. Datasets you
+                upload stay with your account, so you can generate new schedules
+                from them without re-uploading files, and any schedule can be
+                shared view-only with a colleague. Every schedule keeps its
+                dataset, settings, author and date.
               </p>
               <p>
                 Once a run finishes, teams can export CSVs or rely on our visual
-                dashboards to answer questions in minutes. Conflicts, room
-                pressure, and departmental allocation are visible at a glance,
-                so stakeholders see why a decision was made.
+                dashboards to answer questions in minutes. Conflicts, room use
+                and the day-by-day load are visible at a glance, so stakeholders
+                see why a decision was made.
               </p>
               <p>
                 Ultimately, ExamEngine helps registrar operations move faster
@@ -448,12 +450,12 @@ export default function AboutPage() {
             Ready to modernize exam planning?
           </p>
           <h2 className="mt-3 text-3xl font-semibold text-gray-900">
-            Start with your datasets. Generate conflict-free schedules this
-            term.
+            Start with your datasets. Generate a schedule with fewer conflicts
+            this term.
           </h2>
           <p className="mt-4 text-lg text-muted-foreground">
-            Invite your planning team, upload last term’s CSVs, and see how fast
-            ExamEngine surfaces insights you can act on.
+            Upload last term’s CSVs and see how fast ExamEngine surfaces
+            insights you can act on.
           </p>
           <div className="mt-8 flex flex-wrap justify-center gap-3">
             <Button asChild size="lg" className="gap-2">

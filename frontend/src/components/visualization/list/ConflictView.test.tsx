@@ -5,6 +5,7 @@ import {
   waitFor,
   within,
 } from "@testing-library/react";
+import { useState } from "react";
 import { beforeEach, describe, expect, it, type Mock, vi } from "vitest";
 import type {
   ConflictBreakdown,
@@ -82,6 +83,14 @@ const pillTitles = (row: HTMLElement) =>
     b.getAttribute("title"),
   );
 
+// The schedule page keeps the selected type in the URL; tests keep it here.
+function ConflictViewWithLocalType() {
+  const [type, setType] = useState<string | null>(null);
+  return <ConflictView type={type} onTypeChange={setType} />;
+}
+
+const renderView = () => render(<ConflictViewWithLocalType />);
+
 describe("ConflictView", () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -111,7 +120,7 @@ describe("ConflictView", () => {
   });
 
   it("groups each student's conflicts as sub-rows spanned by NUId and count", () => {
-    render(<ConflictView />);
+    renderView();
 
     expect(
       within(screen.getByRole("table"))
@@ -165,7 +174,7 @@ describe("ConflictView", () => {
 
     it("pages 10 students at a time with first/prev/next/last controls", () => {
       thirtyStudents();
-      render(<ConflictView />);
+      renderView();
 
       const [first, prev, next, last] = [
         "First page",
@@ -207,7 +216,7 @@ describe("ConflictView", () => {
 
     it("changing rows per page shows that many rows from page 1 and saves it for the session", () => {
       thirtyStudents();
-      render(<ConflictView />);
+      renderView();
       fireEvent.click(screen.getAllByRole("button", { name: "Next page" })[0]);
 
       chooseRowsPerPage("25");
@@ -223,7 +232,7 @@ describe("ConflictView", () => {
 
     it("still changes rows per page when the session can't be saved", () => {
       thirtyStudents();
-      render(<ConflictView />);
+      renderView();
       fireEvent.click(screen.getAllByRole("button", { name: "Next page" })[0]);
       const setItem = vi
         .spyOn(Storage.prototype, "setItem")
@@ -245,7 +254,7 @@ describe("ConflictView", () => {
       );
       await useConflictViewStore.persist.rehydrate();
       thirtyStudents();
-      render(<ConflictView />);
+      renderView();
 
       expect(bodyRows()).toHaveLength(30);
       expect(screen.getAllByText("Page 1 of 1")).toHaveLength(2);
@@ -258,7 +267,7 @@ describe("ConflictView", () => {
       );
       await useConflictViewStore.persist.rehydrate();
       thirtyStudents();
-      render(<ConflictView />);
+      renderView();
 
       expect(bodyRows()).toHaveLength(10);
       expect(screen.getAllByText("Page 1 of 3")).toHaveLength(2);
@@ -275,7 +284,7 @@ describe("ConflictView", () => {
         block_times: ["9AM-11AM", "11:30AM-1:30PM"],
       },
     ]);
-    render(<ConflictView />);
+    renderView();
 
     expect(
       within(screen.getByRole("table"))
@@ -304,7 +313,7 @@ describe("ConflictView", () => {
         block_times: ["11:30AM-1:30PM", "11:30AM-1:30PM", "2PM-4PM"],
       },
     ]);
-    render(<ConflictView />);
+    renderView();
 
     const [row] = bodyRows();
     expect(
@@ -337,7 +346,7 @@ describe("ConflictView", () => {
       overLimit("Monday", 1, "1"),
       overLimit("Monday", 2, "2"),
     ]);
-    render(<ConflictView />);
+    renderView();
 
     expect(
       within(screen.getByRole("table"))
@@ -370,7 +379,7 @@ describe("ConflictView", () => {
         day: "Monday",
       })),
     );
-    render(<ConflictView />);
+    renderView();
 
     const tabs = screen
       .getAllByRole("button")
@@ -387,6 +396,39 @@ describe("ConflictView", () => {
     ]);
   });
 
+  it("opens the type it is given, the first tab for an unknown one, and reports tab picks", () => {
+    mockSchedule([
+      doubleBook("000000001", "Monday", "2500", "2510"),
+      {
+        ...doubleBook("Dr. Smith", "Tuesday", "3500", "4535"),
+        conflict_type: "instructor_double_book",
+      },
+    ]);
+    const onTypeChange = vi.fn();
+    const { rerender } = render(
+      <ConflictView
+        type="instructor_double_book"
+        onTypeChange={onTypeChange}
+      />,
+    );
+    const selected = () =>
+      within(screen.getByRole("group", { name: "Conflict types" }))
+        .getAllByRole("button", { pressed: true })
+        .map((b) => b.textContent);
+
+    expect(selected()).toEqual(["Instructor Double-Book"]);
+    expect(cellTexts(bodyRows()[0])[0]).toContain("Dr. Smith");
+
+    rerender(<ConflictView type="no_such_type" onTypeChange={onTypeChange} />);
+    expect(selected()).toEqual(["Student Double-Book"]);
+    expect(cellTexts(bodyRows()[0])[0]).toContain("000000001");
+
+    fireEvent.click(
+      screen.getByRole("button", { name: "Instructor Double-Book" }),
+    );
+    expect(onTypeChange).toHaveBeenCalledWith("instructor_double_book");
+  });
+
   describe("sorting", () => {
     const sortBy = (label: string) =>
       fireEvent.click(screen.getByRole("button", { name: label }));
@@ -396,7 +438,7 @@ describe("ConflictView", () => {
         .find((th) => th.textContent === label);
 
     it("sorts people both ways by a header, keeping each person's sub-rows together", () => {
-      render(<ConflictView />);
+      renderView();
 
       sortBy("Conflicts");
       expect(header("Conflicts")?.getAttribute("aria-sort")).toBe("ascending");
@@ -420,7 +462,7 @@ describe("ConflictView", () => {
     });
 
     it("does not offer sorting on the exams column", () => {
-      render(<ConflictView />);
+      renderView();
 
       expect(
         screen.queryByRole("button", { name: "Conflicting exams" }),
@@ -433,7 +475,7 @@ describe("ConflictView", () => {
           doubleBook(String(i + 1).padStart(9, "0"), "Monday", "1", "2"),
         ),
       );
-      render(<ConflictView />);
+      renderView();
       fireEvent.click(screen.getAllByRole("button", { name: "Next page" })[0]);
 
       sortBy("NUId");
@@ -446,7 +488,7 @@ describe("ConflictView", () => {
 
   describe("by course", () => {
     it("lists each conflicting course once with its distinct students, most first", () => {
-      render(<ConflictView />);
+      renderView();
       fireEvent.click(screen.getByRole("button", { name: "By course" }));
 
       expect(
@@ -481,7 +523,7 @@ describe("ConflictView", () => {
           block_times: ["9AM-11AM", "11:30AM-1:30PM"],
         },
       ]);
-      render(<ConflictView />);
+      renderView();
       fireEvent.click(screen.getByRole("button", { name: "By course" }));
 
       expect(screen.queryByRole("table")).toBeNull();
@@ -504,7 +546,7 @@ describe("ConflictView", () => {
     });
 
     it("copies the exact NUId and CRN without opening the course details", async () => {
-      render(<ConflictView />);
+      renderView();
 
       fireEvent.click(
         screen.getByRole("button", { name: "Copy NUId 000000002" }),
@@ -520,7 +562,7 @@ describe("ConflictView", () => {
     });
 
     it("opens a course's details from its pill with the students it conflicts for", async () => {
-      render(<ConflictView />);
+      renderView();
 
       // CS 3500 is double-booked for both students.
       fireEvent.click(
@@ -553,7 +595,7 @@ describe("ConflictView", () => {
     });
 
     it("counts each course of a 3-way double-book, with exam details in the header", () => {
-      render(<ConflictView />);
+      renderView();
 
       // Student 1's Monday slot holds CS 2500, CS 2510 and CS 2800.
       fireEvent.click(
@@ -577,7 +619,7 @@ describe("ConflictView", () => {
     mockSchedule([doubleBook("000000001", "Monday", "2500", "2510")], [], {
       student_double_book: { people: 2, instances: 3 },
     });
-    render(<ConflictView />);
+    renderView();
 
     const subtitle = screen.getByText("Students with overlapping exams");
     expect(subtitle.previousSibling?.textContent).toBe("2");

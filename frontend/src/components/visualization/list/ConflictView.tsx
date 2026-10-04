@@ -490,8 +490,16 @@ function ConflictTable({
   );
 }
 
-// Conflict View: summary cards and rows from the saved conflict breakdown
-export default function ConflictView() {
+// Conflict View: summary cards and rows from the saved conflict breakdown.
+// `type` selects the conflict tab (from the URL); an unknown or absent type
+// shows the first tab.
+export default function ConflictView({
+  type,
+  onTypeChange,
+}: {
+  type: string | null;
+  onTypeChange: (type: string) => void;
+}) {
   const { rowsByType, types } = useConflictDataSimple();
   // Card counts come from the server's summary (same as the Statistics tab).
   const conflicts = useSchedulesStore(
@@ -579,9 +587,10 @@ export default function ConflictView() {
   const pageSize = useConflictViewStore((s) => s.pageSize);
   const setPageSize = useConflictViewStore((s) => s.setPageSize);
 
-  const [activeTab, setActiveTab] = useState<string>(
-    effectiveTabs[0]?.id ?? "back_to_back",
-  );
+  const activeTab =
+    effectiveTabs.find((t) => t.id === type)?.id ??
+    effectiveTabs[0]?.id ??
+    "back_to_back";
 
   const rowsForActive = rowsByType[activeTab] ?? [];
   const page = getPage(activeTab);
@@ -641,14 +650,16 @@ export default function ConflictView() {
       </div>
 
       <div className="mt-4">
-        <div className="flex gap-2">
+        <fieldset className="flex gap-2">
+          <legend className="sr-only">Conflict types</legend>
           {effectiveTabs.map((t) => (
             <Button
               key={t.id}
               onClick={() => {
-                setActiveTab(t.id);
+                onTypeChange(t.id);
                 setPage(t.id, 0);
               }}
+              aria-pressed={activeTab === t.id}
               className={`rounded-md px-3 py-1 text-sm font-medium transition-colors ${
                 activeTab === t.id
                   ? "bg-primary text-primary-foreground"
@@ -658,7 +669,7 @@ export default function ConflictView() {
               {t.label}
             </Button>
           ))}
-        </div>
+        </fieldset>
 
         <div className="mt-3">
           <Card>

@@ -1,4 +1,11 @@
-import { ChevronDown, ChevronRight, CircleCheck, CircleX } from "lucide-react";
+import {
+  ChevronDown,
+  ChevronRight,
+  CircleCheck,
+  CircleX,
+  ExternalLink,
+} from "lucide-react";
+import Link from "next/link";
 import { useState } from "react";
 import type { FillBucket } from "@/lib/api/schedules";
 import {
@@ -10,6 +17,7 @@ import {
   formatDelta,
   publishBlockers,
 } from "@/lib/compare";
+import { scheduleHref } from "@/lib/scheduleView";
 import { cn } from "@/lib/utils";
 import { MiniBarChart } from "./CompareCharts";
 import {
@@ -184,12 +192,34 @@ export function ConflictsSection() {
               baseline && !column.isBaseline
                 ? baseline.schedule.summary.conflicts[row.metric]
                 : null;
+            const peopleLabel = countOf(count.people, row.unit);
             return (
               <div className="text-sm">
                 <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
-                  <span className="font-semibold tabular-nums">
-                    {countOf(count.people, row.unit)}
-                  </span>
+                  {count.people > 0 ? (
+                    // The schedule's Conflicts tab lists the same people.
+                    <Link
+                      href={scheduleHref(column.schedule.schedule_id, {
+                        view: "conflicts",
+                        type: row.type,
+                      })}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex items-center gap-1 font-semibold tabular-nums underline-offset-2 hover:underline"
+                      aria-label={`${peopleLabel}: ${row.label} in ${column.schedule.schedule_name} (opens in a new tab)`}
+                      title={`Open ${row.label} in ${column.schedule.schedule_name}`}
+                    >
+                      {peopleLabel}
+                      <ExternalLink
+                        className="h-3 w-3 text-muted-foreground"
+                        aria-hidden
+                      />
+                    </Link>
+                  ) : (
+                    <span className="font-semibold tabular-nums">
+                      {peopleLabel}
+                    </span>
+                  )}
                   {base && (
                     <DeltaBadge value={delta(count.people, base.people)} />
                   )}

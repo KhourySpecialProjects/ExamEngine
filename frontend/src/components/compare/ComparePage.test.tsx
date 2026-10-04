@@ -155,4 +155,28 @@ describe("ComparePage", () => {
     ).toBeTruthy();
     expect(screen.getByText(/1 linked schedule is not available/)).toBeTruthy();
   });
+
+  it("links each schedule, and each conflict count above zero to that type of conflict, in a new tab", async () => {
+    serve(PLAN_A, PLAN_B);
+    renderPage(`?ids=${A},${B}`);
+    await screen.findByText("Plan A");
+
+    const view = screen.getByRole("link", {
+      name: "View schedule Plan B (opens in a new tab)",
+    });
+    expect(view.getAttribute("href")).toBe(`/dashboard/${B}`);
+    expect(view.getAttribute("target")).toBe("_blank");
+
+    const cell = screen.getByRole("link", {
+      name: "3 students: Student Double-Book in Plan B (opens in a new tab)",
+    });
+    expect(cell.getAttribute("href")).toBe(
+      `/dashboard/${B}?view=conflicts&type=student_double_book`,
+    );
+    expect(cell.getAttribute("target")).toBe("_blank");
+    // A zero count has nothing to list.
+    expect(
+      screen.queryByRole("link", { name: /Instructor Double-Book/ }),
+    ).toBeNull();
+  });
 });

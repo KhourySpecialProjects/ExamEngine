@@ -70,6 +70,8 @@ them on develop, staging or Coolify.
   models.
 - **Isolation:** each test runs in one transaction that is rolled back afterwards. Code under test
   may `commit()`; that only releases a savepoint. The test database stays empty between runs.
+  Overlapping runs (worktrees, parallel agents) take turns: each run holds a Postgres advisory
+  lock on the test database until it finishes.
 - **No server:** DB tests are skipped with the reason shown under `-rs`.
 - Tests using `db_session` get the `integration` marker automatically.
 

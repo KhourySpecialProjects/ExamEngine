@@ -27,21 +27,18 @@ def make_user(db: Session, name: str = "Test User") -> Users:
     return user
 
 
-def make_dataset(db: Session, owner: Users, name: str = "Test dataset") -> Datasets:
-    dataset = Datasets(dataset_name=name, user_id=owner.user_id, file_paths=[])
+def make_dataset(db: Session, owner: Users) -> Datasets:
+    dataset = Datasets(
+        dataset_name="Test dataset", user_id=owner.user_id, file_paths=[]
+    )
     db.add(dataset)
     db.flush()
     return dataset
 
 
-def make_schedule(
-    db: Session,
-    owner: Users,
-    dataset: Datasets | None = None,
-    name: str = "Test schedule",
-) -> Schedules:
-    """A completed run by ``owner`` and its schedule (no exams)."""
-    dataset = dataset or make_dataset(db, owner)
+def make_schedule(db: Session, owner: Users, name: str = "Test schedule") -> Schedules:
+    """A completed run by ``owner`` on a new dataset, and its schedule (no exams)."""
+    dataset = make_dataset(db, owner)
     run = Runs(
         dataset_id=dataset.dataset_id,
         user_id=owner.user_id,

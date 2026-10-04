@@ -6,7 +6,12 @@ from sqlalchemy import Engine, create_engine
 from sqlalchemy.exc import OperationalError
 from sqlalchemy.orm import Session
 
-from tests.db.harness import configured_test_database_url, ensure_database, reset_schema
+from tests.db.harness import (
+    configured_test_database_url,
+    ensure_database,
+    exclusive_use,
+    reset_schema,
+)
 
 
 @pytest.fixture(scope="session")
@@ -205,7 +210,8 @@ def db_engine() -> Iterator[Engine]:
     Engine for the Postgres test database, rebuilt once per test run.
 
     Never the app's database: see tests/db/harness.py. Skips the DB tests when
-    the server can't be reached (dev stack not running).
+    the server can't be reached (dev stack not running). Overlapping test runs
+    take turns on the test database.
     """
     from src.core.config import get_settings
 
@@ -218,8 +224,9 @@ def db_engine() -> Iterator[Engine]:
             f"(start the dev stack or set TEST_DATABASE_URL): {error.orig}"
         )
     engine = create_engine(url)
-    reset_schema(engine)
-    yield engine
+    with exclusive_use(engine):
+        reset_schema(engine)
+        yield engine
     engine.dispose()
 
 

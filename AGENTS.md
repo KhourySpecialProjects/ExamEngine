@@ -136,10 +136,11 @@ Backend markers: `unit` (set by hand; currently only `test_annealing_scheduler.p
 fixture, e.g. `pytest -m "not slow"`. Backend runs from `backend/`
 (`pythonpath=["."]`, `testpaths=["tests"]`); if imports fail: `cd backend && pip install -e ".[dev]"`.
 
-**Database tests** (`db_session` fixture, `tests/db/`) use a separate `_test` database
-(`TEST_DATABASE_URL`, default `exam_engine_test` on the dev Postgres, host port 5434), never
-`DATABASE_URL`. Each test is rolled back. The harness refuses any database not named `*_test`;
-never weaken that guard. Details: `docs/TESTING.md`.
+**Database tests** (`db_session` fixture; harness and row builders in `tests/db/`) use a separate
+`_test` database (`TEST_DATABASE_URL`, default `exam_engine_test` on the dev Postgres, host port
+5434), never `DATABASE_URL`. Each test is rolled back; overlapping runs wait for each other. The
+harness refuses any database not named `*_test`; never weaken that guard. Details:
+`docs/TESTING.md`.
 
 ## Conventions & gotchas
 

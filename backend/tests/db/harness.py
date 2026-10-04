@@ -13,6 +13,8 @@ Two hard checks keep them away from real data:
 
 import os
 import re
+from collections.abc import Iterator
+from contextlib import contextmanager
 
 from sqlalchemy import URL, Engine, create_engine, make_url, text
 
@@ -21,7 +23,9 @@ DEFAULT_TEST_DATABASE_URL = (
     "postgresql+psycopg2://postgres:postgres@localhost:5434/exam_engine_test"
 )
 TEST_DATABASE_SUFFIX = "_test"
-_SAFE_NAME = re.compile(r"[a-z0-9_]+_test")
+_SAFE_NAME = re.compile(rf"[a-z0-9_]+{TEST_DATABASE_SUFFIX}")
+# Advisory-lock key (any fixed number) held for a whole test run.
+_RUN_LOCK_KEY = 4535113
 
 
 class UnsafeTestDatabaseError(RuntimeError):
@@ -78,6 +82,27 @@ def ensure_database(url: URL) -> None:
                 connection.execute(text(f'CREATE DATABASE "{name}"'))
     finally:
         server.dispose()
+
+
+@contextmanager
+def exclusive_use(engine: Engine) -> Iterator[None]:
+    """
+    Hold the test database for one test run; overlapping runs wait their turn.
+
+    Each run drops and rebuilds the schema, so two runs at once (worktrees,
+    parallel agents) would break each other's tables. Postgres advisory locks
+    are per database and are released if the connection dies.
+    """
+    with engine.connect().execution_options(isolation_level="AUTOCOMMIT") as connection:
+        connection.execute(
+            text("SELECT pg_advisory_lock(:key)"), {"key": _RUN_LOCK_KEY}
+        )
+        try:
+            yield
+        finally:
+            connection.execute(
+                text("SELECT pg_advisory_unlock(:key)"), {"key": _RUN_LOCK_KEY}
+            )
 
 
 def reset_schema(engine: Engine) -> None:

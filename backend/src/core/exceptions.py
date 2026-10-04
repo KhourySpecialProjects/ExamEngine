@@ -13,6 +13,12 @@ class DatasetNotFoundError(AppExceptionError):
     pass
 
 
+class DatasetDeletedError(AppExceptionError):
+    """The dataset was deleted; its uploaded files are gone from storage."""
+
+    pass
+
+
 class ValidationError(AppExceptionError):
     """Input validation failed."""
 

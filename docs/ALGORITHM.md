@@ -184,7 +184,9 @@ and the optimizer trades a few back-to-backs for an even load.
    once per room unit, an instructor once per time group, as Algorithm 1 reports), then
    rooms are assigned exactly as in Algorithm 1.
 
-`prioritize_large_courses` is accepted and ignored by Algorithm 2. The dialog's **Avoid
+Algorithm 2 ignores the `prioritize_large_courses` toggle because it always prioritizes
+large courses: the large-course-late penalty (`weight_large_late`) applies to every run, and
+the UI shows the setting as "Always on in Optimized". The dialog's **Avoid
 Back-to-Back Exams** switch affects only Algorithm 2: off sets both back-to-back weights
 to 0 (Algorithm 1 has never read it).
 

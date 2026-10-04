@@ -6,7 +6,7 @@ export interface SettingRow {
   label: string;
   value: string;
   note?: string;
-  /** The run's algorithm ignores this setting; `value` says so. */
+  /** The run's algorithm ignores this setting; `value` says why. */
   unused: boolean;
 }
 
@@ -16,6 +16,11 @@ interface SettingDefinition {
   format: (settings: ScheduleSettings) => string;
   /** Shown when an older run didn't record the setting (see `settings_assumed`). */
   assumedNote?: string;
+  /**
+   * An algorithm that ignores the toggle because it always applies the
+   * setting; it reads "Always on in …" instead of "Not used by …".
+   */
+  alwaysOnIn?: ScheduleSettings["algorithm"];
 }
 
 const ENGINE_NAMES: Record<ScheduleSettings["algorithm"], string> = {
@@ -81,13 +86,16 @@ export const SETTING_DEFINITIONS: readonly SettingDefinition[] = [
     key: "prioritize_large_courses",
     label: "Prioritize large classes",
     format: (s) => yesNo(s.prioritize_large_courses),
+    // Optimized always penalizes large courses placed late in the week.
+    alwaysOnIn: "annealing",
   },
 ];
 
 /**
  * The settings a schedule was generated with, as the server resolved them
- * from its run. A setting the algorithm ignores reads "Not used by …"
- * instead of its stored value.
+ * from its run. A setting the algorithm ignores reads "Not used by …", or
+ * "Always on in …" when the algorithm applies it regardless, instead of its
+ * stored value.
  */
 export function settingRows({
   settings,
@@ -97,20 +105,21 @@ export function settingRows({
   ScheduleSummary,
   "settings" | "settings_assumed" | "settings_unused"
 >): SettingRow[] {
-  return SETTING_DEFINITIONS.map(({ key, label, format, assumedNote }) =>
-    unused.includes(key)
-      ? {
-          key,
-          label,
-          value: `Not used by ${ENGINE_NAMES[settings.algorithm]}`,
-          unused: true,
-        }
-      : {
-          key,
-          label,
-          value: format(settings),
-          note: assumed.includes(key) ? assumedNote : undefined,
-          unused: false,
-        },
+  return SETTING_DEFINITIONS.map(
+    ({ key, label, format, assumedNote, alwaysOnIn }) =>
+      unused.includes(key)
+        ? {
+            key,
+            label,
+            value: `${alwaysOnIn === settings.algorithm ? "Always on in" : "Not used by"} ${ENGINE_NAMES[settings.algorithm]}`,
+            unused: true,
+          }
+        : {
+            key,
+            label,
+            value: format(settings),
+            note: assumed.includes(key) ? assumedNote : undefined,
+            unused: false,
+          },
   );
 }

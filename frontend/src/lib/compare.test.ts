@@ -130,6 +130,9 @@ describe("compareSettings", () => {
       "Not used by Classic",
       "15s",
     ]);
+    expect(
+      differing.find((s) => s.key === "prioritize_large_courses")?.rows,
+    ).toMatchObject([{ value: "No" }, { value: "Always on in Optimized" }]);
     expect(differing.map((s) => s.key)).toEqual([
       "algorithm",
       "time_budget_seconds",

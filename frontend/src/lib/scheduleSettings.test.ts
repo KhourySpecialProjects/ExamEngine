@@ -68,8 +68,9 @@ describe("settingRows", () => {
     });
     expect(optimized.Algorithm.value).toBe("Optimized (annealing)");
     expect(optimized["Optimization time"].value).toBe("30s");
-    expect(optimized["Prioritize large classes"].value).toBe(
-      "Not used by Optimized",
-    );
+    expect(optimized["Prioritize large classes"]).toMatchObject({
+      value: "Always on in Optimized",
+      unused: true,
+    });
   });
 });

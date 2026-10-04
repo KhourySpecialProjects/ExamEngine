@@ -26,6 +26,8 @@ const schedule = (
     rooms: 5,
   },
   total_exams: 10,
+  late_add_count: 0,
+  based_on_name: null,
 });
 
 /** Schedule names in table order. */

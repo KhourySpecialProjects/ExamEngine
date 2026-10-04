@@ -51,6 +51,7 @@ def make_schedule(
     *,
     dataset: Datasets | None = None,
     parameters: dict[str, Any] | None = None,
+    algorithm_name: str = "dsatur",
 ) -> Schedules:
     """A completed run by ``owner`` and its schedule (no exams).
 
@@ -60,7 +61,7 @@ def make_schedule(
     run = Runs(
         dataset_id=dataset.dataset_id,
         user_id=owner.user_id,
-        algorithm_name="dsatur",
+        algorithm_name=algorithm_name,
         parameters=parameters if parameters is not None else {},
         status=StatusEnum.Completed,
     )

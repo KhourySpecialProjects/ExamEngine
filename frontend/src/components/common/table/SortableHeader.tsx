@@ -1,5 +1,5 @@
 import type { Column } from "@tanstack/react-table";
-import { ArrowUpDown } from "lucide-react";
+import { ArrowDown, ArrowUp, ArrowUpDown } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
 interface SortableHeaderProps<TData, TValue> {
@@ -8,21 +8,25 @@ interface SortableHeaderProps<TData, TValue> {
 }
 
 /**
- * Reusable sortable column header component
+ * Reusable sortable column header component: click toggles ascending and
+ * descending; the arrow shows the current direction.
  */
 export function SortableHeader<TData, TValue>({
   column,
   label,
 }: SortableHeaderProps<TData, TValue>) {
+  const sorted = column.getIsSorted();
+  const Icon =
+    sorted === "asc" ? ArrowUp : sorted === "desc" ? ArrowDown : ArrowUpDown;
   return (
     <Button
       variant="ghost"
       size="sm"
-      onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
+      onClick={() => column.toggleSorting(sorted === "asc")}
       className="-ml-3"
     >
       {label}
-      <ArrowUpDown className="ml-2 size-4" />
+      <Icon className="ml-2 size-4" />
     </Button>
   );
 }

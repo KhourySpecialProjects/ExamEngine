@@ -15,6 +15,7 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { useSchedulesStore } from "@/lib/store/schedulesStore";
+import { useSchedulesViewStore } from "@/lib/store/schedulesViewStore";
 
 export default function DashboardPage() {
   const schedules = useSchedulesStore((state) => state.schedules);
@@ -29,6 +30,11 @@ export default function DashboardPage() {
   const scheduleToDelete = pendingDeleteId
     ? schedules.find((s) => s.schedule_id === pendingDeleteId)
     : undefined;
+
+  useEffect(() => {
+    // Restore this session's page size once mounted (see the store).
+    useSchedulesViewStore.persist.rehydrate();
+  }, []);
 
   useEffect(() => {
     fetchSchedules().catch((err) => {

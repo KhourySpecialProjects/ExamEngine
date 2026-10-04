@@ -99,7 +99,10 @@ class ScheduleRepo(BaseRepo[Schedules]):
         owned_stmt = (
             select(Schedules)
             .join(Runs)
-            .options(joinedload(Schedules.run).joinedload(Runs.user))
+            .options(
+                joinedload(Schedules.run).joinedload(Runs.user),
+                joinedload(Schedules.run).joinedload(Runs.dataset),
+            )
             .where(Runs.user_id == user_id)
         )
 
@@ -107,7 +110,10 @@ class ScheduleRepo(BaseRepo[Schedules]):
         shared_stmt = (
             select(Schedules)
             .join(ScheduleShares, Schedules.schedule_id == ScheduleShares.schedule_id)
-            .options(joinedload(Schedules.run).joinedload(Runs.user))
+            .options(
+                joinedload(Schedules.run).joinedload(Runs.user),
+                joinedload(Schedules.run).joinedload(Runs.dataset),
+            )
             .where(ScheduleShares.shared_with_user_id == user_id)
         )
 

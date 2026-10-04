@@ -6,6 +6,9 @@ export default defineConfig({
   plugins: [tsconfigPaths(), react()],
   test: {
     environment: "jsdom",
+    // Table tests driving Radix Select take ~1 s alone but over 5 s (the
+    // default) when every worker runs at once on a busy machine.
+    testTimeout: 15_000,
     exclude: [
       "**/node_modules/**",
       "**/dist/**",

@@ -1,4 +1,5 @@
-from typing import Any
+import datetime
+from typing import Any, Protocol
 from uuid import UUID
 
 from src.domain.value_objects import SchedulePermissions
@@ -7,6 +8,33 @@ from src.domain.value_objects import SchedulePermissions
 def _over_capacity(capacity: int, size: int) -> bool:
     """True if the room's capacity is known (positive) and below the exam's size."""
     return 0 < capacity < size
+
+
+class StoredDataset(Protocol):
+    """The dataset fields a schedule list item reads (a `Datasets` row)."""
+
+    dataset_name: str
+    upload_date: datetime.datetime
+    deleted_at: datetime.datetime | None
+    file_paths: list[dict[str, Any]]
+
+
+def _dataset_summary(dataset: StoredDataset) -> dict[str, Any]:
+    """Name, upload date and size of a schedule's dataset, from stored metadata.
+
+    Counts are None when the upload metadata has no such figure.
+    """
+    metadata = {
+        entry["type"]: entry.get("metadata", {}) for entry in dataset.file_paths
+    }
+    return {
+        "name": dataset.dataset_name,
+        "uploaded_at": dataset.upload_date.isoformat(),
+        "deleted": dataset.deleted_at is not None,
+        "courses": metadata.get("courses", {}).get("unique_crns"),
+        "students": metadata.get("enrollments", {}).get("unique_students"),
+        "rooms": metadata.get("rooms", {}).get("unique_rooms"),
+    }
 
 
 class ScheduleAssembler:
@@ -150,6 +178,7 @@ class ScheduleAssembler:
             "parameters": schedule.run.parameters,
             "status": schedule.run.status.value,
             "dataset_id": str(schedule.run.dataset_id),
+            "dataset": _dataset_summary(schedule.run.dataset),
             "total_exams": exam_count,
             **permissions.to_dict(),
         }

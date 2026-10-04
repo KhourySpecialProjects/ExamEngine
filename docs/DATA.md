@@ -335,6 +335,7 @@ stored metadata; never the uploaded files. It is the `summary` field of
 | --- | --- |
 | `settings` | The run's settings. `algorithm` falls back to `runs.algorithm_name` for runs from before it was recorded; settings a run didn't record are `null`, except `blocks_per_day`, which is 5 (the only option then) |
 | `settings_assumed` | Settings filled in that way (`["blocks_per_day"]` or `[]`) |
+| `settings_unused` | Recorded settings the run's algorithm ignores: Classic (`dsatur`) `["time_budget_seconds", "avoid_back_to_back"]`, Optimized (`annealing`) `["prioritize_large_courses"]` |
 | `unique_students` | From the enrollments upload metadata; `null` when unknown |
 | `exams` | Counts: `total`; `placed` (a day, a time and a room); `unscheduled` (no time slot); `unroomed` (a time slot, no room); `over_capacity` (placed, size > a known capacity) |
 | `unscheduled`, `unroomed` | The exams (`crn`, `course`, `size`) and their summed enrollment. `unscheduled` also has the stored `groups` and `other_crns` (unscheduled CRNs no group explains) |
@@ -350,11 +351,11 @@ time for double-books (a 3-way double-book, stored as 3 pairs, is 1), one per pe
 the daily limits, one per record for back-to-back and large courses late. A record without a
 person counts as its own person.
 
-`GET /api/schedule/compare?ids=<id>&ids=<id>…` takes 2–4 distinct schedule IDs (duplicates are
-dropped; otherwise 422) and returns `{schedules: [...]}` in the requested order. A schedule the
-caller can't view, or that doesn't exist, is `{schedule_id, status: "unavailable"}` with nothing
-else. Others are `status: "ok"` with name, `created_at`, `run_status`, `dataset {dataset_id,
-dataset_name, uploaded_at, deleted}`, the owner/share fields and `summary`.
+`GET /api/schedule/compare?ids=<id>&ids=<id>…` takes 1–4 distinct schedule IDs (duplicates are
+dropped; more than 4 is 422) and returns `{schedules: [...]}` in the requested order. A schedule
+the caller can't view, or that doesn't exist, is `{schedule_id, status: "unavailable"}` with
+nothing else. Others are `status: "ok"` with name, `created_at`, `run_status`, `dataset
+{dataset_id, dataset_name, uploaded_at, deleted}`, the owner/share fields and `summary`.
 
 ## S3 Storage Structure
 

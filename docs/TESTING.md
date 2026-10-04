@@ -175,17 +175,16 @@ def test_a_stranger_cannot_read_a_schedule(db_session):
 ### Frontend Test
 
 ```typescript
-// src/components/schedule/ScheduleDetails.test.tsx
+// src/lib/scheduleSettings.test.ts
 import { describe, expect, it } from "vitest";
-import { generationSettings } from "./ScheduleDetails";
+import { makeSummary } from "@/test/summary";
+import { settingRows } from "./scheduleSettings";
 
-describe("generationSettings", () => {
-  it("labels the optimized algorithm", () => {
-    const [algorithm] = generationSettings({
-      algorithm: "Annealing",
-      parameters: { algorithm: "annealing" },
-    });
-    expect(algorithm.value).toBe("Optimized (annealing)");
+describe("settingRows", () => {
+  it("names the algorithm that ignores a setting", () => {
+    const rows = settingRows(makeSummary());
+    const time = rows.find((row) => row.key === "time_budget_seconds");
+    expect(time?.value).toBe("Not used by Classic");
   });
 });
 ```

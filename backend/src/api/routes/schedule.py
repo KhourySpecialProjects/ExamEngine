@@ -125,21 +125,22 @@ MAX_COMPARED_SCHEDULES = 4
 
 @router.get("/compare")
 async def compare_schedules(
-    ids: list[UUID] = Query(..., description="2 to 4 schedule IDs, in column order"),
+    ids: list[UUID] = Query(..., description="1 to 4 schedule IDs, in column order"),
     current_user: Users = Depends(get_current_user),
     schedule_service: ScheduleService = Depends(get_schedule_service),
 ):
     """
-    Summaries of 2–4 schedules for the compare page, in the requested order.
+    Summaries of 1–4 schedules for the compare page, in the requested order.
 
-    Duplicate IDs are dropped. A schedule the caller can't view (or that doesn't
-    exist) comes back as `{"schedule_id", "status": "unavailable"}`.
+    One ID is allowed so the page can name the schedule left after the others
+    were removed. Duplicate IDs are dropped. A schedule the caller can't view
+    (or that doesn't exist) comes back as `{"schedule_id", "status": "unavailable"}`.
     """
     unique_ids = list(dict.fromkeys(ids))
-    if not 2 <= len(unique_ids) <= MAX_COMPARED_SCHEDULES:
+    if len(unique_ids) > MAX_COMPARED_SCHEDULES:
         raise HTTPException(
             status_code=422,
-            detail=f"Compare needs 2 to {MAX_COMPARED_SCHEDULES} different schedules",
+            detail=f"Compare takes at most {MAX_COMPARED_SCHEDULES} schedules",
         )
     return await schedule_service.compare_schedules(unique_ids, current_user.user_id)
 

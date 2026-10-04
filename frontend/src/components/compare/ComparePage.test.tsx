@@ -129,7 +129,7 @@ describe("ComparePage", () => {
     );
   });
 
-  it("moves a new baseline to the front, then drops other columns without refetching", async () => {
+  it("moves a new baseline to the front with its colour, then drops other columns without refetching", async () => {
     const compare = serve(PLAN_A, PLAN_B);
     const { lastUrl } = renderPage(`?ids=${A},${GONE},${B}`);
     await screen.findByText("Plan A");
@@ -138,14 +138,19 @@ describe("ComparePage", () => {
       screen.getByRole("button", { name: "Column C options" }),
       { key: "Enter" },
     );
+    // Column C has the third colour (the unavailable column holds the second).
+    const green = "rgb(0, 158, 115)";
+    expect(screen.getByTestId("compare-column-C").style.borderTopColor).toBe(
+      green,
+    );
     fireEvent.click(await screen.findByText("Set as baseline"));
 
     await waitFor(() =>
       expect(lastUrl()?.get("ids")).toBe(`${B},${A},${GONE}`),
     );
-    expect(
-      within(screen.getByTestId("compare-column-A")).getByText("Plan B"),
-    ).toBeTruthy();
+    const first = screen.getByTestId("compare-column-A");
+    expect(within(first).getByText("Plan B")).toBeTruthy();
+    expect(first.style.borderTopColor).toBe(green);
     expect(screen.getByTitle("worse than the baseline").textContent).toContain(
       "+2",
     );

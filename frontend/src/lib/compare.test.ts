@@ -5,6 +5,7 @@ import {
 } from "@/test/summary";
 import {
   addColumn,
+  assignColors,
   calendarShape,
   columnOrder,
   compareIds,
@@ -70,6 +71,15 @@ describe("URL rules", () => {
     expect(reorderColumn([A, B, C, D], D, B)).toEqual([A, D, B, C]);
     expect(reorderColumn([A, B, C, D], C, A)).toEqual([A, B, C, D]);
     expect(reorderColumn([A, B, C, D], A, C)).toEqual([A, B, C, D]);
+  });
+
+  it("keeps each column's colour while it stays; new columns take the first free one", () => {
+    const first = assignColors([A, B, C], {});
+    expect(first).toEqual({ [A]: 0, [B]: 1, [C]: 2 });
+    // Reordering keeps the colours, and nothing changed returns the same map.
+    expect(assignColors([A, C, B], first)).toBe(first);
+    // B leaves, freeing its colour for D.
+    expect(assignColors([A, C, D], first)).toEqual({ [A]: 0, [C]: 2, [D]: 1 });
   });
 
   it("adds a column last, never twice and never past 4", () => {

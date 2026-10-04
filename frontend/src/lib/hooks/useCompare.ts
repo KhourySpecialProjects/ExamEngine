@@ -6,6 +6,7 @@ import { apiClient } from "@/lib/api/client";
 import type { CompareItem } from "@/lib/api/schedules";
 import {
   addColumn,
+  assignColors,
   columnOrder,
   compareIds,
   isScheduleId,
@@ -25,6 +26,8 @@ export interface CompareColumnState {
   id: string;
   /** Undefined while its summary loads. */
   item: CompareItem | undefined;
+  /** Index into COLUMN_COLORS; follows the schedule when columns move. */
+  color: number;
 }
 
 /**
@@ -38,6 +41,7 @@ export function useCompare() {
   const urlIds = compareIds(params.ids);
   const [items, setItems] = useState<Record<string, CompareItem>>({});
   const [error, setError] = useState<string | null>(null);
+  const [colors, setColors] = useState<Readonly<Record<string, number>>>({});
   const [attempt, setAttempt] = useState(0);
 
   const itemFor = (id: string): CompareItem | undefined =>
@@ -83,6 +87,13 @@ export function useCompare() {
   const isShown = (id: string) => itemFor(id)?.status === "ok";
   const ids = columnOrder(urlIds, isShown);
   const base = ids.find(isShown) ?? null;
+  const loading = missingKey !== "" && error === null;
+
+  // Colours are handed out once the columns have loaded (and so are in their
+  // shown order), then stay with their schedule. Nothing coloured shows while
+  // loading.
+  const nextColors = loading ? colors : assignColors(ids, colors);
+  if (nextColors !== colors) setColors(nextColors);
 
   const write = (nextIds: string[]) =>
     setParams({ ids: nextIds.length > 0 ? nextIds : null, base: null });
@@ -94,9 +105,15 @@ export function useCompare() {
 
   return {
     ids,
-    columns: ids.map((id): CompareColumnState => ({ id, item: itemFor(id) })),
+    columns: ids.map(
+      (id, i): CompareColumnState => ({
+        id,
+        item: itemFor(id),
+        color: nextColors[id] ?? i,
+      }),
+    ),
     base,
-    loading: missingKey !== "" && error === null,
+    loading,
     error,
     retry,
     setBaseline: (id: string) => write(setBaseline(ids, id)),

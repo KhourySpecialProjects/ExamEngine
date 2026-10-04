@@ -102,6 +102,32 @@ export function columnLetter(index: number): string {
   return String.fromCharCode(65 + index);
 }
 
+/**
+ * Each column's colour (an index into COLUMN_COLORS), kept while the column
+ * stays so it follows the schedule when columns move. Columns gone free
+ * their colour; new ones take the first free colour. Returns `previous`
+ * itself when nothing changed.
+ */
+export function assignColors(
+  ids: readonly string[],
+  previous: Readonly<Record<string, number>>,
+): Readonly<Record<string, number>> {
+  const next = Object.fromEntries(
+    Object.entries(previous).filter(([id]) => ids.includes(id)),
+  );
+  let changed = Object.keys(next).length !== Object.keys(previous).length;
+  const used = new Set(Object.values(next));
+  for (const id of ids) {
+    if (id in next) continue;
+    let color = 0;
+    while (used.has(color)) color++;
+    next[id] = color;
+    used.add(color);
+    changed = true;
+  }
+  return changed ? next : previous;
+}
+
 // Differences from the baseline
 
 export type DeltaTone = "better" | "worse" | "same";

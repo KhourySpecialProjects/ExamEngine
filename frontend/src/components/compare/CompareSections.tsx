@@ -192,7 +192,7 @@ export function ConflictsSection() {
               baseline && !column.isBaseline
                 ? baseline.schedule.summary.conflicts[row.metric]
                 : null;
-            const people = countOf(count.people, row.unit);
+            const peopleLabel = countOf(count.people, row.unit);
             return (
               <div className="text-sm">
                 <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
@@ -206,17 +206,19 @@ export function ConflictsSection() {
                       target="_blank"
                       rel="noopener noreferrer"
                       className="inline-flex items-center gap-1 font-semibold tabular-nums underline-offset-2 hover:underline"
-                      aria-label={`${people}: ${row.label} in ${column.schedule.schedule_name} (opens in a new tab)`}
+                      aria-label={`${peopleLabel}: ${row.label} in ${column.schedule.schedule_name} (opens in a new tab)`}
                       title={`Open ${row.label} in ${column.schedule.schedule_name}`}
                     >
-                      {people}
+                      {peopleLabel}
                       <ExternalLink
                         className="h-3 w-3 text-muted-foreground"
                         aria-hidden
                       />
                     </Link>
                   ) : (
-                    <span className="font-semibold tabular-nums">{people}</span>
+                    <span className="font-semibold tabular-nums">
+                      {peopleLabel}
+                    </span>
                   )}
                   {base && (
                     <DeltaBadge value={delta(count.people, base.people)} />

@@ -650,7 +650,8 @@ export default function ConflictView({
       </div>
 
       <div className="mt-4">
-        <div className="flex gap-2">
+        <fieldset className="flex gap-2">
+          <legend className="sr-only">Conflict types</legend>
           {effectiveTabs.map((t) => (
             <Button
               key={t.id}
@@ -668,7 +669,7 @@ export default function ConflictView({
               {t.label}
             </Button>
           ))}
-        </div>
+        </fieldset>
 
         <div className="mt-3">
           <Card>

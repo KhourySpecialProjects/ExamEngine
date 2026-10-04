@@ -84,12 +84,12 @@ const pillTitles = (row: HTMLElement) =>
   );
 
 // The schedule page keeps the selected type in the URL; tests keep it here.
-function Controlled() {
+function ConflictViewWithLocalType() {
   const [type, setType] = useState<string | null>(null);
   return <ConflictView type={type} onTypeChange={setType} />;
 }
 
-const renderView = () => render(<Controlled />);
+const renderView = () => render(<ConflictViewWithLocalType />);
 
 describe("ConflictView", () => {
   beforeEach(() => {
@@ -411,12 +411,10 @@ describe("ConflictView", () => {
         onTypeChange={onTypeChange}
       />,
     );
-    // The type tabs; the "By instructor / By course" toggle is pressed too.
     const selected = () =>
-      screen
+      within(screen.getByRole("group", { name: "Conflict types" }))
         .getAllByRole("button", { pressed: true })
-        .map((b) => b.textContent)
-        .filter((t) => !t?.startsWith("By "));
+        .map((b) => b.textContent);
 
     expect(selected()).toEqual(["Instructor Double-Book"]);
     expect(cellTexts(bodyRows()[0])[0]).toContain("Dr. Smith");

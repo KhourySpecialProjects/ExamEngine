@@ -33,7 +33,7 @@ const names = () =>
   within(screen.getByRole("table"))
     .getAllByRole("row")
     .slice(1)
-    .map((row) => within(row).getAllByRole("cell")[0].textContent);
+    .map((row) => within(row).getAllByRole("cell")[1].textContent);
 
 const twelve = () =>
   Array.from({ length: 12 }, (_, i) =>

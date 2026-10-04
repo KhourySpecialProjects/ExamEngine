@@ -4,6 +4,7 @@ import Link from "next/link";
 import { SortableHeader } from "@/components/common/table/SortableHeader";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -13,6 +14,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import type { ScheduleListItem } from "@/lib/api/schedules";
+import { cn } from "@/lib/utils";
 
 const columnHelper = createColumnHelper<ScheduleListItem>();
 
@@ -48,9 +50,38 @@ export function createScheduleColumns(
   // biome-ignore lint/suspicious/noExplicitAny: table types needs to be flexible
 ): ColumnDef<ScheduleListItem, any>[] {
   const columns = [
+    // Picks schedules for Compare. No select-all: Compare takes a few.
+    columnHelper.display({
+      id: "select",
+      meta: { width: "w-[4%]" },
+      enableHiding: false,
+      header: () => <span className="sr-only">Select to compare</span>,
+      cell: ({ row, table }) => {
+        const blocker = table.options.meta?.selectionBlocker?.(row.original);
+        // A disabled button gets no hover in some browsers: the wrapper shows
+        // the reason instead.
+        return (
+          <span
+            title={blocker ?? undefined}
+            className={cn("flex", blocker && "cursor-not-allowed")}
+          >
+            <Checkbox
+              aria-label={`Select ${row.original.schedule_name}`}
+              checked={row.getIsSelected()}
+              disabled={!row.getCanSelect()}
+              onCheckedChange={(checked) =>
+                row.toggleSelected(checked === true)
+              }
+              className="disabled:pointer-events-none"
+            />
+          </span>
+        );
+      },
+    }),
+
     columnHelper.accessor("schedule_name", {
       id: "schedule_name",
-      meta: { width: "w-[18%]" },
+      meta: { width: "w-[14%]" },
       header: ({ column }) => (
         <SortableHeader column={column} label="Schedule Name" />
       ),

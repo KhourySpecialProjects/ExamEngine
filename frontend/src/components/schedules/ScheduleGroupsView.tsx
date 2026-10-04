@@ -22,6 +22,7 @@ import {
 } from "@/components/ui/select";
 import { Table, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import type { ScheduleListItem } from "@/lib/api/schedules";
+import { useScheduleSelection } from "@/lib/hooks/useScheduleSelection";
 import {
   GROUP_SORT_LABELS,
   type GroupSort,
@@ -101,12 +102,15 @@ function GroupTable({
     () => createScheduleColumns(onDelete, { showDataset: false }),
     [onDelete],
   );
+  const { rowSelection, ...selection } = useScheduleSelection();
   const table = useReactTable({
     data: schedules,
     columns,
+    state: { rowSelection },
     getCoreRowModel: getCoreRowModel(),
     // Order comes from the view's sort controls.
     enableSorting: false,
+    ...selection,
   });
   return (
     // Same fixed widths in every group, so columns line up across datasets.

@@ -10,4 +10,9 @@ declare module "@tanstack/react-table" {
      */
     width?: string;
   }
+
+  interface TableMeta<TData extends RowData> {
+    /** Why a row can't be selected, or null if it can; shown as a tooltip. */
+    selectionBlocker?: (row: TData) => string | null;
+  }
 }

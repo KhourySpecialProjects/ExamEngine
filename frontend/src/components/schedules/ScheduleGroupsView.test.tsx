@@ -65,7 +65,7 @@ describe("ScheduleGroupsView", () => {
     expect(within(autumn).getByText("2 schedules")).toBeTruthy();
     const rows = within(autumn).getAllByRole("row").slice(1);
     expect(
-      rows.map((r) => within(r).getAllByRole("cell")[0].textContent),
+      rows.map((r) => within(r).getAllByRole("cell")[1].textContent),
     ).toEqual(["Autumn A", "Autumn B"]);
     expect(
       within(screen.getByRole("region", { name: "Old" })).getByText("Deleted"),

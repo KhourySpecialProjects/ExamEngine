@@ -13,7 +13,7 @@ import { CircleQuestionMark, Settings } from "lucide-react";
 import Image from "next/image";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Onborda, OnbordaProvider, useOnborda } from "onborda";
+import { useOnborda } from "onborda";
 import { useEffect, useState } from "react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
@@ -26,42 +26,6 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { useAuthStore } from "@/lib/store/authStore";
-
-const steps = [
-  {
-    tour: "dashboard-tour", // tour ID
-    steps: [
-      {
-        target: "#upload-id",
-        content: "Click here to upload your CSV files.",
-        icon: "upload",
-        title: "Upload CSV",
-        selector: "#upload-id",
-      },
-      {
-        target: "#dataset-bar-id",
-        content: "Select your dataset here.",
-        icon: "dataset",
-        title: "Dataset Selection",
-        selector: "#dataset-bar-id",
-      },
-      {
-        target: "#schedule-list-id",
-        content: "View and manage your schedules here.",
-        icon: "schedule",
-        title: "Schedules",
-        selector: "#schedule-list-id",
-      },
-      {
-        target: "#settings-id",
-        content: "Access your settings here.",
-        icon: "settings",
-        title: "Settings",
-        selector: "#settings-id",
-      },
-    ],
-  },
-];
 
 export function DashboardHeader() {
   const { user, logout } = useAuthStore();
@@ -93,12 +57,6 @@ export function DashboardHeader() {
       </Link>
 
       {/* Right Side - Notifications, Settings, User, start tour */}
-      <OnbordaProvider>
-        <Onborda steps={steps}>
-          {/** biome-ignore lint/complexity/noUselessFragments: <explanation> */}
-          <></>
-        </Onborda>
-      </OnbordaProvider>
       <div className="flex items-center gap-3">
         {/* Start Tour */}
         <Button

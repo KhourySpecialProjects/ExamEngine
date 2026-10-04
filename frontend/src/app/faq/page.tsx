@@ -9,12 +9,12 @@ const faqs = [
   {
     question: "What files do I need to upload?",
     answer:
-      "You need three CSVs: courses (CRN, CourseID, num_students, and optionally instructor_name), enrollment (NUID, CRN), and classrooms (room_name, capacity). Upload them under Datasets in the dashboard.",
+      "You need three CSVs: courses (CRN, CourseID, num_students, and optionally instructor_name), enrollment (NUID, CRN), and classrooms (room_name, capacity). You can also add optional room blockouts, combined exams, and common exams files. Upload them under Datasets Controls in the dashboard.",
   },
   {
     question: "How are conflicts handled?",
     answer:
-      "The DSATUR engine models student overlaps, instructor overlaps, and room capacity. It also respects max exams per student per day and back-to-back avoidance when those options are set.",
+      "Both engines, Classic (DSATUR) and Optimized (simulated annealing), handle student and instructor overlaps, room capacity (rooms are never over-filled), room blockouts, combined and common exams, and per-day exam limits. Back-to-back avoidance only applies to the Optimized engine; prioritizing large classes only applies to Classic.",
   },
   {
     question: "How long does generation take?",
@@ -24,12 +24,12 @@ const faqs = [
   {
     question: "Can I share a schedule with teammates?",
     answer:
-      "Yes. Open a schedule from the dashboard and use Share to give view or edit access. Shared schedules keep the same parameters and conflict summaries.",
+      "Yes. The schedule's owner can open it from the dashboard and use Share to give teammates view-only access. Shared schedules keep the same parameters and conflict summaries.",
   },
   {
     question: "What if conflicts remain?",
     answer:
-      "Conflicts are surfaced in the density and list views. You can adjust parameters, room assignments, or regenerate. We never silently drop exams.",
+      "Conflicts are surfaced in the Conflicts and Statistics views, as well as the density and list views. Exams that couldn't be scheduled are listed with a reason. Adjust parameters or your input files and regenerate. We never silently drop exams.",
   },
   {
     question: "Where do I see what changed?",
@@ -64,7 +64,7 @@ const faqs = [
   {
     question: "How do I interpret the conflict breakdown?",
     answer:
-      "Use the density and list views: they show which CRNs, students, or instructors are involved so you can tweak parameters or room assignments.",
+      "Use the Conflicts and Statistics views (plus density and list): they show which CRNs, students, or instructors are involved so you can tweak parameters or input files and regenerate.",
   },
   {
     question: "Do I need to restart after changing parameters?",
@@ -79,7 +79,7 @@ const faqs = [
   {
     question: "Is there a tutorial or onboarding walkthrough?",
     answer:
-      "Yes. After you log in, you’ll see a short guided walkthrough of uploads, parameters, and running schedules. You can replay it from the dashboard if you skip it.",
+      "Yes. Click the ? button in the dashboard header to start a short guided walkthrough of uploads, parameters, and running schedules. You can replay it any time.",
   },
 ];
 

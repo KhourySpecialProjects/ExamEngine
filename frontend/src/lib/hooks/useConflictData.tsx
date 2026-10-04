@@ -237,7 +237,7 @@ export const conflictDescriptions: Record<string, string> = {
   back_to_back_instructor:
     "An instructor has exams in consecutive time blocks on the same day.",
   large_course_not_early:
-    "Large-enrollment courses that are not scheduled in earlier (preferred) time slots.",
+    "Courses with 100+ students scheduled Thursday or later in the week.",
   unknown: "Uncategorized or unknown conflict type.",
 };
 

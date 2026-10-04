@@ -291,3 +291,30 @@ def test_base_without_an_analysis_gets_a_complete_one():
     assert result["statistics"]["total_soft_conflicts"] == 2  # s1 and I1
     assert result["statistics"]["total_hard_conflicts"] == 2  # s1 and I1 over
     assert result["statistics"]["unplaced_exams"] == 0
+
+
+def test_base_double_book_counts_each_sitting_in_the_daily_limit_delta():
+    # s1 sits 101 (R1) and 102 (R2) at 9AM: two exams, as the Validator counts
+    base = BaseSchedule(
+        exams=[
+            _exam("101", (MON, 0), "R1"),
+            _exam("102", (MON, 0), "R2"),
+            _exam("103", (MON, 2), "R1"),
+        ],
+        students_by_crn={"101": {"s1"}, "102": {"s1"}, "103": {"s1"}},
+        rooms={"R1": 50, "R2": 50, "R3": 500},
+        blockouts={},
+        settings=LateAddSettings(
+            max_days=5,
+            blocks_per_day=5,
+            student_max_per_day=3,
+            instructor_max_per_day=2,
+        ),
+    )
+    stored = copy.deepcopy(STORED)
+    stored["hard_conflicts"]["student_gt_max_per_day"] = []
+
+    result = _analysis(_late({"s1"}, instructor=""), MON, 1, stored=stored, base=base)
+
+    assert result["hard_conflicts"]["student_gt_max_per_day"] == [_hard("s1", block=1)]
+    assert result["statistics"]["student_gt_max_per_day_count"] == 1

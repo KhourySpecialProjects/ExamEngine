@@ -54,6 +54,9 @@ def _base(
     students: dict[str, set[str]] | None = None,
     rooms: dict[str, int] | None = None,
     blockouts: dict[str, set[tuple[int, int]]] | None = None,
+    *,
+    combined: dict[str, list[str]] | None = None,
+    common: dict[str, list[str]] | None = None,
     **settings: int,
 ) -> BaseSchedule:
     return BaseSchedule(
@@ -62,6 +65,8 @@ def _base(
         rooms=rooms if rooms is not None else {"BIG": 500},
         blockouts=blockouts or {},
         settings=_settings(**settings),
+        combined_groups=combined or {},
+        common_groups=common or {},
     )
 
 
@@ -167,10 +172,43 @@ def test_combined_exam_counts_once_per_student():
     # two CRNs of one combined exam share a block and room
     exams = [_exam("1", (MON, 0), "R"), _exam("2", (MON, 0), "R")]
     students = {"1": {"s1"}, "2": {"s1"}}
-    base = _base(exams, students, student_max_per_day=2)
+    base = _base(exams, students, combined={"M": ["1", "2"]}, student_max_per_day=2)
     ev = evaluate_placement(base, _late({"s1"}), MON, 3)
     assert ev.student_over_daily_limit == {}
     assert ev.student_day_blocks == {"s1": (0, 3)}
+
+
+def test_unroomed_combined_exam_counts_once_per_student():
+    exams = [_exam("1", (MON, 0)), _exam("2", (MON, 0))]
+    students = {"1": {"s1"}, "2": {"s1"}}
+    base = _base(exams, students, combined={"M": ["1", "2"]}, student_max_per_day=2)
+    assert (
+        evaluate_placement(base, _late({"s1"}), MON, 3).student_over_daily_limit == {}
+    )
+
+
+def test_base_double_book_counts_each_sitting_toward_daily_limit():
+    # s1 already sits two separate exams (two rooms) in Monday block 0
+    exams = [
+        _exam("1", (MON, 0), "R"),
+        _exam("2", (MON, 0), "S"),
+        _exam("3", (MON, 2), "R"),
+    ]
+    students = {"1": {"s1"}, "2": {"s1"}, "3": {"s1"}}
+    base = _base(
+        exams, students, rooms={"R": 50, "S": 50, "T": 50}, student_max_per_day=3
+    )
+    ev = evaluate_placement(base, _late({"s1"}), MON, 4)
+    assert ev.student_over_daily_limit == {"s1": 4}
+    assert ev.student_day_blocks == {"s1": (0, 2, 4)}
+
+
+def test_unroomed_base_exams_count_per_crn_toward_daily_limit():
+    exams = [_exam("1", (MON, 0)), _exam("2", (MON, 0))]
+    students = {"1": {"s1"}, "2": {"s1"}}
+    base = _base(exams, students, student_max_per_day=2)
+    ev = evaluate_placement(base, _late({"s1"}), MON, 3)
+    assert ev.student_over_daily_limit == {"s1": 3}
 
 
 def test_late_exam_that_double_books_still_counts_toward_daily_limit():
@@ -245,21 +283,40 @@ def test_instructor_over_daily_limit_and_back_to_back():
     ).instructor_over_daily_limit
 
 
-def test_instructor_sections_of_one_block_count_once_toward_daily_limit():
+def test_instructor_double_booked_in_base_counts_each_exam_toward_daily_limit():
+    # I1 already has two separate exams in Monday block 0 (a base double-book)
     exams = [
         _exam("1", (MON, 0), "R", instructor="I1"),
         _exam("2", (MON, 0), "S", instructor="I1"),
     ]
     base = _base(exams, rooms={"R": 5, "S": 5, "T": 5}, instructor_max_per_day=2)
     ev = evaluate_placement(base, _late(instructor="I1"), MON, 3)
-    assert ev.instructor_exams_that_day == 2
-    assert not ev.instructor_over_daily_limit
+    assert ev.instructor_exams_that_day == 3
+    assert ev.instructor_over_daily_limit
+    assert not ev.is_clear
     assert evaluate_placement(
         base, _late(instructor="I1"), MON, 0
-    ).instructor_double_book == (
-        "1",
-        "2",
+    ).instructor_double_book == ("1", "2")
+
+
+def test_instructor_common_exam_across_rooms_counts_once_toward_daily_limit():
+    # a common group: two rooms, one exam; "3" joins it through combined "M"
+    exams = [
+        _exam("1", (MON, 0), "R", instructor="I1"),
+        _exam("2", (MON, 0), "S", instructor="I1"),
+        _exam("3", (MON, 0), "S", instructor="I1"),
+    ]
+    base = _base(
+        exams,
+        rooms={"R": 5, "S": 5, "T": 5},
+        combined={"M": ["2", "3"]},
+        common={"C": ["1", "2"]},
+        instructor_max_per_day=2,
     )
+    ev = evaluate_placement(base, _late(instructor="I1"), MON, 3)
+    assert ev.instructor_exams_that_day == 2
+    assert not ev.instructor_over_daily_limit
+    assert ev.is_clear
 
 
 @pytest.mark.parametrize("stored", ["", "  ", "nan", "NaN", None])

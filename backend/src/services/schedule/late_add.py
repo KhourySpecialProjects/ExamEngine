@@ -349,6 +349,8 @@ class LateAddService:
                 rooms=rooms,
                 blockouts=files.blockouts or {},
                 settings=_late_add_settings(resolved),
+                combined_groups=_groups(dataset.course_merges),
+                common_groups=_groups(dataset.common_exam_groups),
             ),
             late=LateExam(
                 crn=crn,
@@ -569,6 +571,13 @@ def _courses_file_notes(crn: str, files: DatasetFiles) -> list[str]:
     return [
         f"CRN {crn} is in courses.csv with zero enrollment, so generation skipped it."
     ]
+
+
+def _groups(groups: dict[str, list[str]] | None) -> dict[str, tuple[str, ...]]:
+    return {
+        str(label): tuple(str(crn).strip() for crn in crns)
+        for label, crns in (groups or {}).items()
+    }
 
 
 def _late_add_settings(resolved: dict[str, Any]) -> LateAddSettings:

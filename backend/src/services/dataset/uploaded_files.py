@@ -2,11 +2,14 @@
 
 Shared by the Schedule Validator and late add. Unlike generation's loaders
 (`drop_zero_enrollment`, `DatasetFactory`), nothing is dropped: enrollments
-keep every CRN, including CRNs that are not in the courses file.
+keep every CRN, including CRNs that are not in the courses file. Both also read
+the dataset's stored combined/common groups through `stored_groups`, so they
+build exam units and time groups from the same CRN strings.
 """
 
 import asyncio
 import logging
+from collections.abc import Mapping
 
 from src.domain.validation import DatasetFiles, parse_dataset_files
 from src.domain.validation.snapshot import COURSES, ENROLLMENTS, ROOM_BLOCKOUTS, ROOMS
@@ -59,3 +62,11 @@ async def load_uploaded_files(
         )
         return None
     return await asyncio.to_thread(parse_dataset_files, downloaded)
+
+
+def stored_groups(groups: Mapping[str, list[str]] | None) -> dict[str, tuple[str, ...]]:
+    """A dataset's stored combined or common groups: label -> CRNs."""
+    return {
+        str(label): tuple(str(crn) for crn in crns)
+        for label, crns in (groups or {}).items()
+    }

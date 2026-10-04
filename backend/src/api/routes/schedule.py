@@ -229,8 +229,9 @@ async def search_late_add(
     Find a block and room for one exam that missed generation (read-only).
 
     Only the schedule's owner may search; anyone else gets 404. 409 when the
-    dataset was deleted, 400 for a blank field, a CRN already in the schedule
-    or a CRN without enrollment rows.
+    dataset was deleted, 400 for a blank field (a "nan" instructor ID counts as
+    blank), a CRN already in the schedule, a CRN that courses.csv schedules with
+    a nonzero enrollment, or a CRN without enrollment rows.
     """
     try:
         result = await late_add_service.search(

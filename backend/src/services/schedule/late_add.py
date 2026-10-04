@@ -40,7 +40,13 @@ from src.domain.services.late_add import (
 )
 from src.domain.services.late_add_analysis import late_exam_analysis
 from src.domain.validation import DatasetFiles
-from src.domain.validation.snapshot import ENROLLMENTS, ROOM_BLOCKOUTS
+from src.domain.validation.snapshot import (
+    DEFAULT_INSTRUCTOR_MAX_PER_DAY,
+    DEFAULT_MAX_DAYS,
+    DEFAULT_STUDENT_MAX_PER_DAY,
+    ENROLLMENTS,
+    ROOM_BLOCKOUTS,
+)
 from src.repo.conflict_analyses import ConflictAnalysesRepo
 from src.repo.course import CourseRepo
 from src.repo.dataset import DatasetRepo
@@ -49,7 +55,7 @@ from src.repo.room import RoomRepo
 from src.repo.schedule import ScheduleRepo
 from src.repo.time_slot import TimeSlotRepo
 from src.schemas.db import Datasets, ExamAssignments, Runs, Schedules, StatusEnum, Users
-from src.services.dataset.uploaded_files import load_uploaded_files
+from src.services.dataset.uploaded_files import load_uploaded_files, stored_groups
 from src.services.schedule.summary import resolve_settings
 from src.services.storage.interface import IStorage
 
@@ -59,12 +65,6 @@ DATASET_DELETED_MESSAGE = "The dataset's uploaded files are no longer available"
 LATE_ADD_ALGORITHM_NAME = "Late add"
 # schedules.schedule_name is String(50).
 MAX_SCHEDULE_NAME_LENGTH = 50
-
-# Generation's defaults (POST /schedule/generate) for runs that didn't record
-# a setting.
-_DEFAULT_MAX_DAYS = 7
-_DEFAULT_STUDENT_MAX_PER_DAY = 3
-_DEFAULT_INSTRUCTOR_MAX_PER_DAY = 3
 
 _DAY_INDEX = {name: index for index, name in enumerate(DAY_NAMES)}
 _BLOCK_INDEX = {label: index for index, label in BLOCK_TIMES.items()}
@@ -354,8 +354,8 @@ class LateAddService:
                 rooms=rooms,
                 blockouts=files.blockouts or {},
                 settings=_late_add_settings(resolved),
-                combined_groups=_groups(dataset.course_merges),
-                common_groups=_groups(dataset.common_exam_groups),
+                combined_groups=stored_groups(dataset.course_merges),
+                common_groups=stored_groups(dataset.common_exam_groups),
             ),
             late=LateExam(
                 crn=crn,
@@ -578,26 +578,17 @@ def _courses_file_notes(crn: str, files: DatasetFiles) -> list[str]:
     ]
 
 
-def _groups(groups: dict[str, list[str]] | None) -> dict[str, tuple[str, ...]]:
-    return {
-        str(label): tuple(str(crn).strip() for crn in crns)
-        for label, crns in (groups or {}).items()
-    }
-
-
 def _late_add_settings(resolved: dict[str, Any]) -> LateAddSettings:
     def setting(key: str, default: int) -> int:
         value = resolved.get(key)
         return int(value) if value is not None else default
 
     return LateAddSettings(
-        max_days=setting("max_days", _DEFAULT_MAX_DAYS),
+        max_days=setting("max_days", DEFAULT_MAX_DAYS),
         blocks_per_day=int(resolved["blocks_per_day"]),
-        student_max_per_day=setting(
-            "student_max_per_day", _DEFAULT_STUDENT_MAX_PER_DAY
-        ),
+        student_max_per_day=setting("student_max_per_day", DEFAULT_STUDENT_MAX_PER_DAY),
         instructor_max_per_day=setting(
-            "instructor_max_per_day", _DEFAULT_INSTRUCTOR_MAX_PER_DAY
+            "instructor_max_per_day", DEFAULT_INSTRUCTOR_MAX_PER_DAY
         ),
     )
 

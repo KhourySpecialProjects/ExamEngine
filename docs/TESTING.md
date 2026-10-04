@@ -8,7 +8,8 @@ How to run and write tests for ExamEngine, and what CI does (and doesn't) cover.
 backend/
 ├── pyproject.toml            # [tool.pytest.ini_options]: paths, markers, coverage addopts
 └── tests/
-    ├── conftest.py           # Shared fixtures; auto-adds markers by test name
+    ├── conftest.py           # Shared fixtures (incl. db_session); auto-adds markers
+    ├── db/                   # Postgres test-database harness, row builders, guard tests
     ├── fixtures/             # Synthetic CSV fixtures
     ├── api/                  # Route tests (FastAPI TestClient, service overrides)
     ├── core/
@@ -17,7 +18,7 @@ backend/
     │   ├── assemblers/
     │   ├── services/         # Scheduling engines, room capacity, analyzers
     │   └── validation/       # Schedule Validator checks
-    ├── repo/
+    ├── repo/                 # Repository tests (mocked session, or db_session)
     └── services/             # Application services (datasets, schedule)
 
 frontend/
@@ -48,7 +49,31 @@ cd backend
 # By marker
 .venv/bin/pytest -m unit
 .venv/bin/pytest -m "not slow"
+
+# Without the Postgres test database (no Docker needed)
+.venv/bin/pytest -m "not integration"
 ```
+
+#### Database tests
+
+Tests that take the `db_session` fixture run against a real Postgres **test database** on the
+dev stack's Postgres server (`docker-compose --profile dev up -d`). Local only: nothing runs
+them on develop, staging or Coolify.
+
+- **Which database:** `TEST_DATABASE_URL`, default
+  `postgresql+psycopg2://postgres:postgres@localhost:5434/exam_engine_test` (port 5434 from the
+  committed override). Never `DATABASE_URL`. The database is created on first use.
+- **Guard:** the harness refuses (error, not skip) a database whose name doesn't end in `_test`
+  or is the one `DATABASE_URL` names, and checks `current_database()` again before it drops and
+  rebuilds the schema. Don't weaken these checks.
+- **Schema:** dropped and rebuilt once per run with the app's `init_db`, so it always matches the
+  models.
+- **Isolation:** each test runs in one transaction that is rolled back afterwards. Code under test
+  may `commit()`; that only releases a savepoint. The test database stays empty between runs.
+  Overlapping runs (worktrees, parallel agents) take turns: each run holds a Postgres advisory
+  lock on the test database until it finishes.
+- **No server:** DB tests are skipped with the reason shown under `-rs`.
+- Tests using `db_session` get the `integration` marker automatically.
 
 ### Frontend
 
@@ -81,8 +106,9 @@ unregistered markers fail):
 | `@pytest.mark.stress` | Stress tests (registered in `conftest.py`) |
 
 `conftest.py` also adds `integration` to tests whose name contains `integration` or
-`real_data`, `slow` to tests whose name contains `large` or `stress`, and `stress` to tests whose
-name contains `stress`. A module can mark all of its tests with `pytestmark = pytest.mark.unit`.
+`real_data` and to tests that use the `db_session` fixture, `slow` to tests whose name contains
+`large` or `stress`, and `stress` to tests whose name contains `stress`. A module can mark all of
+its tests with `pytestmark = pytest.mark.unit`.
 Tests that run the annealing engine with a real time budget should be marked `slow`.
 
 ## CI Workflows
@@ -125,6 +151,25 @@ from src.domain.services.scheduler import seats_fit
 def test_each_exam_needs_its_own_room():
     assert seats_fit([30, 30], [40, 40])
     assert not seats_fit([30, 30], [40])
+```
+
+### Backend Database Test
+
+Use the builders in `tests/db/builders.py` for rows; they flush so ids are set.
+
+```python
+# tests/repo/test_example.py
+from src.repo.schedule import ScheduleRepo
+from tests.db.builders import make_schedule, make_user
+
+
+def test_a_stranger_cannot_read_a_schedule(db_session):
+    owner = make_user(db_session, "Owner")
+    stranger = make_user(db_session, "Stranger")
+    schedule = make_schedule(db_session, owner)
+
+    repo = ScheduleRepo(db_session)
+    assert repo.get_by_id_for_user(schedule.schedule_id, stranger.user_id) is None
 ```
 
 ### Frontend Test

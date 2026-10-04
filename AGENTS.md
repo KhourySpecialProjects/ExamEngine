@@ -123,7 +123,7 @@ trigger only on `main`/`master` (EXENG-40). Run the checks locally before claimi
 
 | Command | Scope |
 | --- | --- |
-| `cd backend && .venv/bin/pytest -q -p no:cacheprovider --no-cov` | all backend tests |
+| `cd backend && .venv/bin/pytest -q -p no:cacheprovider --no-cov` | all backend tests (DB tests need the dev stack's Postgres; they skip without it) |
 | `cd backend && .venv/bin/ruff check --no-fix <files>` | backend lint (`pyproject.toml` sets `fix = true`, so plain `ruff check` rewrites files) |
 | `cd frontend && npx vitest run` | frontend unit tests (bare `vitest` starts watch mode) |
 | `cd frontend && npx tsc --noEmit --incremental false` | frontend type check |
@@ -132,8 +132,15 @@ trigger only on `main`/`master` (EXENG-40). Run the checks locally before claimi
 
 Backend markers: `unit` (set by hand; currently only `test_annealing_scheduler.py`), `integration`,
 `slow`, `stress`. `tests/conftest.py` adds the last three from test names ("integration" or
-"real_data"; "large" or "stress"), e.g. `pytest -m "not slow"`. Backend runs from `backend/`
+"real_data"; "large" or "stress") and adds `integration` to every test using the `db_session`
+fixture, e.g. `pytest -m "not slow"`. Backend runs from `backend/`
 (`pythonpath=["."]`, `testpaths=["tests"]`); if imports fail: `cd backend && pip install -e ".[dev]"`.
+
+**Database tests** (`db_session` fixture; harness and row builders in `tests/db/`) use a separate
+`_test` database (`TEST_DATABASE_URL`, default `exam_engine_test` on the dev Postgres, host port
+5434), never `DATABASE_URL`. Each test is rolled back; overlapping runs wait for each other. The
+harness refuses any database not named `*_test`; never weaken that guard. Details:
+`docs/TESTING.md`.
 
 ## Conventions & gotchas
 

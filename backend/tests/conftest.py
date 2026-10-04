@@ -1,5 +1,17 @@
+from collections.abc import Iterator
+
 import pandas as pd
 import pytest
+from sqlalchemy import Engine, create_engine
+from sqlalchemy.exc import OperationalError
+from sqlalchemy.orm import Session
+
+from tests.db.harness import (
+    configured_test_database_url,
+    ensure_database,
+    exclusive_use,
+    reset_schema,
+)
 
 
 @pytest.fixture(scope="session")
@@ -93,14 +105,16 @@ def large_census_data():
     courses = [f"CS{100 + i}" for i in range(100)]
     sizes = [20 + (i % 50) for i in range(100)]  # Sizes between 20-69
 
-    return pd.DataFrame({
-        "CRN": crns,
-        "CourseID": courses,
-        "num_students": sizes,
-        "Instructor Name": ["Dr. Smith"] * 100,
-        "examination_term": ["Fall 2024"] * 100,
-        "department": ["CS"] * 100,
-    })
+    return pd.DataFrame(
+        {
+            "CRN": crns,
+            "CourseID": courses,
+            "num_students": sizes,
+            "Instructor Name": ["Dr. Smith"] * 100,
+            "examination_term": ["Fall 2024"] * 100,
+            "department": ["CS"] * 100,
+        }
+    )
 
 
 @pytest.fixture(scope="session")
@@ -190,6 +204,56 @@ def mock_capacity_violations():
     )
 
 
+@pytest.fixture(scope="session")
+def db_engine() -> Iterator[Engine]:
+    """
+    Engine for the Postgres test database, rebuilt once per test run.
+
+    Never the app's database: see tests/db/harness.py. Skips the DB tests when
+    the server can't be reached (dev stack not running). Overlapping test runs
+    take turns on the test database.
+    """
+    from src.core.config import get_settings
+
+    url = configured_test_database_url(get_settings().database_url)
+    try:
+        ensure_database(url)
+    except OperationalError as error:
+        pytest.skip(
+            f"Test database server {url.host}:{url.port} not reachable "
+            f"(start the dev stack or set TEST_DATABASE_URL): {error.orig}"
+        )
+    engine = create_engine(url)
+    with exclusive_use(engine):
+        reset_schema(engine)
+        yield engine
+    engine.dispose()
+
+
+@pytest.fixture
+def db_session(db_engine: Engine) -> Iterator[Session]:
+    """
+    Session on the test database; everything it writes is rolled back.
+
+    Code under test may call ``commit()``: that only releases a savepoint
+    inside the outer transaction, which is rolled back after the test.
+    """
+    connection = db_engine.connect()
+    outer = connection.begin()
+    session = Session(
+        bind=connection,
+        join_transaction_mode="create_savepoint",
+        expire_on_commit=False,
+        autoflush=False,
+    )
+    try:
+        yield session
+    finally:
+        session.close()
+        outer.rollback()
+        connection.close()
+
+
 def pytest_configure(config):
     """Configure pytest with custom markers."""
     config.addinivalue_line("markers", "integration: mark test as integration test")
@@ -200,8 +264,12 @@ def pytest_configure(config):
 def pytest_collection_modifyitems(config, items):
     """Modify test collection to add markers based on test names."""
     for item in items:
-        # Add integration marker to tests that use real data
-        if "integration" in item.name or "real_data" in item.name:
+        # Add integration marker to tests that use real data or the test database
+        if (
+            "integration" in item.name
+            or "real_data" in item.name
+            or "db_session" in getattr(item, "fixturenames", ())
+        ):
             item.add_marker(pytest.mark.integration)
 
         # Add slow marker to tests that might be slow

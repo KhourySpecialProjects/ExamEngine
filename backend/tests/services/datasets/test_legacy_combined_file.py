@@ -24,27 +24,34 @@ STORED_FILES = {
 LEGACY_METADATA = {"rows": 2, "exam_groups": 1, "merged_crns": 2}
 
 
+def _legacy_dataset(dataset_id):
+    return SimpleNamespace(
+        dataset_id=dataset_id,
+        dataset_name="Uploaded before the split",
+        upload_date=datetime(2026, 9, 26),
+        file_paths=[
+            {"type": "courses", "storage_key": "courses/key", "metadata": {}},
+            {
+                "type": "enrollments",
+                "storage_key": "enrollments/key",
+                "metadata": {},
+            },
+            {"type": "rooms", "storage_key": "rooms/key", "metadata": {}},
+            {
+                "type": "common_exams",
+                "storage_key": "legacy/key",
+                "metadata": LEGACY_METADATA,
+            },
+        ],
+    )
+
+
 class FakeDatasetRepo:
     def get_by_id_for_user(self, dataset_id, user_id):
-        return SimpleNamespace(
-            dataset_id=dataset_id,
-            dataset_name="Uploaded before the split",
-            upload_date=datetime(2026, 9, 26),
-            file_paths=[
-                {"type": "courses", "storage_key": "courses/key", "metadata": {}},
-                {
-                    "type": "enrollments",
-                    "storage_key": "enrollments/key",
-                    "metadata": {},
-                },
-                {"type": "rooms", "storage_key": "rooms/key", "metadata": {}},
-                {
-                    "type": "common_exams",
-                    "storage_key": "legacy/key",
-                    "metadata": LEGACY_METADATA,
-                },
-            ],
-        )
+        return _legacy_dataset(dataset_id)
+
+    def get_all_for_user(self, user_id, skip, limit):
+        return [_legacy_dataset(uuid4())]
 
 
 class FakeStorage:
@@ -65,7 +72,7 @@ async def test_legacy_file_loads_as_combined_exams():
 
 
 def test_legacy_file_is_reported_as_combined_exams():
-    info = DatasetService(FakeDatasetRepo()).get_dataset_info(uuid4(), uuid4())
+    [info] = DatasetService(FakeDatasetRepo()).list_datasets_for_user(uuid4())
 
     assert "common_exams" not in info["files"]
     assert info["files"]["combined_exams"] == LEGACY_METADATA

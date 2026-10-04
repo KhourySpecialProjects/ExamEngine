@@ -64,16 +64,6 @@ class ScheduleResult:
     conflicts: list[Conflict]  # Hard constraint violations
     colors: dict[str, int]  # CRN → DSATUR color (for debugging)
 
-    # Metadata needed for saving/display (populated by scheduler)
-    course_sizes: dict[str, int] = field(default_factory=dict)  # CRN → enrollment
-    course_codes: dict[str, str] = field(default_factory=dict)  # CRN → "CS 4535"
-    room_capacities: dict[str, int] = field(
-        default_factory=dict
-    )  # room_name → capacity
-    instructors_by_crn: dict[str, set[str]] = field(
-        default_factory=dict
-    )  # CRN → {names}
-
     # Combined groups, common groups and single sections left unscheduled, with
     # the reason. A combined group inside an unscheduled common group is reported
     # once, under the common group.

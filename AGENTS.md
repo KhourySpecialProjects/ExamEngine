@@ -32,7 +32,8 @@ same room), `common_exams` (same block, different rooms). CSV contracts and the 
   logic (`seats_fit`, `_assign_rooms`). Rooms are never filled over capacity.
 - `domain/services/annealing_scheduler.py` — **Optimized engine** (`AnnealingScheduler`,
   subclasses `Scheduler`).
-- `domain/services/` — also `constraint_evaluator.py`, `conflict_detector.py`, `schedule_analyzer.py`.
+- `domain/services/` — also `constraint_evaluator.py`, `conflict_detector.py`, `schedule_analyzer.py`,
+  `late_add.py` (late add: place one exam into a saved schedule, see `docs/ALGORITHM.md`).
 - `domain/validation/` — Schedule Validator: independent checks that re-verify a saved schedule
   against its uploaded files. Deliberately imports no scheduler/analyzer code.
 - `domain/value_objects/` — hard/soft conflicts, penalties, scheduling config + state.

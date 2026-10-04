@@ -35,26 +35,17 @@ class ScheduleAnalyzer:
         """
         Perform complete analysis of a schedule.
 
-        Args:
-            assignments: CRN -> (day_idx, block_idx)
-            room_assignments: CRN -> room_name
-            conflicts: List of hard conflicts from scheduling
-            course_codes: CRN -> course code string
-            course_sizes: CRN -> enrollment count
+        Course codes and sizes come from the dataset, so the analysis is the
+        same whichever engine produced the schedule.
 
         Returns:
             Complete ScheduleAnalysis with hard/soft conflicts and statistics
         """
         assignments = schedule.assignments
         room_assignments = schedule.room_assignments
-        conflicts = schedule.conflicts
-        course_codes = schedule.course_codes
-        course_sizes = schedule.course_sizes
 
-        hard_conflicts = self._categorize_hard_conflicts(conflicts, course_codes)
-        soft_conflicts = self._compute_soft_conflicts(
-            assignments, course_codes, course_sizes
-        )
+        hard_conflicts = self._categorize_hard_conflicts(schedule.conflicts)
+        soft_conflicts = self._compute_soft_conflicts(assignments)
         statistics = self._compute_statistics(
             assignments, room_assignments, hard_conflicts, soft_conflicts
         )
@@ -65,9 +56,11 @@ class ScheduleAnalyzer:
             statistics=statistics,
         )
 
-    def _categorize_hard_conflicts(
-        self, conflicts: list[Conflict], course_codes: dict[str, str]
-    ) -> HardConflicts:
+    def _course_code(self, crn: str) -> str:
+        course = self.dataset.get_course(crn)
+        return course.course_code if course else ""
+
+    def _categorize_hard_conflicts(self, conflicts: list[Conflict]) -> HardConflicts:
         """Categorize hard conflicts by type."""
         result = HardConflicts()
 
@@ -78,9 +71,9 @@ class ScheduleAnalyzer:
                 "block": conflict.block,
                 "block_time": BLOCK_TIMES.get(conflict.block, ""),
                 "crn": conflict.crn,
-                "course": course_codes.get(conflict.crn, ""),
+                "course": self._course_code(conflict.crn),
                 "conflicting_crn": conflict.conflicting_crn,
-                "conflicting_course": course_codes.get(conflict.conflicting_crn, "")
+                "conflicting_course": self._course_code(conflict.conflicting_crn)
                 if conflict.conflicting_crn
                 else None,
             }
@@ -97,10 +90,7 @@ class ScheduleAnalyzer:
         return result
 
     def _compute_soft_conflicts(
-        self,
-        assignments: dict[str, tuple[int, int]],
-        course_codes: dict[str, str],
-        course_sizes: dict[str, int],
+        self, assignments: dict[str, tuple[int, int]]
     ) -> SoftConflicts:
         """Compute soft constraint violations from final schedule."""
         result = SoftConflicts()
@@ -164,12 +154,12 @@ class ScheduleAnalyzer:
 
         # Detect large courses scheduled late (after Wednesday)
         for crn, (day_idx, block_idx) in assignments.items():
-            size = course_sizes.get(crn, 0)
+            size = self.dataset.get_enrollment_count(crn)
             if size >= LARGE_COURSE_THRESHOLD and day_idx >= EARLY_WEEK_CUTOFF:
                 result.large_courses_not_early.append(
                     {
                         "crn": crn,
-                        "course": course_codes.get(crn, ""),
+                        "course": self._course_code(crn),
                         "size": size,
                         "day": DAY_NAMES[day_idx],
                         "block": block_idx,

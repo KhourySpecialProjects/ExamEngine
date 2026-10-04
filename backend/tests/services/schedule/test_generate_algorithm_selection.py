@@ -31,8 +31,8 @@ def _service() -> ScheduleService:
     svc._ensure_courses = MagicMock(return_value={})
     svc._ensure_rooms = MagicMock(return_value={})
     svc._save_exam_assignments = AsyncMock()
-    svc._save_and_format_conflicts = AsyncMock(return_value={})
-    svc._build_generation_response = MagicMock(return_value={})
+    svc._save_conflicts = AsyncMock()
+    svc.get_schedule_with_details = AsyncMock(return_value={})
     return svc
 
 

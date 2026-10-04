@@ -1,6 +1,5 @@
 import datetime
 from typing import Any, Protocol
-from uuid import UUID
 
 from src.domain.value_objects import SchedulePermissions
 
@@ -229,40 +228,4 @@ class ScheduleAssembler:
             "blockouts": blockouts or {},
             "unscheduled_groups": unscheduled_groups or [],
             **permissions.to_dict(),
-        }
-
-    @staticmethod
-    def build_generation_response(
-        schedule,
-        dataset_id: UUID,
-        dataset_name: str,
-        schedule_list: list[dict],
-        calendar: dict,
-        summary: dict[str, Any],
-        conflicts: dict[str, Any],
-        parameters: dict[str, Any],
-        blockouts: dict[str, dict[str, int]] | None = None,
-        unscheduled_groups: list[dict[str, Any]] | None = None,
-    ) -> dict[str, Any]:
-        """
-        Build response for generate_schedule endpoint.
-
-        Slightly different shape than detail response (no permissions).
-        """
-        return {
-            "schedule_id": str(schedule.schedule_id),
-            "schedule_name": schedule.schedule_name,
-            "dataset_id": str(dataset_id),
-            "dataset_name": dataset_name,
-            "summary": summary,
-            "conflicts": conflicts,
-            "failures": [],
-            "schedule": {
-                "complete": schedule_list,
-                "calendar": calendar,
-                "total_exams": len(schedule_list),
-            },
-            "parameters": parameters,
-            "blockouts": blockouts or {},
-            "unscheduled_groups": unscheduled_groups or [],
         }

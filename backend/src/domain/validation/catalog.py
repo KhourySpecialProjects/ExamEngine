@@ -41,15 +41,16 @@ CHECKS: tuple[Check, ...] = (
     Check(
         "coverage.crn_in_courses_file",
         "Scheduled CRNs exist",
-        "Every CRN in the schedule is in the uploaded courses file.",
+        "Every CRN in the schedule is in the uploaded courses file or is a late "
+        "addition.",
         "coverage",
         coverage.crn_in_courses_file,
     ),
     Check(
         "coverage.crn_accounted",
         "Every course accounted for",
-        "Every course in the courses file is placed, unscheduled with a stated "
-        "reason, or excluded for zero enrollment.",
+        "Every course in the courses file, and every late addition, is placed, "
+        "unscheduled with a stated reason, or excluded for zero enrollment.",
         "coverage",
         coverage.crn_accounted,
     ),
@@ -66,6 +67,15 @@ CHECKS: tuple[Check, ...] = (
         "Every exam falls within the schedule's days and blocks per day.",
         "coverage",
         coverage.within_window,
+    ),
+    Check(
+        "coverage.late_additions",
+        "Late additions",
+        "Each exam added late is placed once at its recorded time and room, is "
+        "not a scheduled course in the courses file, and its size, course code "
+        "and instructor match its enrollments and stored course row.",
+        "coverage",
+        coverage.late_additions,
     ),
     Check(
         "rooms.in_rooms_file",
@@ -177,7 +187,7 @@ CHECKS: tuple[Check, ...] = (
         "data.stored_course_matches_file",
         "Stored courses match the file",
         "Each scheduled course's stored enrollment and instructor match the "
-        "courses file.",
+        "courses file, or the late addition for an exam added late.",
         "data",
         data.stored_course_matches_file,
     ),
@@ -191,14 +201,15 @@ CHECKS: tuple[Check, ...] = (
     Check(
         "data.enrollment_totals",
         "Enrollment totals",
-        "Each course's Total_Enrollment equals the number of students enrolled in it.",
+        "Each course's Total_Enrollment (a late addition's recorded size) equals "
+        "the number of students enrolled in it.",
         "data",
         data.enrollment_totals,
     ),
     Check(
         "data.enrollment_unknown_crns",
         "Enrollments for unknown courses",
-        "Every enrollment row is for a CRN in the courses file.",
+        "Every enrollment row is for a CRN in the courses file or a late addition.",
         "data",
         data.enrollment_unknown_crns,
     ),

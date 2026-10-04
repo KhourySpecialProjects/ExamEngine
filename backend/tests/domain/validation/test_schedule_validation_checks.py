@@ -21,6 +21,7 @@ from src.domain.validation import (
     run_checks,
 )
 from src.domain.validation.context import ValidationContext
+from src.domain.validation.snapshot import late_additions_from_stored
 
 
 CHECK_BY_ID = {check.id: check for check in CHECKS}
@@ -43,6 +44,7 @@ def row(
     capacity: int | None = 10,
     enrollment: int = 2,
     instructor: str | None = "Ada",
+    course_code: str | None = None,
 ) -> ScheduleRow:
     return ScheduleRow(
         crn=crn,
@@ -52,6 +54,7 @@ def row(
         room_capacity=capacity if room is not None else None,
         enrollment_count=enrollment,
         instructor=instructor,
+        course_code=course_code,
     )
 
 
@@ -166,6 +169,7 @@ def test_consistent_schedule_passes_every_applicable_check():
 
     not_passing = {cid: r.status for cid, r in results.items() if r.status != "pass"}
     assert not_passing == {
+        "coverage.late_additions": "skipped",
         "rooms.blockouts": "skipped",
         "groups.combined_together": "skipped",
         "groups.common_same_slot": "skipped",
@@ -203,6 +207,7 @@ FILE_CHECKS = [
     if check.id
     not in {
         "coverage.crn_single_row",
+        "coverage.late_additions",
         "coverage.exams_have_rooms",
         "coverage.within_window",
         "rooms.capacity",
@@ -876,6 +881,290 @@ def test_duplicate_courses_and_enrollments_warn():
         "CRN 100 appears 2 times in the courses file",
         "Student s2 is enrolled in CRN 100 2 times",
     )
+
+
+# ----------------------------------------------------------------------
+# Late additions
+# ----------------------------------------------------------------------
+
+# Late-add versions of the baseline on files where
+#   CRN 900 (2 students) is in the enrollments only, and
+#   CRN 400 (zero enrollment in the courses file) has 1 enrolled student.
+# v2 adds CRN 900 (Dee) Wednesday block 0 in R1;
+# v3 also adds CRN 400 (Cy) Thursday block 0 in R2.
+LATE_FILES = files(
+    enrollments=(
+        *BASE_FILES.enrollments,
+        enrolled("s5", "900"),
+        enrolled("s6", "900"),
+        enrolled("s7", "400"),
+    )
+)
+
+
+def late(
+    crn: str,
+    day: int,
+    block: int,
+    room: str,
+    size: int,
+    instructor: str = "Dee",
+    course_code: str = "LATE 1",
+) -> dict:
+    """A stored late_additions record (the save step's format)."""
+    return {
+        "crn": crn,
+        "course_code": course_code,
+        "instructor_id": instructor,
+        "size": size,
+        "day": day,
+        "day_name": "unused",
+        "block": block,
+        "block_time": "unused",
+        "room": room,
+        "outcome": "clear",
+        "conflicts": {},
+        "added_by": "u1",
+        "added_by_name": "User",
+        "added_at": "2026-01-01T00:00:00",
+        "schedule_id": "s1",
+    }
+
+
+def late_row(
+    crn: str,
+    day: int,
+    block: int,
+    room: str,
+    size: int,
+    instructor: str = "Dee",
+    course_code: str = "LATE 1",
+) -> ScheduleRow:
+    """The schedule row the save step stores for a late addition."""
+    return row(
+        crn,
+        day,
+        block,
+        room,
+        enrollment=size,
+        instructor=instructor,
+        course_code=course_code,
+    )
+
+
+V2_LATE = (late("900", 2, 0, "R1", 2),)
+V2_ROWS = rows(late_row("900", 2, 0, "R1", 2))
+V3_LATE = (*V2_LATE, late("400", 3, 0, "R2", 1, "Cy", "LATE 4"))
+V3_ROWS = rows(
+    late_row("900", 2, 0, "R1", 2), late_row("400", 3, 0, "R2", 1, "Cy", "LATE 4")
+)
+
+
+def late_snapshot(late_additions: tuple = V2_LATE, **changes) -> ValidationSnapshot:
+    placed = len(changes.get("rows", V2_ROWS))
+    defaults = {
+        "rows": V2_ROWS,
+        "files": LATE_FILES,
+        "analysis": analysis(num_classes=placed, slots_used=placed),
+        "late_additions": late_additions,
+    }
+    return snapshot(**{**defaults, **changes})
+
+
+def _statuses(snap: ValidationSnapshot) -> dict[str, str]:
+    ctx = ValidationContext(snap)
+    return {check.id: run_check(check, ctx).status for check in CHECKS}
+
+
+@pytest.mark.parametrize(
+    ("late_additions", "late_rows"), [(V2_LATE, V2_ROWS), (V3_LATE, V3_ROWS)]
+)
+def test_late_add_versions_pass_with_no_new_problems(late_additions, late_rows):
+    stored = {"late_additions": list(late_additions)}
+    base = _statuses(snapshot(files=LATE_FILES))
+    version = late_snapshot(
+        late_additions_from_stored(stored),
+        rows=late_rows,
+        parameters=RunParameters.from_stored(stored),
+    )
+
+    statuses = _statuses(version)
+
+    assert statuses["coverage.late_additions"] == "pass"
+    worse = {
+        cid: status
+        for cid, status in statuses.items()
+        if status != "pass" and status != base[cid]
+    }
+    assert worse == {}
+    note = run("coverage.crn_in_courses_file", version).summary
+    assert "late add" in note
+    assert "CRN 900" in note
+
+
+_COURSE_ROW_CHECKS = (
+    "coverage.crn_accounted",
+    "data.stored_course_matches_file",
+    "data.enrollment_totals",
+    "data.enrollment_unknown_crns",
+)
+
+
+def test_course_row_checks_say_when_late_additions_count_as_courses():
+    version = late_snapshot(V3_LATE, rows=V3_ROWS)
+    generated = snapshot(files=LATE_FILES)
+
+    for check_id in _COURSE_ROW_CHECKS:
+        late_result = run(check_id, version)
+        assert late_result.status == "pass", (check_id, late_result.summary)
+        assert "late addition" in late_result.summary, check_id
+        assert "late addition" not in run(check_id, generated).summary, check_id
+
+
+def test_late_addition_check_skips_on_generated_schedules():
+    result = run("coverage.late_additions", snapshot())
+
+    assert result.status == "skipped"
+    assert result.summary == "This schedule has no late additions."
+
+
+def test_late_addition_check_skips_when_files_are_gone():
+    result = run("coverage.late_additions", late_snapshot(files=None))
+
+    assert result.status == "skipped"
+    assert result.summary == FILES_GONE
+
+
+def test_late_addition_at_other_block_fails():
+    snap = late_snapshot((late("900", 2, 1, "R1", 2),))
+
+    result = run("coverage.late_additions", snap)
+
+    assert result.status == "fail"
+    assert result.examples == (
+        "CRN 900 is recorded at Wednesday 11:30AM-1:30PM in R1 but is "
+        "Wednesday 9AM-11AM in R1",
+    )
+
+
+def test_late_addition_with_wrong_size_fails():
+    snap = late_snapshot(
+        (late("900", 2, 0, "R1", 3),), rows=rows(late_row("900", 2, 0, "R1", 3))
+    )
+
+    result = run("coverage.late_additions", snap)
+
+    assert result.status == "fail"
+    assert result.examples == (
+        "CRN 900 is recorded with size 3 but has 2 enrolled students",
+    )
+
+
+def test_late_addition_of_a_scheduled_course_fails():
+    snap = late_snapshot(
+        (late("100", 0, 0, "R1", 2, "Ada", "CS1"),),
+        rows=rows(late_row("100", 0, 0, "R1", 2, "Ada", "CS1")),
+    )
+
+    result = run("coverage.late_additions", snap)
+
+    assert result.status == "fail"
+    assert result.examples == (
+        "CRN 100 is a scheduled course in the courses file (2 students), "
+        "not a late addition",
+    )
+
+
+def test_late_addition_must_match_its_stored_course_row_and_enrollments():
+    snap = late_snapshot(
+        (late("900", 2, 0, "R1", 2), late("950", 4, 0, "R1", 0)),
+        rows=rows(
+            late_row("900", 2, 0, "R1", 5, instructor="Eve", course_code="OTHER"),
+            late_row("950", 4, 0, "R1", 0),
+        ),
+    )
+
+    result = run("coverage.late_additions", snap)
+
+    assert result.status == "fail"
+    assert result.examples == (
+        "CRN 900: course code 'OTHER' stored, 'LATE 1' recorded; instructor 'Eve' "
+        "stored, 'Dee' recorded; size 5 stored, 2 recorded",
+        "CRN 950 has no enrollment rows",
+    )
+
+
+def test_late_addition_missing_repeated_or_malformed_fails():
+    snap = late_snapshot(
+        (late("900", 2, 0, "R1", 2), late("900", 2, 0, "R1", 2), {"crn": "901"}),
+        rows=rows(drop=()),
+    )
+
+    result = run("coverage.late_additions", snap)
+
+    assert result.status == "fail"
+    assert result.examples == (
+        "Late addition #3 lacks crn, course_code, instructor_id or room",
+        "CRN 900 is recorded as a late addition 2 times",
+        "CRN 900 should appear once at Wednesday 9AM-11AM in R1 but has "
+        "0 schedule rows",
+    )
+
+
+def test_unrecorded_late_crn_still_fails_crn_in_courses_file():
+    result = run("coverage.crn_in_courses_file", late_snapshot(late_additions=()))
+
+    assert result.status == "fail"
+    assert result.examples == ("CRN 900 is not in the courses file",)
+
+
+def test_late_addition_instructor_takes_part_in_instructor_conflicts():
+    # Ada already has CRN 100 on Monday block 0; the late exam joins her there.
+    snap = late_snapshot(
+        (late("900", 0, 0, "R2", 2, "Ada"),),
+        rows=rows(late_row("900", 0, 0, "R2", 2, "Ada")),
+    )
+    stored = analysis(
+        hard={"instructor_double_book": [_hard("Ada", "Monday", 0)]},
+        num_classes=4,
+        slots_used=3,
+    )
+
+    missed = run("conflicts.instructor_double_book", snap)
+    reported = run("conflicts.instructor_double_book", replace(snap, analysis=stored))
+
+    assert missed.examples == (
+        "Missed: instructor Ada, Monday 9AM-11AM: CRN 100, CRN 900",
+    )
+    assert reported.status == "warn"
+
+
+@pytest.mark.parametrize("nan", ["NaN", " NAN "])
+def test_late_addition_nan_instructor_is_no_instructor(nan):
+    # Two late exams in one block whose instructor cell is "nan" in any case.
+    snap = late_snapshot(
+        (late("900", 2, 0, "R1", 2, nan), late("400", 2, 0, "R2", 1, nan, "LATE 4")),
+        rows=rows(
+            late_row("900", 2, 0, "R1", 2, nan),
+            late_row("400", 2, 0, "R2", 1, nan, "LATE 4"),
+        ),
+    )
+
+    assert run("conflicts.instructor_double_book", snap).status == "pass"
+
+
+def test_late_addition_size_counts_for_room_capacity():
+    # The stored row claims 0 seats; the late addition's size (2) is what counts.
+    snap = late_snapshot(
+        (late("900", 2, 0, "R3", 2),),
+        rows=rows(late_row("900", 2, 0, "R3", 0)),
+        files=replace(LATE_FILES, rooms=(*LATE_FILES.rooms, RoomRecord("R3", 1))),
+    )
+
+    result = run("rooms.capacity", snap)
+
+    assert result.status == "fail"
+    assert result.count == 1
 
 
 # ----------------------------------------------------------------------

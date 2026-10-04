@@ -10,6 +10,7 @@ import {
 import { useEffect, useMemo, useState } from "react";
 import { createScheduleColumns } from "@/components/schedules/columns";
 import type { ScheduleListItem } from "@/lib/api/schedules";
+import { useScheduleSelection } from "@/lib/hooks/useScheduleSelection";
 import { useSchedulesViewStore } from "@/lib/store/schedulesViewStore";
 
 /** The list opens newest first. */
@@ -24,6 +25,7 @@ export function useScheduleTable(
   const [pageIndex, setPageIndex] = useState(0);
   const [columnVisibility, setColumnVisibility] = useState<VisibilityState>({});
   const pageSize = useSchedulesViewStore((s) => s.pageSize);
+  const { rowSelection, ...selection } = useScheduleSelection();
 
   const columns = useMemo(() => createScheduleColumns(onDelete), [onDelete]);
 
@@ -35,6 +37,7 @@ export function useScheduleTable(
       globalFilter,
       columnVisibility,
       pagination: { pageIndex, pageSize },
+      rowSelection,
     },
     // A new sort or search starts again from the first page.
     onSortingChange: (updater) => {
@@ -50,7 +53,7 @@ export function useScheduleTable(
     getSortedRowModel: getSortedRowModel(),
     getFilteredRowModel: getFilteredRowModel(),
     getPaginationRowModel: getPaginationRowModel(),
-    enableRowSelection: false,
+    ...selection,
   });
 
   // Deleting the last schedule of the last page would leave an empty page.

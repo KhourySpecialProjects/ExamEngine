@@ -48,7 +48,11 @@ export function DataTableBody<TData>({
   return (
     <TableBody>
       {rows.map((row) => (
-        <TableRow key={row.id} className="hover:bg-muted/50 transition-colors">
+        <TableRow
+          key={row.id}
+          data-state={row.getIsSelected() ? "selected" : undefined}
+          className="hover:bg-muted/50 transition-colors"
+        >
           {row.getVisibleCells().map((cell) => (
             <TableCell key={cell.id} className={cellClassName}>
               {flexRender(cell.column.columnDef.cell, cell.getContext())}

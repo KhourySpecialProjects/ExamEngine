@@ -1,10 +1,11 @@
 import { create } from "zustand";
 import { createJSONStorage, persist } from "zustand/middleware";
+import { MAX_COMPARED } from "@/lib/scheduleSelection";
 import { PAGE_SIZES, safeSessionStorage } from "./sessionStorage";
 
 export type SchedulesView = "list" | "dataset";
 
-/** Schedules-page preferences kept for the browser session. */
+/** Schedules-page preferences and Compare picks kept for the browser session. */
 export interface SchedulesViewState {
   view: SchedulesView;
   setView: (view: SchedulesView) => void;
@@ -14,6 +15,9 @@ export interface SchedulesViewState {
   /** Dataset groups per page in the By-dataset view. */
   datasetPageSize: number;
   setDatasetPageSize: (size: number) => void;
+  /** Schedules picked for Compare, in the order they were picked. */
+  selectedIds: string[];
+  setSelectedIds: (ids: string[]) => void;
 }
 
 const offeredSize = (size: unknown): size is number =>
@@ -32,13 +36,16 @@ export const useSchedulesViewStore = create<SchedulesViewState>()(
       setPageSize: (pageSize) => set({ pageSize }),
       datasetPageSize: PAGE_SIZES[0],
       setDatasetPageSize: (datasetPageSize) => set({ datasetPageSize }),
+      selectedIds: [],
+      setSelectedIds: (selectedIds) => set({ selectedIds }),
     }),
     {
       name: "schedules-view-storage",
       storage: createJSONStorage(() => safeSessionStorage),
       skipHydration: true,
       // Only accept known values: a stale or edited page size such as 0 would
-      // make the page count infinite.
+      // make the page count infinite, and the table never picks more than
+      // MAX_COMPARED schedules.
       merge: (persisted, current) => {
         const stored = (persisted ?? {}) as Partial<SchedulesViewState>;
         return {
@@ -51,6 +58,15 @@ export const useSchedulesViewStore = create<SchedulesViewState>()(
             : {}),
           ...(offeredSize(stored.datasetPageSize)
             ? { datasetPageSize: stored.datasetPageSize }
+            : {}),
+          ...(Array.isArray(stored.selectedIds) &&
+          stored.selectedIds.every((id) => typeof id === "string")
+            ? {
+                selectedIds: [...new Set(stored.selectedIds)].slice(
+                  0,
+                  MAX_COMPARED,
+                ),
+              }
             : {}),
         };
       },

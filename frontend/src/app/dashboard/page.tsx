@@ -5,6 +5,7 @@ import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { ScheduleGroupsView } from "@/components/schedules/ScheduleGroupsView";
 import { ScheduleListView } from "@/components/schedules/ScheduleListView";
+import { ScheduleSelectionBar } from "@/components/schedules/ScheduleSelectionBar";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -17,6 +18,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
 import { ButtonGroup } from "@/components/ui/button-group";
+import { selectableIds } from "@/lib/scheduleSelection";
 import { useSchedulesStore } from "@/lib/store/schedulesStore";
 import {
   type SchedulesView,
@@ -27,6 +29,14 @@ const VIEWS: readonly (readonly [SchedulesView, string, typeof List])[] = [
   ["list", "List", List],
   ["dataset", "By dataset", Layers],
 ];
+
+// Picks restored from this session can point at schedules deleted since.
+function dropUnlistedPicks() {
+  const { schedules, error } = useSchedulesStore.getState();
+  if (error) return;
+  const { selectedIds, setSelectedIds } = useSchedulesViewStore.getState();
+  setSelectedIds(selectableIds(selectedIds, schedules));
+}
 
 export default function DashboardPage() {
   const schedules = useSchedulesStore((state) => state.schedules);
@@ -45,17 +55,20 @@ export default function DashboardPage() {
     : undefined;
 
   useEffect(() => {
-    // Restore this session's view and page sizes once mounted (see the store).
+    // Restore this session's view, page sizes and picks once mounted (see the
+    // store).
     useSchedulesViewStore.persist.rehydrate();
   }, []);
 
   useEffect(() => {
-    fetchSchedules().catch((err) => {
-      toast.error("Failed to load schedules", {
-        description:
-          err instanceof Error ? err.message : "Failed to load schedules",
+    fetchSchedules()
+      .then(dropUnlistedPicks)
+      .catch((err) => {
+        toast.error("Failed to load schedules", {
+          description:
+            err instanceof Error ? err.message : "Failed to load schedules",
+        });
       });
-    });
   }, [fetchSchedules]);
 
   const requestDelete = (scheduleId: string) => {
@@ -69,6 +82,7 @@ export default function DashboardPage() {
     const toastId = toast.loading("Deleting schedule...");
     try {
       await deleteSchedule(pendingDeleteId);
+      dropUnlistedPicks();
       toast.success("Schedule deleted", { id: toastId });
     } catch (error) {
       toast.error("Failed to delete schedule", {
@@ -123,13 +137,19 @@ export default function DashboardPage() {
         </div>
       )}
 
-      {!isLoadingList &&
-        !error &&
-        (view === "dataset" ? (
-          <ScheduleGroupsView schedules={schedules} onDelete={requestDelete} />
-        ) : (
-          <ScheduleListView schedules={schedules} onDelete={requestDelete} />
-        ))}
+      {!isLoadingList && !error && (
+        <>
+          {view === "dataset" ? (
+            <ScheduleGroupsView
+              schedules={schedules}
+              onDelete={requestDelete}
+            />
+          ) : (
+            <ScheduleListView schedules={schedules} onDelete={requestDelete} />
+          )}
+          <ScheduleSelectionBar />
+        </>
+      )}
 
       <AlertDialog
         open={isConfirmOpen}

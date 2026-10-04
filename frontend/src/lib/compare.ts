@@ -85,8 +85,6 @@ export function columnLetter(index: number): string {
 
 // Differences from the baseline
 
-/** Which way a metric improves. */
-export type Better = "lower" | "higher";
 export type DeltaTone = "better" | "worse" | "same";
 
 export interface Delta {
@@ -95,15 +93,11 @@ export interface Delta {
   tone: DeltaTone;
 }
 
-export function delta(
-  value: number,
-  baseline: number,
-  better: Better = "lower",
-): Delta {
+/** Difference from the baseline; every compared count is better lower. */
+export function delta(value: number, baseline: number): Delta {
   const diff = value - baseline;
   if (diff === 0) return { value: 0, tone: "same" };
-  const improved = better === "lower" ? diff < 0 : diff > 0;
-  return { value: diff, tone: improved ? "better" : "worse" };
+  return { value: diff, tone: diff < 0 ? "better" : "worse" };
 }
 
 /** "+3", "−2" (minus sign) or "±0". */
@@ -120,7 +114,6 @@ export interface SettingComparison {
   label: string;
   /** One row per schedule, in column order. */
   rows: SettingRow[];
-  differs: boolean;
 }
 
 /**
@@ -133,19 +126,14 @@ export function compareSettings(summaries: readonly ScheduleSummary[]): {
   same: SettingComparison[];
 } {
   const perSchedule = summaries.map(settingRows);
-  const all = (perSchedule[0] ?? []).map(({ key, label }, i) => {
+  const differing: SettingComparison[] = [];
+  const same: SettingComparison[] = [];
+  (perSchedule[0] ?? []).forEach(({ key, label }, i) => {
     const rows = perSchedule.map((schedule) => schedule[i]);
-    return {
-      key,
-      label,
-      rows,
-      differs: new Set(rows.map((row) => row.value)).size > 1,
-    };
+    const differs = new Set(rows.map((row) => row.value)).size > 1;
+    (differs ? differing : same).push({ key, label, rows });
   });
-  return {
-    differing: all.filter((s) => s.differs),
-    same: all.filter((s) => !s.differs),
-  };
+  return { differing, same };
 }
 
 // Publishable

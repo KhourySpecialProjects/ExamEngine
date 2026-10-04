@@ -11,6 +11,7 @@ import {
   isScheduleId,
   moveColumn,
 } from "@/lib/compare";
+import { MAX_COMPARED } from "@/lib/scheduleSelection";
 
 const urlParams = {
   ids: parseAsArrayOf(parseAsString),
@@ -95,6 +96,13 @@ export function useCompare() {
         ids.filter((id) => !gone.includes(id)),
         base && gone.includes(base) ? null : base,
       ),
-    add: (id: string) => write(addColumn(ids, id.toLowerCase()), base),
+    /** When the page is full, columns that can't be shown make room. */
+    add: (id: string) => {
+      const kept =
+        ids.length >= MAX_COMPARED
+          ? ids.filter((other) => itemFor(other)?.status === "ok")
+          : ids;
+      write(addColumn(kept, id.toLowerCase()), base);
+    },
   };
 }

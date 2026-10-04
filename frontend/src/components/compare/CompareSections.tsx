@@ -31,7 +31,7 @@ const TONE_WORDS: Record<Delta["tone"], string> = {
   same: "same as the baseline",
 };
 
-export function DeltaBadge({ value }: { value: Delta }) {
+function DeltaBadge({ value }: { value: Delta }) {
   return (
     <span
       className={cn(

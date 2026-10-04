@@ -18,7 +18,7 @@ interface SettingDefinition {
   assumedNote?: string;
 }
 
-export const ENGINE_NAMES: Record<ScheduleSettings["algorithm"], string> = {
+const ENGINE_NAMES: Record<ScheduleSettings["algorithm"], string> = {
   dsatur: "Classic",
   annealing: "Optimized",
 };

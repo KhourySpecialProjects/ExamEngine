@@ -79,7 +79,7 @@ export function ColumnBadge({
   );
 }
 
-export function InfoPopover({
+function InfoPopover({
   label,
   children,
 }: {

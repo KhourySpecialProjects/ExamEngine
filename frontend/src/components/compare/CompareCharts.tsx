@@ -8,6 +8,7 @@ import {
   XAxis,
   YAxis,
 } from "recharts";
+import { countOf } from "@/lib/compare";
 import { cn } from "@/lib/utils";
 
 /** Charts of the Compare page: same size, axis text and hover panel. */
@@ -15,7 +16,7 @@ import { cn } from "@/lib/utils";
 const CHART_HEIGHT = "h-24";
 const AXIS_TEXT = { fontSize: 10, fill: "var(--muted-foreground)" };
 
-const exams = (n: number) => `${n.toLocaleString()} exam${n === 1 ? "" : "s"}`;
+const exams = (n: number) => countOf(n, ["exam", "exams"]);
 
 /** The hover panel every compare chart shows. */
 function ChartTooltip({

@@ -69,12 +69,10 @@ describe("URL rules", () => {
 });
 
 describe("difference from the baseline", () => {
-  it("colours by the metric's direction", () => {
+  it("colours a lower count as better", () => {
     expect(delta(3, 5)).toEqual({ value: -2, tone: "better" });
     expect(delta(7, 5)).toEqual({ value: 2, tone: "worse" });
     expect(delta(5, 5)).toEqual({ value: 0, tone: "same" });
-    expect(delta(7, 5, "higher")).toEqual({ value: 2, tone: "better" });
-    expect(delta(3, 5, "higher")).toEqual({ value: -2, tone: "worse" });
   });
 
   it("formats with a sign", () => {

@@ -6,7 +6,7 @@ CSV file formats, database management, and data operations for ExamEngine.
 
 ExamEngine requires three CSV files — **courses**, **enrollments**, and **rooms** — to generate exam schedules, plus three optional files: **room blockouts**, **combined exams**, and **common exams**. All files are uploaded together in one `POST /api/datasets/upload` request (multipart form fields `courses`, `enrollments`, `rooms`, `room_blockouts`, `combined_exams`, `common_exams`). Column names are auto-detected from multiple aliases (case-insensitive, whitespace-trimmed).
 
-> **Required vs optional:** ✅ = required (the upload is rejected if the column is missing). ❌ = optional (used if present, ignored if absent). Any column not listed below is ignored. For courses/enrollments/rooms/combined exams/common exams a row with a missing/invalid *required* value aborts the entire import; invalid room-blockout rows are skipped individually.
+> **Required vs optional:** ✅ = required (the upload is rejected if the column is missing). ❌ = optional (used if present, ignored if absent). Any column not listed below is ignored. How bad *values* are handled differs by file; see [Data Validation](#data-validation).
 
 ### courses.csv
 
@@ -16,7 +16,7 @@ Contains course/section information. One row per CRN — if a CRN appears on mul
 | ---------------- | -------- | ------------------------------------------------------------------------------------------------------------- | ----------------------------------------------- |
 | crn              | ✅       | `Course_Reference_Number`, `CRN`, `Course Registration Number`, `crn`                                         | Unique course/section identifier                |
 | course_code      | ✅       | `Course_Identification`, `CourseID`, `Course ID`, `Course Code`, `course_subject_code`, `course_code`         | e.g., "CS 4535"                                 |
-| enrollment_count | ✅       | `Total_Enrollment`, `Enrollment`, `num_students`, `Student Count`, `Size`, `UG_Enrollment`, `enrollment_count` | Number of students (must be a positive integer) |
+| enrollment_count | ✅       | `Total_Enrollment`, `Enrollment`, `num_students`, `Student Count`, `Size`, `UG_Enrollment`, `enrollment_count` | Number of students (non-negative integer; sections with 0 are dropped before scheduling) |
 | instructor_name  | ❌       | `Primary_Instructor_PIDM`, `Instructor Name`, `Instructor`, `Faculty Name`, `Professor`, `instructor_name`    | Instructor's name                               |
 | department       | ❌       | `Course_Department_Code`, `Course_Department_Desc`, `department`, `dept`                                       | Department code, e.g., "CSCI"                   |
 | examination_term | ❌       | `Academic_Period_NUFreeze`, `Academic_Period`, `exam_term`, `examination_term`                                | e.g., "Fall 2025"                               |
@@ -120,7 +120,7 @@ PHYS Common Final,11321
 | V8  | The file is empty, has no groups (header only), or is not a parseable CSV    | ❌ Upload rejected                                                                               |
 | V9  | Two group labels differ only in capitalization or spacing (e.g. `MATH Final` / `math final`) | ❌ Upload rejected (likely a typo)                                               |
 
-Problems within the file itself (V2–V5, V8, V9) are reported together. Checks against courses.csv and rooms.csv (V6, V7) run only once every file passes its own checks. A rejected upload returns HTTP 400 `{"message": "File validation failed", "errors": {"combined_exams": "<reason>"}}`, and nothing is stored. Over-capacity groups (V7) are saved but no room can hold them, so the scheduler reports them as unscheduled. The upload response reports the file under `files.combined_exams` as `{rows, exam_groups, merged_crns, over_capacity_groups}`.
+Problems within the file itself (V2–V5, V8, V9) are reported together. Checks against courses.csv and rooms.csv (V6, V7) run only once every file passes its own checks. A rejected upload returns HTTP 400 `{"detail": {"message": "File validation failed", "errors": {"combined_exams": "<reason>"}}}`, and nothing is stored. Over-capacity groups (V7) are saved but no room can hold them, so the scheduler reports them as unscheduled. The upload response reports the file under `files.combined_exams` as `{rows, exam_groups, merged_crns, over_capacity_groups}`.
 
 Valid groups are stored in the `datasets.course_merges` JSONB column as `{group_label: [CRN, ...]}` (CRNs in order of first appearance), e.g., `{"MATH Common Final": ["11315", "11316"]}`. Combined groups can only be set by uploading this file; to change them, upload a new dataset. They are read back with `GET /api/datasets/{dataset_id}/merges` (the column and route keep their original "merges" names).
 
@@ -157,7 +157,7 @@ BIOL 1101 Final,44444
 | C5  | The group's room units can't all be seated at once (each in its own room; largest unit first into the smallest room that fits, over all rooms, ignoring blockouts) | ⚠️ Saved; reported as `infeasible_groups: [{group, reason}]`. The scheduler leaves the **whole** group unscheduled |
 | C6  | A student is enrolled in 2+ room units of the same common group                                | ⚠️ Saved; reported as `student_overlap_groups: [{group, students}]` (those students have simultaneous exams)    |
 
-Cross-file checks (C2–C4) run once every file passes its own checks; errors in combined_exams.csv and common_exams.csv are reported together, e.g. HTTP 400 `{"message": "File validation failed", "errors": {"common_exams": "<reason>"}}`. The upload response reports the file under `files.common_exams` as `{rows, common_groups, common_crns, infeasible_groups, student_overlap_groups}`.
+Cross-file checks (C2–C4) run once every file passes its own checks; errors in combined_exams.csv and common_exams.csv are reported together, e.g. HTTP 400 `{"detail": {"message": "File validation failed", "errors": {"common_exams": "<reason>"}}}`. The upload response reports the file under `files.common_exams` as `{rows, common_groups, common_crns, infeasible_groups, student_overlap_groups}`.
 
 Valid groups are stored, as listed (closure is applied at scheduling time), in the nullable `datasets.common_exam_groups` JSONB column as `{group_label: [CRN, ...]}`. The scheduler places common groups before all other exams; a group is never split across blocks or partially placed. Common groups can only be set by uploading this file; to change them, upload a new dataset. They are read back with `GET /api/datasets/{dataset_id}/common-exams`.
 
@@ -168,16 +168,24 @@ The system automatically:
 - Detects column names from aliases (case-insensitive)
 - Cleans whitespace and formats
 - Converts numeric strings (e.g., "11310.0" → "11310")
-- Rejects the entire upload if a required column is missing or a required value is empty/invalid (courses, enrollments, rooms, combined exams, common exams); invalid room-blockout rows are skipped individually
 - Reports validation errors with row numbers
+
+When bad values are caught:
+
+| File | At upload | When a schedule is generated |
+| ---- | --------- | ---------------------------- |
+| courses, enrollments, rooms | Only the required **columns** are checked (plus statistics). Course rows are also parsed when combined or common exams are attached; then a bad course row rejects the upload. | **courses:** a row with a missing CRN or course code, or an invalid enrollment, fails generation (up to 10 rows listed). **enrollments:** rows missing the student or CRN are skipped; rows whose CRN isn't in courses.csv are ignored. **rooms:** rows missing the name or capacity, or with capacity ≤ 0, are skipped (generation fails only if no room is valid). Sections with 0 enrollment are dropped. |
+| combined_exams, common_exams | Any invalid row or group rejects the upload (rules above) | – |
+| room_blockouts | Invalid rows are skipped individually | Same |
 
 ### Common Validation Errors
 
-| Error                                      | Cause                         | Fix                       |
-| ------------------------------------------ | ----------------------------- | ------------------------- |
-| "Missing CRN"                              | Empty or null CRN value       | Ensure all rows have CRN  |
-| "CSV columns don't match any known schema" | Column names not recognized   | Use accepted column names |
-| "Enrollment count cannot be negative"      | Negative number in enrollment | Fix data or remove row    |
+| Error                                      | When                                | Cause                         | Fix                       |
+| ------------------------------------------ | ----------------------------------- | ----------------------------- | ------------------------- |
+| "Missing columns: …"                       | Upload                              | A required column isn't there | Use accepted column names |
+| "CSV columns don't match any known schema" | Upload                              | Column names not recognized   | Use accepted column names |
+| "Row N: Missing CRN"                       | Generation (or upload with groups)  | Empty or null CRN value       | Ensure all rows have CRN  |
+| "Enrollment count cannot be negative"      | Generation (or upload with groups)  | Negative number in enrollment | Fix data or remove row    |
 
 ## Database Operations
 
@@ -194,7 +202,122 @@ docker-compose --profile dev exec backend-dev python src/schemas/reset_database.
 
 ### Database Schema
 
-<img src="figures/db_schemas.svg" alt="Database Schema Diagram" width="1000"/>
+Defined in `backend/src/schemas/db.py` (SQLAlchemy). Courses, rooms and time slots belong to a
+dataset and are shared by every schedule generated from it.
+
+```mermaid
+erDiagram
+    users ||--o{ datasets : uploads
+    users ||--o{ runs : starts
+    users ||--o{ schedule_shares : "shared with / by"
+    users |o--o{ users : "invited / approved by"
+    datasets ||--o{ courses : has
+    datasets ||--o{ rooms : has
+    datasets ||--o{ time_slots : has
+    datasets ||--o{ runs : "scheduled by"
+    runs ||--|| schedules : produces
+    schedules ||--o{ exam_assignments : contains
+    schedules ||--o| conflict_analyses : "analysed in"
+    schedules ||--o{ schedule_shares : "shared via"
+    courses ||--o{ exam_assignments : "placed as"
+    time_slots |o--o{ exam_assignments : "slot (NULL = unscheduled)"
+    rooms |o--o{ exam_assignments : "room (NULL = no room)"
+
+    users {
+        uuid user_id PK
+        string name
+        string email UK
+        string password_hash
+        string role
+        string status
+        uuid invited_by FK "nullable"
+        datetime invited_at "nullable"
+        datetime approved_at "nullable"
+        uuid approved_by FK "nullable"
+    }
+    datasets {
+        uuid dataset_id PK
+        string dataset_name
+        datetime upload_date
+        uuid user_id FK
+        jsonb file_paths "[{type, storage_key, metadata}]"
+        datetime deleted_at "nullable (soft delete)"
+        jsonb course_merges "nullable; combined exams"
+        jsonb common_exam_groups "nullable; common exams"
+    }
+    courses {
+        uuid course_id PK
+        string crn
+        string course_subject_code
+        string instructor_name "nullable"
+        string department "nullable"
+        string examination_term "nullable"
+        int enrollment_count
+        uuid dataset_id FK
+    }
+    rooms {
+        uuid room_id PK
+        int capacity
+        string location
+        uuid dataset_id FK
+    }
+    time_slots {
+        uuid time_slot_id PK
+        string slot_label "e.g. 9AM-11AM"
+        string day "Monday..Sunday"
+        time start_time
+        time end_time
+        uuid dataset_id FK
+    }
+    runs {
+        uuid run_id PK
+        uuid dataset_id FK
+        datetime run_timestamp
+        uuid user_id FK "owner"
+        string algorithm_name "DSATUR or Annealing"
+        jsonb parameters "nullable; generation settings"
+        string status "Running, Completed, Failed"
+    }
+    schedules {
+        uuid schedule_id PK
+        string schedule_name
+        datetime created_at
+        uuid run_id FK
+    }
+    exam_assignments {
+        uuid exam_assignment_id PK
+        uuid course_id FK
+        uuid time_slot_id FK "nullable"
+        uuid room_id FK "nullable"
+        uuid schedule_id FK
+    }
+    conflict_analyses {
+        uuid analysis_id PK
+        uuid schedule_id FK "unique"
+        jsonb conflicts
+        datetime created_at
+    }
+    schedule_shares {
+        uuid share_id PK
+        uuid schedule_id FK
+        uuid shared_with_user_id FK
+        string permission "view"
+        uuid shared_by_user_id FK
+        datetime shared_at
+    }
+```
+
+JSON written by the scheduler:
+
+- `runs.parameters`: the generation settings, `{student_max_per_day, instructor_max_per_day,
+  avoid_back_to_back, max_days, blocks_per_day, prioritize_large_courses, algorithm,
+  time_budget_seconds}`. Runs from before a setting existed lack its key.
+- `conflict_analyses.conflicts`: `{hard_conflicts, soft_conflicts, statistics,
+  unscheduled_groups}`. `hard_conflicts` holds `student_double_book`, `instructor_double_book`,
+  `student_gt_max_per_day` and `instructor_gt_max_per_day` lists; `soft_conflicts` holds
+  `back_to_back_students`, `back_to_back_instructors` and `large_courses_not_early`;
+  `statistics` holds totals and a `*_count` per type; `unscheduled_groups` is
+  `[{kind, group, reason, crns}]`. Written once when the schedule is generated.
 
 `datasets.common_exam_groups` (nullable JSONB) was added after the initial schema. `init_db` adds it on startup to existing Postgres databases with `ALTER TABLE datasets ADD COLUMN IF NOT EXISTS common_exam_groups JSONB DEFAULT NULL` (idempotent; no data migration needed).
 
@@ -203,7 +326,7 @@ docker-compose --profile dev exec backend-dev python src/schemas/reset_database.
 Datasets are stored in S3 with the following structure:
 
 ```
-s3://examengine-datasets/
+s3://$AWS_S3_BUCKET/          # default exam-engine-csvs (LocalStack locally, MinIO on Coolify)
 └── {dataset_uuid}/
     ├── courses.csv
     ├── enrollments.csv
@@ -213,7 +336,7 @@ s3://examengine-datasets/
     └── common_exams.csv     # only if uploaded
 ```
 
-Files are private (no public access) and accessed via IAM roles.
+Files are private (no public access); the backend reads them with the configured S3 credentials.
 
 ## Troubleshooting
 
@@ -221,9 +344,10 @@ Files are private (no public access) and accessed via IAM roles.
 
 A dataset with the same name exists. Use a unique name or delete the existing one.
 
-### "CRN not found in courses"
+### "CRNs not found in courses"
 
-Enrollment file references a CRN that doesn't exist in courses file. Ensure CRNs match exactly.
+A combined_exams or common_exams file lists a CRN that isn't in courses.csv. Ensure CRNs match
+exactly. (Enrollment rows whose CRN isn't in courses.csv are ignored, not rejected.)
 
 ### Large file uploads timing out
 

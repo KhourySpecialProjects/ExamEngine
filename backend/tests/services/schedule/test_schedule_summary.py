@@ -37,12 +37,14 @@ def _exam(
     )
 
 
-def _summary(exams, *, groups=(), merges=None, common=None, file_paths=()) -> dict:
+def _summary(
+    exams, *, groups=(), merges=None, common=None, file_paths=(), parameters=None
+) -> dict:
     return build_schedule_summary(
         assignments=exams,
         breakdown=[],
         unscheduled_groups=list(groups),
-        run=SimpleNamespace(algorithm_name="DSATUR", parameters={}),
+        run=SimpleNamespace(algorithm_name="DSATUR", parameters=parameters or {}),
         dataset=SimpleNamespace(
             file_paths=list(file_paths),
             course_merges=merges,
@@ -278,3 +280,17 @@ class TestSettings:
 
         assert settings == params
         assert assumed == []
+
+    def test_each_engine_lists_the_recorded_settings_it_ignores(self):
+        # Classic runs record the time budget's default and avoid back-to-back
+        # but use neither; Optimized ignores prioritize-large.
+        classic = _summary([], parameters={"time_budget_seconds": 15})
+        optimized = _summary(
+            [], parameters={"algorithm": "annealing", "prioritize_large_courses": True}
+        )
+
+        assert classic["settings_unused"] == [
+            "time_budget_seconds",
+            "avoid_back_to_back",
+        ]
+        assert optimized["settings_unused"] == ["prioritize_large_courses"]

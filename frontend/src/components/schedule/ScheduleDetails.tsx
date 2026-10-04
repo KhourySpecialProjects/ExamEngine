@@ -2,13 +2,9 @@ import { CalendarClock, Database } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
-import type { ScheduleResult, ScheduleSummary } from "@/lib/api/schedules";
-
-export interface GenerationSetting {
-  label: string;
-  value: string;
-  note?: string;
-}
+import type { ScheduleResult } from "@/lib/api/schedules";
+import { settingRows } from "@/lib/scheduleSettings";
+import { cn } from "@/lib/utils";
 
 const dateTimeFormat = new Intl.DateTimeFormat("en-US", {
   month: "short",
@@ -17,74 +13,6 @@ const dateTimeFormat = new Intl.DateTimeFormat("en-US", {
   hour: "numeric",
   minute: "2-digit",
 });
-
-function yesNo(value: boolean | null): string {
-  if (value === null) return "Not recorded";
-  return value ? "Yes" : "No";
-}
-
-function count(value: number | null): string {
-  return value === null ? "Not recorded" : String(value);
-}
-
-/**
- * The settings a schedule was generated with, as the server resolved them
- * from its run. Settings older runs didn't record show the value the
- * generator used then, marked as not recorded.
- */
-export function generationSettings({
-  settings,
-  settings_assumed: assumed,
-}: Pick<
-  ScheduleSummary,
-  "settings" | "settings_assumed"
->): GenerationSetting[] {
-  const isOptimized = settings.algorithm === "annealing";
-
-  const rows: GenerationSetting[] = [
-    {
-      label: "Algorithm",
-      value: isOptimized ? "Optimized (annealing)" : "Classic (DSATUR)",
-    },
-  ];
-  if (isOptimized) {
-    rows.push({
-      label: "Optimization time",
-      value:
-        settings.time_budget_seconds === null
-          ? "Not recorded"
-          : `${settings.time_budget_seconds}s`,
-    });
-  }
-  rows.push(
-    { label: "Max exam days", value: count(settings.max_days) },
-    {
-      label: "Exam blocks per day",
-      value: String(settings.blocks_per_day),
-      note: assumed.includes("blocks_per_day")
-        ? "Not recorded; the only option at the time"
-        : undefined,
-    },
-    {
-      label: "Max exams per student per day",
-      value: count(settings.student_max_per_day),
-    },
-    {
-      label: "Max exams per instructor per day",
-      value: count(settings.instructor_max_per_day),
-    },
-    {
-      label: "Avoid back-to-back",
-      value: yesNo(settings.avoid_back_to_back),
-      note: isOptimized ? undefined : "Not used by Classic",
-    },
-    {
-      label: "Prioritize large classes",
-      value: yesNo(settings.prioritize_large_courses),
-    },
-  );
-  return rows;
-}
 
 /** Source dataset, authorship and generation settings for one schedule. */
 export function ScheduleDetails({ schedule }: { schedule: ScheduleResult }) {
@@ -133,10 +61,15 @@ export function ScheduleDetails({ schedule }: { schedule: ScheduleResult }) {
         </div>
         <Separator />
         <dl className="grid grid-cols-2 gap-x-6 gap-y-3 sm:grid-cols-4 xl:grid-cols-8">
-          {generationSettings(schedule.summary).map((setting) => (
-            <div key={setting.label}>
+          {settingRows(schedule.summary).map((setting) => (
+            <div key={setting.key}>
               <dt className="text-xs text-muted-foreground">{setting.label}</dt>
-              <dd className="text-sm font-medium">
+              <dd
+                className={cn(
+                  "text-sm font-medium",
+                  setting.unused && "font-normal text-muted-foreground",
+                )}
+              >
                 {setting.value}
                 {setting.note && (
                   <span className="block text-xs font-normal text-muted-foreground">

@@ -114,16 +114,17 @@ def test_duplicate_ids_are_dropped_keeping_first_order(db_session):
     assert [i["schedule_name"] for i in body["schedules"]] == ["B", "A"]
 
 
-def test_more_than_four_or_fewer_than_two_distinct_schedules_is_rejected(
-    db_session,
-):
+def test_more_than_four_distinct_schedules_is_rejected_one_is_allowed(db_session):
     me = make_user(db_session, "Me")
     ids = [make_schedule(db_session, me, name=f"S{n}").schedule_id for n in range(5)]
     app = _app(db_session, me)
 
     assert _compare(app, *ids)[0] == 422
     assert _compare(app, *ids[:4], ids[0])[0] == 200
-    assert _compare(app, ids[0], ids[0])[0] == 422
+    # The page names the schedule left after the others were removed.
+    status, body = _compare(app, ids[0], ids[0])
+    assert status == 200
+    assert [i["schedule_name"] for i in body["schedules"]] == ["S0"]
 
 
 def test_compare_and_schedule_page_report_the_same_summary(db_session):

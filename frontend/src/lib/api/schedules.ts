@@ -130,6 +130,8 @@ export interface ScheduleSummary {
   settings: ScheduleSettings;
   /** Settings an older run didn't record, filled with the value used then. */
   settings_assumed: (keyof ScheduleSettings)[];
+  /** Recorded settings the run's algorithm ignores. */
+  settings_unused: (keyof ScheduleSettings)[];
   /** From the dataset's enrollments upload; null when unknown. */
   unique_students: number | null;
   exams: {
@@ -278,6 +280,36 @@ export interface SharedSchedule {
   shared_at: string;
 }
 
+/** A schedule on the Compare page, with the owner/share fields. */
+export interface ComparedSchedule {
+  schedule_id: string;
+  status: "ok";
+  schedule_name: string;
+  created_at: string;
+  run_status: "Running" | "Completed" | "Failed";
+  dataset: {
+    dataset_id: string;
+    dataset_name: string;
+    uploaded_at: string;
+    deleted: boolean;
+  };
+  summary: ScheduleSummary;
+  is_owner: boolean;
+  is_shared: boolean;
+  created_by_user_id: string;
+  created_by_user_name: string;
+  shared_by_user_id: string | null;
+  shared_by_user_name: string | null;
+}
+
+/** Deleted, missing or not shared with the caller: nothing else is revealed. */
+export interface UnavailableSchedule {
+  schedule_id: string;
+  status: "unavailable";
+}
+
+export type CompareItem = ComparedSchedule | UnavailableSchedule;
+
 export class SchedulesAPI extends BaseAPI {
   async generate(
     dataset_id: string,
@@ -348,6 +380,12 @@ export class SchedulesAPI extends BaseAPI {
     return this.request(`/schedule/${id}`, {
       method: "GET",
     });
+  }
+
+  /** Summaries of 1–4 schedules, in the given order. */
+  async compare(ids: readonly string[]): Promise<{ schedules: CompareItem[] }> {
+    const query = new URLSearchParams(ids.map((id) => ["ids", id]));
+    return this.request(`/schedule/compare?${query}`, { method: "GET" });
   }
 
   async delete(id: string): Promise<{

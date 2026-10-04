@@ -54,6 +54,14 @@ _SETTING_KEYS = (
     "prioritize_large_courses",
 )
 
+# Recorded settings each engine ignores. Classic runs still store the time
+# budget's default; Optimized accepts prioritize-large but its ordering
+# supersedes it.
+_UNUSED_SETTINGS = {
+    "dsatur": ("time_budget_seconds", "avoid_back_to_back"),
+    "annealing": ("prioritize_large_courses",),
+}
+
 
 def build_schedule_summary(
     *,
@@ -85,6 +93,7 @@ def build_schedule_summary(
     return {
         "settings": settings,
         "settings_assumed": assumed,
+        "settings_unused": list(_UNUSED_SETTINGS.get(settings["algorithm"], ())),
         "unique_students": metadata.get("enrollments", {}).get("unique_students"),
         **_exam_stats(assignments, unscheduled_groups),
         "conflicts": count_conflicts(breakdown),

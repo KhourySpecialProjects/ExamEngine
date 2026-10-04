@@ -51,6 +51,7 @@ function summary(overrides: Partial<ScheduleSummary> = {}): ScheduleSummary {
       prioritize_large_courses: false,
     },
     settings_assumed: [],
+    settings_unused: [],
     unique_students: 120,
     exams: {
       total: 2,

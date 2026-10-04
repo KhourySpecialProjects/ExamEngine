@@ -1,4 +1,5 @@
 import type {
+  LateAddSaveBody,
   ScheduleListItem,
   ScheduleParameters,
   ScheduleResult,
@@ -23,6 +24,11 @@ export interface SchedulesState {
   // Actions
   generateSchedule: (datasetId: string) => Promise<ScheduleResult>;
   fetchSchedule: (scheduleId: string) => Promise<ScheduleResult>;
+  /** Saves a late add as a new schedule and lists it first. */
+  lateAddSave: (
+    scheduleId: string,
+    body: LateAddSaveBody,
+  ) => Promise<ScheduleResult>;
   fetchSchedules: () => Promise<void>;
   deleteSchedule: (scheduleId: string) => Promise<void>;
   setScheduleData: (schedule: ScheduleResult) => void;

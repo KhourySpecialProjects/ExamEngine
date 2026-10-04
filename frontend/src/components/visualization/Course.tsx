@@ -1,5 +1,6 @@
 import { AlertCircle, GitMerge, Layers } from "lucide-react";
 import { useMemo } from "react";
+import { LateAddBadge } from "@/components/schedule/LateAddBadge";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 
@@ -11,6 +12,7 @@ interface CourseProps {
   hasConflict?: boolean;
   isMerged?: boolean;
   isCommon?: boolean;
+  isLateAdd?: boolean;
 }
 
 const colors = ["red", "blue", "green"] as const;
@@ -23,6 +25,7 @@ export function Course({
   hasConflict = false,
   isMerged = false,
   isCommon = false,
+  isLateAdd = false,
 }: CourseProps) {
   const color = useMemo(() => {
     return colors[Math.floor(Math.random() * colors.length)];
@@ -69,6 +72,9 @@ export function Course({
           >
             <Layers className="h-3 w-3" />
           </Badge>
+        )}
+        {isLateAdd && (
+          <LateAddBadge title="Added by a late add" className="ml-2" />
         )}
         {hasConflict && (
           <Badge variant="destructive" className="gap-1 ml-2">

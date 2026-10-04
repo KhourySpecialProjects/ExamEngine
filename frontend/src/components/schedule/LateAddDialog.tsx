@@ -14,14 +14,21 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { apiClient } from "@/lib/api/client";
-import type { LateAddInput, LateAddSearchResult } from "@/lib/api/schedules";
+import type {
+  LateAddInput,
+  LateAddSearchResult,
+  ScheduleLineage,
+} from "@/lib/api/schedules";
 import { LateAddResults, slotKey } from "./LateAddResults";
+import { LateAddSaveForm } from "./LateAddSaveForm";
 
 interface LateAddDialogProps {
   scheduleId: string;
-  scheduleName?: string;
+  scheduleName: string;
   /** The dataset's uploaded files are gone, so nothing can be searched. */
   datasetDeleted?: boolean;
+  /** Late-add versions already based on this schedule (`lineage.newer_versions`). */
+  newerVersions?: ScheduleLineage["newer_versions"];
 }
 
 const DELETED_REASON =
@@ -49,11 +56,12 @@ function TriggerButton(props: ComponentProps<typeof Button>) {
   );
 }
 
-/** Finds blocks for an exam that missed generation. Read-only: nothing is saved. */
+/** Finds blocks for an exam that missed generation and saves one as a new schedule. */
 export function LateAddDialog({
   scheduleId,
   scheduleName,
   datasetDeleted = false,
+  newerVersions = [],
 }: LateAddDialogProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [input, setInput] = useState<LateAddInput>(EMPTY_INPUT);
@@ -110,6 +118,7 @@ export function LateAddDialog({
   };
 
   const incomplete = FIELDS.some(({ id }) => !input[id].trim());
+  const chosen = result?.candidates.find((c) => slotKey(c) === selectedSlot);
 
   return (
     <Dialog open={isOpen} onOpenChange={handleOpenChange}>
@@ -118,13 +127,11 @@ export function LateAddDialog({
       </DialogTrigger>
       <DialogContent className="sm:max-w-4xl">
         <DialogHeader>
-          <DialogTitle>
-            Late Add{scheduleName ? `: ${scheduleName}` : ""}
-          </DialogTitle>
+          <DialogTitle>Late Add: {scheduleName}</DialogTitle>
           <DialogDescription>
             Finds blocks for an exam that is not in this schedule, using only
-            rooms that are free and not blocked out. No scheduled exam moves and
-            nothing is saved.
+            rooms that are free and not blocked out. No scheduled exam moves.
+            Saving creates a new schedule; this one is not changed.
           </DialogDescription>
         </DialogHeader>
 
@@ -161,7 +168,7 @@ export function LateAddDialog({
         </form>
 
         {result && (
-          <div className="max-h-[60vh] overflow-y-auto pr-2">
+          <div className="max-h-[50vh] overflow-y-auto pr-2">
             <LateAddResults
               result={result}
               selectedSlot={selectedSlot}
@@ -172,6 +179,17 @@ export function LateAddDialog({
               }
             />
           </div>
+        )}
+        {result && chosen && (
+          <LateAddSaveForm
+            scheduleId={scheduleId}
+            scheduleName={scheduleName}
+            result={result}
+            candidate={chosen}
+            room={rooms[slotKey(chosen)] ?? chosen.room.name}
+            newerVersions={newerVersions}
+            onLeave={() => handleOpenChange(false)}
+          />
         )}
       </DialogContent>
     </Dialog>

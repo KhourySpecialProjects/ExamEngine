@@ -55,7 +55,7 @@ export function slotKey(slot: { day: number; block: number }): string {
   return `${slot.day}-${slot.block}`;
 }
 
-function plural(count: number, noun: string): string {
+export function plural(count: number, noun: string): string {
   return `${count} ${noun}${count === 1 ? "" : "s"}`;
 }
 
@@ -67,22 +67,6 @@ function slotText(exam: LateAddExam): string {
   return exam.day_name && exam.block_time
     ? `${exam.day_name} ${exam.block_time}`
     : "unscheduled";
-}
-
-/** Block index -> time, from every block the response names. */
-function blockTimes(result: LateAddSearchResult): Map<number, string> {
-  const times = new Map<number, string>();
-  for (const slot of [
-    ...result.candidates,
-    ...result.no_room_blocks,
-    ...result.instructor_exams,
-    ...result.sibling_sections,
-  ]) {
-    if (slot.block !== null && slot.block_time) {
-      times.set(slot.block, slot.block_time);
-    }
-  }
-  return times;
 }
 
 interface Person {
@@ -104,7 +88,6 @@ interface ConflictItem {
 function conflictItems(
   candidate: LateAddCandidate,
   instructorId: string,
-  blockLabel: (blocks: number[]) => string,
 ): ConflictItem[] {
   const { conflicts: c, students, instructor } = candidate;
   const items: ConflictItem[] = [
@@ -164,7 +147,7 @@ function conflictItems(
       hard: false,
       people: students.back_to_back.map((s) => ({
         id: s.student_id,
-        detail: blockLabel(s.blocks),
+        detail: s.block_times.join(", "),
       })),
     },
     {
@@ -173,7 +156,9 @@ function conflictItems(
       count: c.back_to_back_instructor,
       countsStudents: false,
       hard: false,
-      people: [{ id: instructorId, detail: blockLabel(instructor.day_blocks) }],
+      people: [
+        { id: instructorId, detail: instructor.day_block_times.join(", ") },
+      ],
     },
     {
       key: "large_course_late",
@@ -207,9 +192,6 @@ export function LateAddResults({
 }: LateAddResultsProps) {
   const outcome = OUTCOMES[result.outcome];
   const Icon = outcome.icon;
-  const times = blockTimes(result);
-  const blockLabel = (blocks: number[]) =>
-    blocks.map((b) => times.get(b) ?? `block ${b + 1}`).join(", ");
   const exams = result.instructor_exams.length;
 
   return (
@@ -264,11 +246,7 @@ export function LateAddResults({
                 key={slot}
                 rank={index + 1}
                 candidate={candidate}
-                items={conflictItems(
-                  candidate,
-                  result.instructor_id,
-                  blockLabel,
-                )}
+                items={conflictItems(candidate, result.instructor_id)}
                 warning={result.outcome === "least_conflicts"}
                 selected={selectedSlot === slot}
                 room={rooms[slot] ?? candidate.room.name}

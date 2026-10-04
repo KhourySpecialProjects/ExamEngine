@@ -254,6 +254,21 @@ export interface LateAddInput {
   instructor_id: string;
 }
 
+/** `algorithm` of a schedule saved by a late add (`runs.algorithm_name`). */
+export const LATE_ADD_ALGORITHM = "Late add";
+
+/** `POST /schedule/{id}/late-add`: the chosen placement and the new schedule's name. */
+export interface LateAddSaveBody extends LateAddInput {
+  /** Day index, Monday = 0. */
+  day: number;
+  /** Block index, 0-based. */
+  block: number;
+  room: string;
+  schedule_name: string;
+  /** Required for a least-conflicts placement. */
+  accept_conflicts: boolean;
+}
+
 export interface LateAddRoom {
   name: string;
   capacity: number;
@@ -295,7 +310,11 @@ export interface LateAddCandidate {
     /** Exams that day including the late one. */
     over_daily_limit: { student_id: string; exams: number }[];
     /** The student's sorted blocks that day, including the late block. */
-    back_to_back: { student_id: string; blocks: number[] }[];
+    back_to_back: {
+      student_id: string;
+      blocks: number[];
+      block_times: string[];
+    }[];
   };
   instructor: {
     double_book_crns: string[];
@@ -305,6 +324,8 @@ export interface LateAddCandidate {
     back_to_back: boolean;
     /** Empty when the instructor has no other exam that day. */
     day_blocks: number[];
+    /** Labels for `day_blocks`, same order. */
+    day_block_times: string[];
   };
   large_course_late: boolean;
 }
@@ -388,6 +409,7 @@ export interface ScheduleListItem {
   schedule_id: string;
   schedule_name: string;
   created_at: string;
+  /** The run's `algorithm_name`: the engine, or "Late add" for a late-add version. */
   algorithm: string;
   parameters: ScheduleParameters;
   status: "Running" | "Completed" | "Failed";
@@ -583,6 +605,18 @@ export class SchedulesAPI extends BaseAPI {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(input),
+    });
+  }
+
+  /** Saves a placement as a new schedule (the base is unchanged). Owner only. */
+  async lateAddSave(
+    scheduleId: string,
+    body: LateAddSaveBody,
+  ): Promise<ScheduleResult> {
+    return this.request(`/schedule/${scheduleId}/late-add`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
     });
   }
 }

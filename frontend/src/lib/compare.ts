@@ -173,6 +173,8 @@ export function publishBlockers(summary: ScheduleSummary): PublishBlocker[] {
 
 export interface ConflictRowDefinition {
   metric: ConflictMetric;
+  /** The breakdown type: the schedule's Conflicts tab that lists these. */
+  type: string;
   label: string;
   definition: string;
   /** What `people` counts: [one, many]. */
@@ -201,6 +203,7 @@ export const CONFLICT_ROWS: readonly ConflictRowDefinition[] = (
   ][]
 ).map(([metric, [type, unit]]) => ({
   metric,
+  type,
   label: conflictTypeMap[type],
   definition: conflictDescriptions[type],
   unit,

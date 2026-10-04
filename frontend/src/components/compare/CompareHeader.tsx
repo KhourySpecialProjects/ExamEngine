@@ -1,6 +1,7 @@
 import {
   ArrowLeft,
   ArrowRight,
+  ExternalLink,
   Flag,
   MoreHorizontal,
   Trash2,
@@ -15,6 +16,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { scheduleHref } from "@/lib/scheduleView";
 import { cn } from "@/lib/utils";
 import {
   ColumnBadge,
@@ -123,13 +125,12 @@ function ColumnHeader({
       </div>
       {schedule ? (
         <div className="mt-1 min-w-0">
-          <Link
-            href={`/dashboard/${schedule.schedule_id}`}
-            className="block truncate font-semibold hover:underline"
+          <div
+            className="truncate font-semibold"
             title={schedule.schedule_name}
           >
             {schedule.schedule_name}
-          </Link>
+          </div>
           <div
             className="truncate text-xs text-muted-foreground"
             title={schedule.dataset.dataset_name}
@@ -137,6 +138,17 @@ function ColumnHeader({
             {schedule.dataset.dataset_name}
             {schedule.dataset.deleted && " (deleted)"}
           </div>
+          <Button variant="outline" size="sm" className="mt-2" asChild>
+            <Link
+              href={scheduleHref(schedule.schedule_id)}
+              target="_blank"
+              rel="noopener noreferrer"
+              aria-label={`View schedule ${schedule.schedule_name} (opens in a new tab)`}
+            >
+              View schedule
+              <ExternalLink className="h-3.5 w-3.5" aria-hidden />
+            </Link>
+          </Button>
         </div>
       ) : (
         <div className="mt-1 space-y-2">

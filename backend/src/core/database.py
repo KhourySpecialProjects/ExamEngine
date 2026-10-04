@@ -1,6 +1,6 @@
 from collections.abc import Generator
 
-from sqlalchemy import create_engine, text
+from sqlalchemy import Engine, create_engine, text
 from sqlalchemy.orm import Session, sessionmaker
 
 from src.core.config import get_settings
@@ -48,27 +48,27 @@ def get_db() -> Generator[Session, None, None]:
         db.close()
 
 
-def init_db() -> None:
+def init_db(bind: Engine = engine) -> None:
     """
     Initialize database tables.
 
     Creates all tables defined in Base metadata.
-    Called during application startup.
+    Called during application startup; the test harness passes its own engine.
     """
-    Base.metadata.create_all(bind=engine)
-    _add_missing_columns()
+    Base.metadata.create_all(bind=bind)
+    _add_missing_columns(bind)
 
 
-def _add_missing_columns() -> None:
+def _add_missing_columns(bind: Engine) -> None:
     """
     Add columns introduced after a table was first created.
 
     `create_all` never alters existing tables, so additive nullable columns
     are added here idempotently. Postgres only (tests use other dialects).
     """
-    if engine.dialect.name != "postgresql":
+    if bind.dialect.name != "postgresql":
         return
-    with engine.begin() as connection:
+    with bind.begin() as connection:
         connection.execute(
             text(
                 "ALTER TABLE datasets "

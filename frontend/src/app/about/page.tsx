@@ -18,9 +18,9 @@ import Link from "next/link";
 import { Button } from "@/components/ui/button";
 
 const heroStats = [
-  { label: "Exams scheduled", value: "1,061" },
-  { label: "DSATUR runtime", value: "< 2 min" },
-  { label: "Hard conflicts", value: "0 recorded" },
+  { label: "Students per schedule", value: "15,000+" },
+  { label: "Exams per schedule", value: "1,500+" },
+  { label: "Scheduling engines", value: "Classic & Optimized" },
 ];
 
 const capabilityCards = [
@@ -34,16 +34,16 @@ const capabilityCards = [
   {
     title: "Reduce manual work",
     description:
-      "Upload course, enrollment, and room data once, reuse datasets, and let DSATUR handle the heavy lifting.",
+      "Upload course, enrollment, and room data once, reuse datasets, and let the Classic (DSATUR) or Optimized (simulated annealing) engine handle the heavy lifting.",
     icon: ClipboardCheck,
     bullets: ["Reusable datasets", "Room & course mapping"],
   },
   {
     title: "Lower planner stress",
     description:
-      "Fast runs, clear visualizations, and saved presets mean your team spends time deciding—not troubleshooting.",
+      "Fast runs and clear visualizations mean your team spends time deciding—not troubleshooting.",
     icon: Smile,
-    bullets: ["Parameter presets stay saved", "Live generation status"],
+    bullets: ["Two scheduling engines", "Live generation status"],
   },
   {
     title: "Improve outcomes",
@@ -64,7 +64,7 @@ const capabilityCards = [
     description:
       "Calendar, density, list, and statistics views highlight conflicts, load, and room pressure without leaving ExamEngine.",
     icon: LineChart,
-    bullets: ["Calendar & list modes", "Department filters"],
+    bullets: ["Calendar & list modes", "Conflict & statistics views"],
   },
 ];
 
@@ -72,13 +72,13 @@ const workflowSteps = [
   {
     title: "Upload & validate",
     description:
-      "Drag in enrollment, room, and instructor files. We flag issues instantly so you start with clean data.",
+      "Drag in course, enrollment, and room CSVs, plus optional room blockouts, combined exams, and common exams. We flag issues instantly so you start with clean data.",
     icon: Sparkles,
   },
   {
-    title: "Optimize with DSATUR",
+    title: "Generate & review",
     description:
-      "Adjust parameters, run the generator, and review conflicts in under two minutes, no macros or scripts required.",
+      "Pick the Classic (DSATUR) or Optimized (simulated annealing) engine, adjust parameters, run the generator, and review conflicts, no macros or scripts required.",
     icon: Timer,
   },
   {
@@ -100,11 +100,11 @@ const foundationHighlights = [
   {
     title: "Algorithmic engine",
     description:
-      "Graph coloring (DSATUR) models student overlap and room capacity, with adjustable caps for students and instructors.",
+      "Two engines, Classic (DSATUR graph coloring) and Optimized (simulated annealing), model student and instructor overlaps and room capacity, with adjustable per-day caps.",
     icon: Workflow,
     details: [
-      "Runs complete in under two minutes",
-      "Controls for max exams per day & back-to-back avoidance",
+      "Controls for max exams per day",
+      "Back-to-back avoidance in the Optimized engine",
     ],
   },
   {
@@ -112,7 +112,7 @@ const foundationHighlights = [
     description:
       "Density, compact calendar, detailed list, and statistics views surface key insights without spreadsheet pivots.",
     icon: LineChart,
-    details: ["Department filters", "CSV export option"],
+    details: ["Conflict & statistics views", "CSV export option"],
   },
   {
     title: "Shared workspace",
@@ -285,8 +285,8 @@ export default function AboutPage() {
               What powers ExamEngine behind the scenes
             </h2>
             <p className="mt-4 text-lg text-muted-foreground">
-              Data imports, DSATUR scheduling, visualizations, and exports work
-              together so teams can trust every run.
+              Data imports, two scheduling engines, visualizations, and exports
+              work together so teams can trust every run.
             </p>
           </div>
 

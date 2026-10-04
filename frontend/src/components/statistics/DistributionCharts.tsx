@@ -15,7 +15,7 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import type { ScheduleStats } from "@/lib/hooks/useScheduleStats";
+import type { ScheduleSummary } from "@/lib/api/schedules";
 
 function ChartCard({
   title,
@@ -50,8 +50,12 @@ function ChartCard({
 }
 
 /** How placed exams spread over days and time blocks (same chart style). */
-export function DistributionCharts({ stats }: { stats: ScheduleStats }) {
-  const empty = stats.perDay.length === 0;
+export function DistributionCharts({
+  calendar,
+}: {
+  calendar: ScheduleSummary["calendar"];
+}) {
+  const empty = calendar.days.length === 0;
   return (
     <section aria-labelledby="stats-distribution" className="space-y-3">
       <h2 id="stats-distribution" className="pl-2 text-lg font-semibold">
@@ -63,9 +67,9 @@ export function DistributionCharts({ stats }: { stats: ScheduleStats }) {
           description="Scheduled exams on each day"
           empty={empty}
         >
-          <BarChart data={stats.perDay}>
+          <BarChart data={calendar.days}>
             <CartesianGrid strokeDasharray="3 3" />
-            <XAxis dataKey="name" interval={0} />
+            <XAxis dataKey="day" interval={0} />
             <YAxis allowDecimals={false} />
             <Tooltip />
             <Bar dataKey="exams" name="Exams" fill="#3b82f6" />
@@ -76,12 +80,12 @@ export function DistributionCharts({ stats }: { stats: ScheduleStats }) {
           description="Enrollment summed over each day's exams; a student with two exams counts twice"
           empty={empty}
         >
-          <BarChart data={stats.perDay}>
+          <BarChart data={calendar.days}>
             <CartesianGrid strokeDasharray="3 3" />
-            <XAxis dataKey="name" interval={0} />
+            <XAxis dataKey="day" interval={0} />
             <YAxis allowDecimals={false} />
             <Tooltip />
-            <Bar dataKey="students" name="Students" fill="#10b981" />
+            <Bar dataKey="seats" name="Students" fill="#10b981" />
           </BarChart>
         </ChartCard>
       </div>
@@ -90,9 +94,9 @@ export function DistributionCharts({ stats }: { stats: ScheduleStats }) {
         description="Scheduled exams in each block, across all days"
         empty={empty}
       >
-        <BarChart data={stats.perBlock}>
+        <BarChart data={calendar.blocks}>
           <CartesianGrid strokeDasharray="3 3" />
-          <XAxis dataKey="name" interval={0} />
+          <XAxis dataKey="label" interval={0} />
           <YAxis allowDecimals={false} />
           <Tooltip />
           <Bar dataKey="exams" name="Exams" fill="#6366f1" />

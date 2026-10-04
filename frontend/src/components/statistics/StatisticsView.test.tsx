@@ -1,22 +1,15 @@
 import { fireEvent, render, screen, within } from "@testing-library/react";
 import { beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import type {
-  ConflictBreakdown,
-  ScheduleExam,
-  UnscheduledGroup,
+  ConflictMetric,
+  ExamIssue,
+  ScheduleSummary,
 } from "@/lib/api/schedules";
 import { useSchedulesStore } from "@/lib/store/schedulesStore";
 import { StatisticsView } from "./StatisticsView";
 
 vi.mock("@/lib/store/schedulesStore", () => ({
   useSchedulesStore: vi.fn(),
-}));
-// Group hooks fetch from the API; these tests have no groups.
-vi.mock("@/lib/hooks/useCourseMerges", () => ({
-  useCourseMerges: () => ({ merges: {}, isMerged: () => false }),
-}));
-vi.mock("@/lib/hooks/useCommonExams", () => ({
-  useCommonExams: () => ({ commonGroups: {}, isCommon: () => false }),
 }));
 
 beforeAll(() => {
@@ -27,34 +20,79 @@ beforeAll(() => {
   };
 });
 
-const exam = (
-  crn: string,
-  day: string,
-  room: string,
-  size = 30,
-  capacity = 40,
-): ScheduleExam => ({
-  CRN: crn,
-  Course: `CS ${crn}`,
-  Day: day,
-  Block: day ? "9AM-11AM" : "",
-  Room: room,
-  Capacity: room ? capacity : 0,
-  Size: size,
-  Valid: true,
+const METRICS: ConflictMetric[] = [
+  "student_double_book",
+  "instructor_double_book",
+  "student_over_daily_limit",
+  "instructor_over_daily_limit",
+  "student_back_to_back",
+  "instructor_back_to_back",
+  "large_courses_late",
+];
+
+const issue = (crn: string, size = 30): ExamIssue => ({
+  crn,
+  course: `CS ${crn}`,
+  size,
 });
 
-function mockSchedule(
-  complete: ScheduleExam[] | null,
-  breakdown: ConflictBreakdown[] = [],
-  unscheduledGroups: UnscheduledGroup[] = [],
-) {
-  const currentSchedule = complete && {
-    dataset_id: "d1",
-    schedule: { complete, calendar: {}, total_exams: complete.length },
-    conflicts: { total: breakdown.length, details: {}, breakdown },
-    unscheduled_groups: unscheduledGroups,
+/** A server summary of a schedule with nothing wrong, then the overrides. */
+function summary(overrides: Partial<ScheduleSummary> = {}): ScheduleSummary {
+  const noGroup = { groups: 0, sections: 0, students: 0 };
+  return {
+    settings: {
+      algorithm: "dsatur",
+      blocks_per_day: 5,
+      time_budget_seconds: null,
+      max_days: 7,
+      student_max_per_day: 3,
+      instructor_max_per_day: 3,
+      avoid_back_to_back: true,
+      prioritize_large_courses: false,
+    },
+    settings_assumed: [],
+    unique_students: 120,
+    exams: {
+      total: 2,
+      placed: 2,
+      unscheduled: 0,
+      unroomed: 0,
+      over_capacity: 0,
+    },
+    unscheduled: { exams: [], students: 0, groups: [], other_crns: [] },
+    unroomed: { exams: [], students: 0 },
+    over_capacity: [],
+    conflicts: Object.fromEntries(
+      METRICS.map((m) => [m, { people: 0, instances: 0 }]),
+    ) as ScheduleSummary["conflicts"],
+    rooms: {
+      used: 2,
+      average_fill: 75,
+      fill_buckets: {
+        under_50: 0,
+        from_50_to_75: 0,
+        from_75_to_90: 2,
+        from_90_to_100: 0,
+      },
+    },
+    calendar: {
+      slots_used: 2,
+      days_used: 2,
+      days: [
+        { day: "Monday", exams: 1, seats: 30 },
+        { day: "Tuesday", exams: 1, seats: 30 },
+      ],
+      blocks: [{ label: "9AM-11AM", exams: 2 }],
+      matrix: [[1], [1]],
+    },
+    groups: { combined: noGroup, common: noGroup },
+    blockouts: { rooms: 0, slots: 0 },
+    ...overrides,
   };
+}
+
+function mockSchedule(scheduleSummary: ScheduleSummary | null) {
+  const currentSchedule = scheduleSummary && { summary: scheduleSummary };
   const state = { currentSchedule } as unknown as Parameters<
     Parameters<typeof useSchedulesStore>[0]
   >[0];
@@ -80,7 +118,7 @@ describe("StatisticsView", () => {
   });
 
   it("says nothing needs attention when every exam is placed and there are no hard conflicts", () => {
-    mockSchedule([exam("1", "Monday", "A"), exam("2", "Tuesday", "B")]);
+    mockSchedule(summary());
     render(<StatisticsView />);
 
     expect(within(problems()).queryAllByRole("region")).toEqual([]);
@@ -90,12 +128,18 @@ describe("StatisticsView", () => {
   });
 
   it("lists problems before the overview: unscheduled, unroomed and over-capacity exams", () => {
-    mockSchedule([
-      exam("1", "Monday", "A"),
-      exam("2", "", ""),
-      exam("3", "Monday", ""),
-      exam("4", "Tuesday", "B", 419, 400),
-    ]);
+    mockSchedule(
+      summary({
+        unscheduled: {
+          exams: [issue("2")],
+          students: 30,
+          groups: [],
+          other_crns: ["2"],
+        },
+        unroomed: { exams: [issue("3")], students: 30 },
+        over_capacity: [{ ...issue("4", 419), room: "B", capacity: 400 }],
+      }),
+    );
     render(<StatisticsView />);
 
     const cards = within(problems()).getAllByRole("region");
@@ -116,9 +160,14 @@ describe("StatisticsView", () => {
   it("names an unscheduled section by CRN with the scheduler's reason", () => {
     const reason = "450 students; largest room seats 400";
     mockSchedule(
-      [exam("1", "Monday", "A"), exam("2", "", "", 450)],
-      [],
-      [{ kind: "section", group: "2", reason, crns: ["2"] }],
+      summary({
+        unscheduled: {
+          exams: [issue("2", 450)],
+          students: 450,
+          groups: [{ kind: "section", group: "2", reason, crns: ["2"] }],
+          other_crns: [],
+        },
+      }),
     );
     render(<StatisticsView />);
 
@@ -130,22 +179,15 @@ describe("StatisticsView", () => {
     expect(card.textContent).not.toMatch(/\b1 (other )?CRN\b/);
   });
 
-  it("counts people in hard conflicts like the Conflicts tab and links to it", () => {
-    const doubleBook = (student: string, crn: string): ConflictBreakdown => ({
-      conflict_type: "student_double_book",
-      entity_id: student,
-      day: "Monday",
-      block: 0,
-      block_time: "9AM-11AM",
-      crn,
-      course: `CS ${crn}`,
-      conflicting_crn: "9",
-      conflicting_course: "CS 9",
-    });
-    // Two records for one student (3-way double-book) + one other student.
+  it("shows the people in hard conflicts and links to the Conflicts tab", () => {
+    const base = summary();
     mockSchedule(
-      [exam("1", "Monday", "A")],
-      [doubleBook("001", "1"), doubleBook("001", "2"), doubleBook("002", "1")],
+      summary({
+        conflicts: {
+          ...base.conflicts,
+          student_double_book: { people: 2, instances: 3 },
+        },
+      }),
     );
     const onShowConflicts = vi.fn();
     render(<StatisticsView onShowConflicts={onShowConflicts} />);
@@ -154,6 +196,7 @@ describe("StatisticsView", () => {
       name: "Hard conflicts",
     });
     expect(card.textContent).toContain("Students double-booked2");
+    expect(card.textContent).not.toContain("Instructors double-booked");
     fireEvent.click(
       within(card).getByRole("button", { name: "View conflicts" }),
     );
@@ -161,12 +204,42 @@ describe("StatisticsView", () => {
   });
 
   it("reports exams scheduled out of all exams", () => {
-    mockSchedule([exam("1", "Monday", "A"), exam("2", "", "")]);
+    mockSchedule(
+      summary({
+        exams: {
+          total: 3,
+          placed: 2,
+          unscheduled: 1,
+          unroomed: 0,
+          over_capacity: 0,
+        },
+      }),
+    );
     render(<StatisticsView />);
 
     const overview = screen.getByRole("heading", { name: "Overview" })
       .parentElement as HTMLElement;
-    expect(overview.textContent).toContain("1 / 2");
-    expect(overview.textContent).toContain("50% have a day, time and room");
+    expect(overview.textContent).toContain("2 / 3");
+    expect(overview.textContent).toContain("66.7% have a day, time and room");
+  });
+
+  it("shows group and blockout cards only for what the dataset has", () => {
+    mockSchedule(
+      summary({
+        groups: {
+          combined: { groups: 1, sections: 2, students: 80 },
+          common: { groups: 0, sections: 0, students: 0 },
+        },
+        blockouts: { rooms: 3, slots: 7 },
+      }),
+    );
+    render(<StatisticsView />);
+
+    const section = screen.getByRole("heading", {
+      name: "Exam groups and room constraints",
+    }).parentElement as HTMLElement;
+    expect(section.textContent).toContain("Combined exams");
+    expect(section.textContent).toContain("Room blockouts");
+    expect(section.textContent).not.toContain("Common exams");
   });
 });

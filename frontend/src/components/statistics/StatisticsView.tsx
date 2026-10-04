@@ -13,8 +13,6 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import { useConflictDataSimple } from "@/lib/hooks/useConflictDataSimple";
-import { useScheduleStats } from "@/lib/hooks/useScheduleStats";
 import { useSchedulesStore } from "@/lib/store/schedulesStore";
 import { DistributionCharts } from "./DistributionCharts";
 import { ProblemsSection } from "./ProblemsSection";
@@ -30,12 +28,11 @@ export function StatisticsView({
   /** Switches the schedule page to the Conflicts tab. */
   onShowConflicts?: () => void;
 }) {
-  const currentSchedule = useSchedulesStore((state) => state.currentSchedule);
-  const stats = useScheduleStats(currentSchedule);
-  // Same people counts as the Conflicts tab's summary cards.
-  const { metrics: conflicts } = useConflictDataSimple();
+  const summary = useSchedulesStore(
+    (state) => state.currentSchedule?.summary ?? null,
+  );
 
-  if (!stats) {
+  if (!summary) {
     return (
       <Card>
         <CardHeader>
@@ -48,43 +45,42 @@ export function StatisticsView({
     );
   }
 
+  const { exams, groups, blockouts } = summary;
   const placedPercent =
-    stats.totalExams > 0
-      ? Math.round((stats.placedExams / stats.totalExams) * 1000) / 10
-      : 0;
+    exams.total > 0 ? Math.round((exams.placed / exams.total) * 1000) / 10 : 0;
   const groupCards = [
-    stats.combined.groups > 0 && (
+    groups.combined.groups > 0 && (
       <StatGroupCard
         key="combined"
         title="Combined exams"
         icon={GitMerge}
         items={[
-          { label: "Groups", value: stats.combined.groups },
-          { label: "Sections", value: stats.combined.sections },
-          { label: "Students", value: stats.combined.students },
+          { label: "Groups", value: groups.combined.groups },
+          { label: "Sections", value: groups.combined.sections },
+          { label: "Students", value: groups.combined.students },
         ]}
       />
     ),
-    stats.common.groups > 0 && (
+    groups.common.groups > 0 && (
       <StatGroupCard
         key="common"
         title="Common exams"
         icon={Layers}
         items={[
-          { label: "Groups", value: stats.common.groups },
-          { label: "Sections", value: stats.common.sections },
-          { label: "Students", value: stats.common.students },
+          { label: "Groups", value: groups.common.groups },
+          { label: "Sections", value: groups.common.sections },
+          { label: "Students", value: groups.common.students },
         ]}
       />
     ),
-    stats.blockouts.rooms > 0 && (
+    blockouts.rooms > 0 && (
       <StatGroupCard
         key="blockouts"
         title="Room blockouts"
         icon={Ban}
         items={[
-          { label: "Rooms blocked", value: stats.blockouts.rooms },
-          { label: "Blocked slots", value: stats.blockouts.slots },
+          { label: "Rooms blocked", value: blockouts.rooms },
+          { label: "Blocked slots", value: blockouts.slots },
         ]}
       />
     ),
@@ -99,11 +95,7 @@ export function StatisticsView({
         </p>
       </div>
 
-      <ProblemsSection
-        stats={stats}
-        conflicts={conflicts}
-        onShowConflicts={onShowConflicts}
-      />
+      <ProblemsSection summary={summary} onShowConflicts={onShowConflicts} />
 
       <section aria-labelledby="stats-overview" className="space-y-3">
         <h2 id="stats-overview" className="pl-2 text-lg font-semibold">
@@ -113,15 +105,15 @@ export function StatisticsView({
           <StatCard
             title="Exams scheduled"
             icon={BookOpen}
-            value={`${stats.placedExams.toLocaleString()} / ${stats.totalExams.toLocaleString()}`}
+            value={`${exams.placed.toLocaleString()} / ${exams.total.toLocaleString()}`}
             detail={`${placedPercent}% have a day, time and room`}
           />
           <StatCard
             title="Students"
             icon={Users}
-            value={stats.uniqueStudents?.toLocaleString() ?? "—"}
+            value={summary.unique_students?.toLocaleString() ?? "—"}
             detail={
-              stats.uniqueStudents == null
+              summary.unique_students == null
                 ? "Dataset details not available"
                 : "Unique students enrolled"
             }
@@ -129,13 +121,13 @@ export function StatisticsView({
           <StatCard
             title="Room utilization"
             icon={Building2}
-            value={`${stats.roomUtilization}%`}
-            detail={`Average seats filled across ${stats.roomsUsed.toLocaleString()} rooms used`}
+            value={`${summary.rooms.average_fill}%`}
+            detail={`Average seats filled across ${summary.rooms.used.toLocaleString()} rooms used`}
           />
           <StatCard
             title="Time slots used"
             icon={Clock}
-            value={stats.slotsUsed.toLocaleString()}
+            value={summary.calendar.slots_used.toLocaleString()}
             detail="Day and block pairs with at least one exam"
           />
         </div>
@@ -152,7 +144,7 @@ export function StatisticsView({
         </section>
       )}
 
-      <DistributionCharts stats={stats} />
+      <DistributionCharts calendar={summary.calendar} />
     </div>
   );
 }

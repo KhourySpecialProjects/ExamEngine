@@ -135,27 +135,27 @@ class ScheduleAssembler:
         )
 
     @staticmethod
-    def build_summary(
-        num_classes: int,
-        num_students: int,
-        num_rooms: int,
-        slots_used: int,
-        hard_conflicts: int,
-        unplaced_exams: int = 0,
+    def build_compare_item(
+        schedule,
+        summary: dict[str, Any],
+        permissions: SchedulePermissions,
     ) -> dict[str, Any]:
-        """
-        Build schedule summary statistics.
-
-        Consistent format for both generation and retrieval.
-        """
+        """One viewable schedule in a compare response."""
+        dataset = schedule.run.dataset
         return {
-            "num_classes": num_classes,
-            "num_students": num_students,
-            "potential_overlaps": 0,  # Legacy field, kept for API compatibility
-            "real_conflicts": hard_conflicts,
-            "num_rooms": num_rooms,
-            "slots_used": slots_used,
-            "unplaced_exams": unplaced_exams,
+            "schedule_id": str(schedule.schedule_id),
+            "status": "ok",
+            "schedule_name": schedule.schedule_name,
+            "created_at": schedule.created_at.isoformat(),
+            "run_status": schedule.run.status.value,
+            "dataset": {
+                "dataset_id": str(dataset.dataset_id),
+                "dataset_name": dataset.dataset_name,
+                "uploaded_at": dataset.upload_date.isoformat(),
+                "deleted": dataset.deleted_at is not None,
+            },
+            "summary": summary,
+            **permissions.to_dict(),
         }
 
     @staticmethod

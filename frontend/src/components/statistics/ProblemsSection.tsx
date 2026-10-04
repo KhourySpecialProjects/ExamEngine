@@ -15,9 +15,11 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import type { UnscheduledGroup } from "@/lib/api/schedules";
-import type { ExamIssue, ScheduleStats } from "@/lib/hooks/useScheduleStats";
-import type { ConflictMetrics } from "@/lib/types/conflict.types";
+import type {
+  ExamIssue,
+  ScheduleSummary,
+  UnscheduledGroup,
+} from "@/lib/api/schedules";
 import { cn } from "@/lib/utils";
 
 const plural = (n: number, word: string) =>
@@ -120,31 +122,30 @@ function ExamList({ exams }: { exams: ExamIssue[] }) {
  * all-clear line when there is nothing to fix.
  */
 export function ProblemsSection({
-  stats,
-  conflicts,
+  summary,
   onShowConflicts,
 }: {
-  stats: ScheduleStats;
-  conflicts: ConflictMetrics;
+  summary: ScheduleSummary;
   onShowConflicts?: () => void;
 }) {
-  const { unscheduled, unroomed, overCapacity } = stats;
+  const { unscheduled, unroomed, conflicts } = summary;
+  const overCapacity = summary.over_capacity;
   const hardConflicts = [
     {
       label: "Students double-booked",
-      value: conflicts.hard_student_conflicts,
+      value: conflicts.student_double_book.people,
     },
     {
       label: "Instructors double-booked",
-      value: conflicts.hard_instructor_conflicts,
+      value: conflicts.instructor_double_book.people,
     },
     {
       label: "Students over the daily limit",
-      value: conflicts.student_gt3_per_day,
+      value: conflicts.student_over_daily_limit.people,
     },
     {
       label: "Instructors over the daily limit",
-      value: conflicts.instructor_gt_max_per_day,
+      value: conflicts.instructor_over_daily_limit.people,
     },
   ];
   const hasHardConflicts = hardConflicts.some((c) => c.value > 0);
@@ -220,17 +221,17 @@ export function ProblemsSection({
                   )}
                 </div>
               ))}
-              {unscheduled.otherCrns.length > 0 && (
+              {unscheduled.other_crns.length > 0 && (
                 <Collapsible
                   summary={
                     unscheduled.groups.length > 0
-                      ? plural(unscheduled.otherCrns.length, "other CRN")
-                      : plural(unscheduled.otherCrns.length, "CRN")
+                      ? plural(unscheduled.other_crns.length, "other CRN")
+                      : plural(unscheduled.other_crns.length, "CRN")
                   }
                 >
                   <ExamList
                     exams={unscheduled.exams.filter((e) =>
-                      unscheduled.otherCrns.includes(e.crn),
+                      unscheduled.other_crns.includes(e.crn),
                     )}
                   />
                 </Collapsible>

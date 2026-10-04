@@ -26,6 +26,7 @@ from src.repo.time_slot import TimeSlotRepo
 from src.schemas.db import StatusEnum
 from src.services.dataset.service import DatasetService
 from src.services.schedule.permissions import SchedulePermissionService
+from src.services.schedule.summary import build_schedule_summary
 
 
 ALGORITHM_DISPLAY_NAMES = {"dsatur": "DSATUR", "annealing": "Annealing"}
@@ -257,7 +258,14 @@ class ScheduleService:
             assignments, conflicting_crns
         )
         conflicts = formatter.format_conflicts(conflict_analysis)
-        summary = self._calculate_summary_stats(assignments, conflicts)
+        unscheduled_groups = self._stored_unscheduled_groups(conflict_analysis)
+        summary = build_schedule_summary(
+            assignments=assignments,
+            breakdown=conflicts["breakdown"],
+            unscheduled_groups=unscheduled_groups,
+            run=schedule.run,
+            dataset=schedule.run.dataset,
+        )
 
         # Load blockout slots for calendar visualisation (if blockouts were uploaded)
         # blockout_slots is precomputed at upload time and stored in file_paths metadata
@@ -280,7 +288,44 @@ class ScheduleService:
             ),
             permissions=permissions,
             blockouts=blockout_slots,
-            unscheduled_groups=self._stored_unscheduled_groups(conflict_analysis),
+            unscheduled_groups=unscheduled_groups,
+        )
+
+    async def compare_schedules(
+        self, schedule_ids: list[UUID], user_id: UUID
+    ) -> dict[str, Any]:
+        """Summaries of the given schedules, in the given order.
+
+        A schedule that doesn't exist or that the user can't view is
+        `unavailable`, with nothing but its requested ID, so a forwarded link
+        reveals nothing about it.
+        """
+        return {
+            "schedules": [
+                self._compare_item(schedule_id, user_id) for schedule_id in schedule_ids
+            ]
+        }
+
+    def _compare_item(self, schedule_id: UUID, user_id: UUID) -> dict[str, Any]:
+        schedule = self.schedule_repo.get_with_run_details(schedule_id, user_id)
+        if schedule is None:
+            return {"schedule_id": str(schedule_id), "status": "unavailable"}
+
+        conflict_analysis = self.conflict_analyses_repo.get_by_schedule_id(schedule_id)
+        # Counts don't need course names, so no name map.
+        breakdown = ConflictAssembler({}).format_conflicts(conflict_analysis)[
+            "breakdown"
+        ]
+        return ScheduleAssembler.build_compare_item(
+            schedule=schedule,
+            summary=build_schedule_summary(
+                assignments=self.exam_assignment_repo.get_all_for_schedule(schedule_id),
+                breakdown=breakdown,
+                unscheduled_groups=self._stored_unscheduled_groups(conflict_analysis),
+                run=schedule.run,
+                dataset=schedule.run.dataset,
+            ),
+            permissions=self._permissions.get_permissions(schedule, user_id),
         )
 
     @staticmethod
@@ -369,37 +414,6 @@ class ScheduleService:
                 )
 
         return dict(calendar), complete_exams
-
-    def _calculate_summary_stats(
-        self,
-        assignments: list,
-        conflicts: dict[str, Any],
-    ) -> dict[str, Any]:
-        """Calculate summary statistics from assignments."""
-        # Count unique values (only for scheduled assignments)
-        unique_rooms = {a.room.location for a in assignments if a.room is not None}
-        unique_slots = {
-            (a.time_slot.day.value, a.time_slot.slot_label)
-            for a in assignments
-            if a.time_slot is not None
-        }
-
-        # Estimate students (we don't have full enrollment data in assignments)
-        total_enrollment = sum(a.course.enrollment_count for a in assignments)
-
-        # Count unscheduled exams
-        unscheduled_count = sum(
-            1 for a in assignments if a.time_slot is None or a.room is None
-        )
-
-        return ScheduleAssembler.build_summary(
-            num_classes=len(assignments),
-            num_students=total_enrollment,  # Approximation
-            num_rooms=len(unique_rooms),
-            slots_used=len(unique_slots),
-            hard_conflicts=conflicts.get("total", 0),
-            unplaced_exams=unscheduled_count,
-        )
 
     # Persistence
     def _ensure_courses(

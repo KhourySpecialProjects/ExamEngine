@@ -27,13 +27,17 @@ class ConflictAnalysesRepo(BaseRepo[ConflictAnalyses]):
         conflicts_data: dict,
     ) -> ConflictAnalyses:
         """Create new conflict analysis record."""
-        # Extract stats from conflicts_data
+        analysis = self.add_analysis(schedule_id, conflicts_data)
+        self.db.commit()
+        self.db.refresh(analysis)
+        return analysis
 
+    def add_analysis(self, schedule_id: UUID, conflicts_data: dict) -> ConflictAnalyses:
+        """`create_analysis` without the commit; the caller commits."""
         analysis = ConflictAnalyses(
             schedule_id=schedule_id,
             conflicts=conflicts_data,
         )
         self.db.add(analysis)
-        self.db.commit()
-        self.db.refresh(analysis)
+        self.db.flush()
         return analysis

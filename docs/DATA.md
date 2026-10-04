@@ -274,7 +274,7 @@ erDiagram
         uuid dataset_id FK
         datetime run_timestamp
         uuid user_id FK "owner"
-        string algorithm_name "DSATUR or Annealing"
+        string algorithm_name "DSATUR, Annealing or Late add"
         jsonb parameters "nullable; generation settings"
         string status "Running, Completed, Failed"
     }
@@ -311,13 +311,15 @@ JSON written by the scheduler:
 
 - `runs.parameters`: the generation settings, `{student_max_per_day, instructor_max_per_day,
   avoid_back_to_back, max_days, blocks_per_day, prioritize_large_courses, algorithm,
-  time_budget_seconds}`. Runs from before a setting existed lack its key.
+  time_budget_seconds}`. Runs from before a setting existed lack its key. A late-add run adds
+  `based_on_schedule_id`, `original_schedule_id` and `late_additions` (see "Late-add lineage").
 - `conflict_analyses.conflicts`: `{hard_conflicts, soft_conflicts, statistics,
   unscheduled_groups}`. `hard_conflicts` holds `student_double_book`, `instructor_double_book`,
   `student_gt_max_per_day` and `instructor_gt_max_per_day` lists; `soft_conflicts` holds
   `back_to_back_students`, `back_to_back_instructors` and `large_courses_not_early`;
   `statistics` holds totals and a `*_count` per type; `unscheduled_groups` is
-  `[{kind, group, reason, crns}]`. Written once when the schedule is generated.
+  `[{kind, group, reason, crns}]`. Written once when the schedule is generated, or when a late
+  add saves it (the base's analysis plus the late exam, see "Late add" in `ALGORITHM.md`).
 
 `datasets.common_exam_groups` (nullable JSONB) was added after the initial schema. `init_db` adds it on startup to existing Postgres databases with `ALTER TABLE datasets ADD COLUMN IF NOT EXISTS common_exam_groups JSONB DEFAULT NULL` (idempotent; no data migration needed).
 
@@ -371,6 +373,28 @@ the courses, enrollments and room blockouts from the uploaded files, parsed unfi
 no_room_blocks, instructor_exams, sibling_sections, notes}`; `outcome` is `clear`,
 `least_conflicts` or `no_room`, and `candidates` are ranked, each with its block, best-fit room,
 other fitting rooms, conflict counts and the students and instructor affected.
+
+`POST /api/schedule/{id}/late-add` with `{crn, course_code, instructor_id, day, block, room,
+schedule_name, accept_conflicts}` (`day` 0–6, Monday = 0; `block` 0–4) saves the schedule plus
+the late exam as a new schedule and returns it as `GET /api/schedule/{id}` does. The base is
+never modified. It has the search's 404, 409 and 400 checks, then re-evaluates the chosen block
+on the server: 400 for a blank name, a name over 50 characters, a name the caller already uses
+or a block outside the base run's window; 409 when the room is not one of the dataset's rooms,
+is used by an exam in that block, is blocked out then or is too small (so also when the outcome
+is No room), or when the block has a student or instructor hard conflict and `accept_conflicts`
+is not `true`. In one transaction (any failure saves nothing) it writes:
+
+- a `courses` row for the late CRN: `course_subject_code` = the course code, `instructor_name` =
+  the instructor ID, `enrollment_count` = its distinct students, the base's dataset,
+  `department` and `examination_term` null. An existing row of the dataset with the same four
+  values is reused instead. The extra rows don't affect later generations from the dataset:
+  they look courses up by the CRNs they schedule, and a late CRN is never one of them;
+- a `runs` row by the caller (`algorithm_name` `"Late add"`, status Completed) whose
+  `parameters` are described under "Late-add lineage". `algorithm` and `blocks_per_day` are
+  always recorded (a legacy base's DSATUR and assumed 5 become explicit); other settings the
+  base run never recorded stay absent;
+- the `schedules` row, a copy of every base `exam_assignments` row (unscheduled and unroomed
+  ones too) plus the late exam's, and the `conflict_analyses` row.
 
 ### Late-add lineage
 

@@ -1,12 +1,17 @@
-"""Late add: find a block for one exam in a saved schedule (read-only search).
+"""Late add: find a block for one exam in a saved schedule, and save it there.
 
 The base schedule comes from the database; enrollments and room blockouts come
 from the dataset's uploaded files, parsed unfiltered, because generation drops
 enrollment rows for CRNs that are not in the courses file. The placement itself
-is `src.domain.services.late_add`.
+is `src.domain.services.late_add`. Saving never modifies the base: it writes a
+new version (courses row, run, schedule, copied assignments + the late exam,
+conflict analysis) in one transaction.
 """
 
 import asyncio
+import copy
+import datetime
+import uuid
 from collections import defaultdict
 from dataclasses import dataclass
 from typing import Any, Literal
@@ -14,7 +19,12 @@ from uuid import UUID
 
 from pydantic import BaseModel
 
-from src.core.exceptions import DatasetDeletedError, StorageError, ValidationError
+from src.core.exceptions import (
+    DatasetDeletedError,
+    PlacementConflictError,
+    StorageError,
+    ValidationError,
+)
 from src.domain.constants import BLOCK_TIMES, DAY_NAMES
 from src.domain.services.late_add import (
     BaseExam,
@@ -24,21 +34,30 @@ from src.domain.services.late_add import (
     LateExam,
     Outcome,
     RoomOption,
+    evaluate_placement,
     search_placements,
 )
+from src.domain.services.late_add_analysis import late_exam_analysis
 from src.domain.validation import DatasetFiles
 from src.domain.validation.snapshot import ENROLLMENTS, ROOM_BLOCKOUTS
+from src.repo.conflict_analyses import ConflictAnalysesRepo
+from src.repo.course import CourseRepo
 from src.repo.dataset import DatasetRepo
 from src.repo.exam_assignment import ExamAssignmentRepo
 from src.repo.room import RoomRepo
 from src.repo.schedule import ScheduleRepo
-from src.schemas.db import Datasets, ExamAssignments, Runs, Schedules
+from src.repo.time_slot import TimeSlotRepo
+from src.schemas.db import Datasets, ExamAssignments, Runs, Schedules, StatusEnum, Users
 from src.services.dataset.uploaded_files import load_uploaded_files
 from src.services.schedule.summary import resolve_settings
 from src.services.storage.interface import IStorage
 
 
 DATASET_DELETED_MESSAGE = "The dataset's uploaded files are no longer available"
+
+LATE_ADD_ALGORITHM_NAME = "Late add"
+# schedules.schedule_name is String(50).
+MAX_SCHEDULE_NAME_LENGTH = 50
 
 # Generation's defaults (POST /schedule/generate) for runs that didn't record
 # a setting.
@@ -186,12 +205,18 @@ class LateAddService:
         exam_assignment_repo: ExamAssignmentRepo,
         dataset_repo: DatasetRepo,
         room_repo: RoomRepo,
+        course_repo: CourseRepo,
+        time_slot_repo: TimeSlotRepo,
+        conflict_analyses_repo: ConflictAnalysesRepo,
         storage: IStorage,
     ):
         self.schedule_repo = schedule_repo
         self.exam_assignment_repo = exam_assignment_repo
         self.dataset_repo = dataset_repo
         self.room_repo = room_repo
+        self.course_repo = course_repo
+        self.time_slot_repo = time_slot_repo
+        self.conflict_analyses_repo = conflict_analyses_repo
         self.storage = storage
 
     async def search(
@@ -334,6 +359,142 @@ class LateAddService:
             notes=tuple(_courses_file_notes(crn, files)),
         )
 
+    async def save(
+        self,
+        schedule_id: UUID,
+        user: Users,
+        *,
+        crn: str,
+        course_code: str,
+        instructor_id: str,
+        day: int,
+        block: int,
+        room: str,
+        schedule_name: str,
+        accept_conflicts: bool,
+    ) -> UUID | None:
+        """Save the base schedule plus the late exam as a new schedule.
+
+        Returns the new schedule's ID, or None when the caller doesn't own the
+        base (as `load_context`). The placement is re-evaluated here, never
+        taken from the client. Raises `ValidationError` for a bad name or a
+        block outside the window, `PlacementConflictError` when the room can't
+        take the exam in that block or the block has hard conflicts that were
+        not accepted, and whatever `load_context` raises. Every row is written
+        in one transaction: on any error nothing is saved.
+        """
+        context = await self.load_context(
+            schedule_id, user.user_id, crn, course_code, instructor_id
+        )
+        if context is None:
+            return None
+        name = self._checked_name(schedule_name, user.user_id)
+        try:
+            placement = await asyncio.to_thread(
+                evaluate_placement, context.base, context.late, day, block
+            )
+        except ValueError as e:
+            raise ValidationError(str(e)) from e
+        room = room.strip()
+        if not placement.fits_room(room):
+            raise PlacementConflictError(_room_problem(context, placement, room))
+        if not placement.is_clear and not accept_conflicts:
+            raise PlacementConflictError(
+                f"{_slot_text(day, block)} has hard conflicts for this exam. "
+                "Confirm that you accept them to save it there."
+            )
+
+        base_analysis = self.conflict_analyses_repo.get_by_schedule_id(schedule_id)
+        new_schedule_id = uuid.uuid4()
+        parameters = _version_parameters(
+            context, placement, room, user, new_schedule_id
+        )
+        db = self.schedule_repo.db
+        try:
+            self._write_version(
+                context, placement, room, name, user, new_schedule_id, parameters
+            )
+            self.conflict_analyses_repo.add_analysis(
+                new_schedule_id,
+                late_exam_analysis(
+                    base_analysis.conflicts if base_analysis is not None else None,
+                    context.base,
+                    context.late,
+                    placement,
+                    room,
+                ),
+            )
+            db.commit()
+        except Exception:
+            db.rollback()
+            raise
+        return new_schedule_id
+
+    def _checked_name(self, schedule_name: str, user_id: UUID) -> str:
+        name = schedule_name.strip()
+        if not name:
+            raise ValidationError("Enter a schedule name.")
+        if len(name) > MAX_SCHEDULE_NAME_LENGTH:
+            raise ValidationError(
+                f"Schedule names are at most {MAX_SCHEDULE_NAME_LENGTH} characters."
+            )
+        if self.schedule_repo.name_exists(name, user_id):
+            raise ValidationError(f"Schedule name '{name}' already exists")
+        return name
+
+    def _write_version(
+        self,
+        context: LateAddContext,
+        placement: BlockEvaluation,
+        room: str,
+        name: str,
+        user: Users,
+        new_schedule_id: UUID,
+        parameters: dict[str, Any],
+    ) -> None:
+        """Flush the course, run, schedule and assignment rows (no commit)."""
+        dataset_id = context.dataset.dataset_id
+        late = context.late
+        course = self.course_repo.get_or_add_late_course(
+            dataset_id, late.crn, late.course_code, late.instructor_id, late.size
+        )
+        self.schedule_repo.add_schedule_with_run(
+            schedule_name=name,
+            dataset_id=dataset_id,
+            user_id=user.user_id,
+            algorithm_name=LATE_ADD_ALGORITHM_NAME,
+            parameters=parameters,
+            status=StatusEnum.Completed,
+            schedule_id=new_schedule_id,
+        )
+        time_slot = self.time_slot_repo.get_or_create_slot(
+            dataset_id=dataset_id,
+            day=DAY_NAMES[placement.day],
+            block_index=placement.block,
+        )
+        room_ids = {
+            r.location: r.room_id
+            for r in self.room_repo.get_all_for_dataset(dataset_id)
+        }
+        self.exam_assignment_repo.add_all(
+            new_schedule_id,
+            [
+                {
+                    "course_id": a.course_id,
+                    "time_slot_id": a.time_slot_id,
+                    "room_id": a.room_id,
+                }
+                for a in context.assignments
+            ]
+            + [
+                {
+                    "course_id": course.course_id,
+                    "time_slot_id": time_slot.time_slot_id,
+                    "room_id": room_ids[room],
+                }
+            ],
+        )
+
 
 # ----------------------------------------------------------------------
 # Helpers
@@ -425,6 +586,74 @@ def _late_add_settings(resolved: dict[str, Any]) -> LateAddSettings:
             "instructor_max_per_day", _DEFAULT_INSTRUCTOR_MAX_PER_DAY
         ),
     )
+
+
+def _slot_text(day: int, block: int) -> str:
+    return f"{DAY_NAMES[day]} {BLOCK_TIMES[block]}"
+
+
+def _room_problem(
+    context: LateAddContext, placement: BlockEvaluation, room: str
+) -> str:
+    """Why `room` can't take the late exam in the placement's block."""
+    base, size = context.base, context.late.size
+    slot = (placement.day, placement.block)
+    where = _slot_text(*slot)
+    capacity = base.rooms.get(room)
+    if capacity is None:
+        return f"{room} is not one of this dataset's rooms."
+    used_by = sorted(e.crn for e in base.exams if e.slot == slot and e.room == room)
+    if used_by:
+        return f"{room} is already used on {where} (CRN {', '.join(used_by)})."
+    if slot in base.blockouts.get(room, ()):
+        return f"{room} is blocked out on {where}."
+    return f"{room} seats {capacity}, fewer than the exam's {size} students."
+
+
+def _version_parameters(
+    context: LateAddContext,
+    placement: BlockEvaluation,
+    room: str,
+    user: Users,
+    new_schedule_id: UUID,
+) -> dict[str, Any]:
+    """`runs.parameters` of the new version (see docs/DATA.md, "Late add").
+
+    The base run's resolved settings, so legacy bases get an explicit engine
+    and blocks per day; settings the base never recorded stay unrecorded.
+    """
+    base_params = context.run.parameters or {}
+    late, day, block = context.late, placement.day, placement.block
+    entry = {
+        "crn": late.crn,
+        "course_code": late.course_code,
+        "instructor_id": late.instructor_id,
+        "size": late.size,
+        "day": day,
+        "day_name": DAY_NAMES[day],
+        "block": block,
+        "block_time": BLOCK_TIMES[block],
+        "room": room,
+        "outcome": (
+            Outcome.CLEAR if placement.is_clear else Outcome.LEAST_CONFLICTS
+        ).value,
+        "conflicts": placement.counts.as_dict(),
+        "added_by": str(user.user_id),
+        "added_by_name": user.name,
+        "added_at": datetime.datetime.now().isoformat(),
+        "schedule_id": str(new_schedule_id),
+    }
+    return {
+        **{k: v for k, v in context.resolved_settings.items() if v is not None},
+        "based_on_schedule_id": str(context.schedule.schedule_id),
+        "original_schedule_id": str(
+            base_params.get("original_schedule_id") or context.schedule.schedule_id
+        ),
+        "late_additions": [
+            *copy.deepcopy(base_params.get("late_additions") or []),
+            entry,
+        ],
+    }
 
 
 def _slot_fields(day: int, block: int) -> dict[str, Any]:

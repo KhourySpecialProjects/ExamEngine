@@ -251,6 +251,14 @@ back-to-back, large course late, then day and block (earliest first).
 The search also returns the instructor's existing exams in the base schedule (to confirm the
 ID matched) and the base exams with the same course code (sibling sections, information only).
 
+**Saving** (`POST /api/schedule/{id}/late-add`, see `DATA.md`) re-runs `evaluate_placement` for
+the chosen block and stores a new schedule. Its conflict analysis is not recomputed:
+`late_exam_analysis` (`backend/src/domain/services/late_add_analysis.py`) deep-copies the base's
+stored analysis and adds the late exam's delta in `ScheduleAnalyzer`'s shapes: one
+double-book entry per (person, base CRN in the block), one daily-limit entry per person over
+the limit, back-to-back entries per (person, day) extended with the late block or added, a
+large-course-late entry if it applies, and statistics recomputed from the lists and the exams.
+
 ## References
 
 - [DSATUR Algorithm (Wikipedia)](https://en.wikipedia.org/wiki/DSatur)

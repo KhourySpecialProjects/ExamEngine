@@ -14,6 +14,7 @@ from src.api.deps import (
 from src.core.exceptions import (
     DatasetDeletedError,
     DatasetNotFoundError,
+    PlacementConflictError,
     StorageError,
     ValidationError,
 )
@@ -248,6 +249,70 @@ async def search_late_add(
     if result is None:
         raise HTTPException(status_code=404, detail=f"Schedule {schedule_id} not found")
     return result
+
+
+class LateAddSaveRequest(LateAddSearchRequest):
+    """Request model for saving a late add as a new schedule."""
+
+    day: int
+    """Day index, Monday = 0."""
+    block: int
+    """Block index, 0 = the first block of the day."""
+    room: str
+    schedule_name: str
+    accept_conflicts: bool = False
+
+
+@router.post("/{schedule_id}/late-add")
+async def save_late_add(
+    schedule_id: UUID,
+    request: LateAddSaveRequest,
+    current_user: Users = Depends(get_current_user),
+    late_add_service: LateAddService = Depends(get_late_add_service),
+    schedule_service: ScheduleService = Depends(get_schedule_service),
+):
+    """
+    Save the schedule plus one late exam as a new schedule; the base is unchanged.
+
+    The placement is re-checked on the server. Same 404/409/400 as the search,
+    plus 400 for a blank, too long or taken name or a block outside the
+    schedule's window, and 409 when the room can't take the exam in that block
+    (used, blocked out, too small) or the block has hard conflicts and
+    `accept_conflicts` is false. Returns the new schedule as
+    `GET /schedule/{id}` does.
+    """
+    try:
+        new_schedule_id = await late_add_service.save(
+            schedule_id,
+            current_user,
+            crn=request.crn,
+            course_code=request.course_code,
+            instructor_id=request.instructor_id,
+            day=request.day,
+            block=request.block,
+            room=request.room,
+            schedule_name=request.schedule_name,
+            accept_conflicts=request.accept_conflicts,
+        )
+    except (DatasetDeletedError, PlacementConflictError) as e:
+        raise HTTPException(status_code=409, detail=str(e)) from e
+    except ValidationError as e:
+        raise HTTPException(status_code=400, detail=str(e)) from e
+    except StorageError as e:
+        raise HTTPException(status_code=500, detail=str(e)) from e
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Late add failed: {e}") from e
+    if new_schedule_id is None:
+        raise HTTPException(status_code=404, detail=f"Schedule {schedule_id} not found")
+    saved = await schedule_service.get_schedule_with_details(
+        new_schedule_id, current_user.user_id
+    )
+    if saved is None:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Schedule {new_schedule_id} was saved but could not be loaded",
+        )
+    return saved
 
 
 class ShareScheduleRequest(BaseModel):

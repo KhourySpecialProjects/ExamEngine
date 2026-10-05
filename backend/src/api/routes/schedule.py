@@ -9,6 +9,7 @@ from src.api.deps import (
     get_current_user,
     get_db,
     get_late_add_service,
+    get_person_exams_service,
     get_schedule_service,
 )
 from src.core.exceptions import (
@@ -23,6 +24,11 @@ from src.repo.schedule_share import ScheduleShareRepo
 from src.schemas.db import Schedules, Users
 from src.services.schedule import ScheduleService
 from src.services.schedule.late_add import LateAddSearchResponse, LateAddService
+from src.services.schedule.person_exams import (
+    PersonExamsResponse,
+    PersonExamsService,
+    PersonKind,
+)
 
 
 router = APIRouter(prefix="/schedule", tags=["schedule"])
@@ -314,6 +320,37 @@ async def save_late_add(
             detail=f"Schedule {new_schedule_id} was saved but could not be loaded",
         )
     return saved
+
+
+@router.get("/{schedule_id}/person-exams", response_model=PersonExamsResponse)
+async def get_person_exams(
+    schedule_id: UUID,
+    kind: PersonKind,
+    person_id: str,
+    current_user: Users = Depends(get_current_user),
+    person_exams_service: PersonExamsService = Depends(get_person_exams_service),
+):
+    """
+    One student's (NUId) or instructor's exams in a schedule (read-only).
+
+    The owner and anyone the schedule is shared with may look; anyone else gets
+    404. An ID without exams in the schedule gets an empty list. Students are
+    looked up in the dataset's uploaded enrollments file: 409 when the dataset
+    was deleted, 500 when the file can't be read. 400 for a blank ID.
+    """
+    try:
+        result = await person_exams_service.get(
+            schedule_id, current_user.user_id, kind, person_id
+        )
+    except DatasetDeletedError as e:
+        raise HTTPException(status_code=409, detail=str(e)) from e
+    except ValidationError as e:
+        raise HTTPException(status_code=400, detail=str(e)) from e
+    except StorageError as e:
+        raise HTTPException(status_code=500, detail=str(e)) from e
+    if result is None:
+        raise HTTPException(status_code=404, detail=f"Schedule {schedule_id} not found")
+    return result
 
 
 class ShareScheduleRequest(BaseModel):

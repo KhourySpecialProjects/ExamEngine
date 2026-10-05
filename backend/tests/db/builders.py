@@ -6,6 +6,7 @@ from typing import Any
 
 from sqlalchemy.orm import Session
 
+from src.repo.time_slot import TimeSlotRepo
 from src.schemas.db import (
     ConflictAnalyses,
     Courses,
@@ -80,22 +81,29 @@ def add_exam(
     size: int,
     *,
     slot: tuple[str, int] | None = None,
+    block: tuple[str, int] | None = None,
     room: tuple[str, int] | None = None,
+    instructor: str | None = None,
 ) -> ExamAssignments:
     """Add a course to the schedule's dataset and its exam to the schedule.
 
-    ``slot`` is (day name, start hour); ``room`` is (location, capacity).
-    No slot = unscheduled; a slot without a room = unroomed.
+    ``slot`` is (day name, start hour); ``block`` is (day name, block index)
+    with the app's real block labels (use one or the other); ``room`` is
+    (location, capacity). No slot = unscheduled; a slot without a room =
+    unroomed.
     """
     dataset_id = schedule.run.dataset_id
     course = Courses(
         crn=crn,
         course_subject_code=f"TEST {crn}",
+        instructor_name=instructor,
         enrollment_count=size,
         dataset_id=dataset_id,
     )
     db.add(course)
     time_slot = None
+    if block is not None:
+        time_slot = TimeSlotRepo(db).get_or_create_slot(dataset_id, *block)
     if slot is not None:
         day, hour = slot
         time_slot = TimeSlots(

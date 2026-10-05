@@ -417,6 +417,23 @@ and `settings_unused`.
 Each `GET /api/schedule` item has `late_add_count` (0 for generated schedules) and
 `based_on_name` (`null` for generated schedules and when the base is deleted or not viewable).
 
+### Person exams
+
+`GET /api/schedule/{id}/person-exams?kind=student|instructor&person_id=<id>` returns one
+student's (NUId) or instructor's exams in a schedule
+(`backend/src/services/schedule/person_exams.py`). It is read-only. The owner and anyone the
+schedule is shared with may use it (anyone else gets 404); a blank ID is 400. Instructors are
+matched against the trimmed `courses.instructor_name` of the schedule's exams (a `nan` ID never
+matches) and need no files. Students are looked up in the dataset's uploaded enrollments file,
+parsed unfiltered (`services/dataset/uploaded_files.py`): 409 when the dataset was deleted, 500
+when the file can't be read; enrolled CRNs that aren't in the schedule are skipped. An ID with no
+exams gets an empty list. The response is `{kind, person_id, exams, days, block_times}`: `exams`
+are `{crn, course_code, day, day_name, block, block_time, room}` (`day` 0–6, Monday = 0;
+`block` 0-based), placed and unroomed exams by day and block, then unscheduled ones (day,
+block and room `null`; an unroomed exam has `room: null`). `days` (Monday first) and
+`block_times` (earliest first) describe the schedule's week: the run's `max_days` and
+`blocks_per_day`, extended to the last day and block any exam of the schedule uses.
+
 ## S3 Storage Structure
 
 Datasets are stored in S3 with the following structure:

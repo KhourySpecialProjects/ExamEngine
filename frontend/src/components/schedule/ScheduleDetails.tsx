@@ -1,5 +1,6 @@
 import { CalendarClock, CalendarPlus, Database } from "lucide-react";
 import Link from "next/link";
+import { PersonIdActions } from "@/components/person-exams/PersonIdActions";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
@@ -42,7 +43,14 @@ function RefLink({ scheduleRef }: { scheduleRef: ScheduleRef | null }) {
   );
 }
 
-function LateAdditionsTable({ additions }: { additions: LateAddition[] }) {
+function LateAdditionsTable({
+  additions,
+  scheduleId,
+}: {
+  additions: LateAddition[];
+  /** The viewed schedule: it holds every addition listed. */
+  scheduleId: string;
+}) {
   return (
     <div className="space-y-2">
       <h3 className="text-sm font-medium">Late additions</h3>
@@ -64,7 +72,16 @@ function LateAdditionsTable({ additions }: { additions: LateAddition[] }) {
               <TableRow key={`${a.schedule_id}-${a.crn}`}>
                 <TableCell className="font-mono">{a.crn}</TableCell>
                 <TableCell>{a.course_code}</TableCell>
-                <TableCell>{a.instructor_id}</TableCell>
+                <TableCell>
+                  <span className="inline-flex items-center gap-1">
+                    {a.instructor_id}
+                    <PersonIdActions
+                      id={a.instructor_id}
+                      kind="instructor"
+                      scheduleId={scheduleId}
+                    />
+                  </span>
+                </TableCell>
                 <TableCell>
                   {a.day_name} {a.block_time}
                 </TableCell>
@@ -179,7 +196,10 @@ export function ScheduleDetails({ schedule }: { schedule: ScheduleResult }) {
         {lineage && lineage.late_additions.length > 0 && (
           <>
             <Separator />
-            <LateAdditionsTable additions={lineage.late_additions} />
+            <LateAdditionsTable
+              additions={lineage.late_additions}
+              scheduleId={schedule.schedule_id}
+            />
           </>
         )}
       </CardContent>

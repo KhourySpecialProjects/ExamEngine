@@ -19,7 +19,13 @@ import { makeLateAddition, makeSchedule } from "@/test/summary";
 import { LateAddDialog } from "./LateAddDialog";
 
 vi.mock("@/lib/api/client", () => ({
-  apiClient: { schedules: { lateAddSearch: vi.fn(), lateAddSave: vi.fn() } },
+  apiClient: {
+    schedules: {
+      lateAddSearch: vi.fn(),
+      lateAddSave: vi.fn(),
+      personExams: vi.fn(),
+    },
+  },
 }));
 
 const push = vi.fn();
@@ -31,6 +37,7 @@ import { apiClient } from "@/lib/api/client";
 
 const lateAddSearch = vi.mocked(apiClient.schedules.lateAddSearch);
 const lateAddSave = vi.mocked(apiClient.schedules.lateAddSave);
+const personExams = vi.mocked(apiClient.schedules.personExams);
 
 const TIMES = ["9AM-11AM", "11:30AM-1:30PM", "2PM-4PM", "4:30PM-6:30PM"];
 const DAYS = ["Monday", "Tuesday", "Wednesday"];
@@ -331,7 +338,9 @@ describe("LateAddDialog", () => {
     expect(within(row).getByText("also in CRN 300, 301")).toBeTruthy();
 
     await act(async () => {
-      fireEvent.click(within(row).getByRole("button", { name: "Copy 00034" }));
+      fireEvent.click(
+        within(row).getByRole("button", { name: "Copy NUId 00034" }),
+      );
     });
     expect(writeText).toHaveBeenLastCalledWith("00034");
     await act(async () => {
@@ -357,8 +366,49 @@ describe("LateAddDialog", () => {
     // One person: no "Copy all".
     expect(within(row).queryByText("Copy all")).toBeNull();
     expect(
-      within(row).getAllByRole("button", { name: "Copy I-1" }),
+      within(row).getAllByRole("button", { name: "Copy instructor I-1" }),
     ).toHaveLength(2);
+  });
+
+  it("shows a student's exams with the late exam proposed in the candidate's block and room", async () => {
+    personExams.mockResolvedValue({
+      kind: "student",
+      person_id: "00034",
+      exams: [{ ...exam("300", 0, 1), room: "Hall A" }],
+      days: DAYS,
+      block_times: TIMES,
+    });
+    await search(
+      result({
+        outcome: "least_conflicts",
+        candidates: [
+          candidate(0, 1, {
+            clear: false,
+            conflicts: { ...NO_CONFLICTS, student_double_book: 1 },
+            students: {
+              double_book: [{ student_id: "00034", crns: ["300"] }],
+              over_daily_limit: [],
+              back_to_back: [],
+            },
+          }),
+        ],
+      }),
+    );
+    const row = candidateRow(0, 1);
+    fireEvent.click(
+      within(row).getByRole("button", {
+        name: "Student double-book: 1 student",
+      }),
+    );
+    fireEvent.click(
+      within(row).getByRole("button", { name: "View exams for NUId 00034" }),
+    );
+
+    const cell = await screen.findByTestId("week-0-1");
+    expect(personExams).toHaveBeenLastCalledWith("s1", "student", "00034");
+    expect(
+      [...cell.querySelectorAll("[title]")].map((block) => block.textContent),
+    ).toEqual(["300CS 1000Hall A", "90001CS 1000Room 01Proposed"]);
   });
 
   it("picks another fitting room, which also selects that block", async () => {

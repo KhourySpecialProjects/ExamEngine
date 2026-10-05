@@ -1,8 +1,13 @@
 import { type ColumnDef, createColumnHelper } from "@tanstack/react-table";
 import { AlertCircle, Ban, GitMerge, Layers } from "lucide-react";
 import { SortableHeader } from "@/components/common/table/SortableHeader";
+import {
+  isPersonId,
+  PersonIdActions,
+} from "@/components/person-exams/PersonIdActions";
 import { LateAddBadge } from "@/components/schedule/LateAddBadge";
 import { Badge } from "@/components/ui/badge";
+import { useSchedulesStore } from "@/lib/store/schedulesStore";
 import type { Exam } from "@/lib/types/calendar.types";
 
 const columnHelper = createColumnHelper<Exam>();
@@ -59,6 +64,27 @@ const ConflictCell = ({ conflicts }: { conflicts: number }) => (
     )}
   </div>
 );
+
+/** "TBD" is the list's stand-in for a course without an instructor. */
+const InstructorCell = ({ instructor }: { instructor: string }) => {
+  const scheduleId = useSchedulesStore(
+    (state) => state.currentSchedule?.schedule_id,
+  );
+  return (
+    <div className="flex max-w-[200px] items-center gap-1 text-sm">
+      <span className="truncate" title={instructor}>
+        {instructor}
+      </span>
+      {isPersonId(instructor) && instructor !== "TBD" && (
+        <PersonIdActions
+          id={instructor}
+          kind="instructor"
+          scheduleId={scheduleId}
+        />
+      )}
+    </div>
+  );
+};
 
 export function createExamColumns(
   isMerged?: (crn: string) => boolean,
@@ -134,11 +160,7 @@ export function createExamColumns(
       header: ({ column }) => (
         <SortableHeader column={column} label="Instructor" />
       ),
-      cell: (info) => (
-        <div className="text-sm max-w-[200px] truncate" title={info.getValue()}>
-          {info.getValue()}
-        </div>
-      ),
+      cell: (info) => <InstructorCell instructor={info.getValue()} />,
     }),
     columnHelper.accessor("studentCount", {
       id: "studentCount",

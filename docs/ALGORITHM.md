@@ -206,6 +206,51 @@ unscheduled = sections larger than every room. Optimized uses a 15 s budget.
 Both leave the same 6 sections unscheduled (larger than every room). The Optimized
 back-to-back count varies a little between runs because annealing is time-bounded.
 
+## Late add
+
+Places one exam that missed generation (a CRN in enrollments.csv but not in the schedule) into
+a saved schedule without moving any scheduled exam or changing any room
+(`backend/src/domain/services/late_add.py`, pure domain code). The inputs are the base
+schedule's exams (block, room, course code, instructor), the unfiltered enrollments, the rooms
+and room blockouts, the base run's settings (`max_days`, `blocks_per_day`, the two daily
+limits) and the late exam (CRN, course code, instructor ID, its students; size = distinct
+students).
+
+`search_placements` evaluates every block of the base run's window (`max_days` ×
+`blocks_per_day`, at most 7 × 5), so the ranking is exact; `evaluate_placement` evaluates one
+block. Neither reuses the scheduler engines (they re-seat every exam of a block) or the
+Validator's checks (the Validator stays an independent re-check). Per block:
+
+| Term | Rule |
+| --- | --- |
+| Free rooms | Not used by a base exam in that block and not blocked out then. Best fit = the smallest free room with capacity ≥ size; the other fitting free rooms are listed too |
+| Student double-booked | A late-exam student already sits an exam in that block (with the clashing CRNs) |
+| Student over the daily limit | The student's exams that day, the late one included, exceed `student_max_per_day` |
+| Instructor double-booked / over the daily limit | The same for the instructor ID |
+| Back-to-back (students, instructor) | An exam in the adjacent block of the same day |
+| Large course late | 100+ students on Thursday or later (`LARGE_COURSE_THRESHOLD`, `EARLY_WEEK_CUTOFF`, as `ScheduleAnalyzer`) |
+
+**Counting.** A person's existing exams count once per distinct (day, block), so the CRNs of one
+combined exam count once. The late exam is always one more exam, also in a block where the
+person already sits one, as the Validator counts it (per exam, EXENG-81). Students are counted
+as distinct people; the instructor counts 0 or 1 per term. The instructor ID matches a base
+exam's stored instructor by trimmed exact string; blank and `nan` never match (EXENG-79).
+
+**Outcomes.**
+
+- **Clear:** at least one block has no student or instructor hard conflict and a fitting free
+  room; only those blocks are candidates.
+- **Least conflicts:** no clear block; every block with a fitting free room is a candidate.
+- **No room:** no block has a fitting free room; nothing can be placed, and each block reports
+  its largest free room.
+
+**Ranking** (lexicographic, fewest first): student double-books, students over the daily limit,
+instructor double-book, instructor over the daily limit, student back-to-backs, instructor
+back-to-back, large course late, then day and block (earliest first).
+
+The search also returns the instructor's existing exams in the base schedule (to confirm the
+ID matched) and the base exams with the same course code (sibling sections, information only).
+
 ## References
 
 - [DSATUR Algorithm (Wikipedia)](https://en.wikipedia.org/wiki/DSatur)

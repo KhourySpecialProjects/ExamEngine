@@ -29,7 +29,7 @@ class ScheduleRow:
     """One stored exam assignment with the course and room data stored with it.
 
     `day_index`/`block_index` are None when the exam has no time slot; `room` is
-    None when it has no room.
+    None when it has no room. `course_code` is the stored course subject code.
     """
 
     crn: str
@@ -39,6 +39,7 @@ class ScheduleRow:
     room_capacity: int | None
     enrollment_count: int
     instructor: str | None
+    course_code: str | None = None
 
     @property
     def placed(self) -> bool:
@@ -76,6 +77,16 @@ class RunParameters:
                 stored.get("instructor_max_per_day", defaults.instructor_max_per_day)
             ),
         )
+
+
+def late_additions_from_stored(parameters: Mapping[str, Any] | None) -> tuple[Any, ...]:
+    """The raw `late_additions` entries of a run's stored `parameters`.
+
+    Late-add versions record each exam added after generation here; generated
+    schedules have none. Entries are kept as stored (claims the checks re-verify).
+    """
+    entries = (parameters or {}).get("late_additions")
+    return tuple(entries) if isinstance(entries, list) else ()
 
 
 @dataclass(frozen=True)
@@ -126,7 +137,8 @@ class ValidationSnapshot:
 
     `analysis` is the stored `conflict_analyses.conflicts` JSON, or None when the
     schedule has no stored analysis. `files` is None when the dataset's uploaded
-    files are no longer available.
+    files are no longer available. `late_additions` holds the run's stored
+    late-add records (raw JSON entries); empty for generated schedules.
     """
 
     rows: tuple[ScheduleRow, ...]
@@ -135,6 +147,7 @@ class ValidationSnapshot:
     combined_groups: Mapping[str, tuple[str, ...]]
     common_groups: Mapping[str, tuple[str, ...]]
     files: DatasetFiles | None
+    late_additions: tuple[Any, ...] = ()
 
     @property
     def unscheduled_groups(self) -> list[Any]:

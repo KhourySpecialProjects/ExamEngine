@@ -77,6 +77,58 @@ class UnscheduledEntry:
     crns: frozenset[str]
 
 
+@dataclass(frozen=True)
+class LateAdditionEntry:
+    """A well-formed stored `late_additions` record (a claim to re-check).
+
+    `instructor` is the stripped instructor ID, None when blank or 'nan' (any
+    case).
+    """
+
+    index: int
+    crn: str
+    course_code: str
+    instructor: str | None
+    size: int
+    day: int
+    block: int
+    room: str
+
+
+def _whole_number(value: Any) -> int | None:
+    if isinstance(value, bool) or not isinstance(value, int):
+        return None
+    return value
+
+
+def _parse_late_addition(index: int, raw: Any) -> LateAdditionEntry | str:
+    """The record, or a problem description when it is malformed."""
+    label = f"Late addition #{index + 1}"
+    if not isinstance(raw, Mapping):
+        return f"{label} is not an object"
+    crn, code, room = raw.get("crn"), raw.get("course_code"), raw.get("room")
+    instructor = raw.get("instructor_id")
+    size = _whole_number(raw.get("size"))
+    day, block = _whole_number(raw.get("day")), _whole_number(raw.get("block"))
+    if not all(
+        isinstance(value, str) and value.strip() for value in (crn, code, room)
+    ) or (instructor is not None and not isinstance(instructor, str)):
+        return f"{label} lacks crn, course_code, instructor_id or room"
+    if size is None or day is None or block is None:
+        return f"{label} (CRN {crn}) lacks a whole-number size, day or block"
+    instructor = instructor.strip() if instructor else ""
+    return LateAdditionEntry(
+        index=index,
+        crn=crn.strip(),
+        course_code=code.strip(),
+        instructor=instructor if instructor and instructor.lower() != "nan" else None,
+        size=size,
+        day=day,
+        block=block,
+        room=room.strip(),
+    )
+
+
 class ValidationContext:
     """A snapshot plus lazily computed indexes over it."""
 
@@ -256,11 +308,33 @@ class ValidationContext:
         )
 
     # ------------------------------------------------------------------
+    # Late additions
+    # ------------------------------------------------------------------
+
+    @cached_property
+    def late_addition_entries(self) -> tuple[list[LateAdditionEntry], list[str]]:
+        """(well-formed stored late_additions records, problems with others)."""
+        entries: list[LateAdditionEntry] = []
+        malformed: list[str] = []
+        for index, raw in enumerate(self.snapshot.late_additions):
+            parsed = _parse_late_addition(index, raw)
+            if isinstance(parsed, str):
+                malformed.append(parsed)
+            else:
+                entries.append(parsed)
+        return entries, malformed
+
+    @cached_property
+    def late_addition_by_crn(self) -> dict[str, LateAdditionEntry]:
+        """Well-formed late additions by CRN (the last record of a CRN wins)."""
+        return {entry.crn: entry for entry in self.late_addition_entries[0]}
+
+    # ------------------------------------------------------------------
     # Files
     # ------------------------------------------------------------------
 
     @cached_property
-    def course_by_crn(self) -> dict[str, CourseRecord]:
+    def file_course_by_crn(self) -> dict[str, CourseRecord]:
         """The courses-file row the app uses for each CRN.
 
         Rows with zero/blank enrollment are dropped before scheduling and the
@@ -279,6 +353,32 @@ class ValidationContext:
         return chosen
 
     @cached_property
+    def course_by_crn(self) -> dict[str, CourseRecord]:
+        """The course row of each CRN: the courses file plus late additions.
+
+        A late addition counts as the course row of its CRN (its course code,
+        instructor and size) unless the file already schedules that CRN with a
+        nonzero enrollment; `coverage.late_additions` reports that case.
+        """
+        chosen = dict(self.file_course_by_crn)
+        for crn, entry in self.late_addition_by_crn.items():
+            if crn in self.late_course_crns:
+                chosen[crn] = CourseRecord(
+                    crn=crn, total_enrollment=entry.size, instructor=entry.instructor
+                )
+        return chosen
+
+    @cached_property
+    def late_course_crns(self) -> frozenset[str]:
+        """CRNs whose course row in `course_by_crn` is their late addition."""
+        file_courses = self.file_course_by_crn
+        return frozenset(
+            crn
+            for crn in self.late_addition_by_crn
+            if crn not in file_courses or not file_courses[crn].total_enrollment
+        )
+
+    @cached_property
     def zero_enrollment_crns(self) -> set[str]:
         return {
             crn
@@ -294,7 +394,10 @@ class ValidationContext:
         return dict(students)
 
     def enrollment_of(self, row: ScheduleRow) -> int:
-        """Seats a row needs: the courses file's total, else the stored count."""
+        """Seats a row needs: its course row's total, else the stored count.
+
+        For a late-added exam the course row's total is the late addition's size.
+        """
         files = self.snapshot.files
         if files is not None and files.courses is not None:
             course = self.course_by_crn.get(row.crn)
@@ -332,8 +435,9 @@ class ValidationContext:
     def instructor_slot_groups(self) -> dict[str, dict[Slot, set[str]]]:
         """Instructor -> slot -> the time groups they have there.
 
-        The instructor of a CRN is the courses file's (stripped) instructor;
-        CRNs without one are ignored.
+        The instructor of a CRN is the instructor of its course row (the courses
+        file, or the late addition for a late-added exam); CRNs without one are
+        ignored.
         """
         schedule: dict[str, dict[Slot, set[str]]] = defaultdict(
             lambda: defaultdict(set)

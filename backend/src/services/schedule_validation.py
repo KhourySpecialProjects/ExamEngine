@@ -24,6 +24,7 @@ from src.domain.validation import (
     run_checks,
 )
 from src.domain.validation.catalog import Check
+from src.domain.validation.snapshot import late_additions_from_stored
 from src.repo.conflict_analyses import ConflictAnalysesRepo
 from src.repo.dataset import DatasetRepo
 from src.repo.exam_assignment import ExamAssignmentRepo
@@ -75,6 +76,7 @@ class ScheduleValidationService:
         return ValidationSnapshot(
             rows=tuple(_schedule_row(assignment) for assignment in assignments),
             parameters=RunParameters.from_stored(run.parameters),
+            late_additions=late_additions_from_stored(run.parameters),
             # A detached plain-JSON copy of the stored analysis.
             analysis=(
                 json.loads(json.dumps(analysis.conflicts))
@@ -97,6 +99,7 @@ def _schedule_row(assignment: ExamAssignments) -> ScheduleRow:
         room_capacity=room.capacity if room is not None else None,
         enrollment_count=course.enrollment_count,
         instructor=course.instructor_name,
+        course_code=course.course_subject_code,
     )
 
 

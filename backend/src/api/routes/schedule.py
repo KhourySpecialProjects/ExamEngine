@@ -5,12 +5,23 @@ from fastapi import APIRouter, Depends, HTTPException, Query, status
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
-from src.api.deps import get_current_user, get_db, get_schedule_service
-from src.core.exceptions import DatasetNotFoundError
+from src.api.deps import (
+    get_current_user,
+    get_db,
+    get_late_add_service,
+    get_schedule_service,
+)
+from src.core.exceptions import (
+    DatasetDeletedError,
+    DatasetNotFoundError,
+    StorageError,
+    ValidationError,
+)
 from src.repo.schedule import ScheduleRepo
 from src.repo.schedule_share import ScheduleShareRepo
 from src.schemas.db import Schedules, Users
 from src.services.schedule import ScheduleService
+from src.services.schedule.late_add import LateAddSearchResponse, LateAddService
 
 
 router = APIRouter(prefix="/schedule", tags=["schedule"])
@@ -196,6 +207,47 @@ async def delete_schedule(
         raise HTTPException(
             status_code=500, detail=f"Failed to delete schedule: {e}"
         ) from e
+
+
+class LateAddSearchRequest(BaseModel):
+    """Request model for a late-add block search."""
+
+    crn: str
+    course_code: str
+    instructor_id: str
+
+
+@router.post("/{schedule_id}/late-add/search", response_model=LateAddSearchResponse)
+async def search_late_add(
+    schedule_id: UUID,
+    request: LateAddSearchRequest,
+    current_user: Users = Depends(get_current_user),
+    late_add_service: LateAddService = Depends(get_late_add_service),
+):
+    """
+    Find a block and room for one exam that missed generation (read-only).
+
+    Only the schedule's owner may search; anyone else gets 404. 409 when the
+    dataset was deleted, 400 for a blank field, a CRN already in the schedule
+    or a CRN without enrollment rows.
+    """
+    try:
+        result = await late_add_service.search(
+            schedule_id,
+            current_user.user_id,
+            request.crn,
+            request.course_code,
+            request.instructor_id,
+        )
+    except DatasetDeletedError as e:
+        raise HTTPException(status_code=409, detail=str(e)) from e
+    except ValidationError as e:
+        raise HTTPException(status_code=400, detail=str(e)) from e
+    except StorageError as e:
+        raise HTTPException(status_code=500, detail=str(e)) from e
+    if result is None:
+        raise HTTPException(status_code=404, detail=f"Schedule {schedule_id} not found")
+    return result
 
 
 class ShareScheduleRequest(BaseModel):

@@ -16,7 +16,9 @@ from src.schemas.db import Users
 from src.services.auth import AuthService
 from src.services.dataset import DatasetService
 from src.services.schedule import ScheduleService
+from src.services.schedule.late_add import LateAddService
 from src.services.schedule_validation import ScheduleValidationService
+from src.services.storage import storage
 
 
 settings = get_settings()
@@ -138,6 +140,17 @@ def get_schedule_validation_service(
         ExamAssignmentRepo(db),
         ConflictAnalysesRepo(db),
         DatasetRepo(db),
+    )
+
+
+def get_late_add_service(db: Session = Depends(get_db)) -> LateAddService:
+    """Dependency injection for LateAddService."""
+    return LateAddService(
+        ScheduleRepo(db),
+        ExamAssignmentRepo(db),
+        DatasetRepo(db),
+        RoomRepo(db),
+        storage,
     )
 
 

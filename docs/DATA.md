@@ -357,6 +357,21 @@ the caller can't view, or that doesn't exist, is `{schedule_id, status: "unavail
 nothing else. Others are `status: "ok"` with name, `created_at`, `run_status`, `dataset
 {dataset_id, dataset_name, uploaded_at, deleted}`, the owner/share fields and `summary`.
 
+`POST /api/schedule/{id}/late-add/search` with `{crn, course_code, instructor_id}` finds a block
+for one exam that missed generation (see "Late add" in `ALGORITHM.md`). It is read-only. Only
+the schedule's owner may use it (anyone else gets 404); a deleted dataset is 409, since its files
+are gone; a blank field (an instructor ID of `nan`, any case, counts as blank), a CRN already in
+the schedule (placed or unscheduled), a CRN that courses.csv lists with a nonzero enrollment (a
+scheduled course, not a late add) or a CRN with no rows in enrollments.csv is 400. A courses.csv
+CRN with zero enrollment (skipped by generation) is allowed with a note. It reads the schedule,
+its run settings, the dataset's rooms and its combined and common groups from the database, and
+the courses, enrollments and room blockouts from the uploaded files, parsed unfiltered
+(`services/dataset/uploaded_files.py`, shared with the Validator). The response is
+`{schedule_id, crn, course_code, instructor_id, size, outcome, settings, candidates,
+no_room_blocks, instructor_exams, sibling_sections, notes}`; `outcome` is `clear`,
+`least_conflicts` or `no_room`, and `candidates` are ranked, each with its block, best-fit room,
+other fitting rooms, conflict counts and the students and instructor affected.
+
 ## S3 Storage Structure
 
 Datasets are stored in S3 with the following structure:

@@ -5,7 +5,6 @@ files) before streaming starts, so the stream never uses the database session.
 The stream carries check results only, never file contents.
 """
 
-import asyncio
 import json
 import logging
 import time
@@ -22,17 +21,15 @@ from src.domain.validation import (
     RunParameters,
     ScheduleRow,
     ValidationSnapshot,
-    parse_dataset_files,
     run_checks,
 )
 from src.domain.validation.catalog import Check
-from src.domain.validation.snapshot import COURSES, ENROLLMENTS, ROOM_BLOCKOUTS, ROOMS
 from src.repo.conflict_analyses import ConflictAnalysesRepo
 from src.repo.dataset import DatasetRepo
 from src.repo.exam_assignment import ExamAssignmentRepo
 from src.repo.schedule import ScheduleRepo
 from src.schemas.db import Datasets, ExamAssignments
-from src.services.dataset.service import entry_type
+from src.services.dataset.uploaded_files import load_uploaded_files
 from src.services.storage import storage
 
 
@@ -40,7 +37,6 @@ logger = logging.getLogger("examengine.validation")
 
 _DAY_INDEX = {name: index for index, name in enumerate(DAY_NAMES)}
 _BLOCK_INDEX = {label: index for index, label in BLOCK_TIMES.items()}
-_VALIDATED_FILES = (COURSES, ENROLLMENTS, ROOMS, ROOM_BLOCKOUTS)
 _LOGGED_EXAMPLES = 5
 
 
@@ -118,36 +114,9 @@ async def _load_files(
 
     None when the dataset is deleted or any needed file cannot be downloaded.
     """
-    if dataset is None or dataset.deleted_at is not None:
-        return None
-    keys = {
-        entry_type(entry): entry["storage_key"]
-        for entry in dataset.file_paths
-        if entry_type(entry) in _VALIDATED_FILES
-    }
-    try:
-        contents = await asyncio.gather(
-            *(asyncio.to_thread(storage.download_file, key) for key in keys.values())
-        )
-    except Exception:
-        logger.warning(
-            "Validation of schedule %s: downloading dataset %s files failed",
-            schedule_id,
-            dataset.dataset_id,
-            exc_info=True,
-        )
-        return None
-    downloaded = dict(zip(keys, contents, strict=True))
-    missing = sorted(file_type for file_type, data in downloaded.items() if not data)
-    if missing:
-        logger.warning(
-            "Validation of schedule %s: dataset %s files not available: %s",
-            schedule_id,
-            dataset.dataset_id,
-            ", ".join(missing),
-        )
-        return None
-    return await asyncio.to_thread(parse_dataset_files, downloaded)
+    return await load_uploaded_files(
+        dataset, storage, f"Validation of schedule {schedule_id}"
+    )
 
 
 # ----------------------------------------------------------------------

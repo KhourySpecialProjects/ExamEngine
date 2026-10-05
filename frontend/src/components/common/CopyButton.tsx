@@ -24,6 +24,10 @@ export function useCopy() {
   return { copied, copy };
 }
 
+/** Look of the small icon buttons next to IDs (copy, view exams). */
+export const ID_ICON_BUTTON_CLASS =
+  "inline-flex shrink-0 items-center justify-center rounded-sm p-0.5 opacity-60 hover:opacity-100 focus-visible:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring";
+
 /**
  * Small icon button that copies `value` exactly (IDs keep leading zeros).
  * Never lets the click reach a parent (e.g. a clickable pill).
@@ -49,10 +53,7 @@ export function CopyButton({
         e.stopPropagation();
         void copy(value);
       }}
-      className={cn(
-        "inline-flex shrink-0 items-center justify-center rounded-sm p-0.5 opacity-60 hover:opacity-100 focus-visible:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
-        className,
-      )}
+      className={cn(ID_ICON_BUTTON_CLASS, className)}
     >
       <Icon className="size-3" aria-hidden />
     </button>

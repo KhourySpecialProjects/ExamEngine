@@ -362,6 +362,35 @@ export interface LateAddSearchResult {
   notes: string[];
 }
 
+/** Whose exams `GET /schedule/{id}/person-exams` looks up: an NUId or an instructor ID. */
+export type PersonKind = "student" | "instructor";
+
+/** One of a person's exams; day/block/room are null when it is unscheduled. */
+export interface PersonExam {
+  crn: string;
+  course_code: string;
+  /** Day index, Monday = 0. */
+  day: number | null;
+  day_name: string | null;
+  /** Block index, 0-based. */
+  block: number | null;
+  block_time: string | null;
+  /** Null when the exam has no room (unscheduled, or no room was free). */
+  room: string | null;
+}
+
+/** `GET /schedule/{id}/person-exams`. */
+export interface PersonExamsResult {
+  kind: PersonKind;
+  person_id: string;
+  /** By day and block, then unscheduled exams. Empty when the ID has none. */
+  exams: PersonExam[];
+  /** The schedule's exam days, Monday first. */
+  days: string[];
+  /** The schedule's blocks per day, earliest first. */
+  block_times: string[];
+}
+
 export interface ScheduleResult {
   schedule_id: string;
   dataset_id: string;
@@ -617,6 +646,18 @@ export class SchedulesAPI extends BaseAPI {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(body),
+    });
+  }
+
+  /** One student's or instructor's exams in a schedule. Owner or share recipient. */
+  async personExams(
+    scheduleId: string,
+    kind: PersonKind,
+    personId: string,
+  ): Promise<PersonExamsResult> {
+    const query = new URLSearchParams({ kind, person_id: personId });
+    return this.request(`/schedule/${scheduleId}/person-exams?${query}`, {
+      method: "GET",
     });
   }
 }

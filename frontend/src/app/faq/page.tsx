@@ -37,6 +37,11 @@ const faqs = [
       "Pick a block (and room), name the new schedule, and choose Save as new schedule. The schedule you started from is never changed: the save creates a new version with all of its exams plus the late one, and opens it. A block with conflicts can only be saved after you tick the box that lists them. Versions chain, so a late add on that new version makes a third one with both late exams. The schedule page shows which schedule a version is a late add to, the original it started from, and a table of every late-added exam; those exams are marked Late add in the List and calendar views, and the schedules list shows Late add in the Algorithm column. If the schedule already has a newer version, Late Add warns you and links to it: a new version made from the older one won't include the newer one's late adds.",
   },
   {
+    question: "How do I see one student's or instructor's exams?",
+    answer:
+      "Next to a student NUId or instructor ID (in the Conflicts tab, a course's conflict details, the List view's Instructor column, the late additions table and Late Add results), the calendar icon opens that person's exams in the schedule: a short list, then the exam week with each exam's CRN, course and room. Two exams in the same block show in red. Opened from Late Add results, the exam being added is shown dashed in the block you're looking at. Anyone who can view the schedule can use it.",
+  },
+  {
     question: "What if conflicts remain?",
     answer:
       "Conflicts are surfaced in the Conflicts and Statistics views, as well as the density and list views. Exams that couldn't be scheduled are listed with a reason. Adjust parameters or your input files and regenerate. We never silently drop exams.",

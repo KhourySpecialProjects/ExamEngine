@@ -10,6 +10,7 @@ import {
 } from "lucide-react";
 import { useState } from "react";
 import { CopyButton } from "@/components/common/CopyButton";
+import { PersonIdActions } from "@/components/person-exams/PersonIdActions";
 import {
   Select,
   SelectContent,
@@ -23,6 +24,8 @@ import type {
   LateAddExam,
   LateAddRoom,
   LateAddSearchResult,
+  PersonExam,
+  PersonKind,
 } from "@/lib/api/schedules";
 import { cn } from "@/lib/utils";
 
@@ -71,6 +74,7 @@ function slotText(exam: LateAddExam): string {
 
 interface Person {
   id: string;
+  kind: PersonKind;
   detail: string;
 }
 
@@ -99,6 +103,7 @@ function conflictItems(
       hard: true,
       people: students.double_book.map((s) => ({
         id: s.student_id,
+        kind: "student",
         detail: `also in CRN ${s.crns.join(", ")}`,
       })),
     },
@@ -110,6 +115,7 @@ function conflictItems(
       hard: true,
       people: students.over_daily_limit.map((s) => ({
         id: s.student_id,
+        kind: "student",
         detail: `${plural(s.exams, "exam")} that day`,
       })),
     },
@@ -122,6 +128,7 @@ function conflictItems(
       people: [
         {
           id: instructorId,
+          kind: "instructor",
           detail: `also teaches CRN ${instructor.double_book_crns.join(", ")}`,
         },
       ],
@@ -135,6 +142,7 @@ function conflictItems(
       people: [
         {
           id: instructorId,
+          kind: "instructor",
           detail: `${plural(instructor.exams_that_day, "exam")} that day`,
         },
       ],
@@ -147,6 +155,7 @@ function conflictItems(
       hard: false,
       people: students.back_to_back.map((s) => ({
         id: s.student_id,
+        kind: "student",
         detail: s.block_times.join(", "),
       })),
     },
@@ -157,7 +166,11 @@ function conflictItems(
       countsStudents: false,
       hard: false,
       people: [
-        { id: instructorId, detail: instructor.day_block_times.join(", ") },
+        {
+          id: instructorId,
+          kind: "instructor",
+          detail: instructor.day_block_times.join(", "),
+        },
       ],
     },
     {
@@ -241,6 +254,7 @@ export function LateAddResults({
         <ol className="space-y-2" aria-label="Blocks, best first">
           {result.candidates.map((candidate, index) => {
             const slot = slotKey(candidate);
+            const room = rooms[slot] ?? candidate.room.name;
             return (
               <CandidateRow
                 key={slot}
@@ -249,7 +263,17 @@ export function LateAddResults({
                 items={conflictItems(candidate, result.instructor_id)}
                 warning={result.outcome === "least_conflicts"}
                 selected={selectedSlot === slot}
-                room={rooms[slot] ?? candidate.room.name}
+                room={room}
+                scheduleId={result.schedule_id}
+                proposed={{
+                  crn: result.crn,
+                  course_code: result.course_code,
+                  day: candidate.day,
+                  day_name: candidate.day_name,
+                  block: candidate.block,
+                  block_time: candidate.block_time,
+                  room,
+                }}
                 onSelect={() => onSelect(slot)}
                 onRoomChange={(room) => {
                   onRoomChange(slot, room);
@@ -291,6 +315,8 @@ function CandidateRow({
   warning,
   selected,
   room,
+  scheduleId,
+  proposed,
   onSelect,
   onRoomChange,
 }: {
@@ -300,6 +326,9 @@ function CandidateRow({
   warning: boolean;
   selected: boolean;
   room: string;
+  scheduleId: string;
+  /** The late exam in this block, for the people's exam views. */
+  proposed: PersonExam;
   onSelect: () => void;
   onRoomChange: (room: string) => void;
 }) {
@@ -337,7 +366,13 @@ function CandidateRow({
       ) : (
         <ul className="space-y-1">
           {items.map((item) => (
-            <ConflictRow key={item.key} item={item} warning={warning} />
+            <ConflictRow
+              key={item.key}
+              item={item}
+              warning={warning}
+              scheduleId={scheduleId}
+              proposed={proposed}
+            />
           ))}
         </ul>
       )}
@@ -384,9 +419,13 @@ function RoomPicker({
 function ConflictRow({
   item,
   warning,
+  scheduleId,
+  proposed,
 }: {
   item: ConflictItem;
   warning: boolean;
+  scheduleId: string;
+  proposed: PersonExam;
 }) {
   const [open, setOpen] = useState(false);
   const text = item.countsStudents
@@ -425,7 +464,12 @@ function ConflictRow({
             {item.people.map((person) => (
               <li key={person.id} className="flex items-center gap-1.5">
                 <span className="font-mono">{person.id}</span>
-                <CopyButton value={person.id} label={`Copy ${person.id}`} />
+                <PersonIdActions
+                  id={person.id}
+                  kind={person.kind}
+                  scheduleId={scheduleId}
+                  proposed={proposed}
+                />
                 <span className="text-muted-foreground">{person.detail}</span>
               </li>
             ))}

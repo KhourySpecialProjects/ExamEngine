@@ -149,6 +149,7 @@ function ScheduleDetailPage({ scheduleId }: { scheduleId: string }) {
               scheduleId={scheduleId}
               scheduleName={schedule.schedule_name}
               datasetDeleted={schedule.dataset_deleted}
+              newerVersions={schedule.lineage?.newer_versions}
             />
           )}
           <Button

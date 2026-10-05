@@ -2,6 +2,7 @@ import { type ColumnDef, createColumnHelper } from "@tanstack/react-table";
 import { Eye, MoreHorizontal, Trash2 } from "lucide-react";
 import Link from "next/link";
 import { SortableHeader } from "@/components/common/table/SortableHeader";
+import { LateAddBadge } from "@/components/schedule/LateAddBadge";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -13,7 +14,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import type { ScheduleListItem } from "@/lib/api/schedules";
+import { LATE_ADD_ALGORITHM, type ScheduleListItem } from "@/lib/api/schedules";
 import { cn } from "@/lib/utils";
 
 const columnHelper = createColumnHelper<ScheduleListItem>();
@@ -173,11 +174,25 @@ export function createScheduleColumns(
       header: ({ column }) => (
         <SortableHeader column={column} label="Algorithm" />
       ),
-      cell: (info) => (
-        <Badge variant="outline" className="font-mono">
-          {info.getValue()}
-        </Badge>
-      ),
+      cell: (info) => {
+        const { algorithm, late_add_count, based_on_name } = info.row.original;
+        if (algorithm === LATE_ADD_ALGORITHM || late_add_count > 0) {
+          return (
+            <LateAddBadge
+              title={
+                based_on_name
+                  ? `Based on ${based_on_name}`
+                  : "Based on a schedule that is not available"
+              }
+            />
+          );
+        }
+        return (
+          <Badge variant="outline" className="font-mono">
+            {algorithm}
+          </Badge>
+        );
+      },
     }),
 
     columnHelper.accessor("status", {

@@ -150,4 +150,35 @@ describe("ScheduleListView", () => {
     expect(names()).toEqual(["Fall run"]);
     expect(screen.getAllByText("Page 1 of 1")).toHaveLength(2);
   });
+
+  it("shows Late add with the base's name instead of the algorithm for late-add versions", () => {
+    render(
+      <ScheduleListView
+        schedules={[
+          schedule("Base", "2026-01-01T09:00:00"),
+          {
+            ...schedule("V2", "2026-01-02T09:00:00"),
+            algorithm: "Late add",
+            late_add_count: 1,
+            based_on_name: "Base",
+          },
+          {
+            ...schedule("V3", "2026-01-03T09:00:00"),
+            algorithm: "Late add",
+            late_add_count: 2,
+            based_on_name: null,
+          },
+        ]}
+      />,
+    );
+    const row = (name: string) =>
+      screen.getByRole("link", { name }).closest("tr") as HTMLElement;
+
+    expect(within(row("V2")).getByText("Late add").title).toBe("Based on Base");
+    expect(within(row("V3")).getByText("Late add").title).toBe(
+      "Based on a schedule that is not available",
+    );
+    expect(within(row("Base")).getByText("DSATUR")).toBeTruthy();
+    expect(within(row("Base")).queryByText("Late add")).toBeNull();
+  });
 });

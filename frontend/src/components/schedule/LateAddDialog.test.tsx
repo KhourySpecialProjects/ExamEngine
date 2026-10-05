@@ -1,19 +1,36 @@
-import { act, fireEvent, render, screen, within } from "@testing-library/react";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import {
+  act,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+  within,
+} from "@testing-library/react";
+import { beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import type {
   LateAddCandidate,
   LateAddExam,
   LateAddSearchResult,
+  ScheduleLineage,
+  ScheduleListItem,
 } from "@/lib/api/schedules";
+import { useSchedulesStore } from "@/lib/store/schedulesStore";
+import { makeLateAddition, makeSchedule } from "@/test/summary";
 import { LateAddDialog } from "./LateAddDialog";
 
 vi.mock("@/lib/api/client", () => ({
-  apiClient: { schedules: { lateAddSearch: vi.fn() } },
+  apiClient: { schedules: { lateAddSearch: vi.fn(), lateAddSave: vi.fn() } },
 }));
+
+const push = vi.fn();
+vi.mock("next/navigation", () => ({ useRouter: () => ({ push }) }));
+
+vi.mock("sonner", () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
 
 import { apiClient } from "@/lib/api/client";
 
 const lateAddSearch = vi.mocked(apiClient.schedules.lateAddSearch);
+const lateAddSave = vi.mocked(apiClient.schedules.lateAddSave);
 
 const TIMES = ["9AM-11AM", "11:30AM-1:30PM", "2PM-4PM", "4:30PM-6:30PM"];
 const DAYS = ["Monday", "Tuesday", "Wednesday"];
@@ -49,6 +66,7 @@ function candidate(
       over_daily_limit: false,
       back_to_back: false,
       day_blocks: [],
+      day_block_times: [],
     },
     large_course_late: false,
     ...extra,
@@ -92,8 +110,17 @@ function result(extra: Partial<LateAddSearchResult>): LateAddSearchResult {
   };
 }
 
-function openDialog() {
-  render(<LateAddDialog scheduleId="s1" scheduleName="Fall" />);
+function openDialog(
+  newerVersions: ScheduleLineage["newer_versions"] = [],
+  scheduleName = "Fall",
+) {
+  render(
+    <LateAddDialog
+      scheduleId="s1"
+      scheduleName={scheduleName}
+      newerVersions={newerVersions}
+    />,
+  );
   fireEvent.click(screen.getByRole("button", { name: "Late Add" }));
 }
 
@@ -107,9 +134,12 @@ function fillForm(crn = "90001", course = "CS 1000", instructor = "I-1") {
   });
 }
 
-async function search(found: LateAddSearchResult) {
+async function search(
+  found: LateAddSearchResult,
+  newerVersions: ScheduleLineage["newer_versions"] = [],
+) {
   lateAddSearch.mockResolvedValue(found);
-  openDialog();
+  openDialog(newerVersions);
   fillForm();
   fireEvent.click(screen.getByRole("button", { name: "Find blocks" }));
   await screen.findByRole("heading", { level: 3 });
@@ -124,7 +154,9 @@ describe("LateAddDialog", () => {
   });
 
   it("is disabled with the reason when the dataset was deleted", () => {
-    render(<LateAddDialog scheduleId="s1" datasetDeleted />);
+    render(
+      <LateAddDialog scheduleId="s1" scheduleName="Fall" datasetDeleted />,
+    );
 
     const button = screen.getByRole("button", { name: "Late Add" });
     expect(button).toHaveProperty("disabled", true);
@@ -217,7 +249,13 @@ describe("LateAddDialog", () => {
                 { student_id: "00034", crns: ["300", "301"] },
               ],
               over_daily_limit: [],
-              back_to_back: [{ student_id: "00056", blocks: [0, 1] }],
+              back_to_back: [
+                {
+                  student_id: "00056",
+                  blocks: [0, 1],
+                  block_times: [TIMES[0], TIMES[1]],
+                },
+              ],
             },
             large_course_late: true,
           }),
@@ -273,8 +311,8 @@ describe("LateAddDialog", () => {
               exams_that_day: 3,
               over_daily_limit: true,
               back_to_back: true,
-              // Block 2 is named nowhere in the response.
               day_blocks: [1, 2],
+              day_block_times: [TIMES[1], TIMES[2]],
             },
           }),
         ],
@@ -315,7 +353,7 @@ describe("LateAddDialog", () => {
     fireEvent.click(
       within(row).getByRole("button", { name: "Instructor back-to-back" }),
     );
-    expect(within(row).getByText("11:30AM-1:30PM, block 3")).toBeTruthy();
+    expect(within(row).getByText("11:30AM-1:30PM, 2PM-4PM")).toBeTruthy();
     // One person: no "Copy all".
     expect(within(row).queryByText("Copy all")).toBeNull();
     expect(
@@ -450,5 +488,260 @@ describe("LateAddDialog", () => {
       "disabled",
       true,
     );
+  });
+});
+
+beforeAll(() => {
+  // The confirmation checkbox (Radix) measures itself.
+  global.ResizeObserver = class {
+    observe() {}
+    unobserve() {}
+    disconnect() {}
+  };
+});
+
+const BASE_ITEM: ScheduleListItem = {
+  schedule_id: "s1",
+  schedule_name: "Fall",
+  created_at: "2026-01-02T10:00:00",
+  algorithm: "DSATUR",
+  parameters: {},
+  status: "Completed",
+  dataset_id: "d1",
+  dataset: {
+    name: "Spring data",
+    uploaded_at: "2026-01-01T08:00:00",
+    deleted: false,
+    courses: 120,
+    students: 900,
+    rooms: 30,
+  },
+  total_exams: 10,
+  late_add_count: 0,
+  based_on_name: null,
+};
+
+const SAVED = makeSchedule({
+  schedule_id: "s2",
+  schedule_name: "Fall v2",
+  algorithm: "Late add",
+  schedule: { complete: [], calendar: {}, total_exams: 11 },
+  lineage: {
+    based_on: { id: "s1", name: "Fall", available: true },
+    original: { id: "s1", name: "Fall", available: true },
+    late_additions: [makeLateAddition()],
+    newer_versions: [],
+  },
+});
+
+const saveButton = () =>
+  screen.getByRole("button", { name: "Save as new schedule" });
+
+describe("LateAddDialog save step", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    useSchedulesStore.setState({
+      schedules: [BASE_ITEM],
+      currentSchedule: null,
+    });
+  });
+
+  it("saves the chosen block, room and name, opens the new schedule and lists it", async () => {
+    // Radix Select calls these DOM APIs, which jsdom lacks.
+    Element.prototype.hasPointerCapture ??= () => false;
+    Element.prototype.scrollIntoView ??= () => {};
+    await search(
+      result({
+        candidates: [
+          candidate(0, 0),
+          candidate(1, 2, {
+            other_rooms: [{ name: "Big Hall", capacity: 80 }],
+          }),
+        ],
+      }),
+    );
+    const name = screen.getByLabelText("New schedule name");
+    expect(name).toHaveProperty("value", "Fall + 90001");
+    // Clear placements need no confirmation.
+    expect(screen.queryByRole("checkbox")).toBeNull();
+
+    const picker = screen.getByRole("combobox", {
+      name: "Room for Tuesday 2PM-4PM",
+    });
+    fireEvent.keyDown(picker, { key: "Enter" });
+    fireEvent.keyDown(
+      screen.getByRole("option", { name: "Big Hall (capacity 80)" }),
+      { key: "Enter" },
+    );
+    fireEvent.change(name, { target: { value: "  Fall v2 " } });
+
+    lateAddSave.mockResolvedValue(SAVED);
+    fireEvent.click(saveButton());
+
+    await waitFor(() => expect(push).toHaveBeenCalledWith("/dashboard/s2"));
+    expect(lateAddSave).toHaveBeenCalledWith("s1", {
+      crn: "90001",
+      course_code: "CS 1000",
+      instructor_id: "I-1",
+      day: 1,
+      block: 2,
+      room: "Big Hall",
+      schedule_name: "Fall v2",
+      accept_conflicts: false,
+    });
+    expect(screen.queryByRole("dialog")).toBeNull();
+
+    const [listed, base] = useSchedulesStore.getState().schedules;
+    expect(base.schedule_id).toBe("s1");
+    expect(listed).toMatchObject({
+      schedule_id: "s2",
+      schedule_name: "Fall v2",
+      algorithm: "Late add",
+      total_exams: 11,
+      late_add_count: 1,
+      based_on_name: "Fall",
+      // Same dataset as the base: its counts carry over.
+      dataset: BASE_ITEM.dataset,
+    });
+  });
+
+  it("keeps the CRN in the default name when the base name is long", async () => {
+    lateAddSearch.mockResolvedValue(result({ candidates: [candidate(0, 0)] }));
+    openDialog([], "A".repeat(48));
+    fillForm();
+    fireEvent.click(screen.getByRole("button", { name: "Find blocks" }));
+    await screen.findByRole("heading", { level: 3 });
+
+    expect(screen.getByLabelText("New schedule name")).toHaveProperty(
+      "value",
+      `${"A".repeat(42)} + 90001`,
+    );
+  });
+
+  it("needs the conflicts confirmed for the chosen least-conflicts block", async () => {
+    await search(
+      result({
+        outcome: "least_conflicts",
+        candidates: [
+          candidate(0, 1, {
+            clear: false,
+            conflicts: { ...NO_CONFLICTS, student_double_book: 2 },
+          }),
+          candidate(0, 2, {
+            clear: false,
+            conflicts: {
+              ...NO_CONFLICTS,
+              instructor_double_book: 1,
+              back_to_back_students: 1,
+            },
+          }),
+        ],
+      }),
+    );
+    expect(saveButton()).toHaveProperty("disabled", true);
+
+    fireEvent.click(
+      screen.getByRole("checkbox", {
+        name: "Save with these conflicts: 2 students double-booked",
+      }),
+    );
+    expect(saveButton()).toHaveProperty("disabled", false);
+
+    // Another block has other conflicts: confirm again.
+    fireEvent.click(screen.getAllByRole("radio")[1]);
+    const confirm = screen.getByRole("checkbox", {
+      name: "Save with these conflicts: instructor double-booked, 1 student back-to-back",
+    });
+    expect(confirm.getAttribute("aria-checked")).toBe("false");
+    expect(saveButton()).toHaveProperty("disabled", true);
+
+    fireEvent.click(confirm);
+    lateAddSave.mockResolvedValue(SAVED);
+    fireEvent.click(saveButton());
+
+    await waitFor(() => expect(push).toHaveBeenCalledWith("/dashboard/s2"));
+    expect(lateAddSave).toHaveBeenCalledWith(
+      "s1",
+      expect.objectContaining({ day: 0, block: 2, accept_conflicts: true }),
+    );
+  });
+
+  it("shows a save error inline and stays open", async () => {
+    await search(result({ candidates: [candidate(0, 0)] }));
+    lateAddSave.mockRejectedValueOnce(
+      new Error("Schedule name 'Fall + 90001' already exists"),
+    );
+    fireEvent.click(saveButton());
+
+    expect((await screen.findByRole("alert")).textContent).toBe(
+      "Schedule name 'Fall + 90001' already exists",
+    );
+    expect(push).not.toHaveBeenCalled();
+    expect(screen.getByRole("dialog")).toBeTruthy();
+    expect(saveButton()).toHaveProperty("disabled", false);
+    expect(useSchedulesStore.getState().schedules).toEqual([BASE_ITEM]);
+  });
+
+  it("clears a save error when another block or room is chosen", async () => {
+    // Radix Select calls these DOM APIs, which jsdom lacks.
+    Element.prototype.hasPointerCapture ??= () => false;
+    Element.prototype.scrollIntoView ??= () => {};
+    await search(
+      result({
+        candidates: [
+          candidate(0, 0, {
+            other_rooms: [{ name: "Big Hall", capacity: 80 }],
+          }),
+          candidate(1, 1),
+        ],
+      }),
+    );
+    const fail = async () => {
+      lateAddSave.mockRejectedValueOnce(new Error("Save failed"));
+      fireEvent.click(saveButton());
+      expect((await screen.findByRole("alert")).textContent).toBe(
+        "Save failed",
+      );
+    };
+
+    await fail();
+    fireEvent.click(screen.getAllByRole("radio")[1]);
+    expect(screen.queryByRole("alert")).toBeNull();
+    // Back to the first block: the old error stays gone.
+    fireEvent.click(screen.getAllByRole("radio")[0]);
+    expect(screen.queryByRole("alert")).toBeNull();
+
+    await fail();
+    const picker = screen.getByRole("combobox", {
+      name: "Room for Monday 9AM-11AM",
+    });
+    fireEvent.keyDown(picker, { key: "Enter" });
+    fireEvent.keyDown(
+      screen.getByRole("option", { name: "Big Hall (capacity 80)" }),
+      { key: "Enter" },
+    );
+    expect(screen.queryByRole("alert")).toBeNull();
+  });
+
+  it("warns about newer versions with links but still allows saving", async () => {
+    await search(result({ candidates: [candidate(0, 0)] }), [
+      { id: "s3", name: "Fall + 7", created_at: "2026-01-05T10:00:00" },
+      { id: "s4", name: "Fall + 8", created_at: "2026-01-04T10:00:00" },
+    ]);
+
+    expect(screen.getByText(/already has newer versions/).textContent).toBe(
+      "This schedule already has newer versions: Fall + 7, Fall + 8. The new schedule won't include their late adds.",
+    );
+    expect(
+      screen.getByRole("link", { name: "Fall + 8" }).getAttribute("href"),
+    ).toBe("/dashboard/s4");
+    expect(saveButton()).toHaveProperty("disabled", false);
+  });
+
+  it("has no save step when no block has a room", async () => {
+    await search(result({ outcome: "no_room" }));
+    expect(
+      screen.queryByRole("button", { name: "Save as new schedule" }),
+    ).toBeNull();
   });
 });

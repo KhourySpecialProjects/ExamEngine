@@ -32,6 +32,11 @@ const faqs = [
       "Yes. The schedule's owner can open it and use Late Add. Enter the CRN, course code, and instructor ID, then Find blocks. The CRN must be in the enrollment file but not already in the schedule. No scheduled exam moves: the exam only goes in rooms that are free and not blocked out. Blocks with no student or instructor conflict are listed first; if there are none, blocks are ranked by fewest conflicts, and each conflict expands to the students or instructor involved. Searching never changes the schedule. Late Add is unavailable when the schedule's dataset was deleted.",
   },
   {
+    question: "How do I save a late add, and what happens to the original?",
+    answer:
+      "Pick a block (and room), name the new schedule, and choose Save as new schedule. The schedule you started from is never changed: the save creates a new version with all of its exams plus the late one, and opens it. A block with conflicts can only be saved after you tick the box that lists them. Versions chain, so a late add on that new version makes a third one with both late exams. The schedule page shows which schedule a version is a late add to, the original it started from, and a table of every late-added exam; those exams are marked Late add in the List and calendar views, and the schedules list shows Late add in the Algorithm column. If the schedule already has a newer version, Late Add warns you and links to it: a new version made from the older one won't include the newer one's late adds.",
+  },
+  {
     question: "What if conflicts remain?",
     answer:
       "Conflicts are surfaced in the Conflicts and Statistics views, as well as the density and list views. Exams that couldn't be scheduled are listed with a reason. Adjust parameters or your input files and regenerate. We never silently drop exams.",

@@ -1,4 +1,9 @@
-import type { ScheduleSettings, ScheduleSummary } from "@/lib/api/schedules";
+import type {
+  LateAddition,
+  ScheduleResult,
+  ScheduleSettings,
+  ScheduleSummary,
+} from "@/lib/api/schedules";
 
 /** A Classic run's settings as the server reports them. */
 export const CLASSIC_SETTINGS: ScheduleSettings = {
@@ -58,6 +63,69 @@ export function makeSummary(
       common: { groups: 0, sections: 0, students: 0 },
     },
     blockouts: { rooms: 0, slots: 0 },
+    ...overrides,
+  };
+}
+
+/** A generated schedule's detail response with no exams; override what a test needs. */
+export function makeSchedule(
+  overrides: Partial<ScheduleResult> = {},
+): ScheduleResult {
+  return {
+    schedule_id: "s1",
+    dataset_id: "d1",
+    dataset_name: "Spring data",
+    schedule_name: "Fall",
+    created_at: "2026-01-02T10:00:00",
+    algorithm: "DSATUR",
+    status: "Completed",
+    summary: makeSummary(),
+    conflicts: { total: 0, breakdown: [], details: {} },
+    failures: [],
+    schedule: { complete: [], calendar: {}, total_exams: 0 },
+    parameters: {},
+    is_owner: true,
+    is_shared: false,
+    created_by_user_id: "u1",
+    created_by_user_name: "Ada",
+    lineage: {
+      based_on: null,
+      original: null,
+      late_additions: [],
+      newer_versions: [],
+    },
+    ...overrides,
+  };
+}
+
+/** One stored late addition: clear, Monday first block. */
+export function makeLateAddition(
+  overrides: Partial<LateAddition> = {},
+): LateAddition {
+  return {
+    crn: "90001",
+    course_code: "CS 1000",
+    instructor_id: "I-1",
+    size: 30,
+    day: 0,
+    day_name: "Monday",
+    block: 0,
+    block_time: "9AM-11AM",
+    room: "Hall A",
+    outcome: "clear",
+    conflicts: {
+      student_double_book: 0,
+      student_over_daily_limit: 0,
+      instructor_double_book: 0,
+      instructor_over_daily_limit: 0,
+      back_to_back_students: 0,
+      back_to_back_instructor: 0,
+      large_course_late: 0,
+    },
+    added_by: "u1",
+    added_by_name: "Ada",
+    added_at: "2026-01-03T09:30:00",
+    schedule_id: "s2",
     ...overrides,
   };
 }

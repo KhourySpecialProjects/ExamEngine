@@ -1,5 +1,5 @@
-import { render, screen, fireEvent } from "@testing-library/react";
-import { describe, it, expect, vi } from "vitest";
+import { fireEvent, render, screen } from "@testing-library/react";
+import { describe, expect, it, vi } from "vitest";
 
 import { ExamCard } from "./ExamCard";
 
@@ -68,9 +68,19 @@ describe("ExamCard", () => {
   });
 
   it("adds interactive styling when onClick is provided", () => {
-    const { container } = render(<ExamCard exam={examBase} onClick={() => {}} />);
+    const { container } = render(
+      <ExamCard exam={examBase} onClick={() => {}} />,
+    );
 
     const card = container.querySelector(".cursor-pointer");
     expect(card).toBeDefined();
+  });
+
+  it("marks a late-added exam only", () => {
+    const { rerender } = render(<ExamCard exam={examBase} />);
+    expect(screen.queryByText("Late add")).toBeNull();
+
+    rerender(<ExamCard exam={{ ...examBase, isLateAdd: true }} />);
+    expect(screen.getByText("Late add")).toBeTruthy();
   });
 });

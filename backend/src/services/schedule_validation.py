@@ -30,7 +30,7 @@ from src.repo.dataset import DatasetRepo
 from src.repo.exam_assignment import ExamAssignmentRepo
 from src.repo.schedule import ScheduleRepo
 from src.schemas.db import Datasets, ExamAssignments
-from src.services.dataset.uploaded_files import load_uploaded_files
+from src.services.dataset.uploaded_files import load_uploaded_files, stored_groups
 from src.services.storage import storage
 
 
@@ -83,8 +83,10 @@ class ScheduleValidationService:
                 if analysis is not None
                 else None
             ),
-            combined_groups=_groups(dataset.course_merges if dataset else None),
-            common_groups=_groups(dataset.common_exam_groups if dataset else None),
+            combined_groups=stored_groups(dataset.course_merges if dataset else None),
+            common_groups=stored_groups(
+                dataset.common_exam_groups if dataset else None
+            ),
             files=await _load_files(dataset, schedule_id),
         )
 
@@ -101,13 +103,6 @@ def _schedule_row(assignment: ExamAssignments) -> ScheduleRow:
         instructor=course.instructor_name,
         course_code=course.course_subject_code,
     )
-
-
-def _groups(groups: Mapping[str, list[str]] | None) -> dict[str, tuple[str, ...]]:
-    return {
-        str(label): tuple(str(crn) for crn in crns)
-        for label, crns in (groups or {}).items()
-    }
 
 
 async def _load_files(

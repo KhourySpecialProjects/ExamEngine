@@ -27,6 +27,11 @@ const faqs = [
       "Yes. The schedule's owner can open it from the dashboard and use Share to give teammates view-only access. Shared schedules keep the same parameters and conflict summaries.",
   },
   {
+    question: "Can I add an exam that missed generation?",
+    answer:
+      "Yes. The schedule's owner can open it and use Late Add. Enter the CRN, course code, and instructor ID, then Find blocks. The CRN must be in the enrollment file but not already in the schedule. No scheduled exam moves: the exam only goes in rooms that are free and not blocked out. Blocks with no student or instructor conflict are listed first; if there are none, blocks are ranked by fewest conflicts, and each conflict expands to the students or instructor involved. Searching never changes the schedule. Late Add is unavailable when the schedule's dataset was deleted.",
+  },
+  {
     question: "What if conflicts remain?",
     answer:
       "Conflicts are surfaced in the Conflicts and Statistics views, as well as the density and list views. Exams that couldn't be scheduled are listed with a reason. Adjust parameters or your input files and regenerate. We never silently drop exams.",

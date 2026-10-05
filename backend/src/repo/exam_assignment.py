@@ -27,6 +27,14 @@ class ExamAssignmentRepo(BaseRepo[ExamAssignments]):
         Returns:
             List of created ExamAssignment objects
         """
+        exam_objs = self.add_all(schedule_id, assignments)
+        self.db.commit()
+        return exam_objs
+
+    def add_all(
+        self, schedule_id: UUID, assignments: list[dict]
+    ) -> list[ExamAssignments]:
+        """`bulk_create` without the commit; the caller commits."""
         exam_objs = [
             ExamAssignments(
                 schedule_id=schedule_id,
@@ -36,10 +44,7 @@ class ExamAssignmentRepo(BaseRepo[ExamAssignments]):
             )
             for assignment in assignments
         ]
-
         self.db.bulk_save_objects(exam_objs, return_defaults=True)
-        self.db.commit()
-
         return exam_objs
 
     def get_all_for_schedule(self, schedule_id: UUID) -> list[ExamAssignments]:

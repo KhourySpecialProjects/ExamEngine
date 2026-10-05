@@ -18,10 +18,12 @@ from collections import defaultdict
 import pandas as pd
 import pytest
 
+from src.domain.constants import EARLY_WEEK_CUTOFF, LARGE_COURSE_THRESHOLD
 from src.domain.factories.dataset_factory import DatasetFactory
-from src.domain.models import SchedulingDataset
+from src.domain.models import Course, SchedulingDataset
 from src.domain.services.schedule_analyzer import ScheduleAnalyzer
 from src.domain.services.scheduler import Scheduler, ScheduleResult
+from src.domain.value_objects import Conflict
 
 
 # ---------------------------------------------------------------------------
@@ -539,6 +541,82 @@ class TestScheduleAnalyzerIntegration:
         result = Scheduler(dataset=instructor_conflict_dataset, max_days=7).schedule()
         analysis = ScheduleAnalyzer(instructor_conflict_dataset).analyze(result)
         assert analysis.hard_conflicts.instructor_double_book == []
+
+    @staticmethod
+    def _sized_dataset(sizes: dict[str, tuple[str, int]]) -> SchedulingDataset:
+        """Dataset of CRN -> (course code, enrollment); no students or rooms."""
+        return SchedulingDataset(
+            courses={
+                crn: Course(
+                    crn=crn,
+                    course_code=code,
+                    enrollment_count=size,
+                    department="CS",
+                    examination_term="202510",
+                )
+                for crn, (code, size) in sizes.items()
+            },
+            students={},
+            rooms=[],
+            students_by_crn={},
+            instructors_by_crn={},
+        )
+
+    def test_large_course_after_early_days_is_reported_with_code_and_size(self):
+        """Sizes come from the dataset, whichever engine produced the result."""
+        big = LARGE_COURSE_THRESHOLD
+        dataset = self._sized_dataset(
+            {
+                "LATE": ("CS 1800", big),
+                "EARLY": ("CS 2500", big),
+                "SMALL": ("CS 4535", big - 1),
+            }
+        )
+        result = ScheduleResult(
+            assignments={
+                "LATE": (EARLY_WEEK_CUTOFF, 0),
+                "EARLY": (EARLY_WEEK_CUTOFF - 1, 0),
+                "SMALL": (EARLY_WEEK_CUTOFF, 1),
+            },
+            room_assignments={},
+            conflicts=[],
+            colors={},
+        )
+
+        analysis = ScheduleAnalyzer(dataset).analyze(result)
+
+        late = analysis.soft_conflicts.large_courses_not_early
+        assert [(e["crn"], e["course"], e["size"]) for e in late] == [
+            ("LATE", "CS 1800", big)
+        ]
+        stats = analysis.to_dict()["statistics"]
+        assert stats["large_courses_not_early_count"] == 1
+
+    def test_hard_conflict_records_carry_both_course_codes(self):
+        dataset = self._sized_dataset({"A1": ("CS 101", 5), "A2": ("CS 102", 5)})
+        result = ScheduleResult(
+            assignments={"A1": (0, 0), "A2": (0, 0)},
+            room_assignments={},
+            conflicts=[
+                Conflict(
+                    conflict_type="student_double_book",
+                    entity_id="S1",
+                    crn="A2",
+                    conflicting_crn="A1",
+                    day=0,
+                    block=0,
+                )
+            ],
+            colors={},
+        )
+
+        entry = (
+            ScheduleAnalyzer(dataset).analyze(result).hard_conflicts.student_double_book
+        )
+
+        assert [(e["course"], e["conflicting_course"]) for e in entry] == [
+            ("CS 102", "CS 101")
+        ]
 
 
 # ---------------------------------------------------------------------------

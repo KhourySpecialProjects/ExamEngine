@@ -5,12 +5,24 @@ from fastapi import APIRouter, Depends, HTTPException, Query, status
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
-from src.api.deps import get_current_user, get_db, get_schedule_service
-from src.core.exceptions import DatasetNotFoundError
+from src.api.deps import (
+    get_current_user,
+    get_db,
+    get_late_add_service,
+    get_schedule_service,
+)
+from src.core.exceptions import (
+    DatasetDeletedError,
+    DatasetNotFoundError,
+    PlacementConflictError,
+    StorageError,
+    ValidationError,
+)
 from src.repo.schedule import ScheduleRepo
 from src.repo.schedule_share import ScheduleShareRepo
 from src.schemas.db import Schedules, Users
 from src.services.schedule import ScheduleService
+from src.services.schedule.late_add import LateAddSearchResponse, LateAddService
 
 
 router = APIRouter(prefix="/schedule", tags=["schedule"])
@@ -120,6 +132,31 @@ async def get_shared_schedules(
     return result
 
 
+MAX_COMPARED_SCHEDULES = 4
+
+
+@router.get("/compare")
+async def compare_schedules(
+    ids: list[UUID] = Query(..., description="1 to 4 schedule IDs, in column order"),
+    current_user: Users = Depends(get_current_user),
+    schedule_service: ScheduleService = Depends(get_schedule_service),
+):
+    """
+    Summaries of 1–4 schedules for the compare page, in the requested order.
+
+    One ID is allowed so the page can name the schedule left after the others
+    were removed. Duplicate IDs are dropped. A schedule the caller can't view
+    (or that doesn't exist) comes back as `{"schedule_id", "status": "unavailable"}`.
+    """
+    unique_ids = list(dict.fromkeys(ids))
+    if len(unique_ids) > MAX_COMPARED_SCHEDULES:
+        raise HTTPException(
+            status_code=422,
+            detail=f"Compare takes at most {MAX_COMPARED_SCHEDULES} schedules",
+        )
+    return await schedule_service.compare_schedules(unique_ids, current_user.user_id)
+
+
 @router.get("/{schedule_id}")
 async def get_schedule(
     schedule_id: UUID,
@@ -171,6 +208,112 @@ async def delete_schedule(
         raise HTTPException(
             status_code=500, detail=f"Failed to delete schedule: {e}"
         ) from e
+
+
+class LateAddSearchRequest(BaseModel):
+    """Request model for a late-add block search."""
+
+    crn: str
+    course_code: str
+    instructor_id: str
+
+
+@router.post("/{schedule_id}/late-add/search", response_model=LateAddSearchResponse)
+async def search_late_add(
+    schedule_id: UUID,
+    request: LateAddSearchRequest,
+    current_user: Users = Depends(get_current_user),
+    late_add_service: LateAddService = Depends(get_late_add_service),
+):
+    """
+    Find a block and room for one exam that missed generation (read-only).
+
+    Only the schedule's owner may search; anyone else gets 404. 409 when the
+    dataset was deleted, 400 for a blank field (a "nan" instructor ID counts as
+    blank), a CRN already in the schedule, a CRN that courses.csv schedules with
+    a nonzero enrollment, or a CRN without enrollment rows.
+    """
+    try:
+        result = await late_add_service.search(
+            schedule_id,
+            current_user.user_id,
+            request.crn,
+            request.course_code,
+            request.instructor_id,
+        )
+    except DatasetDeletedError as e:
+        raise HTTPException(status_code=409, detail=str(e)) from e
+    except ValidationError as e:
+        raise HTTPException(status_code=400, detail=str(e)) from e
+    except StorageError as e:
+        raise HTTPException(status_code=500, detail=str(e)) from e
+    if result is None:
+        raise HTTPException(status_code=404, detail=f"Schedule {schedule_id} not found")
+    return result
+
+
+class LateAddSaveRequest(LateAddSearchRequest):
+    """Request model for saving a late add as a new schedule."""
+
+    day: int
+    """Day index, Monday = 0."""
+    block: int
+    """Block index, 0 = the first block of the day."""
+    room: str
+    schedule_name: str
+    accept_conflicts: bool = False
+
+
+@router.post("/{schedule_id}/late-add")
+async def save_late_add(
+    schedule_id: UUID,
+    request: LateAddSaveRequest,
+    current_user: Users = Depends(get_current_user),
+    late_add_service: LateAddService = Depends(get_late_add_service),
+    schedule_service: ScheduleService = Depends(get_schedule_service),
+):
+    """
+    Save the schedule plus one late exam as a new schedule; the base is unchanged.
+
+    The placement is re-checked on the server. Same 404/409/400 as the search,
+    plus 400 for a blank, too long or taken name or a block outside the
+    schedule's window, and 409 when the room can't take the exam in that block
+    (used, blocked out, too small) or the block has hard conflicts and
+    `accept_conflicts` is false. Returns the new schedule as
+    `GET /schedule/{id}` does.
+    """
+    try:
+        new_schedule_id = await late_add_service.save(
+            schedule_id,
+            current_user,
+            crn=request.crn,
+            course_code=request.course_code,
+            instructor_id=request.instructor_id,
+            day=request.day,
+            block=request.block,
+            room=request.room,
+            schedule_name=request.schedule_name,
+            accept_conflicts=request.accept_conflicts,
+        )
+    except (DatasetDeletedError, PlacementConflictError) as e:
+        raise HTTPException(status_code=409, detail=str(e)) from e
+    except ValidationError as e:
+        raise HTTPException(status_code=400, detail=str(e)) from e
+    except StorageError as e:
+        raise HTTPException(status_code=500, detail=str(e)) from e
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Late add failed: {e}") from e
+    if new_schedule_id is None:
+        raise HTTPException(status_code=404, detail=f"Schedule {schedule_id} not found")
+    saved = await schedule_service.get_schedule_with_details(
+        new_schedule_id, current_user.user_id
+    )
+    if saved is None:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Schedule {new_schedule_id} was saved but could not be loaded",
+        )
+    return saved
 
 
 class ShareScheduleRequest(BaseModel):

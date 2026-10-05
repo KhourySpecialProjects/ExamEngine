@@ -1,4 +1,5 @@
 import { AlertCircle, GitMerge, Layers } from "lucide-react";
+import { LateAddBadge } from "@/components/schedule/LateAddBadge";
 import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
 import type { Exam } from "@/lib/types/calendar.types";
@@ -46,6 +47,7 @@ export function ExamCard({
                 <Layers className="h-4 w-4" />
               </div>
             )}
+            {exam.isLateAdd && <LateAddBadge title="Added by a late add" />}
           </div>
           <p className="text-xs text-muted-foreground">
             Section {exam.section}

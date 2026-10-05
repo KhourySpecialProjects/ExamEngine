@@ -1,6 +1,7 @@
 import { type ColumnDef, createColumnHelper } from "@tanstack/react-table";
 import { AlertCircle, Ban, GitMerge, Layers } from "lucide-react";
 import { SortableHeader } from "@/components/common/table/SortableHeader";
+import { LateAddBadge } from "@/components/schedule/LateAddBadge";
 import { Badge } from "@/components/ui/badge";
 import type { Exam } from "@/lib/types/calendar.types";
 
@@ -11,11 +12,13 @@ const CourseCell = ({
   section,
   isMerged = false,
   isCommon = false,
+  isLateAdd = false,
 }: {
   courseCode: string;
   section: string;
   isMerged?: boolean;
   isCommon?: boolean;
+  isLateAdd?: boolean;
 }) => (
   <div>
     <div className="flex items-center gap-2">
@@ -38,6 +41,7 @@ const CourseCell = ({
           <Layers className="h-3 w-3" />
         </Badge>
       )}
+      {isLateAdd && <LateAddBadge title="Added by a late add" />}
     </div>
     <div className="text-xs text-muted-foreground">Section {section}</div>
   </div>
@@ -70,6 +74,7 @@ export function createExamColumns(
           section={info.row.original.section}
           isMerged={isMerged ? isMerged(info.row.original.section) : false}
           isCommon={isCommon ? isCommon(info.row.original.section) : false}
+          isLateAdd={info.row.original.isLateAdd}
         />
       ),
     }),

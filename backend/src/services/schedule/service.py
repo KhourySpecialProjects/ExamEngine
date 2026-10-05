@@ -9,11 +9,7 @@ from src.core.exceptions import (
     ValidationError,
 )
 from src.domain.assemblers import ConflictAssembler, ScheduleAssembler
-from src.domain.constants import (
-    BLOCK_TIMES,
-    BLOCKS_PER_DAY,
-    DAY_NAMES,
-)
+from src.domain.constants import BLOCKS_PER_DAY, DAY_NAMES
 from src.domain.factories import DatasetFactory
 from src.domain.models import Course, Room
 from src.domain.services.annealing_scheduler import AnnealingScheduler
@@ -29,7 +25,9 @@ from src.repo.schedule_share import ScheduleShareRepo
 from src.repo.time_slot import TimeSlotRepo
 from src.schemas.db import StatusEnum
 from src.services.dataset.service import DatasetService
+from src.services.schedule.lineage import based_on_id, build_lineage, late_additions
 from src.services.schedule.permissions import SchedulePermissionService
+from src.services.schedule.summary import build_schedule_summary
 
 
 ALGORITHM_DISPLAY_NAMES = {"dsatur": "DSATUR", "annealing": "Annealing"}
@@ -196,24 +194,14 @@ class ScheduleService:
                 course_mapping,
                 room_mapping,
             )
-            unscheduled_groups = [g.to_dict() for g in result.unscheduled_groups]
-            conflicts_response = await self._save_and_format_conflicts(
-                schedule.schedule_id, analysis, unscheduled_groups
+            await self._save_conflicts(
+                schedule.schedule_id,
+                analysis,
+                [g.to_dict() for g in result.unscheduled_groups],
             )
 
             # 7. Mark complete
             self.run_repo.update_status(run.run_id, StatusEnum.Completed)
-
-            # 8. Build response
-            return self._build_generation_response(
-                schedule,
-                dataset_id,
-                user_id,
-                result,
-                scheduling_dataset,
-                conflicts_response,
-                parameters,
-            )
 
         except DatasetNotFoundError:
             self.run_repo.update_status(run.run_id, StatusEnum.Failed)
@@ -223,16 +211,35 @@ class ScheduleService:
             self.run_repo.update_status(run.run_id, StatusEnum.Failed)
             raise ScheduleGenerationError(f"Schedule generation failed: {e}") from e
 
+        # 8. Respond with the saved schedule, exactly as GET /schedule/{id} returns
+        # it, so both endpoints show the same rows. Everything is committed by
+        # now, so a failure here must not mark the run Failed.
+        saved = await self.get_schedule_with_details(schedule.schedule_id, user_id)
+        if saved is None:
+            raise ScheduleGenerationError(
+                f"Schedule {schedule.schedule_id} was saved but could not be loaded"
+            )
+        return saved
+
     async def list_schedules_for_user(self, user_id: UUID) -> list[dict[str, Any]]:
         """List all schedules for user with metadata and permissions."""
         schedules = self.schedule_repo.get_all_for_user(user_id)
+        # One query for every base's name; a base the user can't view stays unnamed.
+        base_ids = {based_on_id(s.run.parameters) for s in schedules} - {None}
+        base_names = self.schedule_repo.get_viewable_names(list(base_ids), user_id)
 
         return [
-            ScheduleAssembler.build_list_item(
-                schedule=s,
-                exam_count=self.schedule_repo.get_exam_assignments_count(s.schedule_id),
-                permissions=self._permissions.get_permissions(s, user_id),
-            )
+            {
+                **ScheduleAssembler.build_list_item(
+                    schedule=s,
+                    exam_count=self.schedule_repo.get_exam_assignments_count(
+                        s.schedule_id
+                    ),
+                    permissions=self._permissions.get_permissions(s, user_id),
+                ),
+                "late_add_count": len(late_additions(s.run.parameters)),
+                "based_on_name": base_names.get(based_on_id(s.run.parameters)),
+            }
             for s in schedules
         ]
 
@@ -261,7 +268,14 @@ class ScheduleService:
             assignments, conflicting_crns
         )
         conflicts = formatter.format_conflicts(conflict_analysis)
-        summary = self._calculate_summary_stats(assignments, conflicts)
+        unscheduled_groups = self._stored_unscheduled_groups(conflict_analysis)
+        summary = build_schedule_summary(
+            assignments=assignments,
+            breakdown=conflicts["breakdown"],
+            unscheduled_groups=unscheduled_groups,
+            run=schedule.run,
+            dataset=schedule.run.dataset,
+        )
 
         # Load blockout slots for calendar visualisation (if blockouts were uploaded)
         # blockout_slots is precomputed at upload time and stored in file_paths metadata
@@ -275,16 +289,58 @@ class ScheduleService:
                 "blockout_slots", {}
             )
 
-        return ScheduleAssembler.build_full_response(
-            schedule=schedule,
-            summary=summary,
-            conflicts=conflicts,
-            schedule_block=ScheduleAssembler.build_schedule_block(
-                complete_exams, calendar
+        return {
+            **ScheduleAssembler.build_full_response(
+                schedule=schedule,
+                summary=summary,
+                conflicts=conflicts,
+                schedule_block=ScheduleAssembler.build_schedule_block(
+                    complete_exams, calendar
+                ),
+                permissions=permissions,
+                blockouts=blockout_slots,
+                unscheduled_groups=unscheduled_groups,
             ),
-            permissions=permissions,
-            blockouts=blockout_slots,
-            unscheduled_groups=self._stored_unscheduled_groups(conflict_analysis),
+            "lineage": build_lineage(
+                self.schedule_repo, schedule_id, schedule.run.parameters, user_id
+            ),
+        }
+
+    async def compare_schedules(
+        self, schedule_ids: list[UUID], user_id: UUID
+    ) -> dict[str, Any]:
+        """Summaries of the given schedules, in the given order.
+
+        A schedule that doesn't exist or that the user can't view is
+        `unavailable`, with nothing but its requested ID, so a forwarded link
+        reveals nothing about it.
+        """
+        return {
+            "schedules": [
+                self._compare_item(schedule_id, user_id) for schedule_id in schedule_ids
+            ]
+        }
+
+    def _compare_item(self, schedule_id: UUID, user_id: UUID) -> dict[str, Any]:
+        schedule = self.schedule_repo.get_with_run_details(schedule_id, user_id)
+        if schedule is None:
+            return {"schedule_id": str(schedule_id), "status": "unavailable"}
+
+        conflict_analysis = self.conflict_analyses_repo.get_by_schedule_id(schedule_id)
+        # Counts don't need course names, so no name map.
+        breakdown = ConflictAssembler({}).format_conflicts(conflict_analysis)[
+            "breakdown"
+        ]
+        return ScheduleAssembler.build_compare_item(
+            schedule=schedule,
+            summary=build_schedule_summary(
+                assignments=self.exam_assignment_repo.get_all_for_schedule(schedule_id),
+                breakdown=breakdown,
+                unscheduled_groups=self._stored_unscheduled_groups(conflict_analysis),
+                run=schedule.run,
+                dataset=schedule.run.dataset,
+            ),
+            permissions=self._permissions.get_permissions(schedule, user_id),
         )
 
     @staticmethod
@@ -374,177 +430,6 @@ class ScheduleService:
 
         return dict(calendar), complete_exams
 
-    def _calculate_summary_stats(
-        self,
-        assignments: list,
-        conflicts: dict[str, Any],
-    ) -> dict[str, Any]:
-        """Calculate summary statistics from assignments."""
-        # Count unique values (only for scheduled assignments)
-        unique_rooms = {a.room.location for a in assignments if a.room is not None}
-        unique_slots = {
-            (a.time_slot.day.value, a.time_slot.slot_label)
-            for a in assignments
-            if a.time_slot is not None
-        }
-
-        # Estimate students (we don't have full enrollment data in assignments)
-        total_enrollment = sum(a.course.enrollment_count for a in assignments)
-
-        # Count unscheduled exams
-        unscheduled_count = sum(
-            1 for a in assignments if a.time_slot is None or a.room is None
-        )
-
-        return ScheduleAssembler.build_summary(
-            num_classes=len(assignments),
-            num_students=total_enrollment,  # Approximation
-            num_rooms=len(unique_rooms),
-            slots_used=len(unique_slots),
-            hard_conflicts=conflicts.get("total", 0),
-            unplaced_exams=unscheduled_count,
-        )
-
-    @staticmethod
-    def _summarize_placement(result: ScheduleResult) -> tuple[int, int]:
-        """Count (num_classes, unplaced_exams) from an algorithm result.
-
-        An exam is "unplaced" when it has no slot and no room because it could
-        not be seated (result.unscheduled_crns); the schedulers never leave a
-        placed exam without a room. _save_exam_assignments persists these as
-        null-slot rows, so this MUST match the row-based count in
-        _calculate_summary_stats to keep the generate and retrieve responses
-        consistent.
-        """
-        unscheduled = result.unscheduled_crns - result.assignments.keys()
-        num_classes = len(result.assignments) + len(unscheduled)
-        return num_classes, len(unscheduled)
-
-    def _build_generation_response(
-        self,
-        schedule,
-        dataset_id: UUID,
-        user_id: UUID,
-        result: ScheduleResult,
-        scheduling_dataset,
-        conflicts_response: dict,
-        parameters: dict,
-    ) -> dict[str, Any]:
-        """Build response for generate_schedule endpoint."""
-        # Count unique students
-        all_students = set()
-        for crn in result.assignments:
-            students = scheduling_dataset.students_by_crn.get(crn, frozenset())
-            all_students.update(students)
-
-        slots_used = len(set(result.assignments.values()))
-        rooms_used = len(set(result.room_assignments.values()))
-
-        # Build schedule list
-        schedule_list = []
-        for crn, (day_idx, block_idx) in result.assignments.items():
-            room_name = result.room_assignments.get(crn, "")
-            instructors = result.instructors_by_crn.get(crn, set())
-
-            schedule_list.append(
-                ScheduleAssembler.build_exam_record(
-                    crn=crn,
-                    course_code=result.course_codes.get(crn, ""),
-                    day=DAY_NAMES[day_idx],
-                    block_label=f"{block_idx} ({BLOCK_TIMES.get(block_idx, '')})",
-                    room=room_name,
-                    capacity=result.room_capacities.get(room_name, 0),
-                    size=result.course_sizes.get(crn, 0),
-                    instructor=", ".join(instructors) if instructors else "",
-                    has_conflict=False,
-                )
-            )
-
-        # Add unscheduled exams (groups and sections) to the complete list
-        for crn in sorted(result.unscheduled_crns):
-            course = scheduling_dataset.courses.get(crn)
-            if course is None:
-                continue
-            instructors = result.instructors_by_crn.get(crn, set())
-            schedule_list.append(
-                {
-                    "CRN": crn,
-                    "Course": result.course_codes.get(crn, course.course_code),
-                    "Day": "",  # Empty for unscheduled
-                    "Block": "",  # Empty for unscheduled
-                    "Room": "",  # Empty for unscheduled
-                    "Capacity": 0,
-                    "Size": result.course_sizes.get(crn, course.enrollment_count),
-                    "Valid": True,
-                    "Instructor": ", ".join(instructors) if instructors else "",
-                }
-            )
-
-        # Build calendar
-        calendar = self._build_calendar_from_result(result)
-
-        # Get dataset info
-        dataset_info = self.dataset_service.get_dataset_info(dataset_id, user_id)
-
-        # Read blockout slots from precomputed metadata (same source as get_schedule)
-        blockout_slots: dict[str, dict[str, int]] = (
-            dataset_info.get("files", {})
-            .get("room_blockouts", {})
-            .get("blockout_slots", {})
-        )
-
-        num_classes, unplaced_exams = self._summarize_placement(result)
-        summary = ScheduleAssembler.build_summary(
-            num_classes=num_classes,
-            num_students=len(all_students),
-            num_rooms=rooms_used,
-            slots_used=slots_used,
-            hard_conflicts=conflicts_response["total_hard"],
-            unplaced_exams=unplaced_exams,
-        )
-
-        return ScheduleAssembler.build_generation_response(
-            schedule=schedule,
-            dataset_id=dataset_id,
-            dataset_name=dataset_info["dataset_name"],
-            schedule_list=schedule_list,
-            calendar=calendar,
-            summary=summary,
-            conflicts=conflicts_response["conflicts"],
-            parameters=parameters,
-            blockouts=blockout_slots,
-            unscheduled_groups=[g.to_dict() for g in result.unscheduled_groups],
-        )
-
-    def _build_calendar_from_result(self, result: ScheduleResult) -> dict:
-        """Build calendar structure from algorithm result."""
-        calendar: dict[str, dict[str, list]] = {}
-
-        for crn, (day_idx, block_idx) in result.assignments.items():
-            day_name = DAY_NAMES[day_idx]
-            block_time = BLOCK_TIMES.get(block_idx, f"Block {block_idx}")
-
-            if day_name not in calendar:
-                calendar[day_name] = {}
-            if block_time not in calendar[day_name]:
-                calendar[day_name][block_time] = []
-
-            room_name = result.room_assignments.get(crn, "")
-            instructors = result.instructors_by_crn.get(crn, set())
-
-            calendar[day_name][block_time].append(
-                ScheduleAssembler.build_calendar_entry(
-                    crn=crn,
-                    course_code=result.course_codes.get(crn, ""),
-                    room=room_name,
-                    capacity=result.room_capacities.get(room_name, 0),
-                    size=result.course_sizes.get(crn, 0),
-                    instructor=", ".join(instructors) if instructors else "",
-                )
-            )
-
-        return calendar
-
     # Persistence
     def _ensure_courses(
         self,
@@ -623,28 +508,17 @@ class ScheduleService:
         if assignments_to_create:
             self.exam_assignment_repo.bulk_create(schedule_id, assignments_to_create)
 
-    async def _save_and_format_conflicts(
+    async def _save_conflicts(
         self,
         schedule_id: UUID,
         analysis: ScheduleAnalysis,
         unscheduled_groups: list[dict[str, Any]],
-    ) -> dict:
-        """Save conflicts (and unscheduled groups) and return formatted response."""
-        conflict_payload = analysis.to_dict()
-
-        try:
-            self.conflict_analyses_repo.create_analysis(
-                schedule_id=schedule_id,
-                conflicts_data={
-                    **conflict_payload,
-                    "unscheduled_groups": unscheduled_groups,
-                },
-            )
-        except Exception as e:
-            raise e
-
-        return {
-            "total_hard": analysis.statistics.total_hard_conflicts,
-            "total_soft": analysis.statistics.total_soft_conflicts,
-            "conflicts": conflict_payload,
-        }
+    ) -> None:
+        """Save the conflict analysis together with the unscheduled groups."""
+        self.conflict_analyses_repo.create_analysis(
+            schedule_id=schedule_id,
+            conflicts_data={
+                **analysis.to_dict(),
+                "unscheduled_groups": unscheduled_groups,
+            },
+        )

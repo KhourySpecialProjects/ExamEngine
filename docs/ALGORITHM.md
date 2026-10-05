@@ -1,15 +1,19 @@
 # Algorithm Guide
 
-DSATUR graph coloring algorithm for exam scheduling.
+Two scheduling engines, both built on a graph-coloring model: **Classic** (DSATUR greedy) and
+**Optimized** (saturation construction + simulated annealing, see Algorithm 2 below).
 
 ## Problem Overview
 
-Exam scheduling is a constraint satisfaction problem:
+Exam scheduling is modelled as graph coloring:
 
 - **Nodes:** Course sections (exams)
 - **Edges:** Conflicts (shared students between courses)
-- **Colors:** Time slots
-- **Goal:** Minimize colors (time slots) while respecting constraints
+- **Time slots:** fixed by the run settings: `max_days × blocks_per_day`. The engines never add
+  slots.
+- **Goal:** place every exam in one of those slots, with as few hard conflicts as possible, then
+  as few soft-constraint penalties as possible. Classic uses the DSATUR colours only to decide the
+  order in which exams are placed (see "Why a second algorithm").
 
 ## DSATUR Algorithm
 
@@ -39,34 +43,51 @@ DSATUR balances speed and solution quality, making it ideal for real-time schedu
 
 ## Constraints
 
-### Hard Constraints (Must satisfy)
+### Always enforced
 
-| Constraint           | Description                                                     |
-| -------------------- | --------------------------------------------------------------- |
-| No student conflicts | Student can't have 2 exams at same time                         |
-| Room capacity        | Room must fit course enrollment                                 |
-| Time slot limits     | Use only available time slots (`max_days` × `blocks_per_day`)   |
+| Constraint        | Description                                                                                   |
+| ----------------- | --------------------------------------------------------------------------------------------- |
+| Room capacity     | An exam is only placed in a block where it (and every exam already there) gets its own unblocked room at least its size (`seats_fit`). Rooms are never over capacity; an exam that can't be seated is unscheduled with a reason. |
+| Time slots        | Only the available slots (`max_days` × `blocks_per_day`) are used                            |
+| Combined / common | A group always shares one block and is never split (see below)                               |
+
+### Hard conflicts (minimised first, reported)
+
+Both engines minimise these before anything else, but can't always avoid them; every one left is
+stored in the schedule's conflict analysis and shown on the Conflicts tab.
+
+| Conflict                      | Description                                                                  |
+| ----------------------------- | ---------------------------------------------------------------------------- |
+| Student double-booked         | A student has two exams in the same block                                    |
+| Instructor double-booked      | An instructor has two exams in the same block                                |
+| Student over the daily limit  | A student has more than `student_max_per_day` exams on one day (dialog 1–5)  |
+| Instructor over the daily limit | An instructor has more than `instructor_max_per_day` exams on one day (dialog 1–5) |
 
 ### Time Slots
 
 Each day has up to 5 exam blocks: 9AM-11AM, 11:30AM-1:30PM, 2PM-4PM, 4:30PM-6:30PM, 7PM-9PM. The Generate Schedule dialog chooses 4 or 5 blocks per day (`blocks_per_day`, default 5); with 4 the 7PM-9PM block is never used. `max_days` (1–7, Monday first) sets the number of days.
 
-### Soft Constraints (Optimize for)
+### Soft constraints (optimised after hard conflicts)
 
-| Constraint           | Description                           | Weight |
-| -------------------- | ------------------------------------- | ------ |
-| No back-to-back      | Avoid consecutive exams for students  | High   |
-| Max 2 per day        | Limit student exams per day           | High   |
-| Large class priority | Schedule large classes in prime slots | Medium |
-| Room efficiency      | Minimize wasted capacity              | Low    |
+| Constraint              | Description                                                              | Classic | Optimized |
+| ----------------------- | ------------------------------------------------------------------------ | ------- | --------- |
+| Large course late       | A course of 100+ students (`LARGE_COURSE_THRESHOLD`) after Wednesday: 1 point per day late | 1st | weight 1 |
+| Student back-to-back    | A student with exams in adjacent blocks on the same day                  | 2nd     | weight 6 (0 when Avoid Back-to-Back is off) |
+| Instructor back-to-back | An instructor with exams in adjacent blocks on the same day              | 3rd     | weight 2 (0 when Avoid Back-to-Back is off) |
+| Instructor daily load   | Exams the instructor already has that day                                | 4th     | –         |
+| Slot load               | Students and exams already in the block (Classic); Σ (exams in block)² (Optimized) | 5th–6th | weight 1 |
 
-### Constraint Relaxation
+Classic compares candidate blocks lexicographically: fewest hard conflicts, then the soft
+terms in the order above (`SoftPenalty.as_tuple`), then the earliest block. Optimized sums one
+weighted objective (see Algorithm 2). Room usage beyond the capacity rule is not scored.
 
-When the available time slots are insufficient:
+### What the analysis reports
 
-1. Allow controlled back-to-back exams
-2. Extend exam period (add slots)
-3. Split large courses across multiple rooms
+After either engine runs, `ScheduleAnalyzer` (`backend/src/domain/services/schedule_analyzer.py`)
+builds the stored conflict analysis from the final assignment and the dataset, the same way for
+both engines: the hard conflicts above, student and instructor back-to-backs (one entry per
+person per day), and large courses late (`large_courses_not_early`: 100+ students on Thursday
+or later).
 
 ## Combined and Common Exams
 
@@ -163,13 +184,16 @@ and the optimizer trades a few back-to-backs for an even load.
    once per room unit, an instructor once per time group, as Algorithm 1 reports), then
    rooms are assigned exactly as in Algorithm 1.
 
-`prioritize_large_courses` is accepted and ignored by Algorithm 2. The dialog's **Avoid
+Algorithm 2 ignores the `prioritize_large_courses` toggle because it always prioritizes
+large courses: the large-course-late penalty (`weight_large_late`) applies to every run, and
+the UI shows the setting as "Always on in Optimized". The dialog's **Avoid
 Back-to-Back Exams** switch affects only Algorithm 2: off sets both back-to-back weights
 to 0 (Algorithm 1 has never read it).
 
 ### Measured on `sample_data_large` (generated by `backend/script/gen_test_data.py`)
 
-hard = double-bookings + over-2-per-day; b2b = student-days with adjacent exams;
+hard = double-bookings + over-the-daily-limit (runs used a student limit of 2 per day);
+b2b = student-days with adjacent exams;
 unscheduled = sections larger than every room. Optimized uses a 15 s budget.
 
 | days × blocks | Classic | Optimized |
@@ -182,13 +206,63 @@ unscheduled = sections larger than every room. Optimized uses a 15 s budget.
 Both leave the same 6 sections unscheduled (larger than every room). The Optimized
 back-to-back count varies a little between runs because annealing is time-bounded.
 
-## Constraint Relaxation
+## Late add
 
-When the available time slots are insufficient:
+Places one exam that missed generation (a CRN in enrollments.csv but not in the schedule) into
+a saved schedule without moving any scheduled exam or changing any room
+(`backend/src/domain/services/late_add.py`, pure domain code). The inputs are the base
+schedule's exams (block, room, course code, instructor), the dataset's combined and common
+groups, the unfiltered enrollments, the rooms and room blockouts, the base run's settings
+(`max_days`, `blocks_per_day`, the two daily limits) and the late exam (CRN, course code,
+instructor ID, its students; size = distinct students).
 
-1. Allow controlled back-to-back exams
-2. Extend exam period (add slots)
-3. Split large courses across multiple rooms
+`search_placements` evaluates every block of the base run's window (`max_days` ×
+`blocks_per_day`, at most 7 × 5), so the ranking is exact; `evaluate_placement` evaluates one
+block. Neither reuses the scheduler engines (they re-seat every exam of a block) or the
+Validator's checks (the Validator stays an independent re-check). Per block:
+
+| Term | Rule |
+| --- | --- |
+| Free rooms | Not used by a base exam in that block and not blocked out then. Best fit = the smallest free room with capacity ≥ size; the other fitting free rooms are listed too |
+| Student double-booked | A late-exam student already sits an exam in that block (with the clashing CRNs) |
+| Student over the daily limit | The student's exams that day, the late one included, exceed `student_max_per_day` |
+| Instructor double-booked / over the daily limit | The same for the instructor ID |
+| Back-to-back (students, instructor) | An exam in the adjacent block of the same day |
+| Large course late | 100+ students on Thursday or later (`LARGE_COURSE_THRESHOLD`, `EARLY_WEEK_CUTOFF`, as `ScheduleAnalyzer`) |
+
+**Counting.** Existing exams count as the Validator counts them: per distinct (unit, block) on
+the day. A student's unit is the exam unit (a combined group, else the CRN), so the CRNs of one
+combined exam count once, roomed or not. The instructor's unit is the time group: a common group
+(closed over combined groups, so a combined group listed partly in a common group joins it
+whole), else a combined group, else the CRN, so one common exam across several rooms counts
+once. Two separate exams in one block count twice, so a person already double-booked in the base
+counts two exams in that block. The late exam is always one more exam, also in a block where
+the person already sits one (per exam, EXENG-81). Students are counted as distinct people; the
+instructor counts 0 or 1 per term. The instructor ID matches a base exam's stored instructor by
+trimmed exact string; blank and `nan` never match (EXENG-79).
+
+**Outcomes.**
+
+- **Clear:** at least one block has no student or instructor hard conflict and a fitting free
+  room; only those blocks are candidates.
+- **Least conflicts:** no clear block; every block with a fitting free room is a candidate.
+- **No room:** no block has a fitting free room; nothing can be placed, and each block reports
+  its largest free room.
+
+**Ranking** (lexicographic, fewest first): student double-books, students over the daily limit,
+instructor double-book, instructor over the daily limit, student back-to-backs, instructor
+back-to-back, large course late, then day and block (earliest first).
+
+The search also returns the instructor's existing exams in the base schedule (to confirm the
+ID matched) and the base exams with the same course code (sibling sections, information only).
+
+**Saving** (`POST /api/schedule/{id}/late-add`, see `DATA.md`) re-runs `evaluate_placement` for
+the chosen block and stores a new schedule. Its conflict analysis is not recomputed:
+`late_exam_analysis` (`backend/src/domain/services/late_add_analysis.py`) deep-copies the base's
+stored analysis and adds the late exam's delta in `ScheduleAnalyzer`'s shapes: one
+double-book entry per (person, base CRN in the block), one daily-limit entry per person over
+the limit, back-to-back entries per (person, day) extended with the late block or added, a
+large-course-late entry if it applies, and statistics recomputed from the lists and the exams.
 
 ## References
 

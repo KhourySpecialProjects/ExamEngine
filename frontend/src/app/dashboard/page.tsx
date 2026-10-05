@@ -1,9 +1,11 @@
 "use client";
 
-import { Loader2 } from "lucide-react";
+import { Layers, List, Loader2 } from "lucide-react";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
+import { ScheduleGroupsView } from "@/components/schedules/ScheduleGroupsView";
 import { ScheduleListView } from "@/components/schedules/ScheduleListView";
+import { ScheduleSelectionBar } from "@/components/schedules/ScheduleSelectionBar";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -14,7 +16,27 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+import { Button } from "@/components/ui/button";
+import { ButtonGroup } from "@/components/ui/button-group";
+import { selectableIds } from "@/lib/scheduleSelection";
 import { useSchedulesStore } from "@/lib/store/schedulesStore";
+import {
+  type SchedulesView,
+  useSchedulesViewStore,
+} from "@/lib/store/schedulesViewStore";
+
+const VIEWS: readonly (readonly [SchedulesView, string, typeof List])[] = [
+  ["list", "List", List],
+  ["dataset", "By dataset", Layers],
+];
+
+// Picks restored from this session can point at schedules deleted since.
+function dropUnlistedPicks() {
+  const { schedules, error } = useSchedulesStore.getState();
+  if (error) return;
+  const { selectedIds, setSelectedIds } = useSchedulesViewStore.getState();
+  setSelectedIds(selectableIds(selectedIds, schedules));
+}
 
 export default function DashboardPage() {
   const schedules = useSchedulesStore((state) => state.schedules);
@@ -22,6 +44,8 @@ export default function DashboardPage() {
   const error = useSchedulesStore((state) => state.error);
   const fetchSchedules = useSchedulesStore((state) => state.fetchSchedules);
   const deleteSchedule = useSchedulesStore((state) => state.deleteSchedule);
+  const view = useSchedulesViewStore((state) => state.view);
+  const setView = useSchedulesViewStore((state) => state.setView);
 
   const [pendingDeleteId, setPendingDeleteId] = useState<string | null>(null);
   const [isConfirmOpen, setIsConfirmOpen] = useState(false);
@@ -31,12 +55,20 @@ export default function DashboardPage() {
     : undefined;
 
   useEffect(() => {
-    fetchSchedules().catch((err) => {
-      toast.error("Failed to load schedules", {
-        description:
-          err instanceof Error ? err.message : "Failed to load schedules",
+    // Restore this session's view, page sizes and picks once mounted (see the
+    // store).
+    useSchedulesViewStore.persist.rehydrate();
+  }, []);
+
+  useEffect(() => {
+    fetchSchedules()
+      .then(dropUnlistedPicks)
+      .catch((err) => {
+        toast.error("Failed to load schedules", {
+          description:
+            err instanceof Error ? err.message : "Failed to load schedules",
+        });
       });
-    });
   }, [fetchSchedules]);
 
   const requestDelete = (scheduleId: string) => {
@@ -50,6 +82,7 @@ export default function DashboardPage() {
     const toastId = toast.loading("Deleting schedule...");
     try {
       await deleteSchedule(pendingDeleteId);
+      dropUnlistedPicks();
       toast.success("Schedule deleted", { id: toastId });
     } catch (error) {
       toast.error("Failed to delete schedule", {
@@ -71,6 +104,20 @@ export default function DashboardPage() {
             View and manage your exam schedules
           </p>
         </div>
+        <ButtonGroup aria-label="Schedules view">
+          {VIEWS.map(([value, label, Icon]) => (
+            <Button
+              key={value}
+              size="sm"
+              variant={view === value ? "default" : "outline"}
+              aria-pressed={view === value}
+              onClick={() => setView(value)}
+            >
+              <Icon className="h-4 w-4" />
+              {label}
+            </Button>
+          ))}
+        </ButtonGroup>
       </div>
 
       {isLoadingList && (
@@ -91,7 +138,17 @@ export default function DashboardPage() {
       )}
 
       {!isLoadingList && !error && (
-        <ScheduleListView schedules={schedules} onDelete={requestDelete} />
+        <>
+          {view === "dataset" ? (
+            <ScheduleGroupsView
+              schedules={schedules}
+              onDelete={requestDelete}
+            />
+          ) : (
+            <ScheduleListView schedules={schedules} onDelete={requestDelete} />
+          )}
+          <ScheduleSelectionBar />
+        </>
       )}
 
       <AlertDialog

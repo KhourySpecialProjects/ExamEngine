@@ -242,7 +242,12 @@ FILES = {
 
 def _assignment(crn, day=None, label=None, room=None, capacity=None):
     return SimpleNamespace(
-        course=SimpleNamespace(crn=crn, enrollment_count=2, instructor_name="Ada"),
+        course=SimpleNamespace(
+            crn=crn,
+            course_subject_code="CS1",
+            enrollment_count=2,
+            instructor_name="Ada",
+        ),
         time_slot=(
             SimpleNamespace(day=day, slot_label=label) if day is not None else None
         ),
@@ -253,7 +258,10 @@ def _assignment(crn, day=None, label=None, room=None, capacity=None):
 def _service(dataset) -> ScheduleValidationService:
     schedule_repo, assignments, analyses, datasets = (MagicMock() for _ in range(4))
     schedule_repo.get_with_run_details.return_value = SimpleNamespace(
-        run=SimpleNamespace(dataset_id=dataset.dataset_id, parameters={"max_days": 5})
+        run=SimpleNamespace(
+            dataset_id=dataset.dataset_id,
+            parameters={"max_days": 5, "late_additions": [{"crn": "200"}]},
+        )
     )
     assignments.get_all_for_schedule.return_value = [
         _assignment("100", DayEnum.Wednesday, "2PM-4PM", "R1", 10),
@@ -292,12 +300,13 @@ async def test_snapshot_reads_stored_schedule_and_uploaded_files():
         snapshot = await _service(_dataset()).build_snapshot(uuid4(), USER_ID)
 
     assert snapshot.rows == (
-        ScheduleRow("100", 2, 2, "R1", 10, 2, "Ada"),
-        ScheduleRow("200", None, None, None, None, 2, "Ada"),
+        ScheduleRow("100", 2, 2, "R1", 10, 2, "Ada", "CS1"),
+        ScheduleRow("200", None, None, None, None, 2, "Ada", "CS1"),
     )
     assert snapshot.parameters == RunParameters(
         max_days=5, blocks_per_day=5, student_max_per_day=3, instructor_max_per_day=3
     )
+    assert snapshot.late_additions == ({"crn": "200"},)
     assert snapshot.combined_groups == {"G": ("100", "200")}
     assert snapshot.unscheduled_groups == [{"kind": "combined", "group": "G"}]
     assert [c.crn for c in snapshot.files.courses] == ["100", "200"]

@@ -23,9 +23,9 @@ export const steps = [
         title: "Upload CSV",
         content: (
           <>
-            Use this button to upload your CSV files. After uploading, you can
-            name and store your dataset, making it available for generating
-            schedules.
+            Upload your CSV files here. Name the dataset, add the courses,
+            enrollments and rooms files (plus any optional ones), and it becomes
+            available for generating schedules.
           </>
         ),
         selector: "#upload-id",
@@ -55,9 +55,9 @@ export const steps = [
         title: "Schedule Dashboard",
         content: (
           <>
-            This dashboard displays all of your generated schedules. You can
-            review details, validate assignments, and quickly navigate between
-            different schedule views.
+            This page lists all your schedules. Switch between List and By
+            dataset, sort and page through them, and open one to view, validate,
+            share or export it.
           </>
         ),
         selector: "#schedule-view",

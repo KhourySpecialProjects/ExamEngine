@@ -23,6 +23,7 @@ _SOFT_TYPES = (
 
 def stored_course_matches_file(ctx: ValidationContext) -> CheckResult:
     courses = ctx.course_by_crn
+    late = ctx.late_course_crns
     mismatches: list[str] = []
     seen: set[str] = set()
     for row in sorted(ctx.snapshot.rows, key=lambda r: r.crn):
@@ -30,17 +31,18 @@ def stored_course_matches_file(ctx: ValidationContext) -> CheckResult:
         if course is None or row.crn in seen:
             continue
         seen.add(row.crn)
+        source = "recorded" if row.crn in late else "in file"
         parts = []
         if row.enrollment_count != course.total_enrollment:
             parts.append(
                 f"enrollment {row.enrollment_count} stored, "
-                f"{course.total_enrollment} in file"
+                f"{course.total_enrollment} {source}"
             )
         # The app stores the file's instructor cell as-is (never split on ';').
         if (row.instructor or "") != (course.instructor or ""):
             parts.append(
                 f"instructor '{row.instructor or ''}' stored, "
-                f"'{course.instructor or ''}' in file"
+                f"'{course.instructor or ''}' {source}"
             )
         if parts:
             mismatches.append(f"CRN {row.crn}: " + "; ".join(parts))
@@ -48,8 +50,15 @@ def stored_course_matches_file(ctx: ValidationContext) -> CheckResult:
         return problems(
             "fail",
             f"Found {plural(len(mismatches), 'scheduled course')} whose stored "
-            "enrollment or instructor differs from the courses file.",
+            "enrollment or instructor differs from the courses file"
+            + (" or the late addition." if late else "."),
             mismatches,
+        )
+    if late:
+        return passed(
+            "Stored enrollment and instructor match for all "
+            f"{plural(len(seen), 'scheduled course')} (courses file and late "
+            "additions)."
         )
     return passed(
         f"Stored enrollment and instructor match the courses file for all "
@@ -117,17 +126,18 @@ def stored_statistics(ctx: ValidationContext) -> CheckResult:
 
 def enrollment_totals(ctx: ValidationContext) -> CheckResult:
     students = ctx.students_by_crn
+    late = ctx.late_course_crns
     differences: list[tuple[int, str, str]] = []
     for crn, course in ctx.course_by_crn.items():
         total = course.total_enrollment or 0
         actual = len(students.get(crn, ()))
         if total != actual:
+            label = "late-addition size" if crn in late else "Total_Enrollment"
             differences.append(
                 (
                     -abs(total - actual),
                     crn,
-                    f"CRN {crn}: Total_Enrollment {total}, "
-                    f"{plural(actual, 'student')} enrolled",
+                    f"CRN {crn}: {label} {total}, {plural(actual, 'student')} enrolled",
                 )
             )
     if differences:
@@ -136,6 +146,11 @@ def enrollment_totals(ctx: ValidationContext) -> CheckResult:
             f"Found {plural(len(differences), 'course')} whose Total_Enrollment "
             "differs from the number of students enrolled.",
             [text for *_, text in sorted(differences)],
+        )
+    if late:
+        return passed(
+            "Every course's Total_Enrollment matches its enrolled students "
+            "(courses file and late additions)."
         )
     return passed("Every course's Total_Enrollment matches its enrolled students.")
 
@@ -152,12 +167,17 @@ def enrollment_unknown_crns(ctx: ValidationContext) -> CheckResult:
         return problems(
             "warn",
             f"Found {plural(rows, 'enrollment row')} for "
-            f"{plural(len(unknown), 'CRN')} not in the courses file.",
+            f"{plural(len(unknown), 'CRN')} not in the courses file"
+            + (" or the late additions." if ctx.late_course_crns else "."),
             [
                 f"CRN {crn}: {plural(n, 'enrollment row')}"
                 for crn, n in sorted(unknown.items(), key=lambda kv: (-kv[1], kv[0]))
             ],
             count=rows,
+        )
+    if ctx.late_course_crns:
+        return passed(
+            "Every enrollment row is for a CRN in the courses file or a late addition."
         )
     return passed("Every enrollment row is for a CRN in the courses file.")
 

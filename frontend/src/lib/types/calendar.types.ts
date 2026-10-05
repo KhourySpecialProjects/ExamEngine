@@ -14,6 +14,7 @@ export interface Exam {
   unscheduledGroup?: string; // Combined/common group that could not be scheduled
   unscheduledReason?: string; // Why that exam (or its group) could not be scheduled
   isUnroomed?: boolean; // True if exam has a slot but no room (all rooms blocked at that slot)
+  isLateAdd?: boolean; // Added by a late add (CRN in lineage.late_additions)
 }
 
 export interface CalendarCell {

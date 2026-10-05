@@ -1,7 +1,6 @@
 import { type ClassValue, clsx } from "clsx";
 import { twMerge } from "tailwind-merge";
 import type { CalendarRow } from "@/lib/types/calendar.types";
-import type { CalendarExam, ScheduleResult } from "./api/schedules";
 // note: do not call hooks at module scope; provide pure mapping helpers instead
 import type { conflictMap } from "./types/conflict.types";
 
@@ -294,70 +293,6 @@ export const generateSampleData = (): CalendarRow[] => {
 
   return data;
 };
-
-export function wrapSampleDataAsScheduleResult(
-  calendarRows: CalendarRow[],
-): ScheduleResult {
-  // Convert CalendarRow[] back to calendar structure
-  const calendar: Record<string, Record<string, CalendarExam[]>> = {};
-  const backendDays = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
-  calendarRows.forEach((row) => {
-    row.days.forEach((cell, index) => {
-      const backendDay = backendDays[index];
-      const timeSlot = row.timeSlot;
-
-      if (!calendar[backendDay]) calendar[backendDay] = {};
-      if (!calendar[backendDay][timeSlot]) calendar[backendDay][timeSlot] = [];
-
-      calendar[backendDay][timeSlot] = cell.exams.map((exam) => ({
-        CRN: exam.section,
-        Course: exam.courseCode,
-        Room: exam.room,
-        Capacity: 100,
-        Size: exam.studentCount,
-        Valid: exam.conflicts === 0,
-      }));
-    });
-  });
-
-  const totalExams = calendarRows.reduce(
-    (sum, row) =>
-      sum + row.days.reduce((daySum, day) => daySum + day.examCount, 0),
-    0,
-  );
-
-  // Use a deterministic ID instead of Date.now() to avoid hydration mismatch
-  return {
-    dataset_id: "sample-data",
-    dataset_name: "Sample Data",
-    schedule_id: "sample-data",
-    schedule_name: "sample-data",
-    summary: {
-      num_classes: totalExams,
-      num_students: Math.floor(totalExams * 25),
-      potential_overlaps: 0,
-      real_conflicts: 0,
-      num_rooms: 50,
-      slots_used: calendarRows.length,
-    },
-    conflicts: {
-      total: 0,
-      breakdown: [],
-      details: {},
-    },
-    failures: [],
-    schedule: {
-      complete: [],
-      calendar,
-      total_exams: totalExams,
-    },
-    parameters: {
-      student_max_per_day: 3,
-      avoid_back_to_back: true,
-      max_days: 7,
-    },
-  } as any;
-}
 
 export const getTimeAgo = (dateString: string) => {
   const date = new Date(dateString);

@@ -9,12 +9,12 @@ const faqs = [
   {
     question: "What files do I need to upload?",
     answer:
-      "You need three CSVs: courses (CRN, CourseID, num_students, and optionally instructor_name), enrollment (NUID, CRN), and classrooms (room_name, capacity). Upload them under Datasets in the dashboard.",
+      "You need three CSVs: courses (CRN, CourseID, num_students, and optionally instructor_name), enrollment (NUID, CRN), and classrooms (room_name, capacity). You can also add optional room blockouts, combined exams, and common exams files. Upload them under Datasets Controls in the dashboard.",
   },
   {
     question: "How are conflicts handled?",
     answer:
-      "The DSATUR engine models student overlaps, instructor overlaps, and room capacity. It also respects max exams per student per day and back-to-back avoidance when those options are set.",
+      "Both engines, Classic (DSATUR) and Optimized (simulated annealing), handle student and instructor overlaps, room capacity (rooms are never over-filled), room blockouts, combined and common exams, and per-day exam limits. Back-to-back avoidance only applies to the Optimized engine; prioritizing large classes only applies to Classic.",
   },
   {
     question: "How long does generation take?",
@@ -24,12 +24,22 @@ const faqs = [
   {
     question: "Can I share a schedule with teammates?",
     answer:
-      "Yes. Open a schedule from the dashboard and use Share to give view or edit access. Shared schedules keep the same parameters and conflict summaries.",
+      "Yes. The schedule's owner can open it from the dashboard and use Share to give teammates view-only access. Shared schedules keep the same parameters and conflict summaries.",
+  },
+  {
+    question: "Can I add an exam that missed generation?",
+    answer:
+      "Yes. The schedule's owner can open it and use Late Add. Enter the CRN, course code, and instructor ID, then Find blocks. The CRN must be in the enrollment file but not already in the schedule. No scheduled exam moves: the exam only goes in rooms that are free and not blocked out. Blocks with no student or instructor conflict are listed first; if there are none, blocks are ranked by fewest conflicts, and each conflict expands to the students or instructor involved. Searching never changes the schedule. Late Add is unavailable when the schedule's dataset was deleted.",
+  },
+  {
+    question: "How do I save a late add, and what happens to the original?",
+    answer:
+      "Pick a block (and room), name the new schedule, and choose Save as new schedule. The schedule you started from is never changed: the save creates a new version with all of its exams plus the late one, and opens it. A block with conflicts can only be saved after you tick the box that lists them. Versions chain, so a late add on that new version makes a third one with both late exams. The schedule page shows which schedule a version is a late add to, the original it started from, and a table of every late-added exam; those exams are marked Late add in the List and calendar views, and the schedules list shows Late add in the Algorithm column. If the schedule already has a newer version, Late Add warns you and links to it: a new version made from the older one won't include the newer one's late adds.",
   },
   {
     question: "What if conflicts remain?",
     answer:
-      "Conflicts are surfaced in the density and list views. You can adjust parameters, room assignments, or regenerate. We never silently drop exams.",
+      "Conflicts are surfaced in the Conflicts and Statistics views, as well as the density and list views. Exams that couldn't be scheduled are listed with a reason. Adjust parameters or your input files and regenerate. We never silently drop exams.",
   },
   {
     question: "Where do I see what changed?",
@@ -64,7 +74,7 @@ const faqs = [
   {
     question: "How do I interpret the conflict breakdown?",
     answer:
-      "Use the density and list views: they show which CRNs, students, or instructors are involved so you can tweak parameters or room assignments.",
+      "Use the Conflicts and Statistics views (plus density and list): they show which CRNs, students, or instructors are involved so you can tweak parameters or input files and regenerate.",
   },
   {
     question: "Do I need to restart after changing parameters?",
@@ -79,7 +89,7 @@ const faqs = [
   {
     question: "Is there a tutorial or onboarding walkthrough?",
     answer:
-      "Yes. After you log in, you’ll see a short guided walkthrough of uploads, parameters, and running schedules. You can replay it from the dashboard if you skip it.",
+      "Yes. Click the ? button in the dashboard header to start a short guided walkthrough of uploads, parameters, and running schedules. You can replay it any time.",
   },
 ];
 

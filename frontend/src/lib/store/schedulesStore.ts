@@ -1,7 +1,9 @@
 import { create } from "zustand";
 import { apiClient } from "@/lib/api/client";
+import { LATE_ADD_ALGORITHM, type ScheduleListItem } from "@/lib/api/schedules";
 import type { SchedulesState } from "@/lib/types/schedule.types";
 import { useAuthStore } from "./authStore";
+import { useDatasetStore } from "./datasetStore";
 
 export const useSchedulesStore = create<SchedulesState>((set, get) => ({
   // List state
@@ -68,6 +70,8 @@ export const useSchedulesStore = create<SchedulesState>((set, get) => ({
     const name = get().scheduleName?.trim() || "Untitled schedule";
     const params = get().parameters;
     const tempId = `temp-${Date.now()}`;
+    // Generation runs on one of the user's own datasets, so it is listed.
+    const dataset = useDatasetStore.getState().getDatasetById(datasetId);
 
     set((state) => ({
       isGenerating: true,
@@ -82,7 +86,17 @@ export const useSchedulesStore = create<SchedulesState>((set, get) => ({
           parameters: params,
           status: "Running",
           dataset_id: datasetId,
+          dataset: {
+            name: dataset?.dataset_name ?? "",
+            uploaded_at: dataset?.created_at ?? "",
+            deleted: false,
+            courses: dataset?.files.courses?.unique_crns ?? null,
+            students: dataset?.files.enrollments?.unique_students ?? null,
+            rooms: dataset?.files.rooms?.unique_rooms ?? null,
+          },
           total_exams: 0,
+          late_add_count: 0,
+          based_on_name: null,
         },
         ...state.schedules,
       ],
@@ -143,6 +157,45 @@ export const useSchedulesStore = create<SchedulesState>((set, get) => ({
       });
       throw error;
     }
+  },
+
+  lateAddSave: async (scheduleId, body) => {
+    const result = await apiClient.schedules.lateAddSave(scheduleId, body);
+    set((state) => {
+      // Same dataset as the base, so the base's listed counts carry over.
+      const base = state.schedules.find((s) => s.schedule_id === scheduleId);
+      const item: ScheduleListItem = {
+        schedule_id: result.schedule_id,
+        schedule_name: result.schedule_name,
+        created_at: result.created_at ?? new Date().toISOString(),
+        algorithm: result.algorithm ?? LATE_ADD_ALGORITHM,
+        parameters: result.parameters,
+        status: result.status ?? "Completed",
+        dataset_id: result.dataset_id,
+        dataset: base?.dataset ?? {
+          name: result.dataset_name,
+          uploaded_at: result.dataset_uploaded_at ?? "",
+          deleted: result.dataset_deleted ?? false,
+          courses: null,
+          students: null,
+          rooms: null,
+        },
+        total_exams: result.schedule.total_exams,
+        is_owner: result.is_owner,
+        is_shared: result.is_shared,
+        created_by_user_id: result.created_by_user_id,
+        created_by_user_name: result.created_by_user_name,
+        shared_by_user_id: result.shared_by_user_id,
+        shared_by_user_name: result.shared_by_user_name,
+        late_add_count: result.lineage?.late_additions.length ?? 0,
+        based_on_name: result.lineage?.based_on?.name ?? null,
+      };
+      return {
+        schedules: [item, ...state.schedules],
+        currentSchedule: result,
+      };
+    });
+    return result;
   },
 
   // Manually set schedule data (for testing, imports, etc.)

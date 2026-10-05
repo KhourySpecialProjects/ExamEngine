@@ -68,14 +68,113 @@ export interface CalendarData {
   };
 }
 
+/** An exam named in a problem list. */
+export interface ExamIssue {
+  crn: string;
+  course: string;
+  size: number;
+}
+
+export interface OverCapacityExam extends ExamIssue {
+  room: string;
+  capacity: number;
+}
+
+export interface GroupStats {
+  groups: number;
+  /** Exams (CRNs, in any state) that belong to a group. */
+  sections: number;
+  /** Enrollment summed over those sections. */
+  students: number;
+}
+
+/** Distinct people (or exams) and how many times, as the Conflicts tab merges them. */
+export interface ConflictCount {
+  people: number;
+  instances: number;
+}
+
+export type ConflictMetric =
+  | "student_double_book"
+  | "instructor_double_book"
+  | "student_over_daily_limit"
+  | "instructor_over_daily_limit"
+  | "student_back_to_back"
+  | "instructor_back_to_back"
+  | "large_courses_late";
+
+/** The settings a run used; null = not recorded by older runs. */
+export interface ScheduleSettings {
+  algorithm: "dsatur" | "annealing";
+  blocks_per_day: number;
+  time_budget_seconds: number | null;
+  max_days: number | null;
+  student_max_per_day: number | null;
+  instructor_max_per_day: number | null;
+  avoid_back_to_back: boolean | null;
+  prioritize_large_courses: boolean | null;
+}
+
+export type FillBucket =
+  | "under_50"
+  | "from_50_to_75"
+  | "from_75_to_90"
+  | "from_90_to_100";
+
+/**
+ * Every number shown about one schedule, computed by the server from saved
+ * rows (the browser doesn't recompute them). Field definitions: docs/DATA.md,
+ * "Schedule summary".
+ */
 export interface ScheduleSummary {
-  num_classes: number;
-  num_students: number;
-  potential_overlaps: number;
-  real_conflicts: number;
-  num_rooms: number;
-  slots_used: number;
-  unplaced_exams: number;
+  settings: ScheduleSettings;
+  /** Settings an older run didn't record, filled with the value used then. */
+  settings_assumed: (keyof ScheduleSettings)[];
+  /** Recorded settings the run's algorithm ignores. */
+  settings_unused: (keyof ScheduleSettings)[];
+  /** From the dataset's enrollments upload; null when unknown. */
+  unique_students: number | null;
+  exams: {
+    total: number;
+    /** A day, a time and a room. */
+    placed: number;
+    /** No day or time. */
+    unscheduled: number;
+    /** A day and time but no room. */
+    unroomed: number;
+    over_capacity: number;
+  };
+  unscheduled: {
+    exams: ExamIssue[];
+    students: number;
+    /** Groups the scheduler reported, with its reason. */
+    groups: UnscheduledGroup[];
+    /** Unscheduled CRNs no reported group explains (e.g. older schedules). */
+    other_crns: string[];
+  };
+  unroomed: { exams: ExamIssue[]; students: number };
+  /** Largest overflow first. */
+  over_capacity: OverCapacityExam[];
+  conflicts: Record<ConflictMetric, ConflictCount>;
+  rooms: {
+    used: number;
+    /** Mean seats filled per placed exam, capped at 100% per exam (0-100). */
+    average_fill: number;
+    fill_buckets: Record<FillBucket, number>;
+  };
+  calendar: {
+    /** Distinct (day, block) pairs holding an exam, unroomed included. */
+    slots_used: number;
+    days_used: number;
+    /** Placed exams per day, Monday first. */
+    days: { day: string; exams: number; seats: number }[];
+    /** Placed exams per block, earliest first. */
+    blocks: { label: string; exams: number }[];
+    /** Placed exams per [day][block], in `days` and `blocks` order. */
+    matrix: number[][];
+  };
+  groups: { combined: GroupStats; common: GroupStats };
+  blockouts: { rooms: number; slots: number };
 }
 
 export interface ScheduleConflicts {
@@ -99,6 +198,168 @@ export interface UnscheduledGroup {
   group: string;
   reason: string;
   crns: string[];
+}
+
+/** A schedule a late-add version refers to. A deleted or unviewable one has no name. */
+export interface ScheduleRef {
+  id: string;
+  name: string | null;
+  available: boolean;
+}
+
+/** One exam added to a saved schedule by a late add (stored in the run's parameters). */
+export interface LateAddition {
+  crn: string;
+  course_code: string;
+  instructor_id: string;
+  size: number;
+  /** Day index, Monday = 0. */
+  day: number;
+  day_name: string;
+  /** Block index, 0-based. */
+  block: number;
+  block_time: string;
+  room: string;
+  outcome: "clear" | "least_conflicts";
+  conflicts: {
+    student_double_book: number;
+    student_over_daily_limit: number;
+    instructor_double_book: number;
+    instructor_over_daily_limit: number;
+    back_to_back_students: number;
+    back_to_back_instructor: number;
+    large_course_late: number;
+  };
+  added_by: string;
+  added_by_name: string;
+  added_at: string;
+  /** The version that added this exam. */
+  schedule_id: string;
+}
+
+/** Where a schedule came from. Generated schedules: refs null, no additions. */
+export interface ScheduleLineage {
+  based_on: ScheduleRef | null;
+  original: ScheduleRef | null;
+  /** Cumulative, oldest first. */
+  late_additions: LateAddition[];
+  /** Viewable late-add versions based directly on this schedule, newest first. */
+  newer_versions: { id: string; name: string; created_at: string }[];
+}
+
+/** What a late add needs to identify the exam (all required). */
+export interface LateAddInput {
+  crn: string;
+  course_code: string;
+  instructor_id: string;
+}
+
+/** `algorithm` of a schedule saved by a late add (`runs.algorithm_name`). */
+export const LATE_ADD_ALGORITHM = "Late add";
+
+/** `POST /schedule/{id}/late-add`: the chosen placement and the new schedule's name. */
+export interface LateAddSaveBody extends LateAddInput {
+  /** Day index, Monday = 0. */
+  day: number;
+  /** Block index, 0-based. */
+  block: number;
+  room: string;
+  schedule_name: string;
+  /** Required for a least-conflicts placement. */
+  accept_conflicts: boolean;
+}
+
+export interface LateAddRoom {
+  name: string;
+  capacity: number;
+}
+
+/** Per-type conflict counts; student keys count distinct students, the rest are 0/1. */
+export type LateAddConflictCounts = LateAddition["conflicts"];
+
+/** A base-schedule exam; day/block/room are null when it is unscheduled. */
+export interface LateAddExam {
+  crn: string;
+  course_code: string;
+  instructor: string | null;
+  size: number;
+  day: number | null;
+  day_name: string | null;
+  block: number | null;
+  block_time: string | null;
+  room: string | null;
+}
+
+/** One block the late exam could go in, with who it would conflict with. */
+export interface LateAddCandidate {
+  /** Day index, Monday = 0. */
+  day: number;
+  day_name: string;
+  /** Block index, 0-based. */
+  block: number;
+  block_time: string;
+  /** Best-fit free room. */
+  room: LateAddRoom;
+  /** Other free rooms that fit, smallest first. */
+  other_rooms: LateAddRoom[];
+  clear: boolean;
+  conflicts: LateAddConflictCounts;
+  students: {
+    /** Base CRNs the student sits in this block. */
+    double_book: { student_id: string; crns: string[] }[];
+    /** Exams that day including the late one. */
+    over_daily_limit: { student_id: string; exams: number }[];
+    /** The student's sorted blocks that day, including the late block. */
+    back_to_back: {
+      student_id: string;
+      blocks: number[];
+      block_times: string[];
+    }[];
+  };
+  instructor: {
+    double_book_crns: string[];
+    /** Including the late exam. */
+    exams_that_day: number;
+    over_daily_limit: boolean;
+    back_to_back: boolean;
+    /** Empty when the instructor has no other exam that day. */
+    day_blocks: number[];
+    /** Labels for `day_blocks`, same order. */
+    day_block_times: string[];
+  };
+  large_course_late: boolean;
+}
+
+/** `POST /schedule/{id}/late-add/search`. */
+export interface LateAddSearchResult {
+  schedule_id: string;
+  crn: string;
+  course_code: string;
+  instructor_id: string;
+  /** Distinct students enrolled on the CRN. */
+  size: number;
+  outcome: "clear" | "least_conflicts" | "no_room";
+  settings: {
+    max_days: number;
+    blocks_per_day: number;
+    student_max_per_day: number;
+    instructor_max_per_day: number;
+  };
+  /** Ranked best first: only clear blocks for clear; empty for no_room. */
+  candidates: LateAddCandidate[];
+  /** Every block's largest free room; only filled for no_room. */
+  no_room_blocks: {
+    day: number;
+    day_name: string;
+    block: number;
+    block_time: string;
+    largest_free_room: LateAddRoom | null;
+  }[];
+  /** Base exams with this instructor: placed first, then unscheduled. */
+  instructor_exams: LateAddExam[];
+  /** Base exams with the same course code, same order. */
+  sibling_sections: LateAddExam[];
+  notes: string[];
 }
 
 export interface ScheduleResult {
@@ -128,16 +389,32 @@ export interface ScheduleResult {
   created_by_user_name?: string;
   shared_by_user_id?: string | null;
   shared_by_user_name?: string | null;
+  /** Detail responses only. */
+  lineage?: ScheduleLineage;
+}
+
+/** The dataset a listed schedule was generated from. */
+export interface ScheduleDatasetSummary {
+  name: string;
+  uploaded_at: string;
+  /** The dataset was deleted after the schedule was generated. */
+  deleted: boolean;
+  /** Null when the upload metadata has no such count. */
+  courses: number | null;
+  students: number | null;
+  rooms: number | null;
 }
 
 export interface ScheduleListItem {
   schedule_id: string;
   schedule_name: string;
   created_at: string;
+  /** The run's `algorithm_name`: the engine, or "Late add" for a late-add version. */
   algorithm: string;
   parameters: ScheduleParameters;
   status: "Running" | "Completed" | "Failed";
   dataset_id: string;
+  dataset: ScheduleDatasetSummary;
   total_exams: number;
   is_shared?: boolean; // Whether this schedule is shared with the user
   is_owner?: boolean; // Whether the user owns this schedule
@@ -145,6 +422,10 @@ export interface ScheduleListItem {
   created_by_user_name?: string;
   shared_by_user_id?: string | null;
   shared_by_user_name?: string | null;
+  /** Exams added by late adds (0 for generated schedules). */
+  late_add_count: number;
+  /** Null for generated schedules and when the base can't be viewed. */
+  based_on_name: string | null;
 }
 
 export interface ScheduleShare {
@@ -167,6 +448,36 @@ export interface SharedSchedule {
   shared_by_user_name: string;
   shared_at: string;
 }
+
+/** A schedule on the Compare page, with the owner/share fields. */
+export interface ComparedSchedule {
+  schedule_id: string;
+  status: "ok";
+  schedule_name: string;
+  created_at: string;
+  run_status: "Running" | "Completed" | "Failed";
+  dataset: {
+    dataset_id: string;
+    dataset_name: string;
+    uploaded_at: string;
+    deleted: boolean;
+  };
+  summary: ScheduleSummary;
+  is_owner: boolean;
+  is_shared: boolean;
+  created_by_user_id: string;
+  created_by_user_name: string;
+  shared_by_user_id: string | null;
+  shared_by_user_name: string | null;
+}
+
+/** Deleted, missing or not shared with the caller: nothing else is revealed. */
+export interface UnavailableSchedule {
+  schedule_id: string;
+  status: "unavailable";
+}
+
+export type CompareItem = ComparedSchedule | UnavailableSchedule;
 
 export class SchedulesAPI extends BaseAPI {
   async generate(
@@ -240,6 +551,12 @@ export class SchedulesAPI extends BaseAPI {
     });
   }
 
+  /** Summaries of 1–4 schedules, in the given order. */
+  async compare(ids: readonly string[]): Promise<{ schedules: CompareItem[] }> {
+    const query = new URLSearchParams(ids.map((id) => ["ids", id]));
+    return this.request(`/schedule/compare?${query}`, { method: "GET" });
+  }
+
   async delete(id: string): Promise<{
     message: string;
     schedule_id: string;
@@ -276,6 +593,30 @@ export class SchedulesAPI extends BaseAPI {
   async getSharedSchedules(): Promise<SharedSchedule[]> {
     return this.request("/schedule/shared", {
       method: "GET",
+    });
+  }
+
+  /** Ranked blocks for an exam not in the schedule; nothing is saved. Owner only. */
+  async lateAddSearch(
+    scheduleId: string,
+    input: LateAddInput,
+  ): Promise<LateAddSearchResult> {
+    return this.request(`/schedule/${scheduleId}/late-add/search`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(input),
+    });
+  }
+
+  /** Saves a placement as a new schedule (the base is unchanged). Owner only. */
+  async lateAddSave(
+    scheduleId: string,
+    body: LateAddSaveBody,
+  ): Promise<ScheduleResult> {
+    return this.request(`/schedule/${scheduleId}/late-add`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
     });
   }
 }

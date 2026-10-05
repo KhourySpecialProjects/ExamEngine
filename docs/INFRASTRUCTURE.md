@@ -2,6 +2,13 @@
 
 AWS deployment and Terraform configuration for ExamEngine.
 
+> [!WARNING]
+> **Not in use.** ExamEngine currently deploys to Coolify (see `docker-compose.coolify-dev.yml`
+> and `docker-compose.coolify-staging.yml`). The Terraform files under `infrastructure/terraform/`
+> and this guide are kept for reference only: they have not been maintained and are likely out
+> of date (resource names, variables and steps may not match the `.tf` files). Check the `.tf`
+> files before relying on anything here.
+
 ## Architecture Overview
 
 <img src="figures/aws_infra.svg" alt="AWS Infrastructure Diagram" width="1000"/>

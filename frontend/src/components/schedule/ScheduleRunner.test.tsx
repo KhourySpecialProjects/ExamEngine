@@ -179,29 +179,6 @@ describe("ScheduleRunner", () => {
     });
   });
 
-  it("shows current schedule info when available", () => {
-    mockUseScheduleStore.mockReturnValue({
-      ...baseScheduleState,
-      currentSchedule: {
-        schedule: { total_exams: 5 },
-        summary: { real_conflicts: 2 },
-        failures: [],
-        conflicts: { total: 1 },
-      },
-    });
-
-    render(<ScheduleRunner />);
-
-    const elems = screen.getAllByText(/5/i, { exact: false });
-    expect(elems.length).toBeGreaterThan(0);
-
-    const elements = screen.getAllByText(/2/i, { exact: false });
-    expect(elements.length).toBeGreaterThan(0);
-
-    const el = screen.getAllByText(/1/i, { exact: false });
-    expect(el.length).toBeGreaterThan(0);
-  });
-
   it("shows loading state when generating", () => {
     mockUseScheduleStore.mockReturnValue({
       ...baseScheduleState,

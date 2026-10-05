@@ -17,6 +17,7 @@ export function useScheduleData() {
     return convertToCalendarRows(
       currentSchedule.schedule.calendar,
       currentSchedule.conflicts.breakdown,
+      new Set(currentSchedule.lineage?.late_additions.map((a) => a.crn)),
     );
   }, [currentSchedule]);
 
@@ -116,6 +117,7 @@ export function useScheduleData() {
 function convertToCalendarRows(
   calendar: Record<string, Record<string, CalendarExam[]>>,
   conflictBreakdown: any[] = [],
+  lateAddCrns: ReadonlySet<string> = new Set(),
 ): CalendarRow[] {
   const backendDays = [
     "Monday",
@@ -237,6 +239,7 @@ function convertToCalendarRows(
           conflicts: hasConflict ? 1 : 0, // Show 1 if in conflict, 0 otherwise
           day: frontendDay,
           timeSlot,
+          isLateAdd: lateAddCrns.has(String(exam.CRN)),
         };
       });
 

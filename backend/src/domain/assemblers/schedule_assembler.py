@@ -1,5 +1,5 @@
-from typing import Any
-from uuid import UUID
+import datetime
+from typing import Any, Protocol
 
 from src.domain.value_objects import SchedulePermissions
 
@@ -7,6 +7,33 @@ from src.domain.value_objects import SchedulePermissions
 def _over_capacity(capacity: int, size: int) -> bool:
     """True if the room's capacity is known (positive) and below the exam's size."""
     return 0 < capacity < size
+
+
+class StoredDataset(Protocol):
+    """The dataset fields a schedule list item reads (a `Datasets` row)."""
+
+    dataset_name: str
+    upload_date: datetime.datetime
+    deleted_at: datetime.datetime | None
+    file_paths: list[dict[str, Any]]
+
+
+def _dataset_summary(dataset: StoredDataset) -> dict[str, Any]:
+    """Name, upload date and size of a schedule's dataset, from stored metadata.
+
+    Counts are None when the upload metadata has no such figure.
+    """
+    metadata = {
+        entry["type"]: entry.get("metadata", {}) for entry in dataset.file_paths
+    }
+    return {
+        "name": dataset.dataset_name,
+        "uploaded_at": dataset.upload_date.isoformat(),
+        "deleted": dataset.deleted_at is not None,
+        "courses": metadata.get("courses", {}).get("unique_crns"),
+        "students": metadata.get("enrollments", {}).get("unique_students"),
+        "rooms": metadata.get("rooms", {}).get("unique_rooms"),
+    }
 
 
 class ScheduleAssembler:
@@ -108,27 +135,27 @@ class ScheduleAssembler:
         )
 
     @staticmethod
-    def build_summary(
-        num_classes: int,
-        num_students: int,
-        num_rooms: int,
-        slots_used: int,
-        hard_conflicts: int,
-        unplaced_exams: int = 0,
+    def build_compare_item(
+        schedule,
+        summary: dict[str, Any],
+        permissions: SchedulePermissions,
     ) -> dict[str, Any]:
-        """
-        Build schedule summary statistics.
-
-        Consistent format for both generation and retrieval.
-        """
+        """One viewable schedule in a compare response."""
+        dataset = schedule.run.dataset
         return {
-            "num_classes": num_classes,
-            "num_students": num_students,
-            "potential_overlaps": 0,  # Legacy field, kept for API compatibility
-            "real_conflicts": hard_conflicts,
-            "num_rooms": num_rooms,
-            "slots_used": slots_used,
-            "unplaced_exams": unplaced_exams,
+            "schedule_id": str(schedule.schedule_id),
+            "status": "ok",
+            "schedule_name": schedule.schedule_name,
+            "created_at": schedule.created_at.isoformat(),
+            "run_status": schedule.run.status.value,
+            "dataset": {
+                "dataset_id": str(dataset.dataset_id),
+                "dataset_name": dataset.dataset_name,
+                "uploaded_at": dataset.upload_date.isoformat(),
+                "deleted": dataset.deleted_at is not None,
+            },
+            "summary": summary,
+            **permissions.to_dict(),
         }
 
     @staticmethod
@@ -150,6 +177,7 @@ class ScheduleAssembler:
             "parameters": schedule.run.parameters,
             "status": schedule.run.status.value,
             "dataset_id": str(schedule.run.dataset_id),
+            "dataset": _dataset_summary(schedule.run.dataset),
             "total_exams": exam_count,
             **permissions.to_dict(),
         }
@@ -200,40 +228,4 @@ class ScheduleAssembler:
             "blockouts": blockouts or {},
             "unscheduled_groups": unscheduled_groups or [],
             **permissions.to_dict(),
-        }
-
-    @staticmethod
-    def build_generation_response(
-        schedule,
-        dataset_id: UUID,
-        dataset_name: str,
-        schedule_list: list[dict],
-        calendar: dict,
-        summary: dict[str, Any],
-        conflicts: dict[str, Any],
-        parameters: dict[str, Any],
-        blockouts: dict[str, dict[str, int]] | None = None,
-        unscheduled_groups: list[dict[str, Any]] | None = None,
-    ) -> dict[str, Any]:
-        """
-        Build response for generate_schedule endpoint.
-
-        Slightly different shape than detail response (no permissions).
-        """
-        return {
-            "schedule_id": str(schedule.schedule_id),
-            "schedule_name": schedule.schedule_name,
-            "dataset_id": str(dataset_id),
-            "dataset_name": dataset_name,
-            "summary": summary,
-            "conflicts": conflicts,
-            "failures": [],
-            "schedule": {
-                "complete": schedule_list,
-                "calendar": calendar,
-                "total_exams": len(schedule_list),
-            },
-            "parameters": parameters,
-            "blockouts": blockouts or {},
-            "unscheduled_groups": unscheduled_groups or [],
         }

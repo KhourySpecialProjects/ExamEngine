@@ -80,6 +80,7 @@ export default function CompactView() {
                   hasConflict={exam.conflicts > 0}
                   isMerged={isMerged(exam.section)}
                   isCommon={isCommon(exam.section)}
+                  isLateAdd={exam.isLateAdd}
                 />
               ))}
 

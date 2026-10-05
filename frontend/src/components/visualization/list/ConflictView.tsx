@@ -7,10 +7,6 @@ import {
   Briefcase,
   Calendar,
   CalendarX,
-  ChevronLeft,
-  ChevronRight,
-  ChevronsLeft,
-  ChevronsRight,
   Clock,
   GraduationCap,
   SquareArrowOutUpRight,
@@ -18,6 +14,7 @@ import {
 } from "lucide-react";
 import { useState } from "react";
 import { CopyButton } from "@/components/common/CopyButton";
+import { PaginationBar } from "@/components/common/table/PaginationBar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { ButtonGroup } from "@/components/ui/button-group";
@@ -29,13 +26,6 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import {
   Table,
   TableBody,
   TableCell,
@@ -43,6 +33,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import type { ConflictMetric } from "@/lib/api/schedules";
 import {
   CONFLICT_TYPE_ORDER,
   ConflictStat,
@@ -71,11 +62,8 @@ import {
   summarizeConflictsByCourse,
   useConflictDataSimple,
 } from "@/lib/hooks/useConflictDataSimple";
-import {
-  CONFLICT_PAGE_SIZES,
-  useConflictViewStore,
-} from "@/lib/store/conflictViewStore";
-import type { ConflictMetrics } from "@/lib/types/conflict.types";
+import { useConflictViewStore } from "@/lib/store/conflictViewStore";
+import { useSchedulesStore } from "@/lib/store/schedulesStore";
 import { cn } from "@/lib/utils";
 import { CourseConflictDialog } from "./CourseConflictDialog";
 
@@ -158,80 +146,6 @@ function CoursePill({
         <SquareArrowOutUpRight className="size-3" aria-hidden />
       </button>
     </Badge>
-  );
-}
-
-function PaginationBar({
-  page,
-  pageSize,
-  total,
-  noun,
-  onPage,
-  onPageSize,
-}: {
-  page: number;
-  pageSize: number;
-  total: number;
-  /** Pluralized, with a leading space (" students"), or "". */
-  noun: string;
-  onPage: (p: number) => void;
-  /** Omit to hide the rows-per-page picker. */
-  onPageSize?: (size: number) => void;
-}) {
-  const totalPages = Math.max(1, Math.ceil(total / pageSize));
-  const start = page * pageSize;
-  const end = Math.min(total, start + pageSize);
-  const pageButtons = [
-    { label: "First page", icon: ChevronsLeft, to: 0 },
-    { label: "Previous page", icon: ChevronLeft, to: page - 1 },
-    { label: "Next page", icon: ChevronRight, to: page + 1 },
-    { label: "Last page", icon: ChevronsRight, to: totalPages - 1 },
-  ];
-  return (
-    <div className="flex flex-wrap items-center justify-between gap-2 py-2">
-      <div className="text-sm text-muted-foreground">
-        Showing {total === 0 ? 0 : start + 1}-{end} of {total}
-        {noun}
-      </div>
-      <div className="flex items-center gap-2">
-        {onPageSize && (
-          <>
-            <span className="text-sm text-muted-foreground">Rows per page</span>
-            <Select
-              value={String(pageSize)}
-              onValueChange={(v) => onPageSize(Number(v))}
-            >
-              <SelectTrigger size="sm" aria-label="Rows per page">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {CONFLICT_PAGE_SIZES.map((n) => (
-                  <SelectItem key={n} value={String(n)}>
-                    {n}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </>
-        )}
-        <span className="text-sm text-muted-foreground tabular-nums">
-          Page {page + 1} of {totalPages}
-        </span>
-        {pageButtons.map(({ label, icon: Icon, to }) => (
-          <Button
-            key={label}
-            variant="outline"
-            size="icon-sm"
-            aria-label={label}
-            title={label}
-            disabled={to < 0 || to >= totalPages || to === page}
-            onClick={() => onPage(to)}
-          >
-            <Icon />
-          </Button>
-        ))}
-      </div>
-    </div>
   );
 }
 
@@ -576,14 +490,21 @@ function ConflictTable({
   );
 }
 
-// Conflict View: show backend-provided metrics and rows
+// Conflict View: summary cards and rows from the saved conflict breakdown.
+// `type` selects the conflict tab (from the URL); an unknown or absent type
+// shows the first tab.
 export default function ConflictView({
-  metrics,
+  type,
+  onTypeChange,
 }: {
-  metrics?: Partial<ConflictMetrics>;
+  type: string | null;
+  onTypeChange: (type: string) => void;
 }) {
-  // Use the simple backend-driven conflict hook — backend returns a single normalized shape
-  const { metrics: counts, rowsByType, types } = useConflictDataSimple();
+  const { rowsByType, types } = useConflictDataSimple();
+  // Card counts come from the server's summary (same as the Statistics tab).
+  const conflicts = useSchedulesStore(
+    (state) => state.currentSchedule?.summary?.conflicts,
+  );
 
   // Same order as the tabs: students, instructors, then courses. Who is
   // affected goes in a pill under the title so titles stay on one line.
@@ -591,58 +512,58 @@ export default function ConflictView({
     {
       audience: "Student",
       label: "Double-Book",
-      value: counts.hard_student_conflicts,
+      metric: "student_double_book",
       subtitle: "Students with overlapping exams",
       icon: <UserX className="h-4 w-4" />,
-      variant: counts.hard_student_conflicts > 0 ? "destructive" : "success",
+      tone: "destructive",
     },
     {
       audience: "Student",
       label: "Per-Day Limit",
-      value: counts.student_gt3_per_day,
+      metric: "student_over_daily_limit",
       subtitle: "Students over the daily exam limit",
       icon: <Calendar className="h-4 w-4" />,
-      variant: counts.student_gt3_per_day > 0 ? "destructive" : "success",
+      tone: "destructive",
     },
     {
       audience: "Student",
       label: "Back-to-Back",
-      value: counts.students_back_to_back,
+      metric: "student_back_to_back",
       subtitle: "Students with back-to-back exams",
       icon: <Clock className="h-4 w-4" />,
-      variant: counts.students_back_to_back > 0 ? "warning" : "success",
+      tone: "warning",
     },
     {
       audience: "Instructor",
       label: "Double-Book",
-      value: counts.hard_instructor_conflicts,
+      metric: "instructor_double_book",
       subtitle: "Instructors with overlapping exams",
       icon: <Briefcase className="h-4 w-4" />,
-      variant: counts.hard_instructor_conflicts > 0 ? "destructive" : "success",
+      tone: "destructive",
     },
     {
       audience: "Instructor",
       label: "Per-Day Limit",
-      value: counts.instructor_gt_max_per_day,
+      metric: "instructor_over_daily_limit",
       subtitle: "Instructors over the daily exam limit",
       icon: <CalendarX className="h-4 w-4" />,
-      variant: counts.instructor_gt_max_per_day > 0 ? "destructive" : "success",
+      tone: "destructive",
     },
     {
       audience: "Instructor",
       label: "Back-to-Back",
-      value: counts.instructors_back_to_back,
+      metric: "instructor_back_to_back",
       subtitle: "Instructors with back-to-back exams",
       icon: <GraduationCap className="h-4 w-4" />,
-      variant: counts.instructors_back_to_back > 0 ? "warning" : "success",
+      tone: "warning",
     },
     {
       audience: "Course",
       label: "Large, Not Early",
-      value: counts.large_courses_not_early,
+      metric: "large_courses_late",
       subtitle: "100+ enrollment scheduled late",
       icon: <AlertTriangle className="h-4 w-4" />,
-      variant: counts.large_courses_not_early > 0 ? "warning" : "success",
+      tone: "warning",
     },
   ] as const;
 
@@ -666,9 +587,10 @@ export default function ConflictView({
   const pageSize = useConflictViewStore((s) => s.pageSize);
   const setPageSize = useConflictViewStore((s) => s.setPageSize);
 
-  const [activeTab, setActiveTab] = useState<string>(
-    effectiveTabs[0]?.id ?? "back_to_back",
-  );
+  const activeTab =
+    effectiveTabs.find((t) => t.id === type)?.id ??
+    effectiveTabs[0]?.id ??
+    "back_to_back";
 
   const rowsForActive = rowsByType[activeTab] ?? [];
   const page = getPage(activeTab);
@@ -711,28 +633,33 @@ export default function ConflictView({
       </div>
 
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-4 lg:grid-cols-7">
-        {summaryCards.map((c) => (
-          <ConflictStat
-            key={`${c.audience} ${c.label}`}
-            label={c.label}
-            audience={c.audience}
-            value={c.value}
-            icon={c.icon}
-            subtitle={c.subtitle}
-            variant={c.variant}
-          />
-        ))}
+        {summaryCards.map((c) => {
+          const value = conflicts?.[c.metric].people ?? 0;
+          return (
+            <ConflictStat
+              key={c.metric}
+              label={c.label}
+              audience={c.audience}
+              value={value}
+              icon={c.icon}
+              subtitle={c.subtitle}
+              variant={value > 0 ? c.tone : "success"}
+            />
+          );
+        })}
       </div>
 
       <div className="mt-4">
-        <div className="flex gap-2">
+        <fieldset className="flex gap-2">
+          <legend className="sr-only">Conflict types</legend>
           {effectiveTabs.map((t) => (
             <Button
               key={t.id}
               onClick={() => {
-                setActiveTab(t.id);
+                onTypeChange(t.id);
                 setPage(t.id, 0);
               }}
+              aria-pressed={activeTab === t.id}
               className={`rounded-md px-3 py-1 text-sm font-medium transition-colors ${
                 activeTab === t.id
                   ? "bg-primary text-primary-foreground"
@@ -742,7 +669,7 @@ export default function ConflictView({
               {t.label}
             </Button>
           ))}
-        </div>
+        </fieldset>
 
         <div className="mt-3">
           <Card>

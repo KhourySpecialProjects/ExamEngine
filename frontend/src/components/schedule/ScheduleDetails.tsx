@@ -1,17 +1,24 @@
-import { CalendarClock, Database } from "lucide-react";
+import { CalendarClock, CalendarPlus, Database } from "lucide-react";
+import Link from "next/link";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
-import type { ScheduleResult } from "@/lib/api/schedules";
-
-/** Blocks per day every schedule used before the option was recorded. */
-const LEGACY_BLOCKS_PER_DAY = 5;
-
-export interface GenerationSetting {
-  label: string;
-  value: string;
-  note?: string;
-}
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
+import type {
+  LateAddition,
+  ScheduleRef,
+  ScheduleResult,
+} from "@/lib/api/schedules";
+import { settingRows } from "@/lib/scheduleSettings";
+import { cn } from "@/lib/utils";
+import { conflictSummary } from "./LateAddSaveForm";
 
 const dateTimeFormat = new Intl.DateTimeFormat("en-US", {
   month: "short",
@@ -21,77 +28,80 @@ const dateTimeFormat = new Intl.DateTimeFormat("en-US", {
   minute: "2-digit",
 });
 
-function yesNo(value: boolean | undefined): string {
-  if (value === undefined) return "Not recorded";
-  return value ? "Yes" : "No";
-}
-
-function count(value: number | undefined): string {
-  return value === undefined ? "Not recorded" : String(value);
-}
-
-/**
- * The settings a schedule was generated with, as stored on its run.
- *
- * Runs from before a setting was recorded show the value the generator used
- * then, marked as not recorded.
- */
-export function generationSettings(
-  schedule: Pick<ScheduleResult, "algorithm" | "parameters">,
-): GenerationSetting[] {
-  const params = schedule.parameters ?? {};
-  // `parameters.algorithm` exists only on runs since the algorithm became
-  // selectable; earlier runs were all DSATUR, recorded in `algorithm`.
-  const isOptimized =
-    (params.algorithm ?? schedule.algorithm?.toLowerCase()) === "annealing";
-
-  const settings: GenerationSetting[] = [
-    {
-      label: "Algorithm",
-      value: isOptimized ? "Optimized (annealing)" : "Classic (DSATUR)",
-    },
-  ];
-  if (isOptimized) {
-    settings.push({
-      label: "Optimization time",
-      value:
-        params.time_budget_seconds === undefined
-          ? "Not recorded"
-          : `${params.time_budget_seconds}s`,
-    });
+function RefLink({ scheduleRef }: { scheduleRef: ScheduleRef | null }) {
+  if (!scheduleRef?.available || !scheduleRef.name) {
+    return <span className="text-muted-foreground">Not available</span>;
   }
-  settings.push(
-    { label: "Max exam days", value: count(params.max_days) },
-    params.blocks_per_day === undefined
-      ? {
-          label: "Exam blocks per day",
-          value: String(LEGACY_BLOCKS_PER_DAY),
-          note: "Not recorded; the only option at the time",
-        }
-      : { label: "Exam blocks per day", value: String(params.blocks_per_day) },
-    {
-      label: "Max exams per student per day",
-      value: count(params.student_max_per_day),
-    },
-    {
-      label: "Max exams per instructor per day",
-      value: count(params.instructor_max_per_day),
-    },
-    {
-      label: "Avoid back-to-back",
-      value: yesNo(params.avoid_back_to_back),
-      note: isOptimized ? undefined : "Not used by Classic",
-    },
-    {
-      label: "Prioritize large classes",
-      value: yesNo(params.prioritize_large_courses),
-    },
+  return (
+    <Link
+      href={`/dashboard/${scheduleRef.id}`}
+      className="font-medium text-foreground hover:underline"
+    >
+      {scheduleRef.name}
+    </Link>
   );
-  return settings;
 }
 
-/** Source dataset, authorship and generation settings for one schedule. */
+function LateAdditionsTable({ additions }: { additions: LateAddition[] }) {
+  return (
+    <div className="space-y-2">
+      <h3 className="text-sm font-medium">Late additions</h3>
+      <div className="overflow-hidden rounded-md border">
+        <Table aria-label="Late additions">
+          <TableHeader>
+            <TableRow>
+              <TableHead>CRN</TableHead>
+              <TableHead>Course</TableHead>
+              <TableHead>Instructor</TableHead>
+              <TableHead>Block</TableHead>
+              <TableHead>Room</TableHead>
+              <TableHead>Outcome</TableHead>
+              <TableHead>Added</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {additions.map((a) => (
+              <TableRow key={`${a.schedule_id}-${a.crn}`}>
+                <TableCell className="font-mono">{a.crn}</TableCell>
+                <TableCell>{a.course_code}</TableCell>
+                <TableCell>{a.instructor_id}</TableCell>
+                <TableCell>
+                  {a.day_name} {a.block_time}
+                </TableCell>
+                <TableCell className="font-mono">{a.room}</TableCell>
+                <TableCell className="whitespace-normal">
+                  <span
+                    className={cn(
+                      "font-medium",
+                      a.outcome === "clear"
+                        ? "text-green-600"
+                        : "text-amber-600",
+                    )}
+                  >
+                    {a.outcome === "clear" ? "Clear" : "Least conflicts"}
+                  </span>
+                  <span className="block text-xs text-muted-foreground">
+                    {conflictSummary(a.conflicts)}
+                  </span>
+                </TableCell>
+                <TableCell>
+                  {a.added_by_name}
+                  <span className="block text-xs text-muted-foreground">
+                    {dateTimeFormat.format(new Date(a.added_at))}
+                  </span>
+                </TableCell>
+              </TableRow>
+            ))}
+          </TableBody>
+        </Table>
+      </div>
+    </div>
+  );
+}
+
+/** Source dataset, authorship, late-add lineage and generation settings for one schedule. */
 export function ScheduleDetails({ schedule }: { schedule: ScheduleResult }) {
+  const lineage = schedule.lineage;
   return (
     <Card className="gap-4 py-4">
       <CardContent className="space-y-4">
@@ -114,7 +124,7 @@ export function ScheduleDetails({ schedule }: { schedule: ScheduleResult }) {
           </div>
           <div className="flex flex-wrap items-center gap-2 text-muted-foreground">
             <CalendarClock className="h-4 w-4" />
-            <span>Generated</span>
+            <span>{lineage?.based_on ? "Saved" : "Generated"}</span>
             {schedule.created_at && (
               <span className="font-medium text-foreground">
                 {dateTimeFormat.format(new Date(schedule.created_at))}
@@ -134,13 +144,28 @@ export function ScheduleDetails({ schedule }: { schedule: ScheduleResult }) {
               </>
             )}
           </div>
+          {lineage?.based_on && (
+            <div className="flex flex-wrap items-center gap-2 text-muted-foreground">
+              <CalendarPlus className="h-4 w-4" />
+              <span>Late add to</span>
+              <RefLink scheduleRef={lineage.based_on} />
+              <span className="mx-1">•</span>
+              <span>Original:</span>
+              <RefLink scheduleRef={lineage.original} />
+            </div>
+          )}
         </div>
         <Separator />
         <dl className="grid grid-cols-2 gap-x-6 gap-y-3 sm:grid-cols-4 xl:grid-cols-8">
-          {generationSettings(schedule).map((setting) => (
-            <div key={setting.label}>
+          {settingRows(schedule.summary).map((setting) => (
+            <div key={setting.key}>
               <dt className="text-xs text-muted-foreground">{setting.label}</dt>
-              <dd className="text-sm font-medium">
+              <dd
+                className={cn(
+                  "text-sm font-medium",
+                  setting.unused && "font-normal text-muted-foreground",
+                )}
+              >
                 {setting.value}
                 {setting.note && (
                   <span className="block text-xs font-normal text-muted-foreground">
@@ -151,6 +176,12 @@ export function ScheduleDetails({ schedule }: { schedule: ScheduleResult }) {
             </div>
           ))}
         </dl>
+        {lineage && lineage.late_additions.length > 0 && (
+          <>
+            <Separator />
+            <LateAdditionsTable additions={lineage.late_additions} />
+          </>
+        )}
       </CardContent>
     </Card>
   );

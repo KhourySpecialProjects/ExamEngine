@@ -3,9 +3,11 @@
 import { ChevronRight, MoveLeft, Save } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { use, useEffect, useState } from "react";
+import { useQueryStates } from "nuqs";
+import { Suspense, use, useEffect } from "react";
 import { toast } from "sonner";
 import { ViewTabSwitcher } from "@/components/common/ViewTabSwitcher";
+import { LateAddDialog } from "@/components/schedule/LateAddDialog";
 import { ScheduleDetails } from "@/components/schedule/ScheduleDetails";
 import { ShareScheduleDialog } from "@/components/schedule/ShareScheduleDialog";
 import { ValidateScheduleDialog } from "@/components/schedule/ValidateScheduleDialog";
@@ -25,19 +27,31 @@ import { ExamListDialog } from "@/components/visualization/calendar/ExamListDial
 import ConflictView from "@/components/visualization/list/ConflictView";
 import ListView from "@/components/visualization/list/ListView";
 import { useScheduleData } from "@/lib/hooks/useScheduleData";
+import { type ScheduleView, scheduleViewParams } from "@/lib/scheduleView";
 import { useAuthStore } from "@/lib/store/authStore";
 import { useSchedulesStore } from "@/lib/store/schedulesStore";
 import { exportScheduleRowsAsCsv } from "@/lib/utils";
 
-type ViewType = "density" | "compact" | "list" | "statistics" | "conflicts";
-
+// The view and conflict type come from the URL (useSearchParams via nuqs).
 export default function SchedulePage({
   params,
 }: {
   params: Promise<{ id: string }>;
 }) {
-  const { id: scheduleId } = use(params);
-  const [activeView, setActiveView] = useState<ViewType>("density");
+  const { id } = use(params);
+  return (
+    <Suspense>
+      <ScheduleDetailPage scheduleId={id} />
+    </Suspense>
+  );
+}
+
+function ScheduleDetailPage({ scheduleId }: { scheduleId: string }) {
+  const [{ view: activeView, type: conflictType }, setViewParams] =
+    useQueryStates(scheduleViewParams);
+  // A conflict type only means something on the Conflicts view.
+  const setActiveView = (view: ScheduleView) =>
+    setViewParams({ view, type: null });
   const router = useRouter();
   const { user } = useAuthStore();
 
@@ -130,6 +144,14 @@ export default function SchedulePage({
               scheduleName={schedule.schedule_name}
             />
           )}
+          {canShare && schedule && (
+            <LateAddDialog
+              scheduleId={scheduleId}
+              scheduleName={schedule.schedule_name}
+              datasetDeleted={schedule.dataset_deleted}
+              newerVersions={schedule.lineage?.newer_versions}
+            />
+          )}
           <Button
             onClick={handleExport}
             className="bg-black text-white hover:opacity-90 min-w-50"
@@ -147,7 +169,12 @@ export default function SchedulePage({
       {activeView === "statistics" && (
         <StatisticsView onShowConflicts={() => setActiveView("conflicts")} />
       )}
-      {activeView === "conflicts" && <ConflictView />}
+      {activeView === "conflicts" && (
+        <ConflictView
+          type={conflictType}
+          onTypeChange={(type) => setViewParams({ type })}
+        />
+      )}
 
       <ExamListDialog />
     </div>

@@ -28,6 +28,40 @@ class CourseRepo(BaseRepo[Courses]):
         stmt = select(Courses).where(Courses.dataset_id == dataset_id)
         return list(self.db.execute(stmt).scalars().all())
 
+    def get_or_add_late_course(
+        self,
+        dataset_id: UUID,
+        crn: str,
+        course_subject_code: str,
+        instructor_name: str,
+        enrollment_count: int,
+    ) -> Courses:
+        """The dataset's course row with exactly these values, else a new one.
+
+        A new row is flushed, not committed (the caller commits). Department
+        and term stay empty: a late-added course has none.
+        """
+        stmt = select(Courses).where(
+            Courses.dataset_id == dataset_id,
+            Courses.crn == crn,
+            Courses.course_subject_code == course_subject_code,
+            Courses.instructor_name == instructor_name,
+            Courses.enrollment_count == enrollment_count,
+        )
+        existing = self.db.execute(stmt).scalars().first()
+        if existing is not None:
+            return existing
+        course = Courses(
+            crn=crn,
+            course_subject_code=course_subject_code,
+            instructor_name=instructor_name,
+            enrollment_count=enrollment_count,
+            dataset_id=dataset_id,
+        )
+        self.db.add(course)
+        self.db.flush()
+        return course
+
     def bulk_create_from_domain(
         self,
         dataset_id: UUID,

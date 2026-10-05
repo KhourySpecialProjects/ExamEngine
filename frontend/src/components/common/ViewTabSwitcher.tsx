@@ -3,12 +3,11 @@
 // biome-ignore lint/suspicious/noShadowRestrictedNames: false postive
 import { AlertTriangle, BarChart3, LayoutGrid, List, Map } from "lucide-react";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
-
-type ViewType = "density" | "compact" | "list" | "statistics" | "conflicts";
+import type { ScheduleView } from "@/lib/scheduleView";
 
 interface ViewTabSwitcherProps {
-  activeView: ViewType;
-  onViewChange: (view: ViewType) => void;
+  activeView: ScheduleView;
+  onViewChange: (view: ScheduleView) => void;
 }
 
 export function ViewTabSwitcher({
@@ -16,7 +15,10 @@ export function ViewTabSwitcher({
   onViewChange,
 }: ViewTabSwitcherProps) {
   return (
-    <Tabs value={activeView} onValueChange={(v) => onViewChange(v as ViewType)}>
+    <Tabs
+      value={activeView}
+      onValueChange={(v) => onViewChange(v as ScheduleView)}
+    >
       <TabsList className="border border-gray-300 p-1!">
         <TabsTrigger
           value="density"

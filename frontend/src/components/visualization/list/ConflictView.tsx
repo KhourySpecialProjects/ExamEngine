@@ -15,6 +15,7 @@ import {
 import { useState } from "react";
 import { CopyButton } from "@/components/common/CopyButton";
 import { PaginationBar } from "@/components/common/table/PaginationBar";
+import { PersonIdActions } from "@/components/person-exams/PersonIdActions";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { ButtonGroup } from "@/components/ui/button-group";
@@ -230,6 +231,7 @@ function ConflictTable({
   pageSize,
   onPageSize,
   onOpenCourse,
+  scheduleId,
 }: {
   rowsForActive: ConflictRow[];
   activeTabId: ConflictType;
@@ -241,6 +243,7 @@ function ConflictTable({
   pageSize: number;
   onPageSize: (size: number) => void;
   onOpenCourse: (course: ConflictCourse) => void;
+  scheduleId: string | undefined;
 }) {
   const isPersonTab = isPersonConflictType(activeTabId);
   const isInstructorTab = isInstructorConflictType(activeTabId);
@@ -434,9 +437,10 @@ function ConflictTable({
                       {r.entity ? (
                         <span className="inline-flex items-center gap-1">
                           {r.entity}
-                          <CopyButton
-                            value={r.entity}
-                            label={`Copy ${isInstructorTab ? "instructor" : "NUId"} ${r.entity}`}
+                          <PersonIdActions
+                            id={r.entity}
+                            kind={isInstructorTab ? "instructor" : "student"}
+                            scheduleId={scheduleId}
                           />
                         </span>
                       ) : (
@@ -504,6 +508,9 @@ export default function ConflictView({
   // Card counts come from the server's summary (same as the Statistics tab).
   const conflicts = useSchedulesStore(
     (state) => state.currentSchedule?.summary?.conflicts,
+  );
+  const scheduleId = useSchedulesStore(
+    (state) => state.currentSchedule?.schedule_id,
   );
 
   // Same order as the tabs: students, instructors, then courses. Who is
@@ -720,6 +727,7 @@ export default function ConflictView({
                 onPage={(p) => setPage(activeTab, p)}
                 pageSize={pageSize}
                 onOpenCourse={setOpenCourse}
+                scheduleId={scheduleId}
                 onPageSize={(size) => {
                   setPageSize(size);
                   // Old page indexes are meaningless at the new size.
@@ -733,6 +741,7 @@ export default function ConflictView({
           <CourseConflictDialog
             course={openCourse}
             rowsByType={rowsByType}
+            scheduleId={scheduleId}
             onClose={() => setOpenCourse(null)}
           />
         </div>

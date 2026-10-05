@@ -1,5 +1,6 @@
 import { Check, Copy } from "lucide-react";
 import { CopyButton, useCopy } from "@/components/common/CopyButton";
+import { PersonIdActions } from "@/components/person-exams/PersonIdActions";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -46,10 +47,12 @@ function TypeSection({
   type,
   course,
   rowsByType,
+  scheduleId,
 }: {
   type: ConflictType;
   course: ConflictCourse;
   rowsByType: ConflictDataByType;
+  scheduleId: string | undefined;
 }) {
   const label = conflictTypeMap[type] ?? type;
   const isInstructor = isInstructorConflictType(type);
@@ -97,9 +100,10 @@ function TypeSection({
             >
               <span className="truncate">{person || "—"}</span>
               {person && (
-                <CopyButton
-                  value={person}
-                  label={`Copy ${isInstructor ? "instructor" : "NUId"} ${person}`}
+                <PersonIdActions
+                  id={person}
+                  kind={isInstructor ? "instructor" : "student"}
+                  scheduleId={scheduleId}
                 />
               )}
             </li>
@@ -117,10 +121,13 @@ function TypeSection({
 export function CourseConflictDialog({
   course,
   rowsByType,
+  scheduleId,
   onClose,
 }: {
   course: ConflictCourse | null;
   rowsByType: ConflictDataByType;
+  /** The schedule the people's exams are looked up in. */
+  scheduleId: string | undefined;
   onClose: () => void;
 }) {
   const types = Object.keys(rowsByType)
@@ -166,6 +173,7 @@ export function CourseConflictDialog({
                   type={type}
                   course={course}
                   rowsByType={rowsByType}
+                  scheduleId={scheduleId}
                 />
               ))}
             </div>

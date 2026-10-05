@@ -25,6 +25,7 @@ from src.repo.schedule_share import ScheduleShareRepo
 from src.repo.time_slot import TimeSlotRepo
 from src.schemas.db import StatusEnum
 from src.services.dataset.service import DatasetService
+from src.services.schedule.lineage import based_on_id, build_lineage, late_additions
 from src.services.schedule.permissions import SchedulePermissionService
 from src.services.schedule.summary import build_schedule_summary
 
@@ -223,13 +224,22 @@ class ScheduleService:
     async def list_schedules_for_user(self, user_id: UUID) -> list[dict[str, Any]]:
         """List all schedules for user with metadata and permissions."""
         schedules = self.schedule_repo.get_all_for_user(user_id)
+        # One query for every base's name; a base the user can't view stays unnamed.
+        base_ids = {based_on_id(s.run.parameters) for s in schedules} - {None}
+        base_names = self.schedule_repo.get_viewable_names(list(base_ids), user_id)
 
         return [
-            ScheduleAssembler.build_list_item(
-                schedule=s,
-                exam_count=self.schedule_repo.get_exam_assignments_count(s.schedule_id),
-                permissions=self._permissions.get_permissions(s, user_id),
-            )
+            {
+                **ScheduleAssembler.build_list_item(
+                    schedule=s,
+                    exam_count=self.schedule_repo.get_exam_assignments_count(
+                        s.schedule_id
+                    ),
+                    permissions=self._permissions.get_permissions(s, user_id),
+                ),
+                "late_add_count": len(late_additions(s.run.parameters)),
+                "based_on_name": base_names.get(based_on_id(s.run.parameters)),
+            }
             for s in schedules
         ]
 
@@ -279,17 +289,22 @@ class ScheduleService:
                 "blockout_slots", {}
             )
 
-        return ScheduleAssembler.build_full_response(
-            schedule=schedule,
-            summary=summary,
-            conflicts=conflicts,
-            schedule_block=ScheduleAssembler.build_schedule_block(
-                complete_exams, calendar
+        return {
+            **ScheduleAssembler.build_full_response(
+                schedule=schedule,
+                summary=summary,
+                conflicts=conflicts,
+                schedule_block=ScheduleAssembler.build_schedule_block(
+                    complete_exams, calendar
+                ),
+                permissions=permissions,
+                blockouts=blockout_slots,
+                unscheduled_groups=unscheduled_groups,
             ),
-            permissions=permissions,
-            blockouts=blockout_slots,
-            unscheduled_groups=unscheduled_groups,
-        )
+            "lineage": build_lineage(
+                self.schedule_repo, schedule_id, schedule.run.parameters, user_id
+            ),
+        }
 
     async def compare_schedules(
         self, schedule_ids: list[UUID], user_id: UUID

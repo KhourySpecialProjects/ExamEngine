@@ -372,6 +372,25 @@ no_room_blocks, instructor_exams, sibling_sections, notes}`; `outcome` is `clear
 `least_conflicts` or `no_room`, and `candidates` are ranked, each with its block, best-fit room,
 other fitting rooms, conflict counts and the students and instructor affected.
 
+### Late-add lineage
+
+A late add saves a new schedule; its run (`algorithm_name` `"Late add"`) stores the base run's
+resolved settings in `runs.parameters` plus `based_on_schedule_id`, `original_schedule_id` (the
+first generated schedule of the chain) and `late_additions` (every exam added along the chain,
+oldest first). Because `parameters.algorithm` is the base's, the summary shows the base's engine
+and `settings_unused`.
+
+`GET /api/schedule/{id}` always has `lineage`, read from the database only:
+
+| Field | Meaning |
+| --- | --- |
+| `based_on`, `original` | `{id, name, available}`; `null` for generated schedules. A deleted schedule, or one the caller can't view, is `available: false` with `name: null` |
+| `late_additions` | The stored entries (`crn`, `course_code`, `instructor_id`, `size`, `day`, `day_name`, `block`, `block_time`, `room`, `outcome`, `conflicts`, `added_by`, `added_by_name`, `added_at`, `schedule_id` of the version that added it); `[]` for generated schedules |
+| `newer_versions` | `{id, name, created_at}` of schedules based directly on this one that the caller can view, newest first |
+
+Each `GET /api/schedule` item has `late_add_count` (0 for generated schedules) and
+`based_on_name` (`null` for generated schedules and when the base is deleted or not viewable).
+
 ## S3 Storage Structure
 
 Datasets are stored in S3 with the following structure:

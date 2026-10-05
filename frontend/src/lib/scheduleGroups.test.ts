@@ -24,6 +24,8 @@ const schedule = (
     rooms: 1,
   },
   total_exams: exams,
+  late_add_count: 0,
+  based_on_name: null,
 });
 
 const SCHEDULES = [

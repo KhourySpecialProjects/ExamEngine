@@ -200,6 +200,53 @@ export interface UnscheduledGroup {
   crns: string[];
 }
 
+/** A schedule a late-add version refers to. A deleted or unviewable one has no name. */
+export interface ScheduleRef {
+  id: string;
+  name: string | null;
+  available: boolean;
+}
+
+/** One exam added to a saved schedule by a late add (stored in the run's parameters). */
+export interface LateAddition {
+  crn: string;
+  course_code: string;
+  instructor_id: string;
+  size: number;
+  /** Day index, Monday = 0. */
+  day: number;
+  day_name: string;
+  /** Block index, 0-based. */
+  block: number;
+  block_time: string;
+  room: string;
+  outcome: "clear" | "least_conflicts";
+  conflicts: {
+    student_double_book: number;
+    student_over_daily_limit: number;
+    instructor_double_book: number;
+    instructor_over_daily_limit: number;
+    back_to_back_students: number;
+    back_to_back_instructor: number;
+    large_course_late: number;
+  };
+  added_by: string;
+  added_by_name: string;
+  added_at: string;
+  /** The version that added this exam. */
+  schedule_id: string;
+}
+
+/** Where a schedule came from. Generated schedules: refs null, no additions. */
+export interface ScheduleLineage {
+  based_on: ScheduleRef | null;
+  original: ScheduleRef | null;
+  /** Cumulative, oldest first. */
+  late_additions: LateAddition[];
+  /** Viewable late-add versions based directly on this schedule, newest first. */
+  newer_versions: { id: string; name: string; created_at: string }[];
+}
+
 export interface ScheduleResult {
   schedule_id: string;
   dataset_id: string;
@@ -227,6 +274,8 @@ export interface ScheduleResult {
   created_by_user_name?: string;
   shared_by_user_id?: string | null;
   shared_by_user_name?: string | null;
+  /** Detail responses only. */
+  lineage?: ScheduleLineage;
 }
 
 /** The dataset a listed schedule was generated from. */
@@ -257,6 +306,10 @@ export interface ScheduleListItem {
   created_by_user_name?: string;
   shared_by_user_id?: string | null;
   shared_by_user_name?: string | null;
+  /** Exams added by late adds (0 for generated schedules). */
+  late_add_count: number;
+  /** Null for generated schedules and when the base can't be viewed. */
+  based_on_name: string | null;
 }
 
 export interface ScheduleShare {

@@ -94,6 +94,8 @@ export const useSchedulesStore = create<SchedulesState>((set, get) => ({
             rooms: dataset?.files.rooms?.unique_rooms ?? null,
           },
           total_exams: 0,
+          late_add_count: 0,
+          based_on_name: null,
         },
         ...state.schedules,
       ],

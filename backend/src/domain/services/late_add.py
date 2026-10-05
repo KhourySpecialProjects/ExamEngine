@@ -7,7 +7,11 @@ rule. `search_placements` ranks the blocks; `evaluate_placement` evaluates one
 block and is what the save step re-runs before storing the late exam.
 
 Counting (the Validator's rule, EXENG-81): each person's existing exams count
-once per distinct (day, block), so the CRNs of one combined exam count once.
+once per distinct (unit, block) on a day. For students the unit is the exam
+unit: a combined group, else the CRN. For instructors it is the time group: a
+common group (a combined group listed partly in one joins it whole), else a
+combined group, else the CRN. So the CRNs of one combined exam, and the rooms of
+one common exam, count once, while two separate exams in one block count twice.
 The late exam is always one more exam for its students and instructor, also
 in a block where they already sit an exam.
 
@@ -84,6 +88,36 @@ class BaseSchedule:
     blockouts: Mapping[str, Set[Slot]]
     """Room name → blocked (day, block) slots."""
     settings: LateAddSettings
+    combined_groups: Mapping[str, Sequence[str]] = field(default_factory=dict)
+    """Dataset combined groups (`course_merges`): label → CRNs."""
+    common_groups: Mapping[str, Sequence[str]] = field(default_factory=dict)
+    """Dataset common exam groups: label → CRNs as listed."""
+
+    def group_units(self) -> tuple[dict[str, str], dict[str, str]]:
+        """(CRN → exam unit, CRN → time group) for every grouped CRN.
+
+        A CRN missing from a map is its own unit and time group. The first
+        group listing a CRN wins; a listed CRN of a combined group brings the
+        whole combined group into its common group.
+        """
+        combined_label: dict[str, str] = {}
+        for label, crns in self.combined_groups.items():
+            for crn in crns:
+                combined_label.setdefault(crn, label)
+        exam_unit = {crn: f"combined:{label}" for crn, label in combined_label.items()}
+        time_group = dict(exam_unit)
+        common_label: dict[str, str] = {}
+        for label, listed in self.common_groups.items():
+            crns = set(listed)
+            for crn in listed:
+                merge = combined_label.get(crn)
+                if merge is not None:
+                    crns.update(self.combined_groups[merge])
+            for crn in crns:
+                common_label.setdefault(crn, label)
+        for crn, label in common_label.items():
+            time_group[crn] = f"common:{label}"
+        return exam_unit, time_group
 
 
 @dataclass(frozen=True)
@@ -290,15 +324,24 @@ class _Index:
     student_slots: dict[str, dict[Slot, list[str]]] = field(
         default_factory=lambda: defaultdict(lambda: defaultdict(list))
     )
+    # student → slot → the exam units (combined group, else CRN) they sit there
+    student_units: dict[str, dict[Slot, set[str]]] = field(
+        default_factory=lambda: defaultdict(lambda: defaultdict(set))
+    )
     # slot → base CRNs of the late exam's instructor
     instructor_slots: dict[Slot, list[str]] = field(
         default_factory=lambda: defaultdict(list)
+    )
+    # slot → the instructor's time groups there (common, combined group or CRN)
+    instructor_groups: dict[Slot, set[str]] = field(
+        default_factory=lambda: defaultdict(set)
     )
     instructor_exams: list[BaseExam] = field(default_factory=list)
 
     @classmethod
     def build(cls, base: BaseSchedule, late: LateExam) -> "_Index":
         index = cls(base=base, late=late)
+        exam_unit, time_group = base.group_units()
         instructor = instructor_key(late.instructor_id)
         for exam in base.exams:
             matched = instructor is not None and instructor_key(exam.instructor) == (
@@ -313,9 +356,14 @@ class _Index:
                 index.occupied[slot].add(exam.room)
             if matched:
                 index.instructor_slots[slot].append(exam.crn)
+                index.instructor_groups[slot].add(
+                    time_group.get(exam.crn, f"crn:{exam.crn}")
+                )
             enrolled = base.students_by_crn.get(exam.crn, ())
+            unit = exam_unit.get(exam.crn, f"crn:{exam.crn}")
             for student in late.students.intersection(enrolled):
                 index.student_slots[student][slot].append(exam.crn)
+                index.student_units[student][slot].add(unit)
         return index
 
     def evaluate(self, day: int, block: int) -> BlockEvaluation:
@@ -345,13 +393,25 @@ class _Index:
             if not blocks:
                 continue
             day_blocks[student] = tuple(sorted(blocks | {block}))
-            if len(blocks) + 1 > settings.student_max_per_day:
-                over_limit[student] = len(blocks) + 1
+            sittings = sum(
+                len(units)
+                for (d, _), units in self.student_units[student].items()
+                if d == day
+            )
+            if sittings + 1 > settings.student_max_per_day:
+                over_limit[student] = sittings + 1
             if block - 1 in blocks or block + 1 in blocks:
                 back_to_back[student] = day_blocks[student]
 
         instructor_blocks = {b for d, b in self.instructor_slots if d == day}
-        instructor_exams_that_day = len(instructor_blocks) + 1
+        instructor_exams_that_day = (
+            sum(
+                len(groups)
+                for (d, _), groups in self.instructor_groups.items()
+                if d == day
+            )
+            + 1
+        )
 
         return BlockEvaluation(
             day=day,

@@ -211,10 +211,10 @@ back-to-back count varies a little between runs because annealing is time-bounde
 Places one exam that missed generation (a CRN in enrollments.csv but not in the schedule) into
 a saved schedule without moving any scheduled exam or changing any room
 (`backend/src/domain/services/late_add.py`, pure domain code). The inputs are the base
-schedule's exams (block, room, course code, instructor), the unfiltered enrollments, the rooms
-and room blockouts, the base run's settings (`max_days`, `blocks_per_day`, the two daily
-limits) and the late exam (CRN, course code, instructor ID, its students; size = distinct
-students).
+schedule's exams (block, room, course code, instructor), the dataset's combined and common
+groups, the unfiltered enrollments, the rooms and room blockouts, the base run's settings
+(`max_days`, `blocks_per_day`, the two daily limits) and the late exam (CRN, course code,
+instructor ID, its students; size = distinct students).
 
 `search_placements` evaluates every block of the base run's window (`max_days` ×
 `blocks_per_day`, at most 7 × 5), so the ranking is exact; `evaluate_placement` evaluates one
@@ -230,11 +230,16 @@ Validator's checks (the Validator stays an independent re-check). Per block:
 | Back-to-back (students, instructor) | An exam in the adjacent block of the same day |
 | Large course late | 100+ students on Thursday or later (`LARGE_COURSE_THRESHOLD`, `EARLY_WEEK_CUTOFF`, as `ScheduleAnalyzer`) |
 
-**Counting.** A person's existing exams count once per distinct (day, block), so the CRNs of one
-combined exam count once. The late exam is always one more exam, also in a block where the
-person already sits one, as the Validator counts it (per exam, EXENG-81). Students are counted
-as distinct people; the instructor counts 0 or 1 per term. The instructor ID matches a base
-exam's stored instructor by trimmed exact string; blank and `nan` never match (EXENG-79).
+**Counting.** Existing exams count as the Validator counts them: per distinct (unit, block) on
+the day. A student's unit is the exam unit (a combined group, else the CRN), so the CRNs of one
+combined exam count once, roomed or not. The instructor's unit is the time group: a common group
+(closed over combined groups, so a combined group listed partly in a common group joins it
+whole), else a combined group, else the CRN, so one common exam across several rooms counts
+once. Two separate exams in one block count twice, so a person already double-booked in the base
+counts two exams in that block. The late exam is always one more exam, also in a block where
+the person already sits one (per exam, EXENG-81). Students are counted as distinct people; the
+instructor counts 0 or 1 per term. The instructor ID matches a base exam's stored instructor by
+trimmed exact string; blank and `nan` never match (EXENG-79).
 
 **Outcomes.**
 
@@ -250,6 +255,14 @@ back-to-back, large course late, then day and block (earliest first).
 
 The search also returns the instructor's existing exams in the base schedule (to confirm the
 ID matched) and the base exams with the same course code (sibling sections, information only).
+
+**Saving** (`POST /api/schedule/{id}/late-add`, see `DATA.md`) re-runs `evaluate_placement` for
+the chosen block and stores a new schedule. Its conflict analysis is not recomputed:
+`late_exam_analysis` (`backend/src/domain/services/late_add_analysis.py`) deep-copies the base's
+stored analysis and adds the late exam's delta in `ScheduleAnalyzer`'s shapes: one
+double-book entry per (person, base CRN in the block), one daily-limit entry per person over
+the limit, back-to-back entries per (person, day) extended with the late block or added, a
+large-course-late entry if it applies, and statistics recomputed from the lists and the exams.
 
 ## References
 

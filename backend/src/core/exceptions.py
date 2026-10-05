@@ -25,6 +25,12 @@ class ValidationError(AppExceptionError):
     pass
 
 
+class PlacementConflictError(AppExceptionError):
+    """A late-add placement is no longer possible, or has unconfirmed conflicts."""
+
+    pass
+
+
 class DatasetExistsError(AppExceptionError):
     """Dataset of same name already exists"""
 

@@ -150,6 +150,9 @@ def get_late_add_service(db: Session = Depends(get_db)) -> LateAddService:
         ExamAssignmentRepo(db),
         DatasetRepo(db),
         RoomRepo(db),
+        CourseRepo(db),
+        TimeSlotRepo(db),
+        ConflictAnalysesRepo(db),
         storage,
     )
 

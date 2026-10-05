@@ -120,23 +120,47 @@ class ScheduleRepo(BaseRepo[Schedules]):
 
         Returns both objects so service can update run status later.
         """
-        run = Runs(
+        schedule, run = self.add_schedule_with_run(
+            schedule_name=schedule_name,
             dataset_id=dataset_id,
             user_id=user_id,
             algorithm_name=algorithm_name,
             parameters=parameters,
             status=StatusEnum.Running,
         )
-        self.db.add(run)
-        self.db.flush()
-
-        schedule = Schedules(schedule_name=schedule_name, run_id=run.run_id)
-        self.db.add(schedule)
         self.db.commit()
 
         self.db.refresh(run)
         self.db.refresh(schedule)
 
+        return schedule, run
+
+    def add_schedule_with_run(
+        self,
+        schedule_name: str,
+        dataset_id: UUID,
+        user_id: UUID,
+        algorithm_name: str,
+        parameters: dict,
+        status: StatusEnum,
+        schedule_id: UUID | None = None,
+    ) -> tuple[Schedules, Runs]:
+        """Add a run and its schedule and flush them; the caller commits."""
+        run = Runs(
+            dataset_id=dataset_id,
+            user_id=user_id,
+            algorithm_name=algorithm_name,
+            parameters=parameters,
+            status=status,
+        )
+        self.db.add(run)
+        self.db.flush()
+
+        schedule = Schedules(schedule_name=schedule_name, run_id=run.run_id)
+        if schedule_id is not None:
+            schedule.schedule_id = schedule_id
+        self.db.add(schedule)
+        self.db.flush()
         return schedule, run
 
     def get_exam_assignments_count(self, schedule_id: UUID) -> int:

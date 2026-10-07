@@ -14,6 +14,7 @@ const recorded: ScheduleSettings = {
   instructor_max_per_day: 1,
   avoid_back_to_back: true,
   prioritize_large_courses: true,
+  promote_rooms: false,
 };
 
 describe("settingRows", () => {

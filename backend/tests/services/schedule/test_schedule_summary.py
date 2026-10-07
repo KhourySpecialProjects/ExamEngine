@@ -287,6 +287,8 @@ class TestSettings:
         assert assumed == ["blocks_per_day"]
         assert settings["max_days"] is None
         assert settings["avoid_back_to_back"] is None
+        # Room promotion did not exist yet, so these runs never promoted.
+        assert settings["promote_rooms"] is False
 
     def test_recorded_settings_are_used_as_stored(self):
         params = {
@@ -298,6 +300,7 @@ class TestSettings:
             "avoid_back_to_back": False,
             "prioritize_large_courses": True,
             "time_budget_seconds": 30,
+            "promote_rooms": True,
         }
 
         settings, assumed = resolve_settings("Annealing", params)

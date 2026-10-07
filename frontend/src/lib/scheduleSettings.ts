@@ -89,6 +89,11 @@ export const SETTING_DEFINITIONS: readonly SettingDefinition[] = [
     // Optimized always penalizes large courses placed late in the week.
     alwaysOnIn: "annealing",
   },
+  {
+    key: "promote_rooms",
+    label: "Promote to larger rooms",
+    format: (s) => yesNo(s.promote_rooms),
+  },
 ];
 
 /**

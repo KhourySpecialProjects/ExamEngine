@@ -43,6 +43,7 @@ SETTINGS = {
     "prioritize_large_courses": False,
     "algorithm": "dsatur",
     "time_budget_seconds": 15,
+    "promote_rooms": False,
 }
 
 # (crn, course code, enrollment, instructor, block, room); block None =

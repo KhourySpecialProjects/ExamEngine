@@ -49,6 +49,7 @@ function summary(overrides: Partial<ScheduleSummary> = {}): ScheduleSummary {
       instructor_max_per_day: 3,
       avoid_back_to_back: true,
       prioritize_large_courses: false,
+      promote_rooms: false,
     },
     settings_assumed: [],
     settings_unused: [],

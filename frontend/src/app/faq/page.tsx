@@ -69,7 +69,7 @@ const faqs = [
   {
     question: "How do I adjust constraints?",
     answer:
-      "In the scheduler panel, adjust max exams per student per day, toggle back-to-back avoidance, set max days, and prioritize large courses before running.",
+      "In the scheduler panel, adjust max exams per student per day, toggle back-to-back avoidance, set max days, and prioritize large courses before running. Promote to Larger Rooms moves the fullest exams into larger free rooms in the same block, at most twice their enrollment, so instructors can use alternate-seat spacing.",
   },
   {
     question: "Can I export results?",

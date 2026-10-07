@@ -69,6 +69,7 @@ class AnnealingScheduler(Scheduler):
         common_groups: dict[str, list[str]] | None = None,
         time_budget_seconds: float = 15.0,
         seed: int = 0,
+        promote_rooms: bool = False,
     ):
         super().__init__(
             dataset,
@@ -81,6 +82,7 @@ class AnnealingScheduler(Scheduler):
             weight_b2b_instructor=weight_b2b_instructor,
             merges=merges,
             common_groups=common_groups,
+            promote_rooms=promote_rooms,
         )
         if time_budget_seconds < 0:
             raise ValueError("time_budget_seconds must be >= 0")

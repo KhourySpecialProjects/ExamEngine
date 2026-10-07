@@ -85,6 +85,7 @@ class ScheduleService:
         prioritize_large_courses: bool = False,
         algorithm: str = "dsatur",
         time_budget_seconds: int = 15,
+        promote_rooms: bool = False,
     ) -> dict[str, Any]:
         """Generate complete exam schedule from dataset."""
 
@@ -107,6 +108,7 @@ class ScheduleService:
             "prioritize_large_courses": prioritize_large_courses,
             "algorithm": algorithm,
             "time_budget_seconds": time_budget_seconds,
+            "promote_rooms": promote_rooms,
         }
 
         # 1. Create schedule and run records
@@ -147,6 +149,7 @@ class ScheduleService:
                     "instructor_max_per_day": instructor_max_per_day,
                     "merges": merges,
                     "common_groups": common_groups,
+                    "promote_rooms": promote_rooms,
                 }
                 if algorithm == "annealing":
                     # The Avoid Back-to-Back switch only affects Algorithm 2: off

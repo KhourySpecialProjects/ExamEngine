@@ -314,7 +314,7 @@ JSON written by the scheduler:
 
 - `runs.parameters`: the generation settings, `{student_max_per_day, instructor_max_per_day,
   avoid_back_to_back, max_days, blocks_per_day, prioritize_large_courses, algorithm,
-  time_budget_seconds}`. Runs from before a setting existed lack its key. A late-add run adds
+  time_budget_seconds, promote_rooms}`. Runs from before a setting existed lack its key. A late-add run adds
   `based_on_schedule_id`, `original_schedule_id` and `late_additions` (see "Late-add lineage").
 - `conflict_analyses.conflicts`: `{hard_conflicts, soft_conflicts, statistics,
   unscheduled_groups}`. `hard_conflicts` holds `student_double_book`, `instructor_double_book`,
@@ -338,7 +338,7 @@ stored metadata; never the uploaded files. It is the `summary` field of
 
 | Field | Meaning |
 | --- | --- |
-| `settings` | The run's settings. `algorithm` falls back to `runs.algorithm_name` for runs from before it was recorded; settings a run didn't record are `null`, except `blocks_per_day`, which is 5 (the only option then) |
+| `settings` | The run's settings. `algorithm` falls back to `runs.algorithm_name` for runs from before it was recorded; settings a run didn't record are `null`, except `blocks_per_day`, which is 5 (the only option then), and `promote_rooms`, which is `false` (no earlier run promoted) |
 | `settings_assumed` | Settings filled in that way (`["blocks_per_day"]` or `[]`) |
 | `settings_unused` | Recorded settings the run's algorithm ignores: Classic (`dsatur`) `["time_budget_seconds", "avoid_back_to_back"]`, Optimized (`annealing`) `["prioritize_large_courses"]` |
 | `unique_students` | From the enrollments upload metadata; `null` when unknown |

@@ -145,8 +145,9 @@ def resolve_settings(
 
     `parameters.algorithm` exists only since the algorithm became selectable;
     earlier runs were all DSATUR, recorded in `algorithm_name`. Runs from before
-    blocks per day was recorded used 5 (assumed). Other settings a run did not
-    record are None.
+    blocks per day was recorded used 5 (assumed). Runs from before room
+    promotion existed never promoted (False, a fact, not assumed). Other
+    settings a run did not record are None.
     """
     params = parameters or {}
     algorithm = params.get("algorithm") or (algorithm_name or "dsatur").lower()
@@ -161,6 +162,7 @@ def resolve_settings(
 
     for key in _SETTING_KEYS:
         settings[key] = params.get(key)
+    settings["promote_rooms"] = bool(params.get("promote_rooms", False))
     return settings, assumed
 
 

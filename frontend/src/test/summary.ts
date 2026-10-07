@@ -15,6 +15,7 @@ export const CLASSIC_SETTINGS: ScheduleSettings = {
   instructor_max_per_day: 2,
   avoid_back_to_back: true,
   prioritize_large_courses: false,
+  promote_rooms: false,
 };
 
 const noConflicts = { people: 0, instances: 0 };

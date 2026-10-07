@@ -1,10 +1,10 @@
 from datetime import datetime
 from uuid import UUID
 
-from sqlalchemy import select
+from sqlalchemy import exists, or_, select
 from sqlalchemy.orm import Session, selectinload
 
-from src.schemas.db import Datasets
+from src.schemas.db import Datasets, Runs, Schedules, ScheduleShares
 
 from .base import BaseRepo
 
@@ -28,6 +28,26 @@ class DatasetRepo(BaseRepo[Datasets]):
         """
         stmt = select(Datasets).where(
             Datasets.dataset_id == dataset_id, Datasets.user_id == user_id
+        )
+        return self.db.execute(stmt).scalars().first()
+
+    def get_by_id_for_group_reader(
+        self, dataset_id: UUID, user_id: UUID
+    ) -> Datasets | None:
+        """The dataset if the user owns it or a schedule of it is shared with them.
+
+        Only for reading its combined/common groups: share recipients see
+        those, never the uploaded files.
+        """
+        shared = exists().where(
+            ScheduleShares.shared_with_user_id == user_id,
+            ScheduleShares.schedule_id == Schedules.schedule_id,
+            Schedules.run_id == Runs.run_id,
+            Runs.dataset_id == Datasets.dataset_id,
+        )
+        stmt = select(Datasets).where(
+            Datasets.dataset_id == dataset_id,
+            or_(Datasets.user_id == user_id, shared),
         )
         return self.db.execute(stmt).scalars().first()
 

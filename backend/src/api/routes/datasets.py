@@ -91,12 +91,17 @@ async def get_merges(
     current_user: Users = Depends(get_current_user),
     dataset_service: DatasetService = Depends(get_dataset_service),
 ):
-    """Get all course merges for a dataset."""
+    """A dataset's combined exams (label -> CRNs).
+
+    For its owner and anyone a schedule of it is shared with; else 404.
+    """
     try:
-        merges = dataset_service.get_merges(dataset_id, current_user.user_id)
-        return merges or {}  # Return merges directly, not wrapped
+        dataset = dataset_service.get_groups_for_viewer(
+            dataset_id, current_user.user_id
+        )
     except DatasetNotFoundError as e:
         raise HTTPException(status_code=404, detail=e.message) from e
+    return dataset.course_merges or {}
 
 
 @router.get("/{dataset_id}/common-exams")
@@ -105,9 +110,14 @@ async def get_common_exams(
     current_user: Users = Depends(get_current_user),
     dataset_service: DatasetService = Depends(get_dataset_service),
 ):
-    """Get all common exam groups for a dataset."""
+    """A dataset's common exam groups (label -> CRNs).
+
+    For its owner and anyone a schedule of it is shared with; else 404.
+    """
     try:
-        groups = dataset_service.get_common_exams(dataset_id, current_user.user_id)
-        return groups or {}
+        dataset = dataset_service.get_groups_for_viewer(
+            dataset_id, current_user.user_id
+        )
     except DatasetNotFoundError as e:
         raise HTTPException(status_code=404, detail=e.message) from e
+    return dataset.common_exam_groups or {}

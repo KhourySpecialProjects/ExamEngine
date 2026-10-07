@@ -108,10 +108,11 @@ class EnrollmentRecord:
 
 @dataclass(frozen=True)
 class RoomRecord:
-    """One row of the rooms file."""
+    """One row of the rooms file (``large_only``: the LargeOnly column says yes)."""
 
     name: str
     capacity: int
+    large_only: bool = False
 
 
 @dataclass(frozen=True)

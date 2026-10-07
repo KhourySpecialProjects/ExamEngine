@@ -55,10 +55,13 @@ NUID,CRN
 
 Available exam rooms and their capacities.
 
-| Column    | Required | Accepted Names                                                                                          | Description                        |
-| --------- | -------- | ------------------------------------------------------------------------------------------------------ | ---------------------------------- |
-| room_name | ✅       | `Location Name`, `Room`, `Room Name`, `Location`, `Building + Room`, `Location Formal Name`, `room_name` | Room identifier                    |
-| capacity  | ✅       | `Capacity`, `Seats`, `Max Capacity`, `capacity`                                                         | Maximum seating (positive integer) |
+| Column     | Required | Accepted Names                                                                                          | Description                        |
+| ---------- | -------- | ------------------------------------------------------------------------------------------------------ | ---------------------------------- |
+| room_name  | ✅       | `Location Name`, `Room`, `Room Name`, `Location`, `Building + Room`, `Location Formal Name`, `room_name` | Room identifier                    |
+| capacity   | ✅       | `Capacity`, `Seats`, `Max Capacity`, `capacity`                                                         | Maximum seating (positive integer) |
+| large_only | ❌       | `LargeOnly`, `Large Only`, `Large_Only`, `Large-Only`                                                   | `y`/`yes`/`1`/`true` marks the large-only room; `n`/`no`/`0`/`false` or blank means no (any case) |
+
+> **Large-only room.** At most one room may be marked, and it must seat more than every other room; otherwise, or for any other value, the upload is rejected (HTTP 400, `errors.rooms`). The marked room takes exactly the exams (lone sections, or combined groups by summed enrollment) larger than the largest other room (the cutoff), and those exams can use no other room. Generation, Late Add and the Schedule Validator (`rooms.large_only`; `data.large_only_marks` re-checks the marks) all apply this rule; without the column, or with every value no, nothing changes. The upload response reports the room as `files.rooms.large_only_room: {name, capacity, cutoff}` (absent when no room is marked), and the sidebar shows it under the dataset.
 
 **Example:**
 
@@ -154,7 +157,7 @@ BIOL 1101 Final,44444
 | C2  | A CRN is not in courses.csv, or has zero enrollment there                                     | ❌ Upload rejected                                                                                              |
 | C3  | Members of one combined group are listed in different common groups                           | ❌ Upload rejected                                                                                              |
 | C4  | A common group has fewer than 2 room units after the closure rule (e.g. it only lists members of one combined group) | ❌ Upload rejected                                                                       |
-| C5  | The group's room units can't all be seated at once (each in its own room; largest unit first into the smallest room that fits, over all rooms, ignoring blockouts) | ⚠️ Saved; reported as `infeasible_groups: [{group, reason}]`. The scheduler leaves the **whole** group unscheduled |
+| C5  | The group's room units can't all be seated at once (each in its own room; largest unit first into the smallest room that fits, over all rooms, ignoring blockouts, honouring the large-only room rule) | ⚠️ Saved; reported as `infeasible_groups: [{group, reason}]`. The scheduler leaves the **whole** group unscheduled |
 | C6  | A student is enrolled in 2+ room units of the same common group                                | ⚠️ Saved; reported as `student_overlap_groups: [{group, students}]` (those students have simultaneous exams)    |
 
 Cross-file checks (C2–C4) run once every file passes its own checks; errors in combined_exams.csv and common_exams.csv are reported together, e.g. HTTP 400 `{"detail": {"message": "File validation failed", "errors": {"common_exams": "<reason>"}}}`. The upload response reports the file under `files.common_exams` as `{rows, common_groups, common_crns, infeasible_groups, student_overlap_groups}`.
@@ -174,7 +177,7 @@ When bad values are caught:
 
 | File | At upload | When a schedule is generated |
 | ---- | --------- | ---------------------------- |
-| courses, enrollments, rooms | Only the required **columns** are checked (plus statistics). Course rows are also parsed when combined or common exams are attached; then a bad course row rejects the upload. | **courses:** a row with a missing CRN or course code, or an invalid enrollment, fails generation (up to 10 rows listed). **enrollments:** rows missing the student or CRN are skipped; rows whose CRN isn't in courses.csv are ignored. **rooms:** rows missing the name or capacity, or with capacity ≤ 0, are skipped (generation fails only if no room is valid). Sections with 0 enrollment are dropped. |
+| courses, enrollments, rooms | Only the required **columns** are checked (plus statistics). Course rows are also parsed when combined or common exams are attached; then a bad course row rejects the upload. A rooms.csv `LargeOnly` column is fully checked (see rooms.csv). | **courses:** a row with a missing CRN or course code, or an invalid enrollment, fails generation (up to 10 rows listed). **enrollments:** rows missing the student or CRN are skipped; rows whose CRN isn't in courses.csv are ignored. **rooms:** rows missing the name or capacity, or with capacity ≤ 0, are skipped (generation fails only if no room is valid); invalid `LargeOnly` marks fail generation. Sections with 0 enrollment are dropped. |
 | combined_exams, common_exams | Any invalid row or group rejects the upload (rules above) | – |
 | room_blockouts | Invalid rows are skipped individually | Same |
 
@@ -347,6 +350,7 @@ stored metadata; never the uploaded files. It is the `summary` field of
 | `calendar` | `slots_used` and `days_used` (distinct (day, block) pairs and days holding an exam, unroomed included); `days` (placed exams and seats per day, Monday first); `blocks` (placed exams per block, earliest first); `matrix` (placed exams per `[day][block]` in those orders) |
 | `groups` | `combined` and `common`: group count, and the exams (any state) in them with their summed enrollment. A combined group with any CRN in a common group counts as common as a whole |
 | `blockouts` | Rooms blocked and blocked (room, slot) entries, from the room blockouts upload metadata |
+| `large_only_room` | `null` unless the rooms upload marked a room LargeOnly; else `{name, capacity, cutoff}` from that metadata plus what this schedule placed there: `exams` (blocks the room is used in), `sections` (CRNs seated there) and `students`. The Statistics tab shows it as a card |
 
 `instances` counts occurrences the way the Conflicts tab merges records: one per person, day and
 time for double-books (a 3-way double-book, stored as 3 pairs, is 1), one per person and day for

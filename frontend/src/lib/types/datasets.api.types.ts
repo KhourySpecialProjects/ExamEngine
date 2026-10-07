@@ -48,6 +48,7 @@ export interface RoomsFileMetadata extends BaseFileMetadata {
   total_capacity: number;
   avg_capacity: number;
   max_capacity: number;
+  large_only_room?: { name: string; capacity: number; cutoff: number };
 }
 
 export interface RoomBlockoutsFileMetadata extends BaseFileMetadata {

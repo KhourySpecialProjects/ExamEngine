@@ -4,6 +4,7 @@ import {
   Building2,
   Clock,
   GitMerge,
+  Landmark,
   Layers,
   Users,
 } from "lucide-react";
@@ -46,6 +47,7 @@ export function StatisticsView({
   }
 
   const { exams, groups, blockouts } = summary;
+  const largeOnly = summary.large_only_room;
   const placedPercent =
     exams.total > 0 ? Math.round((exams.placed / exams.total) * 1000) / 10 : 0;
   const groupCards = [
@@ -81,6 +83,18 @@ export function StatisticsView({
         items={[
           { label: "Rooms blocked", value: blockouts.rooms },
           { label: "Blocked slots", value: blockouts.slots },
+        ]}
+      />
+    ),
+    largeOnly && (
+      <StatGroupCard
+        key="large-only"
+        title={`Large-only room: ${largeOnly.name}`}
+        icon={Landmark}
+        items={[
+          { label: `Exams over ${largeOnly.cutoff}`, value: largeOnly.exams },
+          { label: "Students", value: largeOnly.students },
+          { label: "Seats", value: largeOnly.capacity },
         ]}
       />
     ),

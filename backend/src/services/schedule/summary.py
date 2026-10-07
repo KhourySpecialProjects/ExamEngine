@@ -104,6 +104,37 @@ def build_schedule_summary(
             "rooms": blockouts.get("unique_rooms_blocked", 0),
             "slots": blockouts.get("total_blockout_entries", 0),
         },
+        "large_only_room": _large_only_stats(
+            assignments, metadata.get("rooms", {}).get("large_only_room")
+        ),
+    }
+
+
+def _large_only_stats(
+    assignments: Sequence[Any], room: Mapping[str, Any] | None
+) -> dict[str, Any] | None:
+    """The dataset's large-only room and what this schedule placed in it.
+
+    `exams` counts blocks the room is used in (one exam per block; a combined
+    group's sections share it), `sections` the CRNs seated there. None when the
+    rooms upload marked no room LargeOnly.
+    """
+    if not room:
+        return None
+    held = [
+        a
+        for a in assignments
+        if a.time_slot is not None
+        and a.room is not None
+        and a.room.location == room.get("name")
+    ]
+    return {
+        "name": room.get("name"),
+        "capacity": room.get("capacity"),
+        "cutoff": room.get("cutoff"),
+        "exams": len({(a.time_slot.day.value, a.time_slot.slot_label) for a in held}),
+        "sections": len(held),
+        "students": sum(a.course.enrollment_count or 0 for a in held),
     }
 
 

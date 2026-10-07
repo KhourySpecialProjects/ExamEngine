@@ -92,6 +92,14 @@ CHECKS: tuple[Check, ...] = (
         rooms.capacity,
     ),
     Check(
+        "rooms.large_only",
+        "Large-only room",
+        "The large-only room (rooms.csv LargeOnly) holds only exams larger than "
+        "every other room, and those exams are seated nowhere else.",
+        "rooms",
+        rooms.large_only,
+    ),
+    Check(
         "rooms.no_double_booking",
         "One exam per room",
         "No room holds two different exams at the same time.",
@@ -104,6 +112,15 @@ CHECKS: tuple[Check, ...] = (
         "No exam is placed in a room during one of its blocked-out times.",
         "rooms",
         rooms.blockouts,
+    ),
+    Check(
+        "rooms.unscheduled_had_no_room",
+        "Unscheduled exams had no room",
+        "No unscheduled section or combined group (outside common groups) had a "
+        "free, unblocked room it could use, large enough, in any block of the exam "
+        "window.",
+        "rooms",
+        rooms.unscheduled_had_no_room,
     ),
     Check(
         "groups.combined_together",
@@ -220,5 +237,13 @@ CHECKS: tuple[Check, ...] = (
         "same CRN twice.",
         "data",
         data.duplicates,
+    ),
+    Check(
+        "data.large_only_marks",
+        "Large-only room marks",
+        "The rooms file marks at most one room LargeOnly, that room seats more than "
+        "every other room, and no room is marked on some rows only.",
+        "data",
+        data.large_only_marks,
     ),
 )

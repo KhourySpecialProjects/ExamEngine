@@ -206,3 +206,52 @@ def duplicates(ctx: ValidationContext) -> CheckResult:
             ],
         )
     return passed("No duplicate courses or enrollments.")
+
+
+def large_only_marks(ctx: ValidationContext) -> CheckResult:
+    rows = ctx.rooms()
+    marks_by_name: dict[str, set[bool]] = {}
+    for room in rows:
+        marks_by_name.setdefault(room.name, set()).add(room.large_only)
+    by_name = {room.name: room for room in rows}  # last row wins, as the app
+    marked = sorted(name for name, room in by_name.items() if room.large_only)
+
+    broken: list[str] = []
+    if len(marked) > 1:
+        broken.append(
+            f"{plural(len(marked), 'room')} marked LargeOnly; at most one is allowed: "
+            + ", ".join(marked)
+        )
+    elif marked:
+        large = by_name[marked[0]]
+        broken += [
+            f"Room {name} seats {room.capacity}, not fewer than large-only room "
+            f"{large.name} ({large.capacity})"
+            for name, room in sorted(by_name.items())
+            if not room.large_only and room.capacity >= large.capacity
+        ]
+    ambiguous = [
+        f"Room {name} is listed more than once, marked LargeOnly on some rows "
+        f"only (the last row, {'marked' if by_name[name].large_only else 'unmarked'}, "
+        "is used)"
+        for name, marks in sorted(marks_by_name.items())
+        if len(marks) > 1
+    ]
+    if broken:
+        return problems(
+            "fail",
+            "The rooms file's LargeOnly marks break the large-only room rules.",
+            broken + ambiguous,
+        )
+    if ambiguous:
+        return problems(
+            "warn",
+            f"Found {plural(len(ambiguous), 'room')} with conflicting LargeOnly marks.",
+            ambiguous,
+        )
+    if not marked:
+        return passed("No room is marked LargeOnly in the rooms file.")
+    return passed(
+        f"Room {marked[0]} is the only large-only room and seats more than every "
+        "other room."
+    )

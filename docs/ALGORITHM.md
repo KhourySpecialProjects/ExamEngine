@@ -48,6 +48,7 @@ DSATUR balances speed and solution quality, making it ideal for real-time schedu
 | Constraint        | Description                                                                                   |
 | ----------------- | --------------------------------------------------------------------------------------------- |
 | Room capacity     | An exam is only placed in a block where it (and every exam already there) gets its own unblocked room at least its size (`seats_fit`). Rooms are never over capacity; an exam that can't be seated is unscheduled with a reason. |
+| Large-only room   | Optional (rooms.csv `LargeOnly`). The marked room seats more than every other room and takes **exactly** the room units larger than the largest other room (the cutoff); those units can use no other room. Without a marked room every room is open to every exam that fits. See `domain/services/room_fit.py`. |
 | Time slots        | Only the available slots (`max_days` × `blocks_per_day`) are used                            |
 | Combined / common | A group always shares one block and is never split (see below)                               |
 
@@ -116,6 +117,10 @@ A CRN in two combined groups, a CRN in two common groups, or a combined group sp
 4. **Slot choice.** Conflicts and soft penalties are summed over all CRNs of the time group. A block is admissible only if every room unit already placed there, plus the group's own, can each still have a **distinct** room that is unblocked at that block (`room_blockouts`) and at least its size (`seats_fit`: sorted largest first, the k-th largest exam must fit the k-th largest room). This applies to every group — single sections included — so no exam ever takes a room another exam needs. If no block is admissible, the whole group (or section) is unscheduled. Students enrolled in two or more room units of one common group are reported as unavoidable `student_double_book` conflicts.
 5. **Room assignment.** `_assign_rooms` seats each block's room units **largest first**, each in the smallest free, unblocked room that fits. Slot choice guarantees this always succeeds, so rooms are never over capacity and no placed exam is left without a room. A section in no group that is larger than every room is unscheduled up front (reason `"{n} students; largest room seats {m}"`, flagged at upload as `courses.oversized_sections`); one with no admissible block is unscheduled with a reason too. Both are reported with kind `section`. Rooms listed twice in `rooms.csv` count once (the last row wins).
 
+**Large-only room.** When rooms.csv marks a room `LargeOnly`, steps 1, 4 and 5 treat it and the other rooms as two separate pools (`RoomPools` in `room_fit.py`): room units above the cutoff (the largest other room's capacity) are matched only against the large-only room, the others only against the other rooms. Each pool keeps the largest-first matching, so every check stays exact. Unscheduled reasons then mention the rule, e.g. `"No time block has the large-only room {name} free and unblocked for its {n} students"`.
+
+The Schedule Validator re-checks these outcomes independently: `rooms.unscheduled_had_no_room` warns when an unscheduled section or combined group (outside common groups) had a free, unblocked room it was allowed to use in some block of the exam window.
+
 Unsatisfiable groups are never split or partially placed. `ScheduleResult.unscheduled_groups` lists each one as `UnscheduledGroup(kind, label, reason, crns)` (`kind` is `combined`, `common` or `section`; a combined group inside an unscheduled common group is reported once, under the common group; a `section` is a single CRN in no group, with `label` the CRN and `crns` just that CRN), and `ScheduleResult.unscheduled_crns` lists every CRN left with neither block nor room. The CRNs are persisted as assignments with no time slot and no room; the groups are saved in the schedule's conflict analysis and returned as `unscheduled_groups` (`[{kind, group, reason, crns}]`) by `POST /api/schedule/generate/{dataset_id}` and `GET /api/schedule/{schedule_id}` (empty for schedules generated before this was recorded). The UI shows them on the Statistics "Unscheduled Exams" card and on the List view's unscheduled rows; groups and sections the upload already knows cannot fit are also listed under the dataset in the sidebar. Exported rows whose room capacity is below their size (possible only in schedules generated before rooms were capped) have `Valid = false`.
 
 ## Algorithm 2: Saturation + Annealing
@@ -157,7 +162,8 @@ cost = HARD · (student double-bookings + student over-max/day
 
 `HARD = 10_000`, so no soft gain can buy a hard violation, while soft terms trade by
 their weights. Room capacity is not a cost term but a hard filter: a group only ever
-moves to a block where all of that block's room units still fit (`seats_fit`).
+moves to a block where all of that block's room units still fit (`RoomPools.fits`, i.e.
+`seats_fit` per pool).
 
 The quadratic `weight_slot_balance` term (default 1) is what keeps every block in use:
 without it the back-to-back term alone makes an alternating 9AM / 2PM / 7PM pattern
@@ -223,7 +229,7 @@ Validator's checks (the Validator stays an independent re-check). Per block:
 
 | Term | Rule |
 | --- | --- |
-| Free rooms | Not used by a base exam in that block and not blocked out then. Best fit = the smallest free room with capacity ≥ size; the other fitting free rooms are listed too |
+| Free rooms | Not used by a base exam in that block and not blocked out then, and allowed by the large-only rule (a late exam over the cutoff may only use the large-only room; any other may not). Best fit = the smallest such room with capacity ≥ size; the other fitting free rooms are listed too |
 | Student double-booked | A late-exam student already sits an exam in that block (with the clashing CRNs) |
 | Student over the daily limit | The student's exams that day, the late one included, exceed `student_max_per_day` |
 | Instructor double-booked / over the daily limit | The same for the instructor ID |

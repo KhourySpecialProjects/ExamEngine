@@ -7,10 +7,12 @@ different rooms; feasibility depends on seating every room unit at once.
 """
 
 from collections import Counter
+from collections.abc import Sequence
 from dataclasses import dataclass
 from typing import Any
 
-from src.domain.models import SchedulingDataset
+from src.domain.models import Room, SchedulingDataset
+from src.domain.services.room_fit import large_only_cutoff, room_allows
 
 
 @dataclass
@@ -189,25 +191,54 @@ def expand_room_units(crns: list[str], merges: dict[str, list[str]]) -> list[lis
     return units
 
 
-def find_unseated_unit(sizes: list[int], capacities: list[int]) -> int | None:
+def find_unseated_unit(sizes: list[int], rooms: Sequence[Room]) -> int | None:
     """
     Check whether every unit can get its own room at the same time.
 
-    Greedy: largest unit first, each into the smallest free room that fits.
-    This is optimal for single-threshold matching, so a failure means no
-    assignment exists.
+    Honours the large-only rule (see ``room_fit``): units above the cutoff may
+    only use the large-only room, all others only ordinary rooms. Each pool is
+    nested by capacity and the pools are disjoint, so greedy (largest unit
+    first, each into the smallest allowed free room) is optimal and a failure
+    means no assignment exists.
 
     Returns:
         Index (into `sizes`) of the first unit left without a room, or None if
         all units are seated.
     """
-    free = sorted(capacities)
+    cutoff = large_only_cutoff(rooms)
+    free = sorted(rooms, key=lambda room: room.capacity)
     for index in sorted(range(len(sizes)), key=lambda i: sizes[i], reverse=True):
-        room = next((r for r, cap in enumerate(free) if cap >= sizes[index]), None)
+        room = next(
+            (r for r, rm in enumerate(free) if room_allows(rm, sizes[index], cutoff)),
+            None,
+        )
         if room is None:
             return index
         free.pop(room)
     return None
+
+
+def _large_only_note(sizes: list[int], rooms: Sequence[Room], size: int) -> str:
+    """Sentence explaining the large-only rule when it caused the failure, else ''.
+
+    The rule is blamed only when the units would fit if every room were ordinary.
+    """
+    large = next((room for room in rooms if room.large_only), None)
+    if large is None:
+        return ""
+    plain = [Room(name=room.name, capacity=room.capacity) for room in rooms]
+    if find_unseated_unit(sizes, plain) is not None:
+        return ""
+    cutoff = int(large_only_cutoff(rooms))
+    if size > cutoff:
+        return (
+            f"Exams over {cutoff} students can only use the large-only room "
+            f"{large.name}. "
+        )
+    return (
+        f"Exams of {cutoff} or fewer students cannot use the large-only room "
+        f"{large.name}. "
+    )
 
 
 @dataclass
@@ -287,8 +318,8 @@ class CommonExamValidator:
             sum(self.dataset.get_enrollment_count(crn) for crn in unit)
             for unit in units
         ]
-        capacities = [room.capacity for room in self.dataset.rooms]
-        unseated = find_unseated_unit(sizes, capacities)
+        rooms = list({room.name: room for room in self.dataset.rooms}.values())
+        unseated = find_unseated_unit(sizes, rooms)
 
         unit_of_student: Counter[str] = Counter()
         for unit in units:
@@ -302,9 +333,10 @@ class CommonExamValidator:
         if unseated is not None:
             warning = (
                 f"Needs {len(units)} rooms at once (room unit sizes "
-                f"{sorted(sizes, reverse=True)}) but the {len(capacities)} rooms "
+                f"{sorted(sizes, reverse=True)}) but the {len(rooms)} rooms "
                 f"cannot seat them simultaneously: room unit {units[unseated]} "
                 f"({sizes[unseated]} students) has no free room large enough. "
+                f"{_large_only_note(sizes, rooms, sizes[unseated])}"
                 "The whole group will be left unscheduled."
             )
         elif overlapping:

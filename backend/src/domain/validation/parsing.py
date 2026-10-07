@@ -85,10 +85,12 @@ def parse_enrollments(content: bytes) -> tuple[EnrollmentRecord, ...]:
 def parse_rooms(content: bytes) -> tuple[RoomRecord, ...]:
     """Room rows with a name and a positive capacity (as the app loads them)."""
     columns = _canonical_columns(content, ROOMS)
+    names = columns["Location Name"]
+    large_only = columns.get("LargeOnly", [False] * len(names))
     return tuple(
-        RoomRecord(name=str(name), capacity=int(capacity))
-        for name, capacity in zip(
-            columns["Location Name"], columns["Capacity"], strict=True
+        RoomRecord(name=str(name), capacity=int(capacity), large_only=bool(flag))
+        for name, capacity, flag in zip(
+            names, columns["Capacity"], large_only, strict=True
         )
         if name and capacity
     )

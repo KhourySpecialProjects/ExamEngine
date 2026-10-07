@@ -72,6 +72,40 @@ def capacity(ctx: ValidationContext) -> CheckResult:
     return passed("Every room holds the exams seated in it.")
 
 
+def large_only(ctx: ValidationContext) -> CheckResult:
+    by_name = {room.name: room for room in ctx.rooms()}  # last row wins
+    marked = [room.name for room in by_name.values() if room.large_only]
+    if not marked:
+        return passed("No room is marked LargeOnly in the rooms file.")
+    cutoff = max(
+        (room.capacity for room in by_name.values() if not room.large_only),
+        default=0,
+    )
+    wrong: list[str] = []
+    for (room, day, block), rows in sorted(_roomed_rows_by_slot(ctx).items()):
+        seats = sum(ctx.enrollment_of(row) for row in rows)
+        in_large = room in marked
+        if in_large == (seats > cutoff):
+            continue
+        crns = ", ".join(f"CRN {row.crn}" for row in sorted(rows, key=_crn))
+        reason = (
+            f"only {seats} students, fits a regular room (largest {cutoff})"
+            if in_large
+            else f"{seats} students, needs large-only room {marked[0]}"
+        )
+        wrong.append(f"Room {room} at {slot_label(day, block)}: {reason} ({crns})")
+    if wrong:
+        return problems(
+            "fail",
+            f"Found {plural(len(wrong), 'exam')} breaking the large-only room rule.",
+            wrong,
+        )
+    return passed(
+        f"Only exams larger than every other room are in large-only room "
+        f"{marked[0]}, and none are seated elsewhere."
+    )
+
+
 def no_double_booking(ctx: ValidationContext) -> CheckResult:
     shared: list[str] = []
     for (room, day, block), rows in sorted(_roomed_rows_by_slot(ctx).items()):

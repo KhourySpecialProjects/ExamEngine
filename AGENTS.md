@@ -29,7 +29,9 @@ same room), `common_exams` (same block, different rooms). CSV contracts and the 
 
 **Backend** (`backend/src/`):
 - `domain/services/scheduler.py` — **Classic engine (DSATUR)**; also the shared group/room-seating
-  logic (`seats_fit`, `_assign_rooms`). Rooms are never filled over capacity.
+  logic (`_assign_rooms`). Rooms are never filled over capacity.
+- `domain/services/room_fit.py` — room-fit rules shared by both engines: `seats_fit` and the
+  large-only room pools (`RoomPools`).
 - `domain/services/annealing_scheduler.py` — **Optimized engine** (`AnnealingScheduler`,
   subclasses `Scheduler`).
 - `domain/services/` — also `constraint_evaluator.py`, `conflict_detector.py`, `schedule_analyzer.py`,

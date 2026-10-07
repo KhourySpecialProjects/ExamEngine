@@ -197,7 +197,13 @@ _RANK = {"pass": 0, "skipped": 1, "warn": 2, "fail": 3}
 
 
 def _generated_base(
-    db, owner, *, parameters=None, algorithm_name="DSATUR", analysis=BASE_ANALYSIS
+    db,
+    owner,
+    *,
+    parameters=None,
+    algorithm_name="DSATUR",
+    analysis=BASE_ANALYSIS,
+    room_capacities=ROOMS,
 ):
     """A schedule stored the way generation stores one, committed."""
     dataset = make_dataset(db, owner)
@@ -215,7 +221,7 @@ def _generated_base(
     )
     rooms = {
         name: Rooms(location=name, capacity=cap, dataset_id=dataset.dataset_id)
-        for name, cap in ROOMS.items()
+        for name, cap in room_capacities.items()
     }
     db.add_all(rooms.values())
     slots = TimeSlotRepo(db)
@@ -553,6 +559,56 @@ def test_placement_that_does_not_hold_is_409_and_nothing_is_written(
     assert status == 409, body
     assert body["detail"].startswith(message)
     assert _counts(db_session) == before
+
+
+# Hall A is marked LargeOnly and seats 100; the cutoff is Hall D's 50.
+LARGE_ONLY_ROOMS = {**ROOMS, "Hall A": 100}
+LARGE_ONLY_FILES = {
+    **FILES,
+    "k/rooms.csv": b"room_name,capacity,LargeOnly\n"
+    b"Hall A,100,yes\nRoom B,5,\nRoom C,10,no\nHall D,50,\n",
+}
+
+
+@pytest.mark.parametrize(
+    ("change", "message"),
+    [
+        (
+            {"block": 3, "room": "Hall A"},
+            "Hall A is reserved for exams over 50 students; this exam has 2.",
+        ),
+        (
+            {"crn": "990", "course_code": "BIG 9900", "room": "Hall D"},
+            "Exams over 50 students must use Hall A; this exam has 60.",
+        ),
+    ],
+)
+def test_room_that_breaks_the_large_only_rule_is_409_with_the_reason(
+    db_session, change, message
+):
+    owner = make_user(db_session, "Owner")
+    v1 = _generated_base(db_session, owner, room_capacities=LARGE_ONLY_ROOMS)
+    before = _counts(db_session)
+
+    status, body = _save(
+        db_session, owner, v1.schedule_id, {**LATE_A, **change}, LARGE_ONLY_FILES
+    )
+
+    assert status == 409, body
+    assert body["detail"] == message
+    assert _counts(db_session) == before
+
+
+def test_exam_over_the_cutoff_is_saved_in_the_large_only_room(db_session):
+    owner = make_user(db_session, "Owner")
+    v1 = _generated_base(db_session, owner, room_capacities=LARGE_ONLY_ROOMS)
+    big = {**LATE_A, "crn": "990", "course_code": "BIG 9900", "block": 3}
+
+    status, body = _save(
+        db_session, owner, v1.schedule_id, {**big, "room": "Hall A"}, LARGE_ONLY_FILES
+    )
+
+    assert status == 200, body
 
 
 def test_hard_conflicts_are_saved_once_accepted(db_session):

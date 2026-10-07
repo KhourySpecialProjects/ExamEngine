@@ -356,6 +356,7 @@ class LateAddService:
                 settings=_late_add_settings(resolved),
                 combined_groups=stored_groups(dataset.course_merges),
                 common_groups=stored_groups(dataset.common_exam_groups),
+                large_only_room=_large_only_room(files),
             ),
             late=LateExam(
                 crn=crn,
@@ -578,6 +579,15 @@ def _courses_file_notes(crn: str, files: DatasetFiles) -> list[str]:
     ]
 
 
+def _large_only_room(files: DatasetFiles) -> str | None:
+    """The room rooms.csv marks LargeOnly (the last row of a name wins).
+
+    Upload allows at most one; an unreadable rooms file marks none.
+    """
+    by_name = {room.name: room for room in files.rooms or ()}
+    return next((name for name, room in by_name.items() if room.large_only), None)
+
+
 def _late_add_settings(resolved: dict[str, Any]) -> LateAddSettings:
     def setting(key: str, default: int) -> int:
         value = resolved.get(key)
@@ -607,6 +617,17 @@ def _room_problem(
     capacity = base.rooms.get(room)
     if capacity is None:
         return f"{room} is not one of this dataset's rooms."
+    if not base.room_allowed(room, size):
+        cutoff = f"{base.large_only_cutoff:g}"
+        if room == base.large_only_room:
+            return (
+                f"{room} is reserved for exams over {cutoff} students; this exam "
+                f"has {size}."
+            )
+        return (
+            f"Exams over {cutoff} students must use {base.large_only_room}; this "
+            f"exam has {size}."
+        )
     used_by = sorted(e.crn for e in base.exams if e.slot == slot and e.room == room)
     if used_by:
         return f"{room} is already used on {where} (CRN {', '.join(used_by)})."

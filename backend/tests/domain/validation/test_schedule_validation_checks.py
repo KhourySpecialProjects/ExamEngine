@@ -371,6 +371,46 @@ def test_capacity_uses_stored_values_without_files():
     assert run("rooms.capacity", overfull).status == "fail"
 
 
+# Baseline units: CRN 100 (2) and 200 (2) in R1, CRN 300 (1) in R2.
+LARGE_ROOMS = (RoomRecord("R1", 10, large_only=True), RoomRecord("R2", 1))
+
+
+def test_large_only_passes_when_no_room_is_marked():
+    result = run("rooms.large_only", snapshot())
+
+    assert result.status == "pass"
+    assert "No room is marked LargeOnly" in result.summary
+
+
+def test_large_only_passes_when_only_big_exams_use_the_marked_room():
+    snap = snapshot(files=files(rooms=LARGE_ROOMS))
+
+    assert run("rooms.large_only", snap).status == "pass"
+
+
+def test_small_exam_in_large_only_room_fails():
+    rooms_ = (RoomRecord("R1", 10, large_only=True), RoomRecord("R2", 2))
+
+    result = run("rooms.large_only", snapshot(files=files(rooms=rooms_)))
+
+    assert result.status == "fail"
+    assert result.count == 2
+
+
+def test_big_exam_outside_large_only_room_fails():
+    # R2 seats 1 student, so CRN 100's 2 students belong in large-only R1.
+    snap = snapshot(
+        files=files(rooms=LARGE_ROOMS),
+        rows=rows(row("100", 0, 0, "R2", enrollment=2)),
+    )
+
+    result = run("rooms.large_only", snap)
+
+    assert result.status == "fail"
+    assert result.count == 1
+    assert "CRN 100" in result.examples[0]
+
+
 def test_two_exams_in_one_room_at_once_fail_but_one_combined_exam_does_not():
     shared = rows(row("300", 0, 0, "R1", enrollment=1))
 

@@ -1,5 +1,6 @@
 """Tests for Algorithm 2: AnnealingScheduler (MRV construction + annealing)."""
 
+import dataclasses
 import random
 from collections import Counter, defaultdict
 
@@ -8,7 +9,7 @@ import pytest
 from src.domain.factories.dataset_factory import DatasetFactory
 from src.domain.models import Course, Room, SchedulingDataset, Student
 from src.domain.services.annealing_scheduler import HARD, AnnealingScheduler
-from src.domain.services.scheduler import Scheduler, seats_fit
+from src.domain.services.scheduler import Scheduler
 
 
 pytestmark = pytest.mark.unit
@@ -79,12 +80,27 @@ class TestObjective:
             s._move(rng.randrange(n), rng.randrange(-1, s.nslots))
         assert s.cost == s.recompute_cost()
 
+    @pytest.mark.parametrize("large_only", [False, True])
     def test_cached_free_slots_and_fits_match_brute_force_after_random_moves(
-        self, sample_census_data, sample_enrollment_data, sample_classroom_data
+        self,
+        sample_census_data,
+        sample_enrollment_data,
+        sample_classroom_data,
+        large_only,
     ):
         dataset = DatasetFactory.from_dataframes_to_scheduling_dataset(
             sample_census_data, sample_enrollment_data, sample_classroom_data
         )
+        if large_only:
+            # The largest room takes only exams no other room can seat
+            largest = max(dataset.rooms, key=lambda r: r.capacity)
+            dataset = dataclasses.replace(
+                dataset,
+                rooms=[
+                    dataclasses.replace(r, large_only=r is largest)
+                    for r in dataset.rooms
+                ],
+            )
         s = AnnealingScheduler(dataset, max_days=2, time_budget_seconds=0)
         s._build_conflict_graph()
         s._init_model()
@@ -95,7 +111,7 @@ class TestObjective:
 
         def fits(i, slot):
             sizes = sorted(s._slot_sizes[slot] + s._tg_sizes[i], reverse=True)
-            return seats_fit(sizes, s._slot_caps[slot])
+            return s._slot_rooms[slot].fits(sizes)
 
         for i in range(n):
             assert [s._fits(i, slot) for slot in range(s.nslots)] == [

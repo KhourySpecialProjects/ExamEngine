@@ -3,10 +3,15 @@ from dataclasses import dataclass
 
 @dataclass(frozen=True)
 class Room:
-    """Canonical representation of an exam room."""
+    """Canonical representation of an exam room.
+
+    ``large_only``: the room only seats exams no other room can (see
+    ``domain/services/room_fit.py``).
+    """
 
     name: str
     capacity: int
+    large_only: bool = False
 
     def __post_init__(self):
         """Validate data."""

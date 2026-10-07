@@ -127,6 +127,23 @@ def get_file_statistics(
             stats["avg_capacity"] = round(float(capacity_col.mean()), 2)
             stats["max_capacity"] = int(capacity_col.max())
 
+        if get_column("LargeOnly") is not None:
+            # Raises DataValidationError for invalid LargeOnly marks, failing
+            # the upload
+            from src.domain.adapters import RoomAdapter
+            from src.domain.services.room_fit import large_only_cutoff
+
+            rooms = list(
+                {room.name: room for room in RoomAdapter.from_dataframe(df)}.values()
+            )
+            large = next((room for room in rooms if room.large_only), None)
+            if large is not None:
+                stats["large_only_room"] = {
+                    "name": large.name,
+                    "capacity": int(large.capacity),
+                    "cutoff": int(large_only_cutoff(rooms)),
+                }
+
     elif file_type == "room_blockouts":
         # Precompute blockout_slots so schedule retrieval reads from Postgres, not S3
         from src.domain.adapters import RoomBlockoutAdapter

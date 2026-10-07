@@ -144,7 +144,7 @@ Runs when `frontend/**` changes:
 # tests/domain/services/test_example.py
 import pytest
 
-from src.domain.services.scheduler import seats_fit
+from src.domain.services.room_fit import seats_fit
 
 
 @pytest.mark.unit

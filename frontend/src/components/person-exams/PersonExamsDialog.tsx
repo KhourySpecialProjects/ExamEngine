@@ -10,9 +10,11 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import type { PersonExam, PersonKind } from "@/lib/api/schedules";
+import { useExamGroups } from "@/lib/hooks/useExamGroups";
 import { usePersonExams } from "@/lib/hooks/usePersonExams";
 import { scheduleHref } from "@/lib/scheduleView";
 import { useExplorePeopleStore } from "@/lib/store/explorePeopleStore";
+import { useSchedulesStore } from "@/lib/store/schedulesStore";
 import { PersonExams } from "./PersonExams";
 
 /** How an ID of each kind is named in labels: "NUId 001234567", "instructor I-1". */
@@ -41,6 +43,13 @@ export function PersonExamsDialog({
   onClose: () => void;
 }) {
   const pickPerson = useExplorePeopleStore((state) => state.pick);
+  // The schedule page has this schedule loaded; its dataset holds the groups.
+  const datasetId = useSchedulesStore((state) =>
+    state.currentSchedule?.schedule_id === scheduleId
+      ? state.currentSchedule.dataset_id
+      : null,
+  );
+  const groups = useExamGroups(datasetId);
   const { result, error, isLoading } = usePersonExams(
     scheduleId,
     kind,
@@ -89,7 +98,9 @@ export function PersonExamsDialog({
               {error}
             </p>
           )}
-          {result && <PersonExams result={result} proposed={proposed} />}
+          {result && (
+            <PersonExams result={result} proposed={proposed} groups={groups} />
+          )}
         </div>
       </DialogContent>
     </Dialog>

@@ -2,6 +2,7 @@ import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import type { PersonKind, ScheduleResult } from "@/lib/api/schedules";
+import { useExamGroups } from "@/lib/hooks/useExamGroups";
 import { useScheduleRooms } from "@/lib/hooks/useScheduleRooms";
 import { EXPLORE_KINDS, type ExploreKind } from "@/lib/scheduleView";
 import { useExplorePeopleStore } from "@/lib/store/explorePeopleStore";
@@ -43,6 +44,7 @@ export function ExploreView({
     scheduleId,
     kind === "room" || kind === "course",
   );
+  const groups = useExamGroups(schedule.dataset_id);
   const pickPerson = useExplorePeopleStore((state) => state.pick);
   const explorePerson = (personKind: PersonKind, id: string) => {
     pickPerson(scheduleId, personKind, id);
@@ -75,6 +77,7 @@ export function ExploreView({
           {kind === "room" ? (
             <RoomExplore
               schedule={schedule}
+              groups={groups}
               room={query}
               rooms={rooms}
               display={display}
@@ -85,6 +88,7 @@ export function ExploreView({
           ) : kind === "course" ? (
             <CourseExplore
               schedule={schedule}
+              groups={groups}
               course={query}
               rooms={rooms}
               display={display}
@@ -99,6 +103,7 @@ export function ExploreView({
               key={kind}
               scheduleId={scheduleId}
               schedule={schedule}
+              groups={groups}
               kind={kind}
               display={display}
               toolbar={toolbar}

@@ -16,7 +16,7 @@ import type {
   CompareItem,
   ScheduleSummary,
 } from "@/lib/api/schedules";
-import { makeSummary } from "@/test/summary";
+import { makeCapacityBins, makeSummary } from "@/test/summary";
 import { ComparePage } from "./ComparePage";
 
 // recharts' ResponsiveContainer needs it; jsdom has none.
@@ -239,5 +239,50 @@ describe("ComparePage", () => {
     expect(
       screen.queryByRole("link", { name: /Instructor Double-Book/ }),
     ).toBeNull();
+  });
+
+  it("compares room fill per room size against the baseline", async () => {
+    // Only the smallest-room bin is used: 10 room uses of 300 seats in all.
+    const smallRooms = (
+      id: string,
+      name: string,
+      fill: number,
+      averageFill: number,
+    ) => {
+      const bins = makeCapacityBins();
+      bins[0] = {
+        ...bins[0],
+        uses: 10,
+        seats: 300,
+        fill,
+        average_fill: averageFill,
+      };
+      return compared(id, name, {
+        ...base,
+        rooms: { ...base.rooms, by_capacity: bins },
+      });
+    };
+    serve(
+      smallRooms(A, "Plan A", 86.1, 90),
+      smallRooms(B, "Plan B", 47.3, 50.4),
+    );
+    renderPage(`?ids=${A},${B}`);
+    await screen.findByText("Plan A");
+
+    const section = screen.getByRole("region", {
+      name: "Room fill by room size",
+    });
+    // Only Plan B gets changes (seats filled, then the average exam), in
+    // percentage points without float noise.
+    expect(
+      within(section)
+        .getAllByTitle("better than the baseline")
+        .map((badge) => badge.textContent),
+    ).toEqual([
+      "−38.8 pts (better than the baseline)",
+      "−39.6 pts (better than the baseline)",
+    ]);
+    // Bins neither schedule used are empty in both columns.
+    expect(within(section).getAllByText("No room uses")).toHaveLength(10);
   });
 });

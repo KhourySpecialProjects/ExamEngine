@@ -5,6 +5,7 @@ import type { PersonKind, ScheduleResult } from "@/lib/api/schedules";
 import { useScheduleRooms } from "@/lib/hooks/useScheduleRooms";
 import { EXPLORE_KINDS, type ExploreKind } from "@/lib/scheduleView";
 import { useExplorePeopleStore } from "@/lib/store/explorePeopleStore";
+import { CourseExplore } from "./CourseExplore";
 import { DisplaySwitch, type ExploreDisplay } from "./ExploreResults";
 import { PersonExplore } from "./PersonExplore";
 import { RoomExplore } from "./RoomExplore";
@@ -13,12 +14,14 @@ const KIND_LABEL: Record<ExploreKind, string> = {
   room: "Room",
   student: "Student",
   instructor: "Instructor",
+  course: "Course",
 };
 
 /**
- * The Explore tab: pick what to look up, then one room, student or
- * instructor, and see its exams as a calendar (default) or a list. The kind
- * and a room (`query`) are in the URL; people are in `explorePeopleStore`.
+ * The Explore tab: pick what to look up, then one room, student, instructor
+ * or course, and see its exams as a calendar (default) or a list. The kind
+ * and a room or course (`query`) are in the URL; people are in
+ * `explorePeopleStore`.
  */
 export function ExploreView({
   scheduleId,
@@ -30,12 +33,16 @@ export function ExploreView({
   scheduleId: string;
   schedule: ScheduleResult;
   kind: ExploreKind;
-  /** The room looked up; null for people. */
+  /** The room, CRN or course code looked up; null for people. */
   query: string | null;
   onLookupChange: (kind: ExploreKind, query: string | null) => void;
 }) {
   const [display, setDisplay] = useState<ExploreDisplay>("calendar");
-  const rooms = useScheduleRooms(scheduleId, kind === "room");
+  // Rooms and courses draw the week the rooms reply describes.
+  const rooms = useScheduleRooms(
+    scheduleId,
+    kind === "room" || kind === "course",
+  );
   const pickPerson = useExplorePeopleStore((state) => state.pick);
   const explorePerson = (personKind: PersonKind, id: string) => {
     pickPerson(scheduleId, personKind, id);
@@ -74,6 +81,17 @@ export function ExploreView({
               toolbar={toolbar}
               onRoomChange={exploreRoom}
               onInstructorClick={(id) => explorePerson("instructor", id)}
+            />
+          ) : kind === "course" ? (
+            <CourseExplore
+              schedule={schedule}
+              course={query}
+              rooms={rooms}
+              display={display}
+              toolbar={toolbar}
+              onCourseChange={(course) => onLookupChange("course", course)}
+              onInstructorClick={(id) => explorePerson("instructor", id)}
+              onRoomClick={exploreRoom}
             />
           ) : (
             <PersonExplore

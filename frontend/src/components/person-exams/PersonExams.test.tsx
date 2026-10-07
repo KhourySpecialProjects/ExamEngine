@@ -1,7 +1,9 @@
 import { fireEvent, render, screen, within } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import type { PersonExam, PersonExamsResult } from "@/lib/api/schedules";
+import { useExplorePeopleStore } from "@/lib/store/explorePeopleStore";
 import { PersonExams } from "./PersonExams";
+import { PersonExamsDialog } from "./PersonExamsDialog";
 import { PersonIdActions } from "./PersonIdActions";
 
 vi.mock("@/lib/api/client", () => ({
@@ -179,5 +181,48 @@ describe("PersonIdActions", () => {
       "Copy instructor nan",
       "Copy instructor I-2",
     ]);
+  });
+});
+
+describe("PersonExamsDialog", () => {
+  it("opens the person in Explore without putting the ID in the link", async () => {
+    personExams.mockResolvedValue(result([exam("100", 0, 0)]));
+    useExplorePeopleStore.setState({ people: {} });
+    const onClose = vi.fn();
+    render(
+      <PersonExamsDialog
+        scheduleId="s1"
+        kind="instructor"
+        personId="I-1"
+        onClose={onClose}
+      />,
+    );
+
+    const link = screen.getByRole("link", { name: "Open in Explore" });
+    expect(link.getAttribute("href")).toBe(
+      "/dashboard/s1?view=explore&kind=instructor",
+    );
+    fireEvent.click(link);
+
+    expect(useExplorePeopleStore.getState().people.s1?.instructor).toEqual({
+      current: "I-1",
+      recent: ["I-1"],
+    });
+    expect(onClose).toHaveBeenCalled();
+  });
+
+  it("has no Explore link with a proposed late add, which only it can draw", () => {
+    personExams.mockResolvedValue(result([]));
+    render(
+      <PersonExamsDialog
+        scheduleId="s1"
+        kind="student"
+        personId="001234567"
+        proposed={exam("900", 0, 0)}
+        onClose={() => {}}
+      />,
+    );
+
+    expect(screen.queryByRole("link", { name: "Open in Explore" })).toBeNull();
   });
 });

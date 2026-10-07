@@ -6,6 +6,7 @@ import type {
   ScheduleSummary,
 } from "@/lib/api/schedules";
 import { useSchedulesStore } from "@/lib/store/schedulesStore";
+import { makeCapacityBins } from "@/test/summary";
 import { StatisticsView } from "./StatisticsView";
 
 vi.mock("@/lib/store/schedulesStore", () => ({
@@ -76,6 +77,7 @@ function summary(overrides: Partial<ScheduleSummary> = {}): ScheduleSummary {
         from_75_to_90: 2,
         from_90_to_100: 0,
       },
+      by_capacity: makeCapacityBins(),
     },
     calendar: {
       slots_used: 2,

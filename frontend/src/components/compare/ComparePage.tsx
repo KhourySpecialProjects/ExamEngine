@@ -23,6 +23,7 @@ import { CompareHeader } from "./CompareHeader";
 import {
   ConflictsSection,
   PublishableSection,
+  RoomSizeSection,
   RoomsSection,
   SettingsSection,
 } from "./CompareSections";
@@ -148,6 +149,7 @@ export function ComparePage() {
           <ConflictsSection />
           <CalendarShapeSection />
           <RoomsSection />
+          <RoomSizeSection />
         </div>
       </CompareGrid>
     );

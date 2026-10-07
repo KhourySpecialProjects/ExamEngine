@@ -126,6 +126,23 @@ export type FillBucket =
   | "from_90_to_100";
 
 /**
+ * Room fill over the room uses (one room in one block, students summed over
+ * the CRNs seated there) of rooms whose capacity is in `min`..`max`.
+ */
+export interface CapacityBin {
+  min: number;
+  /** null: no upper bound. */
+  max: number | null;
+  uses: number;
+  students: number;
+  seats: number;
+  /** Room uses at least 90% full. */
+  crowded: number;
+  /** students / seats in percent (one decimal); null when there are no uses. */
+  fill: number | null;
+}
+
+/**
  * Every number shown about one schedule, computed by the server from saved
  * rows (the browser doesn't recompute them). Field definitions: docs/DATA.md,
  * "Schedule summary".
@@ -165,6 +182,8 @@ export interface ScheduleSummary {
     /** Mean seats filled per placed exam, capped at 100% per exam (0-100). */
     average_fill: number;
     fill_buckets: Record<FillBucket, number>;
+    /** Fill per room-size bin, smallest rooms first; always every bin. */
+    by_capacity: CapacityBin[];
   };
   calendar: {
     /** Distinct (day, block) pairs holding an exam, unroomed included. */

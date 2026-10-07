@@ -141,6 +141,74 @@ class TestExams:
         assert calendar["days_used"] == 2
 
 
+class TestRoomSizeBins:
+    @staticmethod
+    def _bins(exams) -> dict:
+        """`rooms.by_capacity` keyed by each bin's largest capacity (None = open)."""
+        return {b["max"]: b for b in _summary(exams)["rooms"]["by_capacity"]}
+
+    def test_every_bin_is_listed_and_capacities_fall_on_their_bounds(self):
+        bins = self._bins(
+            [
+                _exam("1", 10, "Monday", 9, "A", 30),
+                _exam("2", 10, "Monday", 9, "B", 31),
+                _exam("3", 10, "Monday", 9, "C", 200),
+                _exam("4", 10, "Monday", 9, "D", 201),
+            ]
+        )
+
+        assert [(b["min"], m) for m, b in bins.items()] == [
+            (0, 30),
+            (31, 50),
+            (51, 80),
+            (81, 120),
+            (121, 200),
+            (201, None),
+        ]
+        assert {m: b["uses"] for m, b in bins.items()} == {
+            30: 1,
+            50: 1,
+            80: 0,
+            120: 0,
+            200: 1,
+            None: 1,
+        }
+        assert bins[80]["fill"] is None
+
+    def test_a_room_use_sums_the_crns_seated_there(self):
+        # Combined CRNs 1 + 2 share A in one block (one use, 36 of 40: crowded);
+        # 3 uses A in another block (a second use, 10 of 40).
+        bins = self._bins(
+            [
+                _exam("1", 18, "Monday", 9, "A", 40),
+                _exam("2", 18, "Monday", 9, "A", 40),
+                _exam("3", 10, "Monday", 14, "A", 40),
+            ]
+        )
+
+        assert bins[50] == {
+            "min": 31,
+            "max": 50,
+            "uses": 2,
+            "students": 46,
+            "seats": 80,
+            "crowded": 1,
+            "fill": 57.5,
+        }
+
+    def test_crowded_starts_at_ninety_percent_and_unknown_capacity_is_left_out(self):
+        bins = self._bins(
+            [
+                _exam("1", 26, "Monday", 9, "A", 30),
+                _exam("2", 27, "Monday", 9, "B", 30),
+                _exam("3", 50, "Monday", 9, "C", 0),
+            ]
+        )
+
+        assert (bins[30]["uses"], bins[30]["crowded"]) == (2, 1)
+        assert sum(b["uses"] for b in bins.values()) == 2
+
+
 class TestDatasetContext:
     def test_a_combined_exam_listed_in_a_common_group_is_common_as_a_whole(self):
         summary = _summary(

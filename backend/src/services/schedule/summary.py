@@ -9,7 +9,7 @@ stored metadata, so it never reads the uploaded files.
 
 import math
 from collections import defaultdict
-from collections.abc import Hashable, Mapping, Sequence
+from collections.abc import Hashable, Iterable, Mapping, Sequence
 from typing import Any
 
 from src.domain.constants import DAY_NAMES
@@ -44,6 +44,12 @@ _FILL_BUCKETS = (
     ("from_50_to_75", 50),
     ("under_50", 0),
 )
+
+# Room-size bins for `rooms.by_capacity`: each bin's largest capacity, then one
+# open bin above the last. Fixed, so every schedule and dataset uses the same bins.
+_CAPACITY_BIN_MAXES = (30, 50, 80, 120, 200)
+# A room use at least this full (percent) counts as crowded.
+_CROWDED_PERCENT = 90
 
 _SETTING_KEYS = (
     "time_budget_seconds",
@@ -263,6 +269,8 @@ def _exam_stats(
     fill_total = 0.0
     fill_count = 0
     buckets = {key: 0 for key, _ in reversed(_FILL_BUCKETS)}
+    # (day, block, room) → [students, capacity]: one entry per room use.
+    room_uses: dict[tuple[str, str, str], list[int]] = {}
 
     for a in assignments:
         if a.time_slot is None:
@@ -283,6 +291,8 @@ def _exam_stats(
         day_seats[day] += size
         block_start.setdefault(label, a.time_slot.start_time)
         cell_exams[(day, label)] += 1
+        use = room_uses.setdefault((day, label, a.room.location), [0, capacity])
+        use[0] += size
         # Rooms without a known capacity have no fill and are never over it.
         if capacity > 0:
             fill = min(size / capacity, 1) * 100
@@ -327,6 +337,7 @@ def _exam_stats(
             "used": len(rooms),
             "average_fill": _round1(fill_total / fill_count) if fill_count else 0,
             "fill_buckets": buckets,
+            "by_capacity": _capacity_bins(room_uses.values()),
         },
         "calendar": {
             "slots_used": len(slots),
@@ -341,6 +352,34 @@ def _exam_stats(
             "matrix": [[cell_exams[(d, b)] for b in blocks] for d in days],
         },
     }
+
+
+def _capacity_bins(room_uses: Iterable[Sequence[int]]) -> list[dict[str, Any]]:
+    """Room fill per room-size bin, over room uses ([students, capacity]).
+
+    A room use is one room in one block; its students are summed over every CRN
+    seated there, so a combined group counts once. Uses of rooms without a
+    known capacity are left out. `fill` is students / seats in percent (null
+    for an empty bin); `crowded` counts uses at least 90% full.
+    """
+    mins = (0, *(m + 1 for m in _CAPACITY_BIN_MAXES))
+    maxes = (*_CAPACITY_BIN_MAXES, None)
+    bins = [
+        {"min": low, "max": high, "uses": 0, "students": 0, "seats": 0, "crowded": 0}
+        for low, high in zip(mins, maxes, strict=True)
+    ]
+    for students, capacity in room_uses:
+        if capacity <= 0:
+            continue
+        b = next(b for b in bins if b["max"] is None or capacity <= b["max"])
+        b["uses"] += 1
+        b["students"] += students
+        b["seats"] += capacity
+        if students * 100 >= _CROWDED_PERCENT * capacity:
+            b["crowded"] += 1
+    for b in bins:
+        b["fill"] = _round1(b["students"] * 100 / b["seats"]) if b["seats"] else None
+    return bins
 
 
 def _day_rank(day: str) -> int:

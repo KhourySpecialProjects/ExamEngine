@@ -39,6 +39,7 @@ export function makeCapacityBins(): CapacityBin[] {
     seats: 0,
     crowded: 0,
     fill: null,
+    average_fill: null,
   }));
 }
 
@@ -72,6 +73,7 @@ export function makeSummary(
     },
     rooms: {
       used: 1,
+      uses: 1,
       average_fill: 50,
       fill_buckets: {
         under_50: 0,

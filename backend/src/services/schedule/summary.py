@@ -335,6 +335,7 @@ def _exam_stats(
         ),
         "rooms": {
             "used": len(rooms),
+            "uses": len(room_uses),
             "average_fill": _round1(fill_total / fill_count) if fill_count else 0,
             "fill_buckets": buckets,
             "by_capacity": _capacity_bins(room_uses.values()),
@@ -359,8 +360,10 @@ def _capacity_bins(room_uses: Iterable[Sequence[int]]) -> list[dict[str, Any]]:
 
     A room use is one room in one block; its students are summed over every CRN
     seated there, so a combined group counts once. Uses of rooms without a
-    known capacity are left out. `fill` is students / seats in percent (null
-    for an empty bin); `crowded` counts uses at least 90% full.
+    known capacity are left out. `fill` is students / seats in percent;
+    `average_fill` is the mean of each use's students / capacity in percent
+    (both one decimal, null for an empty bin); `crowded` counts uses at least
+    90% full.
     """
     mins = (0, *(m + 1 for m in _CAPACITY_BIN_MAXES))
     maxes = (*_CAPACITY_BIN_MAXES, None)
@@ -368,17 +371,24 @@ def _capacity_bins(room_uses: Iterable[Sequence[int]]) -> list[dict[str, Any]]:
         {"min": low, "max": high, "uses": 0, "students": 0, "seats": 0, "crowded": 0}
         for low, high in zip(mins, maxes, strict=True)
     ]
+    fill_sums = [0.0] * len(bins)
     for students, capacity in room_uses:
         if capacity <= 0:
             continue
-        b = next(b for b in bins if b["max"] is None or capacity <= b["max"])
+        i = next(
+            i for i, b in enumerate(bins) if b["max"] is None or capacity <= b["max"]
+        )
+        b = bins[i]
         b["uses"] += 1
         b["students"] += students
         b["seats"] += capacity
+        fill_sums[i] += students * 100 / capacity
         if students * 100 >= _CROWDED_PERCENT * capacity:
             b["crowded"] += 1
-    for b in bins:
-        b["fill"] = _round1(b["students"] * 100 / b["seats"]) if b["seats"] else None
+    for b, fill_sum in zip(bins, fill_sums, strict=True):
+        uses = b["uses"]
+        b["fill"] = _round1(b["students"] * 100 / b["seats"]) if uses else None
+        b["average_fill"] = _round1(fill_sum / uses) if uses else None
     return bins
 
 

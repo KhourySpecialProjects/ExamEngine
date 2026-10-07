@@ -247,28 +247,41 @@ describe("ComparePage", () => {
       id: string,
       name: string,
       fill: number,
-      crowded: number,
+      averageFill: number,
     ) => {
       const bins = makeCapacityBins();
-      bins[0] = { ...bins[0], uses: 10, seats: 300, fill, crowded };
+      bins[0] = {
+        ...bins[0],
+        uses: 10,
+        seats: 300,
+        fill,
+        average_fill: averageFill,
+      };
       return compared(id, name, {
         ...base,
         rooms: { ...base.rooms, by_capacity: bins },
       });
     };
-    serve(smallRooms(A, "Plan A", 86.1, 7), smallRooms(B, "Plan B", 47.3, 0));
+    serve(
+      smallRooms(A, "Plan A", 86.1, 90),
+      smallRooms(B, "Plan B", 47.3, 50.4),
+    );
     renderPage(`?ids=${A},${B}`);
     await screen.findByText("Plan A");
 
     const section = screen.getByRole("region", {
       name: "Room fill by room size",
     });
-    expect(within(section).getByText("86.1% full")).toBeTruthy();
-    expect(within(section).getByText("10 room uses · 7 crowded")).toBeTruthy();
-    // Only Plan B gets a change, in percentage points without float noise.
+    // Only Plan B gets changes (seats filled, then the average exam), in
+    // percentage points without float noise.
     expect(
-      within(section).getByTitle("better than the baseline").textContent,
-    ).toBe("−38.8 pts (better than the baseline)");
+      within(section)
+        .getAllByTitle("better than the baseline")
+        .map((badge) => badge.textContent),
+    ).toEqual([
+      "−38.8 pts (better than the baseline)",
+      "−39.6 pts (better than the baseline)",
+    ]);
     // Bins neither schedule used are empty in both columns.
     expect(within(section).getAllByText("No room uses")).toHaveLength(10);
   });

@@ -70,6 +70,7 @@ function summary(overrides: Partial<ScheduleSummary> = {}): ScheduleSummary {
     ) as ScheduleSummary["conflicts"],
     rooms: {
       used: 2,
+      uses: 2,
       average_fill: 75,
       fill_buckets: {
         under_50: 0,

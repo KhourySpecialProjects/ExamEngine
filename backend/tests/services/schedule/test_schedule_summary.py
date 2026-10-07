@@ -177,23 +177,27 @@ class TestRoomSizeBins:
 
     def test_a_room_use_sums_the_crns_seated_there(self):
         # Combined CRNs 1 + 2 share A in one block (one use, 36 of 40: crowded);
-        # 3 uses A in another block (a second use, 10 of 40).
-        bins = self._bins(
-            [
-                _exam("1", 18, "Monday", 9, "A", 40),
-                _exam("2", 18, "Monday", 9, "A", 40),
-                _exam("3", 10, "Monday", 14, "A", 40),
-            ]
-        )
+        # 3 uses A again in another block (10 of 40); 4 uses B (10 of 50).
+        exams = [
+            _exam("1", 18, "Monday", 9, "A", 40),
+            _exam("2", 18, "Monday", 9, "A", 40),
+            _exam("3", 10, "Monday", 14, "A", 40),
+            _exam("4", 10, "Monday", 9, "B", 50),
+        ]
+        rooms = _summary(exams)["rooms"]
 
-        assert bins[50] == {
+        # Two different rooms, three room uses.
+        assert (rooms["used"], rooms["uses"]) == (2, 3)
+        assert self._bins(exams)[50] == {
             "min": 31,
             "max": 50,
-            "uses": 2,
-            "students": 46,
-            "seats": 80,
+            "uses": 3,
+            "students": 56,
+            "seats": 130,
             "crowded": 1,
-            "fill": 57.5,
+            # Seats filled overall, then the mean of 90%, 25% and 20%.
+            "fill": 43.1,
+            "average_fill": 45.0,
         }
 
     def test_crowded_starts_at_ninety_percent_and_unknown_capacity_is_left_out(self):

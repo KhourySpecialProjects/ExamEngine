@@ -140,6 +140,8 @@ export interface CapacityBin {
   crowded: number;
   /** students / seats in percent (one decimal); null when there are no uses. */
   fill: number | null;
+  /** Mean of each room use's students / capacity in percent; null without uses. */
+  average_fill: number | null;
 }
 
 /**
@@ -178,7 +180,10 @@ export interface ScheduleSummary {
   over_capacity: OverCapacityExam[];
   conflicts: Record<ConflictMetric, ConflictCount>;
   rooms: {
+    /** Different rooms holding a placed exam at any time in the exam period. */
     used: number;
+    /** Room uses: one room in one block holding a placed exam. */
+    uses: number;
     /** Mean seats filled per placed exam, capped at 100% per exam (0-100). */
     average_fill: number;
     fill_buckets: Record<FillBucket, number>;

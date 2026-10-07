@@ -117,6 +117,18 @@ export function DashboardSidebar({ isOpen = true, onToggle }: SidebarProps) {
                     </span>
                   </div>
 
+                  {selectedDataset.files.rooms.large_only_room && (
+                    <div className="flex items-center gap-2">
+                      <Building className="h-3.5 w-3.5" />
+                      <span>
+                        Large-only room:{" "}
+                        {selectedDataset.files.rooms.large_only_room.name}{" "}
+                        (exams over{" "}
+                        {selectedDataset.files.rooms.large_only_room.cutoff})
+                      </span>
+                    </div>
+                  )}
+
                   <div className="flex items-center gap-2">
                     <Calendar className="h-3.5 w-3.5" />
                     <span>

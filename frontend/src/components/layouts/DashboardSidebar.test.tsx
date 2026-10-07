@@ -1,6 +1,6 @@
-import { render, screen, fireEvent } from "@testing-library/react";
-import { describe, it, expect, vi, beforeEach, Mock } from "vitest";
+import { fireEvent, render, screen } from "@testing-library/react";
 import React from "react";
+import { beforeEach, describe, expect, it, Mock, vi } from "vitest";
 
 import { DashboardSidebar } from "./DashboardSidebar";
 
@@ -24,7 +24,6 @@ vi.mock("@/lib/utils", () => ({
   getTimeAgo: vi.fn(() => "2 days ago"),
   cn: (...args: any[]) => args.filter(Boolean).join(" "),
 }));
-
 
 const mockSelectDataset = vi.fn();
 const mockFetchDatasets = vi.fn();
@@ -93,7 +92,7 @@ describe("DashboardSidebar", () => {
     render(<DashboardSidebar />);
 
     expect(
-      screen.queryByText("Upload a dataset to get started")
+      screen.queryByText("Upload a dataset to get started"),
     ).not.toBeNull();
   });
 
@@ -137,5 +136,34 @@ describe("DashboardSidebar", () => {
 
     expect(screen.queryByText("Schedule Runner")).not.toBeNull();
     expect(screen.queryByText("Uploader")).not.toBeNull();
+  });
+
+  it("shows the large-only room when the dataset has one", () => {
+    mockGetSelectedDataset.mockReturnValue({
+      ...mockDataset,
+      files: {
+        ...mockDataset.files,
+        rooms: {
+          unique_rooms: 15,
+          large_only_room: { name: "Hall A", capacity: 500, cutoff: 80 },
+        },
+      },
+    });
+
+    render(<DashboardSidebar />);
+
+    expect(screen.getByText("15 rooms")).not.toBeNull();
+    expect(
+      screen.getByText("Large-only room: Hall A (exams over 80)"),
+    ).not.toBeNull();
+  });
+
+  it("omits the large-only line when the dataset has none", () => {
+    mockGetSelectedDataset.mockReturnValue(mockDataset);
+
+    render(<DashboardSidebar />);
+
+    expect(screen.getByText("15 rooms")).not.toBeNull();
+    expect(screen.queryByText(/Large-only room/)).toBeNull();
   });
 });

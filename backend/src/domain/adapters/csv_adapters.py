@@ -5,6 +5,7 @@ import pandas as pd
 
 from src.domain.exceptions import DataValidationError
 from src.domain.models import Course, Enrollment, Room
+from src.domain.services.room_fit import large_only_problem
 
 from .schemas import ColumnType, get_schema, validate_non_empty_string
 from .schemas_detector import CSVSchemaDetector
@@ -468,12 +469,29 @@ class RoomAdapter:
 
         # Normalize DataFrame
         df_normalized = df.rename(columns=column_mapping)
+        has_large_only = "LargeOnly" in df_normalized.columns
+        raw_large_only = df_normalized["LargeOnly"].copy() if has_large_only else None
 
         # Apply transformers
         for canonical_name, col_def in col_defs.items():
             if canonical_name in df_normalized.columns and col_def.transformer:
                 df_normalized[canonical_name] = df_normalized[canonical_name].apply(
                     col_def.transformer
+                )
+
+        if raw_large_only is not None:
+            # Row numbers match spreadsheet lines: header is line 1.
+            invalid = [
+                f"row {position + 2} '{str(raw).strip()}'"
+                for position, (raw, parsed) in enumerate(
+                    zip(raw_large_only, df_normalized["LargeOnly"], strict=True)
+                )
+                if parsed is None
+            ]
+            if invalid:
+                raise DataValidationError(
+                    "LargeOnly must be y/yes/1/true or n/no/0/false (blank means "
+                    f"no); invalid values: {', '.join(invalid)}"
                 )
 
         # Remove rows with missing required fields
@@ -485,10 +503,18 @@ class RoomAdapter:
 
         for idx, row in df_clean.iterrows():
             try:
-                room = Room(name=row["Location Name"], capacity=row["Capacity"])
+                room = Room(
+                    name=row["Location Name"],
+                    capacity=row["Capacity"],
+                    large_only=bool(row["LargeOnly"]) if has_large_only else False,
+                )
                 rooms.append(room)
             except ValueError as e:
                 validation_errors.append(f"Row {idx}: {str(e)}")
+
+        problem = large_only_problem({room.name: room for room in rooms}.values())
+        if problem:
+            raise DataValidationError(problem)
 
         if validation_errors and len(rooms) == 0:
             # Only raise error if ALL rooms failed

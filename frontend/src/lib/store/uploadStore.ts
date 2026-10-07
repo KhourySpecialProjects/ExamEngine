@@ -26,7 +26,8 @@ const INITIAL_SLOTS: FileSlot[] = [
   {
     id: "rooms",
     label: "Room Availability",
-    description: "Upload CSV with: room_name, capacity",
+    description:
+      "Upload CSV with: room_name, capacity, and optionally LargeOnly (yes/no)",
     file: null,
   },
   {

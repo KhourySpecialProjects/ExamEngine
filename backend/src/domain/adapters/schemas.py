@@ -113,6 +113,29 @@ def parse_capacity(value: Any) -> int | None:
     return capacity if capacity and capacity > 0 else None
 
 
+_YES = {"y", "yes", "1", "true"}
+_NO = {"n", "no", "0", "false", ""}
+
+
+def parse_yes_no(value: Any) -> bool | None:
+    """Parse a yes/no cell: y/yes/1/true or n/no/0/false, any case.
+
+    Blank means no. Returns None for anything else so callers can report it.
+    """
+    if isinstance(value, bool):
+        return value
+    if pd.isna(value):
+        return False
+    if isinstance(value, int | float):
+        return {1: True, 0: False}.get(value)
+    text = str(value).strip().lower()
+    if text in _YES:
+        return True
+    if text in _NO:
+        return False
+    return None
+
+
 #  Functions to check if data is valid
 def validate_positive_int(value: Any) -> bool:
     """Validate that value is a positive integer."""
@@ -284,6 +307,14 @@ class RoomSchema:
             required=True,
             transformer=parse_capacity,
             validator=validate_positive_int,
+        ),
+        ColumnDefinition(
+            canonical_name="LargeOnly",
+            aliases=["Large Only", "Large_Only", "Large-Only"],
+            data_type=ColumnType.STRING,
+            required=False,
+            transformer=parse_yes_no,
+            validator=None,
         ),
     ]
 

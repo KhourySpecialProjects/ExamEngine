@@ -27,7 +27,7 @@ from src.domain.constants import (
 )
 from src.domain.models import SchedulingDataset
 from src.domain.services.conflict_detector import Conflict
-from src.domain.services.scheduler import Scheduler, ScheduleResult, seats_fit
+from src.domain.services.scheduler import Scheduler, ScheduleResult
 
 
 HARD = 10_000
@@ -174,10 +174,8 @@ class AnnealingScheduler(Scheduler):
             self._tg_enroll.append(sum(self.unit_enrollment[u] for u in units))
             self._tg_wdeg.append(wdeg)
 
-        # Room capacities usable at each slot (blockouts applied), largest first
-        self._slot_caps: list[list[int]] = [
-            self.slot_capacities[slot] for slot in self.available_slots
-        ]
+        # Rooms usable at each slot (blockouts applied), split by the large-only rule
+        self._slot_rooms = [self.slot_rooms[slot] for slot in self.available_slots]
 
         # Neighbours: time groups sharing a student or an instructor
         self._nbrs: list[set[int]] = [set() for _ in range(n)]
@@ -200,8 +198,9 @@ class AnnealingScheduler(Scheduler):
         self._slot_units = [0] * self.nslots
         # Room-unit sizes placed at each slot (unordered)
         self._slot_sizes: list[list[int]] = [[] for _ in range(self.nslots)]
-        # Largest single room unit each slot can still seat; None = recompute.
-        self._max_single: list[int | float | None] = [None] * self.nslots
+        # Largest single room unit each slot can still seat, per room pool (see
+        # ``RoomPools.largest_addable``); None = recompute.
+        self._max_single: list[tuple[float, float] | None] = [None] * self.nslots
         # Per student/instructor bitmask (bit = slot index) of slots where one
         # more exam adds a hard violation: slots already holding one of their
         # exams, and every slot of a day already at their daily limit.
@@ -291,32 +290,20 @@ class AnnealingScheduler(Scheduler):
     def _fits(self, i: int, slot: int) -> bool:
         """True if group i's room units can join those already at ``slot``."""
         sizes = self._tg_sizes[i]
+        pools = self._slot_rooms[slot]
         if len(sizes) == 1:
-            return sizes[0] <= self._max_single_at(slot)
+            return pools.single_fits(sizes[0], self._max_single_at(slot))
         merged = sorted(self._slot_sizes[slot] + sizes, reverse=True)
-        return seats_fit(merged, self._slot_caps[slot])
+        return pools.fits(merged)
 
-    def _max_single_at(self, slot: int) -> int | float:
-        """Largest single room unit ``slot`` can still seat (−1 if none).
-
-        Fitting is monotone in size and only changes at room capacities, so the
-        answer is the largest capacity that still fits (binary search).
-        """
+    def _max_single_at(self, slot: int) -> tuple[float, float]:
+        """Largest single room unit ``slot`` can still seat, per room pool."""
         cached = self._max_single[slot]
         if cached is not None:
             return cached
-        caps = self._slot_caps[slot]
-        placed = self._slot_sizes[slot]
-        candidates = sorted(set(caps))
-        best: int | float = -1
-        lo, hi = 0, len(candidates) - 1
-        while lo <= hi:
-            mid = (lo + hi) // 2
-            if seats_fit(sorted([*placed, candidates[mid]], reverse=True), caps):
-                best = candidates[mid]
-                lo = mid + 1
-            else:
-                hi = mid - 1
+        best = self._slot_rooms[slot].largest_addable(
+            sorted(self._slot_sizes[slot], reverse=True)
+        )
         self._max_single[slot] = best
         return best
 
@@ -438,7 +425,9 @@ class AnnealingScheduler(Scheduler):
             unplaced.remove(i)
             slot = self._best_slot(i)
             if slot is None:
-                self._mark_unscheduled(self._tgs[i], self._no_room_reason(i))
+                self._mark_unscheduled(
+                    self._tgs[i], self._no_slot_reason(self._tg_units[i])
+                )
                 continue
             self._move(i, slot)
             self._active.append(i)
@@ -446,18 +435,6 @@ class AnnealingScheduler(Scheduler):
             for j in self._nbrs[i]:
                 if j in unplaced:
                     free[j] = self._count_free(j)
-
-    def _no_room_reason(self, i: int) -> str:
-        units = self._tg_units[i]
-        if len(units) == 1:
-            return (
-                "No time block has a free, unblocked room large enough "
-                f"for its {self.unit_enrollment[units[0]]} students"
-            )
-        return (
-            f"No time block has {len(units)} free, unblocked rooms "
-            "large enough for its exams"
-        )
 
     # ------------------------------------------------------------------
     # Improvement: conflict-directed simulated annealing

@@ -291,7 +291,9 @@ export function LateAddResults({
 function NoRoomBlocks({ result }: { result: LateAddSearchResult }) {
   return (
     <section className="space-y-1">
-      <h4 className="text-sm font-medium">Largest free room per block</h4>
+      <h4 className="text-sm font-medium">
+        Largest free room open to this exam, per block
+      </h4>
       <ul className="grid gap-x-6 gap-y-0.5 text-sm md:grid-cols-2">
         {result.no_room_blocks.map((block) => (
           <li key={slotKey(block)}>

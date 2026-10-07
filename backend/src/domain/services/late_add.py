@@ -15,15 +15,21 @@ one common exam, count once, while two separate exams in one block count twice.
 The late exam is always one more exam for its students and instructor, also
 in a block where they already sit an exam.
 
+Rooms follow the large-only rule (`room_fit`): when rooms.csv marks a room
+LargeOnly, a late exam larger than every other room (the cutoff) may only use
+that room, and any other late exam may never use it.
+
 Deliberately independent of the schedulers and of the Validator: it must not
 re-seat existing exams, and the Validator must stay a separate re-check of
 what late add stores.
 """
 
+import math
 from collections import defaultdict
 from collections.abc import Iterable, Mapping, Sequence, Set
 from dataclasses import dataclass, field
 from enum import StrEnum
+from functools import cached_property
 
 from src.domain.constants import EARLY_WEEK_CUTOFF, LARGE_COURSE_THRESHOLD
 
@@ -92,6 +98,25 @@ class BaseSchedule:
     """Dataset combined groups (`course_merges`): label → CRNs."""
     common_groups: Mapping[str, Sequence[str]] = field(default_factory=dict)
     """Dataset common exam groups: label → CRNs as listed."""
+    large_only_room: str | None = None
+    """The room rooms.csv marks LargeOnly, if any."""
+
+    @cached_property
+    def large_only_cutoff(self) -> float:
+        """Exams over this size use only the large-only room, and only they do.
+
+        The largest other room's capacity; infinite without a large-only room.
+        """
+        if self.large_only_room not in self.rooms:
+            return math.inf
+        return max(
+            (cap for name, cap in self.rooms.items() if name != self.large_only_room),
+            default=0,
+        )
+
+    def room_allowed(self, room: str, size: int) -> bool:
+        """True if the large-only rule lets `room` seat `size` (capacity aside)."""
+        return (room == self.large_only_room) == (size > self.large_only_cutoff)
 
     def group_units(self) -> tuple[dict[str, str], dict[str, str]]:
         """(CRN → exam unit, CRN → time group) for every grouped CRN.
@@ -170,11 +195,12 @@ class BlockEvaluation:
     day: int
     block: int
     best_room: RoomOption | None
-    """Smallest free, unblocked room that seats the late exam."""
+    """Smallest free, unblocked, allowed room that seats the late exam."""
     other_rooms: tuple[RoomOption, ...]
-    """The other fitting free rooms, smallest first."""
+    """The other fitting free allowed rooms, smallest first."""
     largest_free_room: RoomOption | None
-    """Largest free, unblocked room, fitting or not (for No room)."""
+    """Largest free, unblocked room the large-only rule allows, fitting or not
+    (for No room)."""
     student_double_book: Mapping[str, tuple[str, ...]]
     """Student → base CRNs they sit in this block."""
     student_over_daily_limit: Mapping[str, int]
@@ -377,6 +403,7 @@ class _Index:
                 for name, capacity in self.base.rooms.items()
                 if name not in self.occupied.get(slot, ())
                 and slot not in self.base.blockouts.get(name, ())
+                and self.base.room_allowed(name, size)
             ),
             key=lambda room: (room.capacity, room.name),
         )

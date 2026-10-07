@@ -57,6 +57,7 @@ def _base(
     *,
     combined: dict[str, list[str]] | None = None,
     common: dict[str, list[str]] | None = None,
+    large_only: str | None = None,
     **settings: int,
 ) -> BaseSchedule:
     return BaseSchedule(
@@ -67,6 +68,7 @@ def _base(
         settings=_settings(**settings),
         combined_groups=combined or {},
         common_groups=common or {},
+        large_only_room=large_only,
     )
 
 
@@ -140,6 +142,67 @@ def test_room_fits_exactly_at_capacity():
     base = _base([], rooms={"R": 2})
     ev = evaluate_placement(base, _late({"x", "y"}), MON, 0)
     assert ev.best_room == RoomOption("R", 2)
+
+
+def _students(n: int) -> set[str]:
+    return {f"s{i}" for i in range(n)}
+
+
+# Large-only room "HALL" seats 100; the cutoff is the largest other room, 10.
+LARGE_ONLY_ROOMS = {"HALL": 100, "MID": 10, "SMALL": 5}
+
+
+def test_small_late_exam_never_gets_the_large_only_room():
+    base = _base([], rooms=LARGE_ONLY_ROOMS, large_only="HALL")
+    ev = evaluate_placement(base, _late(_students(3)), MON, 0)
+    assert ev.best_room == RoomOption("SMALL", 5)
+    assert ev.other_rooms == (RoomOption("MID", 10),)
+    assert not ev.fits_room("HALL")
+    assert ev.largest_free_room == RoomOption("MID", 10)
+
+
+def test_small_late_exam_gets_no_room_when_only_the_large_only_room_is_free():
+    exams = [_exam("1", (MON, 0), "MID"), _exam("2", (MON, 0), "SMALL")]
+    base = _base(exams, rooms=LARGE_ONLY_ROOMS, large_only="HALL", max_days=1)
+    late = _late(_students(8))
+    ev = evaluate_placement(base, late, MON, 0)
+    assert ev.best_room is None
+    assert ev.largest_free_room is None
+    # elsewhere it takes an ordinary room
+    assert evaluate_placement(base, late, MON, 1).best_room == RoomOption("MID", 10)
+    # an exam at the cutoff is still ordinary
+    assert evaluate_placement(base, _late(_students(10)), MON, 0).best_room is None
+
+
+def test_late_exam_over_the_cutoff_gets_only_the_large_only_room():
+    base = _base(
+        [_exam("1", (MON, 1), "HALL")],
+        rooms=LARGE_ONLY_ROOMS,
+        large_only="HALL",
+        max_days=1,
+        blocks_per_day=2,
+    )
+    late = _late(_students(11))
+    ev = evaluate_placement(base, late, MON, 0)
+    assert ev.fitting_rooms == (RoomOption("HALL", 100),)
+    # with the large-only room taken no other room is offered
+    taken = evaluate_placement(base, late, MON, 1)
+    assert taken.best_room is None
+    assert taken.largest_free_room is None
+    search = search_placements(base, late)
+    assert search.outcome == Outcome.CLEAR
+    assert _slots(search.candidates) == [(MON, 0)]
+
+
+def test_no_large_only_room_lets_any_exam_use_any_room():
+    base = _base([], rooms=LARGE_ONLY_ROOMS)
+    ev = evaluate_placement(base, _late(_students(3)), MON, 0)
+    assert ev.fitting_rooms == (
+        RoomOption("SMALL", 5),
+        RoomOption("MID", 10),
+        RoomOption("HALL", 100),
+    )
+    assert ev.largest_free_room == RoomOption("HALL", 100)
 
 
 # ----------------------------------------------------------------------

@@ -7,6 +7,7 @@ from src.domain.constants import BLOCKS_PER_DAY
 from src.domain.models import Room, SchedulingDataset
 from src.domain.services.conflict_detector import Conflict, ConflictDetector
 from src.domain.services.constraint_evaluator import SoftConstraintEvaluator
+from src.domain.services.room_fit import RoomPools, large_only_cutoff, room_allows
 from src.domain.value_objects import SchedulingState, SoftPenalty
 
 
@@ -15,19 +16,6 @@ from src.domain.value_objects import SchedulingState, SoftPenalty
 _COMBINED_PREFIX = "combined:"
 _CRN_PREFIX = "crn:"
 _COMMON_PREFIX = "common:"
-
-
-def seats_fit(sizes_desc: list[int], capacities_desc: list[int]) -> bool:
-    """True if every exam can have its own room at least its size.
-
-    Both lists are sorted largest first. Rooms that fit an exam also fit every
-    smaller exam, so a seating exists iff the k-th largest exam fits the k-th
-    largest room for every k.
-    """
-    return len(sizes_desc) <= len(capacities_desc) and all(
-        size <= capacity
-        for size, capacity in zip(sizes_desc, capacities_desc, strict=False)
-    )
 
 
 @dataclass(frozen=True)
@@ -82,6 +70,9 @@ class Scheduler:
     3. Assign time slots minimizing conflicts and penalties (common groups
        first); a slot is only used if every exam there still fits its own room
     4. Seat each slot's exams, largest first, in rooms at least their size
+
+    A large-only room (``Room.large_only``) takes exactly the room units larger
+    than every ordinary room (``large_only_cutoff``); see ``room_fit``.
 
     Terminology:
     - Combined group (``merges``): CRNs sharing one exam — same slot, same room.
@@ -147,6 +138,10 @@ class Scheduler:
         self.rooms: list[Room] = list(
             {room.name: room for room in dataset.rooms}.values()
         )
+        # Room units above the cutoff use only the large-only room, and only
+        # they do (infinite without a large-only room).
+        self.large_only_cutoff = large_only_cutoff(self.rooms)
+        self.large_only_rooms = [room.name for room in self.rooms if room.large_only]
 
         self._build_groups()
 
@@ -171,18 +166,18 @@ class Scheduler:
         self.available_slots = [
             (day, block) for day in range(max_days) for block in range(blocks_per_day)
         ]
-        # Room capacities usable at each slot (blockouts applied), largest first,
-        # and the room units placed at each slot. A group is only placed where
-        # every unit at that slot can still have its own room at least its size.
+        # Rooms usable at each slot (blockouts applied), split by the large-only
+        # rule, and the room units placed at each slot. A group is only placed
+        # where every unit at that slot can still have its own allowed room.
         blockouts = dataset.room_blockouts
-        self.slot_capacities: dict[tuple[int, int], list[int]] = {
-            slot: sorted(
+        self.slot_rooms: dict[tuple[int, int], RoomPools] = {
+            slot: RoomPools.of(
                 (
-                    room.capacity
+                    room
                     for room in self.rooms
                     if slot not in blockouts.get(room.name, frozenset())
                 ),
-                reverse=True,
+                self.large_only_cutoff,
             )
             for slot in self.available_slots
         }
@@ -354,21 +349,55 @@ class Scheduler:
                 self._mark_unscheduled(
                     tg,
                     f"Its {len(units)} exams cannot be seated in {len(units)} "
-                    "distinct rooms at the same time",
+                    "distinct rooms at the same time" + self._large_only_note(),
                 )
 
+    def _large_only_note(self) -> str:
+        """Reason suffix explaining the large-only rule ('' without one)."""
+        if not self.large_only_rooms:
+            return ""
+        return (
+            f" (only exams over {self.large_only_cutoff:g} students may use the "
+            f"large-only room {', '.join(self.large_only_rooms)})"
+        )
+
+    def _no_slot_reason(self, units: list[str]) -> str:
+        """Why no time block can seat a time group's room ``units``."""
+        if len(units) > 1:
+            return (
+                f"No time block has {len(units)} free, unblocked rooms "
+                "large enough for its exams" + self._large_only_note()
+            )
+        size = self.unit_enrollment[units[0]]
+        if size > self.large_only_cutoff:
+            return (
+                f"No time block has the large-only room "
+                f"{', '.join(self.large_only_rooms)} free and unblocked for its "
+                f"{size} students"
+            )
+        return (
+            "No time block has a free, unblocked room large enough "
+            f"for its {size} students" + self._large_only_note()
+        )
+
     def _pack_units(self, units: list[str], rooms: list[Room]) -> dict[str, str] | None:
-        """Give each room unit its own room, or None if impossible.
+        """Give each room unit its own allowed room, or None if impossible.
 
         Greedy: units by enrollment (largest first), each into the smallest unused
-        room that fits.
+        room that may seat it. Exact: the large-only and ordinary rooms form two
+        separate pools, and within each a room fitting a unit fits smaller ones.
         """
         free = sorted(rooms, key=lambda r: r.capacity)
         plan: dict[str, str] = {}
         for unit in sorted(units, key=lambda u: self.unit_enrollment[u], reverse=True):
             enrollment = self.unit_enrollment[unit]
             idx = next(
-                (i for i, r in enumerate(free) if r.capacity >= enrollment), None
+                (
+                    i
+                    for i, r in enumerate(free)
+                    if room_allows(r, enrollment, self.large_only_cutoff)
+                ),
+                None,
             )
             if idx is None:
                 return None
@@ -524,18 +553,7 @@ class Scheduler:
 
             choice = self._find_best_slot(crn)
             if choice is None:
-                units = self.time_groups[tg]
-                if len(units) == 1:
-                    reason = (
-                        "No time block has a free, unblocked room large enough "
-                        f"for its {self.unit_enrollment[units[0]]} students"
-                    )
-                else:
-                    reason = (
-                        f"No time block has {len(units)} free, unblocked rooms "
-                        "large enough for its exams"
-                    )
-                self._mark_unscheduled(tg, reason)
+                self._mark_unscheduled(tg, self._no_slot_reason(self.time_groups[tg]))
                 continue
 
             (day, block), slot_conflicts = choice
@@ -672,7 +690,7 @@ class Scheduler:
             (self.unit_enrollment[u] for u in (*self.slot_units[slot], *units)),
             reverse=True,
         )
-        return seats_fit(sizes, self.slot_capacities[slot])
+        return self.slot_rooms[slot].fits(sizes)
 
     def _intra_group_conflicts(self, tg: str, day: int, block: int) -> list[Conflict]:
         """Double-bookings forced by a student sitting 2+ room units of one group.

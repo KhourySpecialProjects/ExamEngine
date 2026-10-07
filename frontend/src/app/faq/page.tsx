@@ -9,7 +9,7 @@ const faqs = [
   {
     question: "What files do I need to upload?",
     answer:
-      "You need three CSVs: courses (CRN, CourseID, num_students, and optionally instructor_name), enrollment (NUID, CRN), and classrooms (room_name, capacity). You can also add optional room blockouts, combined exams, and common exams files. Upload them under Datasets Controls in the dashboard.",
+      "You need three CSVs: courses (CRN, CourseID, num_students, and optionally instructor_name), enrollment (NUID, CRN), and classrooms (room_name, capacity, and optionally LargeOnly). You can also add optional room blockouts, combined exams, and common exams files. Upload them under Datasets Controls in the dashboard.",
   },
   {
     question: "How are conflicts handled?",
@@ -54,7 +54,7 @@ const faqs = [
   {
     question: "What columns are required in each CSV?",
     answer:
-      "Courses: CRN, CourseID, num_students, plus instructor_name (optional; without it a section is left out of instructor limits). Enrollment: NUID, CRN. Classrooms: room_name, capacity. Stick to these headers so validation passes.",
+      "Courses: CRN, CourseID, num_students, plus instructor_name (optional; without it a section is left out of instructor limits). Enrollment: NUID, CRN. Classrooms: room_name, capacity, plus LargeOnly (optional yes/no; mark at most one room, which must be the largest: only exams too big for every other room go there, and nothing else does). Stick to these headers so validation passes.",
   },
   {
     question: "Can I reuse datasets across runs?",

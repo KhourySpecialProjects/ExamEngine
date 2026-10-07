@@ -15,6 +15,7 @@ def _dataset(
     rooms: dict[str, int],
     students: dict[str, list[str]] | None = None,
     blockouts: dict[str, frozenset[tuple[int, int]]] | None = None,
+    large_only: str | None = None,
 ) -> SchedulingDataset:
     students = students or {}
     by_crn: dict[str, set[str]] = defaultdict(set)
@@ -37,7 +38,10 @@ def _dataset(
             sid: Student(student_id=sid, enrolled_crns=frozenset(crns))
             for sid, crns in students.items()
         },
-        rooms=[Room(name=name, capacity=cap) for name, cap in rooms.items()],
+        rooms=[
+            Room(name=name, capacity=cap, large_only=name == large_only)
+            for name, cap in rooms.items()
+        ],
         students_by_crn={crn: frozenset(s) for crn, s in by_crn.items()},
         instructors_by_crn={},
         room_blockouts=blockouts or {},
@@ -61,12 +65,14 @@ def _seated(dataset, result):
     return seated
 
 
-def _random_dataset(seed: int):
+def _random_dataset(seed: int, large_only: bool = False):
     rng = random.Random(seed)  # noqa: S311 - reproducible test data
     rooms = {
         f"R{i}": rng.choice([20, 40, 60, 90, 150]) for i in range(rng.randint(3, 7))
     }
     largest = max(rooms.values())
+    if large_only:
+        rooms["Hall"] = largest + 60
     sizes = {f"{100 + i}": rng.randint(5, largest + 40) for i in range(30)}
     crns = list(sizes)
     students = {f"s{i}": rng.sample(crns, rng.randint(2, 4)) for i in range(60)}
@@ -75,13 +81,17 @@ def _random_dataset(seed: int):
     blocked = {
         name: frozenset({(0, rng.randint(0, 4))}) for name in rng.sample(list(rooms), 2)
     }
-    return _dataset(sizes, rooms, students, blocked), merges, commons
+    dataset = _dataset(
+        sizes, rooms, students, blocked, large_only="Hall" if large_only else None
+    )
+    return dataset, merges, commons
 
 
 @pytest.mark.parametrize("algorithm", ALGORITHMS)
 @pytest.mark.parametrize("seed", range(8))
-def test_no_room_is_ever_over_capacity(algorithm, seed):
-    dataset, merges, commons = _random_dataset(seed)
+@pytest.mark.parametrize("large_only", [False, True])
+def test_no_room_is_ever_over_capacity(algorithm, seed, large_only):
+    dataset, merges, commons = _random_dataset(seed, large_only)
     capacity = {room.name: room.capacity for room in dataset.rooms}
     scheduler = _scheduler(
         algorithm, dataset, max_days=2, merges=merges, common_groups=commons
@@ -96,6 +106,11 @@ def test_no_room_is_ever_over_capacity(algorithm, seed):
     for crn in dataset.courses:
         assert (crn in result.room_assignments) != (crn in result.unscheduled_crns)
     assert set(result.assignments) == set(result.room_assignments)
+    if large_only:
+        # Exams above the largest ordinary room sit in Hall, and only they do.
+        cutoff = max(r.capacity for r in dataset.rooms if not r.large_only)
+        for (slot, room), students in _seated(dataset, result).items():
+            assert (room == "Hall") == (students > cutoff), (slot, room, students)
 
 
 @pytest.mark.parametrize("algorithm", ALGORITHMS)
@@ -152,3 +167,69 @@ def test_room_listed_twice_still_holds_one_exam_at_a_time(algorithm):
 
     assert list(result.room_assignments.values()) == ["Hall"]
     assert len(result.unscheduled_crns) == 1
+
+
+@pytest.mark.parametrize("algorithm", ALGORITHMS)
+def test_large_only_room_never_takes_an_exam_another_room_could_seat(algorithm):
+    # One slot, one ordinary room: the empty large-only Hall may not take B.
+    dataset = _dataset(
+        {"A": 90, "B": 80}, {"Hall": 500, "Small": 100}, large_only="Hall"
+    )
+
+    result = _scheduler(algorithm, dataset, max_days=1, blocks_per_day=1).schedule()
+
+    assert list(result.room_assignments.values()) == ["Small"]
+    (group,) = result.unscheduled_groups
+    assert "large-only room Hall" in group.reason
+
+
+@pytest.mark.parametrize("algorithm", ALGORITHMS)
+def test_exams_above_the_cutoff_use_only_the_large_only_room(algorithm):
+    # Cutoff 150 (largest ordinary room). A and B both need Hall; one slot.
+    dataset = _dataset(
+        {"A": 200, "B": 160, "C": 140},
+        {"Hall": 300, "Big": 150, "Small": 100},
+        large_only="Hall",
+    )
+
+    result = _scheduler(algorithm, dataset, max_days=1, blocks_per_day=1).schedule()
+
+    assert result.room_assignments["C"] == "Big"
+    (seated,) = {"A", "B"} & set(result.room_assignments)
+    assert result.room_assignments[seated] == "Hall"
+    (group,) = result.unscheduled_groups
+    assert "large-only room Hall free and unblocked" in group.reason
+
+
+@pytest.mark.parametrize("algorithm", ALGORITHMS)
+def test_combined_group_above_the_cutoff_goes_to_the_large_only_room(algorithm):
+    dataset = _dataset(
+        {"C1": 90, "C2": 90, "D": 120},
+        {"Hall": 300, "Big": 150, "Small": 100},
+        large_only="Hall",
+    )
+
+    result = _scheduler(
+        algorithm, dataset, max_days=1, blocks_per_day=1, merges={"M": ["C1", "C2"]}
+    ).schedule()
+
+    assert result.room_assignments == {"C1": "Hall", "C2": "Hall", "D": "Big"}
+
+
+@pytest.mark.parametrize("algorithm", ALGORITHMS)
+def test_common_group_cannot_spill_a_small_exam_into_the_large_only_room(algorithm):
+    # Without the rule the 120 section would take Hall; with it, no room is left.
+    dataset = _dataset(
+        {"G1": 140, "G2": 130, "G3": 120},
+        {"Hall": 300, "Big": 150, "Mid": 140, "Small": 100},
+        large_only="Hall",
+    )
+
+    result = _scheduler(
+        algorithm, dataset, max_days=1, common_groups={"G": ["G1", "G2", "G3"]}
+    ).schedule()
+
+    assert not result.room_assignments
+    (group,) = result.unscheduled_groups
+    assert group.kind == "common"
+    assert "large-only room Hall" in group.reason

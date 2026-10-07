@@ -92,6 +92,14 @@ CHECKS: tuple[Check, ...] = (
         rooms.capacity,
     ),
     Check(
+        "rooms.large_only",
+        "Large-only room",
+        "The large-only room (rooms.csv LargeOnly) holds only exams larger than "
+        "every other room, and those exams are seated nowhere else.",
+        "rooms",
+        rooms.large_only,
+    ),
+    Check(
         "rooms.no_double_booking",
         "One exam per room",
         "No room holds two different exams at the same time.",

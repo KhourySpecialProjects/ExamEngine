@@ -311,7 +311,7 @@ class RoomSchema:
         ColumnDefinition(
             canonical_name="LargeOnly",
             aliases=["Large Only", "Large_Only", "Large-Only"],
-            data_type=ColumnType.STRING,
+            data_type=ColumnType.BOOLEAN,
             required=False,
             transformer=parse_yes_no,
             validator=None,

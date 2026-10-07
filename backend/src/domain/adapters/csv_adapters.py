@@ -260,6 +260,11 @@ def read_upload_csv(content: bytes, file_type: str) -> pd.DataFrame:
     Other columns (enrollment, capacity, day/block) are still type-inferred.
     Combined and common exam files are read fully as text.
 
+    Yes/no columns (rooms.csv LargeOnly) are read as raw text, so only an empty
+    cell is blank and tokens such as "NA" or "null" reach the parser and are
+    rejected. Files with one keep the file's line numbers: row index + 2 is
+    the line (header is line 1), with fully blank lines dropped.
+
     Args:
         content: Raw CSV bytes
         file_type: One of the keys in SCHEMA_REGISTRY (e.g. "enrollments")
@@ -274,19 +279,34 @@ def read_upload_csv(content: bytes, file_type: str) -> pd.DataFrame:
     if schema_class is None:
         return pd.read_csv(io.BytesIO(content))
 
-    string_defs = [
-        col_def
-        for version in schema_class.get_all_versions()
-        for col_def in version
-        if col_def.data_type is ColumnType.STRING
+    col_defs = [
+        col_def for version in schema_class.get_all_versions() for col_def in version
     ]
     header = pd.read_csv(io.BytesIO(content), nrows=0).columns
-    text_columns = {
-        column: str
-        for column in header
-        if any(col_def.matches(str(column)) for col_def in string_defs)
-    }
-    return pd.read_csv(io.BytesIO(content), dtype=text_columns or None)
+
+    def columns_of(data_type: ColumnType) -> list[str]:
+        return [
+            column
+            for column in header
+            if any(
+                col_def.data_type is data_type and col_def.matches(str(column))
+                for col_def in col_defs
+            )
+        ]
+
+    text_columns = dict.fromkeys(columns_of(ColumnType.STRING), str)
+    yes_no_columns = dict.fromkeys(columns_of(ColumnType.BOOLEAN), str)
+    if not yes_no_columns:
+        return pd.read_csv(io.BytesIO(content), dtype=text_columns or None)
+
+    df = pd.read_csv(
+        io.BytesIO(content),
+        dtype=text_columns or None,
+        converters=yes_no_columns,
+        skip_blank_lines=False,
+    )
+    blank = df.apply(lambda column: column.isna() | column.eq("")).all(axis=1)
+    return df[~blank]
 
 
 class CourseAdapter:
@@ -480,13 +500,13 @@ class RoomAdapter:
                 )
 
         if raw_large_only is not None:
-            # Row numbers match spreadsheet lines: header is line 1.
+            # read_upload_csv indexes this file by line: index + 2 is the line
+            # number (header is line 1).
+            parsed = df_normalized["LargeOnly"]
             invalid = [
-                f"row {position + 2} '{str(raw).strip()}'"
-                for position, (raw, parsed) in enumerate(
-                    zip(raw_large_only, df_normalized["LargeOnly"], strict=True)
-                )
-                if parsed is None
+                f"row {index + 2} '{str(raw).strip()}'"
+                for index, raw in raw_large_only.items()
+                if parsed[index] is None
             ]
             if invalid:
                 raise DataValidationError(

@@ -98,6 +98,43 @@ async def test_rejects_invalid_values_with_row_numbers(repo, storage):
     assert "y/yes/1/true or n/no/0/false" in error
 
 
+async def test_rejects_pandas_missing_value_tokens(repo, storage):
+    error = await _rejected(
+        repo,
+        storage,
+        b"Room,Capacity,LargeOnly\nHall A,500,NA\nRoom B,80,null\n"
+        b"Room C,60,N/A\nRoom D,50,\n",
+    )
+
+    assert "row 2 'NA'" in error
+    assert "row 3 'null'" in error
+    assert "row 4 'N/A'" in error
+    assert "row 5" not in error
+
+
+async def test_invalid_value_row_counts_blank_lines(repo, storage):
+    error = await _rejected(
+        repo,
+        storage,
+        b"Room,Capacity,LargeOnly\r\nHall A,500,yes\r\n\r\nRoom B,80,maybe\r\n",
+    )
+
+    assert "row 4 'maybe'" in error
+
+
+async def test_blank_lines_are_not_rooms(repo, storage):
+    result = await _upload(
+        repo, b"Room,Capacity,LargeOnly\nHall A,500,yes\n\nRoom B,80,\n\n"
+    )
+
+    assert result["files"]["rooms"]["rows"] == 2
+    assert result["files"]["rooms"]["large_only_room"] == {
+        "name": "Hall A",
+        "capacity": 500,
+        "cutoff": 80,
+    }
+
+
 async def test_rejects_two_marked_rooms(repo, storage):
     error = await _rejected(
         repo, storage, b"Room,Capacity,LargeOnly\nHall A,500,yes\nHall B,400,yes\n"

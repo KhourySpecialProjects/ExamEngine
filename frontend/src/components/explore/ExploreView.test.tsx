@@ -9,6 +9,7 @@ import type {
 import type { ExploreKind } from "@/lib/scheduleView";
 import { useExplorePeopleStore } from "@/lib/store/explorePeopleStore";
 import { makeSchedule } from "@/test/summary";
+import { courseOptions } from "./CourseExplore";
 import { ExploreView } from "./ExploreView";
 import { instructorOptions } from "./PersonExplore";
 
@@ -93,9 +94,11 @@ function exam(
 function Explore({
   initialKind = "student",
   initialQuery = null,
+  rows = ROWS,
 }: {
   initialKind?: ExploreKind;
   initialQuery?: string | null;
+  rows?: ScheduleExam[];
 }) {
   const [lookup, setLookup] = useState({
     kind: initialKind,
@@ -105,7 +108,7 @@ function Explore({
     <ExploreView
       scheduleId="s1"
       schedule={makeSchedule({
-        schedule: { complete: ROWS, calendar: {}, total_exams: ROWS.length },
+        schedule: { complete: rows, calendar: {}, total_exams: rows.length },
       })}
       kind={lookup.kind}
       query={lookup.query}
@@ -322,6 +325,57 @@ describe("ExploreView", () => {
     expect((await screen.findByRole("heading")).textContent).toBe(
       "Room Hall(capacity 40)",
     );
+  });
+
+  describe("course lookup", () => {
+    const SECTIONS = [
+      row("100", "I-1"),
+      row("101", "I-2", { Course: "CS 100", Day: "Tuesday", Block: TIMES[1] }),
+      row("200", "I-2", { Room: "Lab" }),
+    ];
+
+    it("shows every section of a course code", async () => {
+      render(
+        <Explore initialKind="course" initialQuery="CS 100" rows={SECTIONS} />,
+      );
+
+      const week = await screen.findByRole("table", { name: "Exam week" });
+      expect(screen.getByRole("heading").textContent).toBe("Course CS 100");
+      expect(within(week).getByTestId("week-0-0").textContent).toBe(
+        "100CS 100Hall",
+      );
+      expect(within(week).getByTestId("week-1-1").textContent).toBe(
+        "101CS 100Hall",
+      );
+      // Same-course sections may share a block: never a double-book.
+      expect(screen.queryByRole("list", { name: "Legend" })).toBeNull();
+
+      fireEvent.click(screen.getByRole("button", { name: "List" }));
+      expect(listRows()).toEqual([
+        ["Monday", "9AM-11AM", "100", "CS 100", "Hall", "I-1", "30"],
+        ["Tuesday", "11:30AM-1:30PM", "101", "CS 100", "Hall", "I-2", "30"],
+      ]);
+    });
+
+    it("shows one exam for a CRN", async () => {
+      render(
+        <Explore initialKind="course" initialQuery="200" rows={SECTIONS} />,
+      );
+
+      await screen.findByRole("table", { name: "Exam week" });
+      expect(screen.getByRole("heading").textContent).toBe("CRN 200· CS 200");
+      expect(screen.getByTestId("week-0-0").textContent).toBe("200CS 200Lab");
+    });
+
+    it("lists course codes with their sections, then CRNs", () => {
+      expect(courseOptions(SECTIONS)).toEqual([
+        { value: "CS 100", detail: "2 sections" },
+        { value: "CS 200", detail: "1 section" },
+        { value: "100", detail: "CS 100" },
+        { value: "101", detail: "CS 100" },
+        { value: "200", detail: "CS 200" },
+      ]);
+    });
   });
 });
 

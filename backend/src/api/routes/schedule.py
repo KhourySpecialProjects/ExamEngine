@@ -48,6 +48,7 @@ async def generate_schedule_from_dataset(
     prioritize_large_courses: bool = False,
     algorithm: Literal["dsatur", "annealing"] = "dsatur",
     time_budget_seconds: int = Query(15, ge=0, le=120),
+    promote_rooms: bool = False,
     current_user: Users = Depends(get_current_user),
     schedule_service: ScheduleService = Depends(get_schedule_service),
 ):
@@ -70,6 +71,7 @@ async def generate_schedule_from_dataset(
             prioritize_large_courses,
             algorithm,
             time_budget_seconds,
+            promote_rooms,
         )
         return result
     except Exception as e:

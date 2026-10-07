@@ -11,6 +11,8 @@ export interface ScheduleParameters {
   algorithm?: "dsatur" | "annealing";
   /** Annealing search time budget in seconds. */
   time_budget_seconds?: 5 | 15 | 30;
+  /** After seating, move crowded exams into larger free rooms of the same block. */
+  promote_rooms?: boolean;
 }
 
 /** One flat `conflicts.breakdown` record; populated fields vary by `conflict_type`. */
@@ -113,6 +115,8 @@ export interface ScheduleSettings {
   instructor_max_per_day: number | null;
   avoid_back_to_back: boolean | null;
   prioritize_large_courses: boolean | null;
+  /** Runs from before the setting existed never promoted: false, not null. */
+  promote_rooms: boolean;
 }
 
 export type FillBucket =
@@ -599,6 +603,9 @@ export class SchedulesAPI extends BaseAPI {
         "prioritize_large_courses",
         parameters.prioritize_large_courses.toString(),
       );
+    }
+    if (parameters.promote_rooms !== undefined) {
+      queryParams.append("promote_rooms", parameters.promote_rooms.toString());
     }
     return this.request(
       `/schedule/generate/${dataset_id}${queryParams.toString() ? `?${queryParams}` : ""}`,

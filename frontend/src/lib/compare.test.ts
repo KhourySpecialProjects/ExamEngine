@@ -113,7 +113,7 @@ describe("compareSettings", () => {
     expect(differing.map((s) => s.label)).toEqual(["Max exam days"]);
     expect(differing[0].rows.map((r) => r.value)).toEqual(["7", "5"]);
     expect(same.map((s) => s.label)).toContain("Algorithm");
-    expect(same).toHaveLength(7);
+    expect(same).toHaveLength(8);
   });
 
   it("treats a setting one algorithm ignores as different from a used one", () => {

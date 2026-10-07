@@ -13,16 +13,24 @@ a pool, a room that fits an exam also fits every smaller one, so seating stays
 a simple largest-first matching (``seats_fit``).
 
 Without a large-only room the cutoff is infinite and every room is ordinary.
+
+``promote_to_larger_rooms`` is an optional pass after seating: it moves crowded
+exams into larger free rooms of the same block, under the same rules.
 """
 
 import math
-from collections.abc import Iterable, Sequence
+from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import dataclass
+from fractions import Fraction
 
 from src.domain.models import Room
 
 
 NO_CUTOFF = math.inf
+
+# A promoted exam's room seats at most this many times its enrollment (2: room
+# for alternate-seat spacing, and no small exam in a huge hall).
+PROMOTION_FACTOR = 2
 
 
 def large_only_problem(rooms: Iterable[Room]) -> str | None:
@@ -155,3 +163,63 @@ class RoomPools:
     def single_fits(self, size: int, largest: tuple[float, float]) -> bool:
         """True if one more exam of ``size`` fits, given ``largest_addable``."""
         return size <= (largest[1] if size > self.cutoff else largest[0])
+
+
+def promote_to_larger_rooms(
+    plan: Mapping[str, str],
+    sizes: Mapping[str, int],
+    rooms: Iterable[Room],
+    cutoff: float,
+) -> dict[str, str]:
+    """Move crowded exams of one block into larger free rooms of that block.
+
+    Fullest first: repeatedly the exam with the highest fill (size / capacity)
+    that has a candidate moves into its largest one, and its old room becomes
+    free for the others. A candidate is a free room that the exam may use
+    (``room_allows``), larger than its current room and seating at most
+    ``PROMOTION_FACTOR`` times its size. Stops when no exam has a candidate;
+    an exam at most 1 / ``PROMOTION_FACTOR`` full never moves. Every move goes
+    to a strictly larger room, so the pass ends.
+
+    Args:
+        plan: Room unit → name of its room in this block.
+        sizes: Room unit → enrollment.
+        rooms: Every room open in this block (blockouts applied), names unique.
+        cutoff: The large-only cutoff (``large_only_cutoff``).
+
+    Returns:
+        Room unit → room name after promotion.
+    """
+    by_name = {room.name: room for room in rooms}
+    seated = {unit: by_name[name] for unit, name in plan.items()}
+    taken = set(plan.values())
+    free = [room for room in by_name.values() if room.name not in taken]
+
+    def fullest_first(unit: str) -> tuple[Fraction, int, str]:
+        size = sizes[unit]
+        return (-Fraction(size, seated[unit].capacity), -size, unit)
+
+    while True:
+        move = None
+        for unit in sorted(seated, key=fullest_first):
+            size, current = sizes[unit], seated[unit].capacity
+            target = max(
+                (
+                    room
+                    for room in free
+                    if current < room.capacity <= PROMOTION_FACTOR * size
+                    and room_allows(room, size, cutoff)
+                ),
+                # Largest; equal capacities by name, so the result is stable.
+                key=lambda room: (room.capacity, room.name),
+                default=None,
+            )
+            if target is not None:
+                move = unit, target
+                break
+        if move is None:
+            return {unit: room.name for unit, room in seated.items()}
+        unit, target = move
+        free.remove(target)
+        free.append(seated[unit])
+        seated[unit] = target

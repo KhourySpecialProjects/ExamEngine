@@ -89,7 +89,7 @@ def test_annealing_with_zero_budget_reaches_service():
     assert status == 200
     assert body == {"ok": True}
     args = service.generate_schedule.await_args.args
-    assert args[-2:] == ("annealing", 0)
+    assert args[-3:] == ("annealing", 0, False)
 
 
 def test_defaults_to_dsatur_with_fifteen_second_budget():
@@ -97,4 +97,4 @@ def test_defaults_to_dsatur_with_fifteen_second_budget():
     service.generate_schedule.return_value = {}
     _post(_app(service), f"/api/schedule/generate/{uuid4()}", "schedule_name=s")
 
-    assert service.generate_schedule.await_args.args[-2:] == ("dsatur", 15)
+    assert service.generate_schedule.await_args.args[-3:] == ("dsatur", 15, False)

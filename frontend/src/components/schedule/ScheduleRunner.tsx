@@ -337,6 +337,29 @@ export function ScheduleRunner() {
                 disabled={isGenerating}
               />
             </div>
+
+            <Separator />
+
+            {/* Room Promotion */}
+            <div className="flex items-center justify-between">
+              <div className="space-y-1">
+                <Label htmlFor="promote-rooms">Promote to Larger Rooms</Label>
+                <p className="text-xs text-muted-foreground">
+                  After scheduling, move the fullest exams into larger free
+                  rooms in the same block, up to twice their enrollment (room
+                  for alternate-seat spacing)
+                </p>
+              </div>
+              <Switch
+                id="promote-rooms"
+                checked={parameters.promote_rooms ?? false}
+                onCheckedChange={(checked) => {
+                  if (isGenerating) return;
+                  setParameters({ promote_rooms: checked });
+                }}
+                disabled={isGenerating}
+              />
+            </div>
           </div>
 
           {/* Action Buttons */}

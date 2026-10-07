@@ -411,6 +411,87 @@ def test_big_exam_outside_large_only_room_fails():
     assert "CRN 100" in result.examples[0]
 
 
+def test_unscheduled_exam_with_a_free_room_warns():
+    # One block: CRN 100 holds R1, so R2 was free for unscheduled CRN 300.
+    snap = snapshot(
+        rows=rows(row("300", None, None, None)),
+        parameters=RunParameters(max_days=1, blocks_per_day=1),
+    )
+
+    result = run("rooms.unscheduled_had_no_room", snap)
+
+    assert result.status == "warn"
+    assert result.examples == (
+        "CRN 300 (1 student): R2 (10 seats) was free at Monday 9AM-11AM",
+    )
+
+
+@pytest.mark.parametrize(
+    "changes",
+    [
+        {"rooms": (RoomRecord("R1", 10),)},  # the only room is taken
+        {
+            "blockouts": {"R2": frozenset({(0, 0)})},
+            "blockouts_uploaded": True,
+        },
+        {
+            "rooms": (RoomRecord("R1", 10), RoomRecord("R2", 3)),
+            "courses": (*BASE_FILES.courses[:2], course("300", 5, "Ada")),
+        },
+    ],
+    ids=["taken", "blocked", "too_small"],
+)
+def test_unscheduled_exam_without_a_usable_room_passes(changes):
+    snap = snapshot(
+        files=files(**changes),
+        rows=rows(row("300", None, None, None)),
+        parameters=RunParameters(max_days=1, blocks_per_day=1),
+    )
+
+    assert run("rooms.unscheduled_had_no_room", snap).status == "pass"
+
+
+def test_unscheduled_exams_follow_the_large_only_rule():
+    # Cutoff 1 (R2). Monday has three blocks; R1 is free only in the third.
+    window = RunParameters(max_days=1, blocks_per_day=3)
+    rooms_ = (RoomRecord("R1", 10, large_only=True), RoomRecord("R2", 1))
+    r2_blocked = {"R2": frozenset({(0, 0), (0, 1), (0, 2)})}
+    small = snapshot(
+        files=files(rooms=rooms_, blockouts=r2_blocked, blockouts_uploaded=True),
+        rows=rows(row("200", 0, 1, "R1"), row("300", None, None, None)),
+        parameters=window,
+    )
+    big = snapshot(
+        files=files(rooms=rooms_),
+        rows=rows(
+            row("100", None, None, None),
+            row("200", 0, 1, "R1"),
+            row("300", 0, 2, "R2"),
+        ),
+        parameters=window,
+    )
+
+    # CRN 300 (1 student) may not use free R1; CRN 100 (2) may only use R1.
+    assert run("rooms.unscheduled_had_no_room", small).status == "pass"
+    result = run("rooms.unscheduled_had_no_room", big)
+    assert result.status == "warn"
+    assert result.examples == (
+        "CRN 100 (2 students): R1 (10 seats) was free at Monday 9AM-11AM",
+    )
+
+
+def test_unscheduled_common_group_is_not_judged_for_free_rooms():
+    snap = snapshot(
+        common_groups={"C": ("100", "300")},
+        rows=rows(row("100", None, None, None), row("300", None, None, None)),
+    )
+
+    result = run("rooms.unscheduled_had_no_room", snap)
+
+    assert result.status == "pass"
+    assert result.summary == "No unscheduled section or combined group to check."
+
+
 def test_two_exams_in_one_room_at_once_fail_but_one_combined_exam_does_not():
     shared = rows(row("300", 0, 0, "R1", enrollment=1))
 
@@ -921,6 +1002,46 @@ def test_duplicate_courses_and_enrollments_warn():
         "CRN 100 appears 2 times in the courses file",
         "Student s2 is enrolled in CRN 100 2 times",
     )
+
+
+@pytest.mark.parametrize(
+    ("rooms_", "status", "problem"),
+    [
+        (
+            (RoomRecord("R1", 10, large_only=True), RoomRecord("R2", 5, True)),
+            "fail",
+            "2 rooms marked LargeOnly",
+        ),
+        (
+            (RoomRecord("R1", 10, large_only=True), RoomRecord("R2", 10)),
+            "fail",
+            "Room R2 seats 10, not fewer than large-only room R1",
+        ),
+        (
+            (
+                RoomRecord("R1", 10, large_only=True),
+                RoomRecord("R1", 10),
+                RoomRecord("R2", 5),
+            ),
+            "warn",
+            "Room R1 is listed more than once, marked LargeOnly on some rows only",
+        ),
+    ],
+    ids=["two_marked", "not_largest", "conflicting_rows"],
+)
+def test_large_only_marks_problems(rooms_, status, problem):
+    result = run("data.large_only_marks", snapshot(files=files(rooms=rooms_)))
+
+    assert result.status == status
+    assert problem in result.examples[0]
+
+
+def test_one_strictly_largest_large_only_room_passes_marks_check():
+    rooms_ = (RoomRecord("R1", 10, large_only=True), RoomRecord("R2", 5))
+
+    result = run("data.large_only_marks", snapshot(files=files(rooms=rooms_)))
+
+    assert result.status == "pass"
 
 
 # ----------------------------------------------------------------------

@@ -7,6 +7,7 @@ check (owner or shared with the user). Share recipients see the blocked slots,
 never the file.
 """
 
+import asyncio
 import logging
 from typing import Literal
 from uuid import UUID
@@ -124,7 +125,7 @@ class ScheduleRoomsService:
         if content is None:
             return "none_uploaded", {}
         try:
-            return "ok", parse_blockouts(content)
+            return "ok", await asyncio.to_thread(parse_blockouts, content)
         except Exception as exc:
             logger.warning(
                 "%s: could not parse the room_blockouts file: %s: %s",

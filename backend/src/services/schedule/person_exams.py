@@ -6,6 +6,7 @@ come from the dataset's uploaded files. Access is the schedule-view check
 (owner or shared with the user), like the Validator.
 """
 
+import asyncio
 import logging
 from typing import Literal
 from uuid import UUID
@@ -128,7 +129,9 @@ class PersonExamsService:
                 ENROLLMENTS,
                 f"Person exams on schedule {schedule_id}",
             )
-            enrollments = parse_enrollments(content) if content else None
+            enrollments = (
+                await asyncio.to_thread(parse_enrollments, content) if content else None
+            )
         except StorageError as exc:
             raise unreadable from exc
         except Exception as exc:

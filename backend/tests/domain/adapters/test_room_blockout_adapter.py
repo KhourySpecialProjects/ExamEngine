@@ -66,17 +66,27 @@ class TestParseBlock:
     def test_float_string(self):
         assert parse_block("3.0") == 3
 
-    def test_time_string_first_block(self):
-        assert parse_block("9AM-11AM") == 0
-
-    def test_time_string_last_block(self):
-        assert parse_block("7PM-9PM") == 4
+    @pytest.mark.parametrize(
+        ("current", "legacy", "index"),
+        [
+            ("8AM-10AM", "9AM-11AM", 0),
+            ("10:30AM-12:30PM", "11:30AM-1:30PM", 1),
+            ("1PM-3PM", "2PM-4PM", 2),
+            ("3:30PM-5:30PM", "4:30PM-6:30PM", 3),
+            ("6PM-8PM", "7PM-9PM", 4),
+        ],
+    )
+    def test_current_and_legacy_time_strings_name_the_same_block(
+        self, current, legacy, index
+    ):
+        assert parse_block(current) == index
+        assert parse_block(legacy) == index
 
     def test_time_string_case_insensitive(self):
-        assert parse_block("9am-11am") == 0
+        assert parse_block("8am-10am") == 0
 
     def test_time_string_with_spaces(self):
-        assert parse_block("9AM - 11AM") == 0
+        assert parse_block("10:30AM - 12:30PM") == 1
 
     def test_out_of_range_returns_none(self):
         assert parse_block(5) is None

@@ -81,7 +81,9 @@ def _hard(entity, block, crn, course, other=None, other_course=None):
         "entity_id": entity,
         "day": "Monday",
         "block": block,
-        "block_time": ["9AM-11AM", "11:30AM-1:30PM", "2PM-4PM", "4:30PM-6:30PM"][block],
+        "block_time": ["8AM-10AM", "10:30AM-12:30PM", "1PM-3PM", "3:30PM-5:30PM"][
+            block
+        ],
         "crn": crn,
         "course": course,
         "conflicting_crn": other,
@@ -90,7 +92,7 @@ def _hard(entity, block, crn, course, other=None, other_course=None):
 
 
 def _b2b(key, person, blocks):
-    times = ["9AM-11AM", "11:30AM-1:30PM", "2PM-4PM", "4:30PM-6:30PM"]
+    times = ["8AM-10AM", "10:30AM-12:30PM", "1PM-3PM", "3:30PM-5:30PM"]
     return {
         key: person,
         "day": "Monday",
@@ -99,8 +101,8 @@ def _b2b(key, person, blocks):
     }
 
 
-# What DSATUR (Classic) stores for the base: S2 sits 101 and 105 at 9AM, I-3
-# has 105 and 109 at 9AM, I-2 has 103 and 111 at 2PM and four exams (limit 2),
+# What DSATUR (Classic) stores for the base: S2 sits 101 and 105 at 8AM, I-3
+# has 105 and 109 at 8AM, I-2 has 103 and 111 at 1PM and four exams (limit 2),
 # one entry per exam placed while I-2 was at the limit; S2 and I-2 have
 # back-to-back exams.
 BASE_ANALYSIS = {
@@ -169,7 +171,7 @@ BASES = {
     ),
 }
 
-# Late A: S1 (9AM) and I-1 (9AM) get back-to-back exams at 11:30AM; clear.
+# Late A: S1 (8AM) and I-1 (8AM) get back-to-back exams at 10:30AM; clear.
 LATE_A = {
     "crn": "900",
     "course_code": "LATE 9000",
@@ -181,7 +183,7 @@ LATE_A = {
     "accept_conflicts": False,
 }
 # Late B: a courses.csv CRN with zero enrollment; S3, S5 and I-1 all have an
-# exam at 11:30AM once A is there, and I-1 is over the daily limit anywhere.
+# exam at 10:30AM once A is there, and I-1 is over the daily limit anywhere.
 LATE_B = {
     "crn": "950",
     "course_code": "SUBJ 9500",
@@ -380,7 +382,7 @@ def test_v1_to_v2_to_v3_chain_keeps_every_version_valid(db_session, shape):
         "day": 0,
         "day_name": "Monday",
         "block": 1,
-        "block_time": "11:30AM-1:30PM",
+        "block_time": "10:30AM-12:30PM",
         "room": "Room B",
         "outcome": "clear",
         "conflicts": {
@@ -425,7 +427,7 @@ def test_v1_to_v2_to_v3_chain_keeps_every_version_valid(db_session, shape):
     ]
     assert v2_analysis["hard_conflicts"] == base_analysis["hard_conflicts"]
 
-    # On v2, A's student S5 and instructor I-1 are busy at 11:30AM.
+    # On v2, A's student S5 and instructor I-1 are busy at 10:30AM.
     search_b = _search(db_session, owner, v2["schedule_id"], "950", "SUBJ 9500", "I-1")
     assert search_b["outcome"] == "least_conflicts"
     at_1130 = _candidate(search_b, 0, 1)
@@ -529,8 +531,8 @@ def test_unchanged_late_course_row_is_reused_and_a_changed_one_is_not(db_session
 @pytest.mark.parametrize(
     ("change", "message"),
     [
-        ({"room": "Hall A"}, "Hall A is already used on Monday 11:30AM-1:30PM"),
-        ({"block": 2, "room": "Room B"}, "Room B is blocked out on Monday 2PM-4PM"),
+        ({"room": "Hall A"}, "Hall A is already used on Monday 10:30AM-12:30PM"),
+        ({"block": 2, "room": "Room B"}, "Room B is blocked out on Monday 1PM-3PM"),
         ({"room": "Hall Z"}, "Hall Z is not one of this dataset's rooms"),
         (
             {"crn": "990", "course_code": "BIG 9900", "room": "Room C"},
@@ -543,7 +545,7 @@ def test_unchanged_late_course_row_is_reused_and_a_changed_one_is_not(db_session
         ),
         (
             {"block": 0, "room": "Room B"},
-            "Monday 9AM-11AM has hard conflicts for this exam",
+            "Monday 8AM-10AM has hard conflicts for this exam",
         ),
     ],
 )
@@ -614,7 +616,7 @@ def test_exam_over_the_cutoff_is_saved_in_the_large_only_room(db_session):
 def test_hard_conflicts_are_saved_once_accepted(db_session):
     owner = make_user(db_session, "Owner")
     v1 = _generated_base(db_session, owner)
-    # 9AM: S1 sits 101 and I-1 teaches it.
+    # 8AM: S1 sits 101 and I-1 teaches it.
     body = {**LATE_A, "block": 0, "accept_conflicts": True}
 
     status, saved = _save(db_session, owner, v1.schedule_id, body)
@@ -638,7 +640,7 @@ def test_instructor_double_booked_in_base_goes_over_the_limit_and_v2_validates(
 ):
     owner = make_user(db_session, "Owner")
     v1 = _generated_base(db_session, owner)
-    # I-3 already sits two separate exams (105, 109) at 9AM: a third exam that
+    # I-3 already sits two separate exams (105, 109) at 8AM: a third exam that
     # day is over the limit of 2 in every block.
     search = _search(db_session, owner, v1.schedule_id, "900", "LATE 9000", "I-3")
     assert search["outcome"] == "least_conflicts"

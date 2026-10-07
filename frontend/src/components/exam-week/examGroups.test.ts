@@ -8,7 +8,7 @@ const exam = (crn: string): WeekExam => ({
   day: 0,
   day_name: "Monday",
   block: 0,
-  block_time: "9AM-11AM",
+  block_time: "8AM-10AM",
   room: "Hall",
 });
 

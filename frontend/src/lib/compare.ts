@@ -270,7 +270,7 @@ const WEEK = [
   "Sunday",
 ];
 
-/** Minutes after midnight a block label ("11:30AM-1:30PM") starts at. */
+/** Minutes after midnight a block label ("10:30AM-12:30PM") starts at. */
 function blockStart(label: string): number {
   const match = /^(\d{1,2})(?::(\d{2}))?\s*([AP]M)/i.exec(label.trim());
   if (!match) return Number.POSITIVE_INFINITY;

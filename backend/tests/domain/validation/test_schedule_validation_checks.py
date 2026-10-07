@@ -308,7 +308,7 @@ def test_placed_exam_without_room_warns():
     )
 
     assert result.status == "warn"
-    assert result.examples == ("CRN 300 at Monday 2PM-4PM has no room",)
+    assert result.examples == ("CRN 300 at Monday 1PM-3PM has no room",)
 
 
 def test_exam_outside_window_fails():
@@ -328,7 +328,7 @@ def test_exam_outside_window_fails():
     )
 
     assert late_day.status == late_block.status == "fail"
-    assert late_block.examples == ("CRN 300 at Monday 7PM-9PM",)
+    assert late_block.examples == ("CRN 300 at Monday 6PM-8PM",)
     assert last_slot.status == "pass"
 
 
@@ -359,7 +359,7 @@ def test_over_capacity_room_fails_using_file_values():
     assert result.status == "fail"
     assert result.count == 2
     assert result.examples[0] == (
-        "Room R1 at Monday 9AM-11AM: 2 students, capacity 1 (CRN 100)"
+        "Room R1 at Monday 8AM-10AM: 2 students, capacity 1 (CRN 100)"
     )
 
 
@@ -422,7 +422,7 @@ def test_unscheduled_exam_with_a_free_room_warns():
 
     assert result.status == "warn"
     assert result.examples == (
-        "CRN 300 (1 student): R2 (10 seats) was free at Monday 9AM-11AM",
+        "CRN 300 (1 student): R2 (10 seats) was free at Monday 8AM-10AM",
     )
 
 
@@ -476,7 +476,7 @@ def test_unscheduled_exams_follow_the_large_only_rule():
     result = run("rooms.unscheduled_had_no_room", big)
     assert result.status == "warn"
     assert result.examples == (
-        "CRN 100 (2 students): R1 (10 seats) was free at Monday 9AM-11AM",
+        "CRN 100 (2 students): R1 (10 seats) was free at Monday 8AM-10AM",
     )
 
 
@@ -502,7 +502,7 @@ def test_two_exams_in_one_room_at_once_fail_but_one_combined_exam_does_not():
     )
 
     assert separate.status == "fail"
-    assert separate.examples == ("Room R1 at Monday 9AM-11AM: CRN 100, CRN 300",)
+    assert separate.examples == ("Room R1 at Monday 8AM-10AM: CRN 100, CRN 300",)
     assert combined.status == "pass"
 
 
@@ -513,7 +513,7 @@ def test_exam_in_blocked_room_fails():
     result = run("rooms.blockouts", snapshot(files=blocked))
 
     assert result.status == "fail"
-    assert result.examples == ("CRN 100 in R1 at Monday 9AM-11AM, which is blocked",)
+    assert result.examples == ("CRN 100 in R1 at Monday 8AM-10AM, which is blocked",)
     assert run("rooms.blockouts", snapshot(files=elsewhere)).status == "pass"
 
 
@@ -538,8 +538,8 @@ def test_combined_group_must_share_slot_and_room():
 
     assert result.status == "fail"
     assert result.examples == (
-        "Combined group 'G': CRN 100 at Monday 9AM-11AM in R1; "
-        "CRN 200 at Tuesday 9AM-11AM in R1",
+        "Combined group 'G': CRN 100 at Monday 8AM-10AM in R1; "
+        "CRN 200 at Tuesday 8AM-10AM in R1",
     )
     assert run("groups.combined_together", together).status == "pass"
 
@@ -588,7 +588,7 @@ def test_common_group_includes_whole_combined_groups_of_its_members():
     result = run("groups.common_same_slot", snap)
 
     assert result.status == "fail"
-    assert "CRN 300 at Tuesday 9AM-11AM in R2" in result.examples[0]
+    assert "CRN 300 at Tuesday 8AM-10AM in R2" in result.examples[0]
 
 
 def test_common_group_sections_of_one_combined_exam_may_share_a_room():
@@ -708,7 +708,7 @@ def test_unreported_student_double_booking_fails():
 
     assert result.status == "fail"
     assert result.examples == (
-        "Missed: student 001234567, Monday 9AM-11AM: CRN 100, CRN 200",
+        "Missed: student 001234567, Monday 8AM-10AM: CRN 100, CRN 200",
     )
 
 
@@ -734,7 +734,7 @@ def test_invented_student_double_booking_fails():
     result = run("conflicts.student_double_book", snap)
 
     assert result.status == "fail"
-    assert result.examples == ("Not real: student s2, Friday 11:30AM-1:30PM",)
+    assert result.examples == ("Not real: student s2, Friday 10:30AM-12:30PM",)
 
 
 def test_combined_sections_at_one_time_are_not_a_double_booking():
@@ -774,7 +774,7 @@ def test_instructor_double_booking_counts_time_groups():
 
     assert missed.status == "fail"
     assert missed.examples == (
-        "Missed: instructor Ada, Monday 9AM-11AM: CRN 100, CRN 300",
+        "Missed: instructor Ada, Monday 8AM-10AM: CRN 100, CRN 300",
     )
     assert common.status == "pass"
 
@@ -818,7 +818,7 @@ def test_student_back_to_back_same_day_adjacent_blocks():
 
     assert result.status == "fail"
     assert result.examples == (
-        "Missed: student 001234567, Monday: 9AM-11AM, 11:30AM-1:30PM",
+        "Missed: student 001234567, Monday: 8AM-10AM, 10:30AM-12:30PM",
     )
 
 
@@ -863,7 +863,7 @@ def test_missed_instructor_back_to_back_fails():
 
     assert result.status == "fail"
     assert result.examples == (
-        "Missed: instructor Ada, Monday: 11:30AM-1:30PM, 2PM-4PM",
+        "Missed: instructor Ada, Monday: 10:30AM-12:30PM, 1PM-3PM",
     )
 
 
@@ -1203,8 +1203,8 @@ def test_late_addition_at_other_block_fails():
 
     assert result.status == "fail"
     assert result.examples == (
-        "CRN 900 is recorded at Wednesday 11:30AM-1:30PM in R1 but is "
-        "Wednesday 9AM-11AM in R1",
+        "CRN 900 is recorded at Wednesday 10:30AM-12:30PM in R1 but is "
+        "Wednesday 8AM-10AM in R1",
     )
 
 
@@ -1267,7 +1267,7 @@ def test_late_addition_missing_repeated_or_malformed_fails():
     assert result.examples == (
         "Late addition #3 lacks crn, course_code, instructor_id or room",
         "CRN 900 is recorded as a late addition 2 times",
-        "CRN 900 should appear once at Wednesday 9AM-11AM in R1 but has "
+        "CRN 900 should appear once at Wednesday 8AM-10AM in R1 but has "
         "0 schedule rows",
     )
 
@@ -1295,7 +1295,7 @@ def test_late_addition_instructor_takes_part_in_instructor_conflicts():
     reported = run("conflicts.instructor_double_book", replace(snap, analysis=stored))
 
     assert missed.examples == (
-        "Missed: instructor Ada, Monday 9AM-11AM: CRN 100, CRN 900",
+        "Missed: instructor Ada, Monday 8AM-10AM: CRN 100, CRN 900",
     )
     assert reported.status == "warn"
 
@@ -1340,7 +1340,7 @@ def test_parse_dataset_files_keeps_ids_and_marks_unreadable_files():
             b"100,CS1,2, Ada \n400,CS4,,\n",
             "enrollments": b"Student_PIDM,CRN\n001234567,100\n",
             "rooms": b"not,a,rooms,file\n1,2,3,4\n",
-            "room_blockouts": b"Room,Day,Block\nR1,Monday,9AM-11AM\n",
+            "room_blockouts": b"Room,Day,Block\nR1,Monday,8AM-10AM\n",
         }
     )
 

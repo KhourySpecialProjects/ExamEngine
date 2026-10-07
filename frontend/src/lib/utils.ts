@@ -10,7 +10,7 @@ export function cn(...inputs: ClassValue[]) {
 
 /**
  * Extract the bare time string from a block label.
- * Handles both plain time strings ("9AM-11AM") and "N (9AM-11AM)" format.
+ * Handles both plain time strings ("8AM-10AM") and "N (8AM-10AM)" format.
  */
 export function extractTimeFromBlock(blockStr: string): string {
   if (!blockStr) return "";
@@ -354,11 +354,56 @@ export function downloadBlob(blob: Blob, filename: string) {
   URL.revokeObjectURL(url);
 }
 
+/** "8AM" or "12:30PM" → "08:00" / "12:30"; null if it isn't a clock time. */
+function to24Hour(time: string): string | null {
+  const match = /^(\d{1,2})(?::(\d{2}))?\s*([AP]M)$/i.exec(time.trim());
+  if (!match) return null;
+  const hour =
+    (Number(match[1]) % 12) + (match[3].toUpperCase() === "PM" ? 12 : 0);
+  return `${String(hour).padStart(2, "0")}:${match[2] ?? "00"}`;
+}
+
+/**
+ * Start and end of a block label ("10:30AM-12:30PM") as 24-hour times
+ * ("10:30", "12:30"); null when the label isn't a time range.
+ */
+export function blockClockTimes(
+  label: string,
+): { start: string; end: string } | null {
+  const [from, to, ...rest] = extractTimeFromBlock(label ?? "").split("-");
+  if (to === undefined || rest.length > 0) return null;
+  const start = to24Hour(from);
+  const end = to24Hour(to);
+  return start && end ? { start, end } : null;
+}
+
+/**
+ * Schedule rows as exported: the Block label is replaced, in place, by
+ * "Start Time" and "End Time" columns (24-hour, blank when unscheduled).
+ */
+export function scheduleExportRows(
+  rows: Record<string, unknown>[],
+): Record<string, unknown>[] {
+  return rows.map((row) => {
+    const out: Record<string, unknown> = {};
+    for (const [key, value] of Object.entries(row)) {
+      if (key !== "Block") {
+        out[key] = value;
+        continue;
+      }
+      const times = blockClockTimes(String(value ?? ""));
+      out["Start Time"] = times?.start ?? "";
+      out["End Time"] = times?.end ?? "";
+    }
+    return out;
+  });
+}
+
 export function exportScheduleRowsAsCsv(
   rows: Record<string, any>[],
   filename = "schedule_exams.csv",
 ) {
-  const blob = scheduleRowsToCsvBlob(rows);
+  const blob = scheduleRowsToCsvBlob(scheduleExportRows(rows));
   downloadBlob(blob, filename);
 }
 

@@ -43,7 +43,7 @@ class FakeStorage:
 def world(db_session):
     """A schedule with a double-book for student 001234567 and instructor I-1.
 
-    100 and 200 share Monday 9AM; 400 is unscheduled; 300 is Tuesday's last
+    100 and 200 share Monday 8AM; 400 is unscheduled; 300 is Tuesday's last
     block without a room.
     """
     owner = make_user(db_session, "Owner")
@@ -106,18 +106,18 @@ async def test_student_exams_come_from_the_enrollments_file_in_week_order(world)
     # Leading zeros kept; same-block exams both listed; unscheduled last;
     # an enrolled CRN that isn't in the schedule is skipped.
     assert _rows(result) == [
-        ("100", "Monday", "9AM-11AM", "Lab"),
-        ("200", "Monday", "9AM-11AM", "Hall"),
+        ("100", "Monday", "8AM-10AM", "Lab"),
+        ("200", "Monday", "8AM-10AM", "Hall"),
         ("400", None, None, None),
     ]
     assert result.exams[0].course_code == "TEST 100"
     assert (result.exams[0].day, result.exams[0].block) == (0, 0)
     assert result.days == ["Monday", "Tuesday", "Wednesday"]
     assert result.block_times == [
-        "9AM-11AM",
-        "11:30AM-1:30PM",
-        "2PM-4PM",
-        "4:30PM-6:30PM",
+        "8AM-10AM",
+        "10:30AM-12:30PM",
+        "1PM-3PM",
+        "3:30PM-5:30PM",
     ]
 
 
@@ -128,8 +128,8 @@ async def test_instructor_exams_come_from_the_schedule_without_reading_files(wor
 
     assert result.person_id == "I-1"
     assert _rows(result) == [
-        ("100", "Monday", "9AM-11AM", "Lab"),
-        ("300", "Tuesday", "4:30PM-6:30PM", None),
+        ("100", "Monday", "8AM-10AM", "Lab"),
+        ("300", "Tuesday", "3:30PM-5:30PM", None),
     ]
     assert world["storage"].downloaded == []
 

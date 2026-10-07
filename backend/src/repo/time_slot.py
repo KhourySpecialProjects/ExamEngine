@@ -1,9 +1,9 @@
-from datetime import time
 from uuid import UUID
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from src.domain.constants import EXAM_BLOCKS
 from src.schemas.db import DayEnum, TimeSlots
 
 from .base import BaseRepo
@@ -41,15 +41,6 @@ class TimeSlotRepo(BaseRepo[TimeSlots]):
             "Sunday": DayEnum.Sunday,
         }
 
-        # Map block index to time ranges
-        block_times = {
-            0: (time(9, 0), time(11, 0), "9AM-11AM"),
-            1: (time(11, 30), time(13, 30), "11:30AM-1:30PM"),
-            2: (time(14, 0), time(16, 0), "2PM-4PM"),
-            3: (time(16, 30), time(18, 30), "4:30PM-6:30PM"),
-            4: (time(19, 0), time(21, 0), "7PM-9PM"),
-        }
-
         # Get day enum
         day_enum = day_map.get(day)
 
@@ -59,12 +50,13 @@ class TimeSlotRepo(BaseRepo[TimeSlots]):
                 f"Invalid day name: '{day}'. Expected one of: {list(day_map.keys())}"
             )
 
-        # Get time info for block
-        time_info = block_times.get(block_index)
-        if time_info is None:
-            raise ValueError(f"Invalid block_index: {block_index}. Expected 0-4.")
-
-        start_time, end_time, label = time_info
+        if not 0 <= block_index < len(EXAM_BLOCKS):
+            raise ValueError(
+                f"Invalid block_index: {block_index}. "
+                f"Expected 0-{len(EXAM_BLOCKS) - 1}."
+            )
+        block = EXAM_BLOCKS[block_index]
+        start_time, end_time, label = block.start, block.end, block.label
 
         # Try to find existing slot
         stmt = select(TimeSlots).where(

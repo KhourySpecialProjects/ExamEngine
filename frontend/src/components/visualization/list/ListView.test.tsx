@@ -36,7 +36,7 @@ describe("ListView", () => {
           complete: [],
           calendar: {
             Monday: {
-              "9AM-11AM": [exam("90001", "CS 1000"), exam("100", "CS 2000")],
+              "8AM-10AM": [exam("90001", "CS 1000"), exam("100", "CS 2000")],
             },
           },
           total_exams: 2,

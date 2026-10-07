@@ -34,9 +34,9 @@ const getCourseMerges = vi.mocked(apiClient.datasets.getCourseMerges);
 const getCommonExams = vi.mocked(apiClient.datasets.getCommonExams);
 
 const DAYS = ["Monday", "Tuesday"];
-const TIMES = ["9AM-11AM", "11:30AM-1:30PM"];
+const TIMES = ["8AM-10AM", "10:30AM-12:30PM"];
 
-/** Hall is blocked on Monday 9AM (where its two exams are) and Tuesday 11:30AM. */
+/** Hall is blocked on Monday 8AM (where its two exams are) and Tuesday 10:30AM. */
 function roomsResult(
   blockouts: ScheduleRoomsResult["blockouts"] = "ok",
 ): ScheduleRoomsResult {
@@ -71,7 +71,7 @@ function row(
     CRN: crn,
     Course: `CS ${crn}`,
     Day: "Monday",
-    Block: "9AM-11AM",
+    Block: "8AM-10AM",
     Room: "Hall",
     Capacity: 40,
     Size: 30,
@@ -187,7 +187,7 @@ describe("ExploreView", () => {
     expect(listRows()).toEqual([
       [
         "Monday",
-        "9AM-11AMDouble-booked",
+        "8AM-10AMDouble-booked",
         "100",
         "CS 100",
         "Hall",
@@ -197,7 +197,7 @@ describe("ExploreView", () => {
       ],
       [
         "Monday",
-        "9AM-11AMDouble-booked",
+        "8AM-10AMDouble-booked",
         "200",
         "CS 200",
         "Hall",
@@ -295,8 +295,8 @@ describe("ExploreView", () => {
 
     // No Room column, no double-book marks: a room holds combined exams.
     expect(listRows()).toEqual([
-      ["Monday", "9AM-11AMBlocked slot", "100", "CS 100", "I-1", "30", "—"],
-      ["Monday", "9AM-11AMBlocked slot", "200", "CS 200", "I-2", "12", "—"],
+      ["Monday", "8AM-10AMBlocked slot", "100", "CS 100", "I-1", "30", "—"],
+      ["Monday", "8AM-10AMBlocked slot", "200", "CS 200", "I-2", "12", "—"],
     ]);
     const blockedTimes = screen.getByText("Blocked times (2)")
       .parentElement as HTMLDetailsElement;
@@ -305,7 +305,7 @@ describe("ExploreView", () => {
       within(blockedTimes)
         .getAllByRole("listitem", { hidden: true })
         .map((li) => li.textContent),
-    ).toEqual(["Monday 9AM-11AM", "Tuesday 11:30AM-1:30PM"]);
+    ).toEqual(["Monday 8AM-10AM", "Tuesday 10:30AM-12:30PM"]);
   });
 
   it("picks a room from the list of every room", async () => {
@@ -389,10 +389,10 @@ describe("ExploreView", () => {
 
       fireEvent.click(screen.getByRole("button", { name: "List" }));
       expect(listRows()).toEqual([
-        ["Monday", "9AM-11AM", "100", "CS 100", "Hall", "I-1", "30", "—"],
+        ["Monday", "8AM-10AM", "100", "CS 100", "Hall", "I-1", "30", "—"],
         [
           "Tuesday",
-          "11:30AM-1:30PM",
+          "10:30AM-12:30PM",
           "101",
           "CS 100",
           "Hall",
@@ -426,7 +426,7 @@ describe("ExploreView", () => {
 
   describe("combined and common exams", () => {
     // 100 + 200 are one combined exam in Hall; it belongs to a common exam
-    // with 900 in Lab, all Monday 9AM.
+    // with 900 in Lab, all Monday 8AM.
     const GROUP_ROWS = [
       row("100", "I-1"),
       row("200", "I-1", { Size: 12 }),
@@ -482,7 +482,7 @@ describe("ExploreView", () => {
       lookUpStudent("001234567");
       fireEvent.click(await screen.findByRole("button", { name: "List" }));
 
-      // 100 and 200 share Monday 9AM but are one exam; 300 is unscheduled.
+      // 100 and 200 share Monday 8AM but are one exam; 300 is unscheduled.
       await waitFor(() =>
         expect(listRows()[0][7]).toBe("CS CombinedCS Common"),
       );

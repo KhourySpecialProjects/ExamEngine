@@ -56,6 +56,7 @@ from src.repo.schedule import ScheduleRepo
 from src.repo.time_slot import TimeSlotRepo
 from src.schemas.db import Datasets, ExamAssignments, Runs, Schedules, StatusEnum, Users
 from src.services.dataset.uploaded_files import load_uploaded_files, stored_groups
+from src.services.schedule.slots import slot_indices
 from src.services.schedule.summary import resolve_settings
 from src.services.storage.interface import IStorage
 
@@ -65,9 +66,6 @@ DATASET_DELETED_MESSAGE = "The dataset's uploaded files are no longer available"
 LATE_ADD_ALGORITHM_NAME = "Late add"
 # schedules.schedule_name is String(50).
 MAX_SCHEDULE_NAME_LENGTH = 50
-
-_DAY_INDEX = {name: index for index, name in enumerate(DAY_NAMES)}
-_BLOCK_INDEX = {label: index for index, label in BLOCK_TIMES.items()}
 
 
 # ----------------------------------------------------------------------
@@ -509,16 +507,9 @@ class LateAddService:
 # ----------------------------------------------------------------------
 
 
-def _slot(assignment: ExamAssignments) -> tuple[int, int] | None:
-    slot = assignment.time_slot
-    if slot is None:
-        return None
-    return _DAY_INDEX[slot.day.value], _BLOCK_INDEX[slot.slot_label]
-
-
 def _base_exam(assignment: ExamAssignments) -> BaseExam:
     course = assignment.course
-    slot = _slot(assignment)
+    slot = slot_indices(assignment)
     day, block = slot if slot else (None, None)
     return BaseExam(
         crn=str(course.crn).strip(),
@@ -535,7 +526,7 @@ def _reject_scheduled_crn(crn: str, assignments: list[ExamAssignments]) -> None:
     for assignment in assignments:
         if str(assignment.course.crn).strip() != crn:
             continue
-        slot = _slot(assignment)
+        slot = slot_indices(assignment)
         if slot is None:
             raise ValidationError(
                 f"CRN {crn} is already in this schedule, unscheduled. Late add "

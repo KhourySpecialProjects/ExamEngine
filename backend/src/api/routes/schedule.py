@@ -10,6 +10,7 @@ from src.api.deps import (
     get_db,
     get_late_add_service,
     get_person_exams_service,
+    get_schedule_rooms_service,
     get_schedule_service,
 )
 from src.core.exceptions import (
@@ -29,6 +30,7 @@ from src.services.schedule.person_exams import (
     PersonExamsService,
     PersonKind,
 )
+from src.services.schedule.rooms import ScheduleRoomsResponse, ScheduleRoomsService
 
 
 router = APIRouter(prefix="/schedule", tags=["schedule"])
@@ -348,6 +350,27 @@ async def get_person_exams(
         raise HTTPException(status_code=400, detail=str(e)) from e
     except StorageError as e:
         raise HTTPException(status_code=500, detail=str(e)) from e
+    if result is None:
+        raise HTTPException(status_code=404, detail=f"Schedule {schedule_id} not found")
+    return result
+
+
+@router.get("/{schedule_id}/rooms", response_model=ScheduleRoomsResponse)
+async def get_schedule_rooms(
+    schedule_id: UUID,
+    current_user: Users = Depends(get_current_user),
+    rooms_service: ScheduleRoomsService = Depends(get_schedule_rooms_service),
+):
+    """
+    Every room in the schedule's dataset with its capacity and blocked times.
+
+    Read-only, for the Explore tab. The owner and anyone the schedule is shared
+    with may look; anyone else gets 404. Blocked times come from the dataset's
+    uploaded room_blockouts file: `blockouts` says whether it was read
+    ("ok"), none was uploaded ("none_uploaded") or it can't be read, e.g. the
+    dataset was deleted ("unavailable"); the rooms are listed either way.
+    """
+    result = await rooms_service.get(schedule_id, current_user.user_id)
     if result is None:
         raise HTTPException(status_code=404, detail=f"Schedule {schedule_id} not found")
     return result

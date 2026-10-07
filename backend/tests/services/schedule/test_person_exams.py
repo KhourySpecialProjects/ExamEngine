@@ -206,3 +206,15 @@ async def test_student_lookup_fails_clearly_without_the_enrollments_file(world):
         world["schedule"].schedule_id, world["owner"].user_id, "instructor", "I-1"
     )
     assert len(result.exams) == 2
+
+
+async def test_student_lookup_reads_only_the_enrollments_file(world):
+    """Another file failing to download doesn't break (or get blamed for) it."""
+    world["storage"].files = {k: v for k, v in FILES.items() if "rooms" not in k}
+
+    result = await world["service"].get(
+        world["schedule"].schedule_id, world["owner"].user_id, "student", "007654321"
+    )
+
+    assert [e.crn for e in result.exams] == ["300"]
+    assert world["storage"].downloaded == ["k/enrollments.csv"]

@@ -4,13 +4,15 @@ Shared by the Schedule Validator and late add. Unlike generation's loaders
 (`drop_zero_enrollment`, `DatasetFactory`), nothing is dropped: enrollments
 keep every CRN, including CRNs that are not in the courses file. Both also read
 the dataset's stored combined/common groups through `stored_groups`, so they
-build exam units and time groups from the same CRN strings.
+build exam units and time groups from the same CRN strings. Lookups that need
+one file (person exams, the Explore tab's rooms) use `download_uploaded_file`.
 """
 
 import asyncio
 import logging
 from collections.abc import Mapping
 
+from src.core.exceptions import StorageError
 from src.domain.validation import DatasetFiles, parse_dataset_files
 from src.domain.validation.snapshot import COURSES, ENROLLMENTS, ROOM_BLOCKOUTS, ROOMS
 from src.schemas.db import Datasets
@@ -62,6 +64,49 @@ async def load_uploaded_files(
         )
         return None
     return await asyncio.to_thread(parse_dataset_files, downloaded)
+
+
+async def download_uploaded_file(
+    dataset: Datasets, storage: IStorage, file_type: str, context: str
+) -> bytes | None:
+    """One uploaded file's contents; None when the dataset has no such file.
+
+    Raises `StorageError` when the dataset was deleted (its files are deleted
+    from storage with it) or the file can't be downloaded. `context` starts the
+    log messages, e.g. "Person exams on schedule <id>".
+    """
+    if dataset.deleted_at is not None:
+        raise StorageError(f"Dataset {dataset.dataset_id} was deleted.")
+    key = next(
+        (
+            entry["storage_key"]
+            for entry in dataset.file_paths
+            if entry_type(entry) == file_type
+        ),
+        None,
+    )
+    if key is None:
+        return None
+    try:
+        content = await asyncio.to_thread(storage.download_file, key)
+    except Exception as exc:
+        logger.warning(
+            "%s: downloading dataset %s %s file failed",
+            context,
+            dataset.dataset_id,
+            file_type,
+            exc_info=True,
+        )
+        raise StorageError(f"Could not download the {file_type} file.") from exc
+    if not content:
+        logger.warning(
+            "%s: dataset %s %s file not available",
+            context,
+            dataset.dataset_id,
+            file_type,
+        )
+        raise StorageError(f"The {file_type} file is not available.")
+    return content
 
 
 def stored_groups(groups: Mapping[str, list[str]] | None) -> dict[str, tuple[str, ...]]:

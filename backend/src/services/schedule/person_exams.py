@@ -6,6 +6,8 @@ come from the dataset's uploaded files. Access is the schedule-view check
 (owner or shared with the user), like the Validator.
 """
 
+import asyncio
+import logging
 from typing import Literal
 from uuid import UUID
 
@@ -14,20 +16,20 @@ from pydantic import BaseModel
 from src.core.exceptions import DatasetDeletedError, StorageError, ValidationError
 from src.domain.constants import BLOCK_TIMES, DAY_NAMES
 from src.domain.services.late_add import instructor_key
+from src.domain.validation.parsing import parse_enrollments
 from src.domain.validation.snapshot import ENROLLMENTS
 from src.repo.dataset import DatasetRepo
 from src.repo.exam_assignment import ExamAssignmentRepo
 from src.repo.schedule import ScheduleRepo
 from src.schemas.db import ExamAssignments
-from src.services.dataset.uploaded_files import load_uploaded_files
-from src.services.schedule.summary import resolve_settings
+from src.services.dataset.uploaded_files import download_uploaded_file
+from src.services.schedule.slots import calendar_window, slot_indices
 from src.services.storage.interface import IStorage
 
 
-PersonKind = Literal["student", "instructor"]
+logger = logging.getLogger("examengine.person_exams")
 
-_DAY_INDEX = {name: index for index, name in enumerate(DAY_NAMES)}
-_BLOCK_INDEX = {label: index for index, label in BLOCK_TIMES.items()}
+PersonKind = Literal["student", "instructor"]
 
 
 class PersonExam(BaseModel):
@@ -98,21 +100,14 @@ class PersonExamsService:
             crns = await self._student_crns(run.dataset_id, schedule_id, person_id)
             mine = [a for a in assignments if str(a.course.crn).strip() in crns]
 
-        settings, _ = resolve_settings(run.algorithm_name, run.parameters)
-        slots = [slot for a in assignments if (slot := _slot(a)) is not None]
-        day_count = max([settings.get("max_days") or 0, *(day + 1 for day, _ in slots)])
-        block_count = max(
-            [settings["blocks_per_day"], *(block + 1 for _, block in slots)]
-        )
+        days, block_times = calendar_window(run, assignments)
         exams = sorted((_exam(a) for a in mine), key=_exam_order)
         return PersonExamsResponse(
             kind=kind,
             person_id=person_id,
             exams=exams,
-            days=DAY_NAMES[: min(day_count, len(DAY_NAMES))],
-            block_times=[
-                BLOCK_TIMES[b] for b in range(min(block_count, len(BLOCK_TIMES)))
-            ],
+            days=days,
+            block_times=block_times,
         )
 
     async def _student_crns(
@@ -124,34 +119,42 @@ class PersonExamsService:
                 "The dataset's uploaded files are no longer available, so its "
                 "students' exams can't be looked up."
             )
-        files = await load_uploaded_files(
-            dataset, self.storage, f"Person exams on schedule {schedule_id}"
+        unreadable = StorageError(
+            "Could not read the dataset's uploaded enrollments file."
         )
-        if (
-            files is None
-            or files.enrollments is None
-            or ENROLLMENTS in files.unreadable
-        ):
-            raise StorageError(
-                "Could not read the dataset's uploaded enrollments file."
+        try:
+            content = await download_uploaded_file(
+                dataset,
+                self.storage,
+                ENROLLMENTS,
+                f"Person exams on schedule {schedule_id}",
             )
+            enrollments = (
+                await asyncio.to_thread(parse_enrollments, content) if content else None
+            )
+        except StorageError as exc:
+            raise unreadable from exc
+        except Exception as exc:
+            logger.warning(
+                "Person exams on schedule %s: could not parse the enrollments "
+                "file: %s: %s",
+                schedule_id,
+                type(exc).__name__,
+                exc,
+            )
+            raise unreadable from exc
+        if enrollments is None:
+            raise unreadable
         return {
             record.crn.strip()
-            for record in files.enrollments
+            for record in enrollments
             if record.student_id.strip() == student_id
         }
 
 
-def _slot(assignment: ExamAssignments) -> tuple[int, int] | None:
-    slot = assignment.time_slot
-    if slot is None:
-        return None
-    return _DAY_INDEX[slot.day.value], _BLOCK_INDEX[slot.slot_label]
-
-
 def _exam(assignment: ExamAssignments) -> PersonExam:
     course, room = assignment.course, assignment.room
-    slot = _slot(assignment)
+    slot = slot_indices(assignment)
     day, block = slot if slot else (None, None)
     return PersonExam(
         crn=str(course.crn),

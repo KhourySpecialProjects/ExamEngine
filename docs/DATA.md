@@ -350,6 +350,7 @@ stored metadata; never the uploaded files. It is the `summary` field of
 | `calendar` | `slots_used` and `days_used` (distinct (day, block) pairs and days holding an exam, unroomed included); `days` (placed exams and seats per day, Monday first); `blocks` (placed exams per block, earliest first); `matrix` (placed exams per `[day][block]` in those orders) |
 | `groups` | `combined` and `common`: group count, and the exams (any state) in them with their summed enrollment. A combined group with any CRN in a common group counts as common as a whole |
 | `blockouts` | Rooms blocked and blocked (room, slot) entries, from the room blockouts upload metadata |
+| `large_only_room` | `null` unless the rooms upload marked a room LargeOnly; else `{name, capacity, cutoff}` from that metadata plus what this schedule placed there: `exams` (blocks the room is used in), `sections` (CRNs seated there) and `students`. The Statistics tab shows it as a card |
 
 `instances` counts occurrences the way the Conflicts tab merges records: one per person, day and
 time for double-books (a 3-way double-book, stored as 3 pairs, is 1), one per person and day for

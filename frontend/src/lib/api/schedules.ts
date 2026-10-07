@@ -175,6 +175,19 @@ export interface ScheduleSummary {
   };
   groups: { combined: GroupStats; common: GroupStats };
   blockouts: { rooms: number; slots: number };
+  /**
+   * The dataset's large-only room (rooms.csv LargeOnly) and what this schedule
+   * placed in it: `exams` = blocks it is used in, `sections` = CRNs seated
+   * there. Null (absent on older responses) when no room is marked.
+   */
+  large_only_room?: {
+    name: string;
+    capacity: number;
+    cutoff: number;
+    exams: number;
+    sections: number;
+    students: number;
+  } | null;
 }
 
 export interface ScheduleConflicts {

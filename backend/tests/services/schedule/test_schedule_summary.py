@@ -183,6 +183,30 @@ class TestDatasetContext:
 
         assert summary["unique_students"] is None
         assert summary["blockouts"] == {"rooms": 0, "slots": 0}
+        assert summary["large_only_room"] is None
+
+    def test_large_only_room_counts_what_this_schedule_placed_there(self):
+        hall = {"name": "Hall", "capacity": 300, "cutoff": 100}
+        summary = _summary(
+            [
+                # A combined exam (two sections) and a lone section in Hall
+                _exam("1", 70, "Monday", 9, "Hall", 300),
+                _exam("2", 60, "Monday", 9, "Hall", 300),
+                _exam("3", 150, "Tuesday", 9, "Hall", 300),
+                _exam("4", 40, "Monday", 9, "R1", 50),
+                _exam("5", 120),
+            ],
+            file_paths=[
+                {"type": "rooms", "metadata": {"large_only_room": hall}},
+            ],
+        )
+
+        assert summary["large_only_room"] == {
+            **hall,
+            "exams": 2,
+            "sections": 3,
+            "students": 280,
+        }
 
 
 def _double_book(student, day, block_time, crn, other) -> dict:

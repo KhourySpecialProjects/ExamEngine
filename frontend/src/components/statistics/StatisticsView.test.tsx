@@ -243,4 +243,37 @@ describe("StatisticsView", () => {
     expect(section.textContent).toContain("Room blockouts");
     expect(section.textContent).not.toContain("Common exams");
   });
+
+  it("shows the large-only room and what this schedule placed in it", () => {
+    mockSchedule(
+      summary({
+        large_only_room: {
+          name: "Hall A",
+          capacity: 500,
+          cutoff: 275,
+          exams: 4,
+          sections: 6,
+          students: 1400,
+        },
+      }),
+    );
+    render(<StatisticsView />);
+
+    const section = screen.getByRole("heading", {
+      name: "Exam groups and room constraints",
+    }).parentElement as HTMLElement;
+    expect(section.textContent).toContain("Large-only room: Hall A");
+    const value = (label: string) =>
+      within(section).getByText(label).nextSibling?.textContent;
+    expect(value("Exams over 275")).toBe("4");
+    expect(value("Students")).toBe("1,400");
+    expect(value("Seats")).toBe("500");
+  });
+
+  it("shows no large-only room card when the dataset marks none", () => {
+    mockSchedule(summary({ blockouts: { rooms: 1, slots: 1 } }));
+    render(<StatisticsView />);
+
+    expect(screen.queryByText(/Large-only room/)).toBeNull();
+  });
 });

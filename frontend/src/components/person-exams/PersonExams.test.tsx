@@ -15,7 +15,7 @@ import { apiClient } from "@/lib/api/client";
 const personExams = vi.mocked(apiClient.schedules.personExams);
 
 const DAYS = ["Monday", "Tuesday", "Wednesday"];
-const TIMES = ["9AM-11AM", "11:30AM-1:30PM", "2PM-4PM"];
+const TIMES = ["8AM-10AM", "10:30AM-12:30PM", "1PM-3PM"];
 
 function exam(
   crn: string,
@@ -70,8 +70,8 @@ describe("PersonExams", () => {
     );
 
     expect(listRows()).toEqual([
-      ["Monday", "9AM-11AM", "100", "CS 100", "Hall"],
-      ["Wednesday", "11:30AM-1:30PM", "300", "CS 300", "No room"],
+      ["Monday", "8AM-10AM", "100", "CS 100", "Hall"],
+      ["Wednesday", "10:30AM-12:30PM", "300", "CS 300", "No room"],
       ["Unscheduled", "—", "400", "CS 400", "—"],
     ]);
     expect(
@@ -117,7 +117,7 @@ describe("PersonExams", () => {
 
     expect(listRows()[1]).toEqual([
       "Monday",
-      "11:30AM-1:30PMDouble-booked",
+      "10:30AM-12:30PMDouble-booked",
       "900Proposed",
       "CS 900",
       "Lab",

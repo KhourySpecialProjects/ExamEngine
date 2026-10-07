@@ -30,7 +30,7 @@ const doubleBook = (
   entity_id: student,
   day,
   block: 0,
-  block_time: "9AM-11AM",
+  block_time: "8AM-10AM",
   crn,
   course: `CS ${crn}`,
   conflicting_crn: conflictingCrn,
@@ -138,14 +138,14 @@ describe("ConflictView", () => {
       "000000001",
       "2",
       "Monday",
-      "9AM-11AM",
+      "8AM-10AM",
     ]);
     expect(pillTitles(rows[0])).toEqual([
       "CS 2500 · CRN 2500\nRoom: WVH 210 (capacity 120)\nEnrolled: 95\nInstructor: Dr. Smith",
       "CS 2510 · CRN 2510",
       "CS 2800 · CRN 2800",
     ]);
-    expect(cellTexts(rows[1]).slice(0, 2)).toEqual(["Tuesday", "9AM-11AM"]);
+    expect(cellTexts(rows[1]).slice(0, 2)).toEqual(["Tuesday", "8AM-10AM"]);
     expect(pillTitles(rows[1])).toEqual([
       "CS 3500 · CRN 3500",
       "CS 4535 · CRN 4535",
@@ -155,7 +155,7 @@ describe("ConflictView", () => {
       "000000002",
       "1",
       "Monday",
-      "9AM-11AM",
+      "8AM-10AM",
     ]);
 
     // Pagination bars above and below the table.
@@ -281,7 +281,7 @@ describe("ConflictView", () => {
         student_id: "000000004",
         day: "Wednesday",
         blocks: [0, 1],
-        block_times: ["9AM-11AM", "11:30AM-1:30PM"],
+        block_times: ["8AM-10AM", "10:30AM-12:30PM"],
       },
     ]);
     renderView();
@@ -296,7 +296,7 @@ describe("ConflictView", () => {
       [...row.querySelectorAll('[data-slot="badge"]')].map(
         (b) => b.textContent,
       ),
-    ).toEqual(["9AM-11AM", "11:30AM-1:30PM"]);
+    ).toEqual(["8AM-10AM", "10:30AM-12:30PM"]);
   });
 
   it("shows a repeated back-to-back time slot twice without a React key warning", () => {
@@ -310,7 +310,7 @@ describe("ConflictView", () => {
         student_id: "000102290",
         day: "Monday",
         blocks: [1, 1, 2],
-        block_times: ["11:30AM-1:30PM", "11:30AM-1:30PM", "2PM-4PM"],
+        block_times: ["10:30AM-12:30PM", "10:30AM-12:30PM", "1PM-3PM"],
       },
     ]);
     renderView();
@@ -320,7 +320,7 @@ describe("ConflictView", () => {
       [...row.querySelectorAll('[data-slot="badge"]')].map(
         (b) => b.textContent,
       ),
-    ).toEqual(["11:30AM-1:30PM", "11:30AM-1:30PM", "2PM-4PM"]);
+    ).toEqual(["10:30AM-12:30PM", "10:30AM-12:30PM", "1PM-3PM"]);
     expect(
       consoleError.mock.calls.filter((args) =>
         String(args[0]).includes("same key"),
@@ -337,7 +337,7 @@ describe("ConflictView", () => {
       student_id: "000100663",
       day,
       block,
-      block_time: ["9AM-11AM", "11:30AM-1:30PM", "2PM-4PM"][block],
+      block_time: ["8AM-10AM", "10:30AM-12:30PM", "1PM-3PM"][block],
       crn,
       course: `CS ${crn}`,
     });
@@ -520,7 +520,7 @@ describe("ConflictView", () => {
           student_id: "000000004",
           day: "Wednesday",
           blocks: [0, 1],
-          block_times: ["9AM-11AM", "11:30AM-1:30PM"],
+          block_times: ["8AM-10AM", "10:30AM-12:30PM"],
         },
       ]);
       renderView();

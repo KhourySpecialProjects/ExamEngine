@@ -10,7 +10,7 @@ export function cn(...inputs: ClassValue[]) {
 
 /**
  * Extract the bare time string from a block label.
- * Handles both plain time strings ("9AM-11AM") and "N (9AM-11AM)" format.
+ * Handles both plain time strings ("8AM-10AM") and "N (8AM-10AM)" format.
  */
 export function extractTimeFromBlock(blockStr: string): string {
   if (!blockStr) return "";

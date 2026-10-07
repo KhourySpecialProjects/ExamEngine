@@ -20,9 +20,9 @@ from tests.db.builders import (
 
 
 BLOCKOUTS_KEY = "k/room_blockouts.csv"
-# Hall: Monday 2PM and Monday 9AM (out of order); Lab: Tuesday 9AM; "Ghost" is
+# Hall: Monday 1PM and Monday 8AM (out of order); Lab: Tuesday 8AM; "Ghost" is
 # not a room of the dataset.
-BLOCKOUTS = b"Room,Day,Block\nHall,0,2\nHall,Monday,9AM-11AM\nLab,Tuesday,0\n"
+BLOCKOUTS = b"Room,Day,Block\nHall,0,2\nHall,Monday,8AM-10AM\nLab,Tuesday,0\n"
 BLOCKOUTS += b"Ghost,Monday,1\n"
 
 
@@ -38,7 +38,7 @@ class FakeStorage:
 
 @pytest.fixture
 def world(db_session):
-    """Rooms Lab (30) and Hall (40, two exams on Monday 9AM), and Empty (10)."""
+    """Rooms Lab (30) and Hall (40, two exams on Monday 8AM), and Empty (10)."""
     owner = make_user(db_session, "Owner")
     dataset = make_dataset(db_session, owner)
     dataset.file_paths = [
@@ -96,8 +96,8 @@ async def test_every_room_with_its_blocked_slots_from_the_blockouts_file(world):
     assert result.blockouts == "ok"
     assert _blocked(result) == {
         "Empty": [],
-        "Hall": [("Monday", "9AM-11AM"), ("Monday", "2PM-4PM")],
-        "Lab": [("Tuesday", "9AM-11AM")],
+        "Hall": [("Monday", "8AM-10AM"), ("Monday", "1PM-3PM")],
+        "Lab": [("Tuesday", "8AM-10AM")],
     }
     assert result.days == ["Monday", "Tuesday", "Wednesday"]
     assert len(result.block_times) == 4
@@ -112,7 +112,7 @@ async def test_share_recipient_may_look_but_a_stranger_gets_none(world, db_sessi
 
     shared = await world["service"].get(schedule_id, recipient.user_id)
 
-    assert _blocked(shared)["Lab"] == [("Tuesday", "9AM-11AM")]
+    assert _blocked(shared)["Lab"] == [("Tuesday", "8AM-10AM")]
     assert await world["service"].get(schedule_id, stranger.user_id) is None
 
 

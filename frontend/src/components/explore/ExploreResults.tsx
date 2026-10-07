@@ -134,7 +134,7 @@ export function ExploreResults({
     return slot != null && blocked.has(slot);
   });
   const blockoutsNote = blockouts && BLOCKOUTS_NOTE[blockouts.status];
-  // Blocked blocks the schedule doesn't use (e.g. 7PM in a 4-block schedule).
+  // Blocked blocks the schedule doesn't use (e.g. 6PM in a 4-block schedule).
   const blockedOutsideWeek = blockedSlots.filter(
     (s) => s.day >= days.length || s.block >= blockTimes.length,
   ).length;

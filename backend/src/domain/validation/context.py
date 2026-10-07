@@ -44,7 +44,7 @@ def unreadable_summary(file_type: str) -> str:
 
 
 def slot_label(day: int, block: int) -> str:
-    """'Monday 9AM-11AM'; indices outside the calendar are shown as numbers."""
+    """'Monday 8AM-10AM'; indices outside the calendar are shown as numbers."""
     if 0 <= day < len(DAY_NAMES) and block in BLOCK_TIMES:
         return f"{DAY_NAMES[day]} {BLOCK_TIMES[block]}"
     return f"day {day}, block {block}"

@@ -5,7 +5,7 @@ export interface ScheduleParameters {
   instructor_max_per_day?: number;
   avoid_back_to_back?: boolean;
   max_days?: number;
-  /** Exam blocks per day: 4 (drops 7PM-9PM) or 5. */
+  /** Exam blocks per day: 4 (drops 6PM-8PM) or 5. */
   blocks_per_day?: 4 | 5;
   prioritize_large_courses?: boolean;
   algorithm?: "dsatur" | "annealing";

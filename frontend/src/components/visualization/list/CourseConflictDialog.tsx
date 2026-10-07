@@ -21,7 +21,7 @@ import {
   summarizeConflictsByCourse,
 } from "@/lib/hooks/useConflictDataSimple";
 
-/** Block as shown to users: "0 (9AM-11AM)" → "9AM-11AM", "2" → "Block 2". */
+/** Block as shown to users: "0 (8AM-10AM)" → "8AM-10AM", "2" → "Block 2". */
 function blockTime(block: string): string {
   const inParens = /\(([^)]+)\)/.exec(block)?.[1];
   if (inParens) return inParens;

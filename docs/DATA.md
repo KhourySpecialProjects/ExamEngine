@@ -80,14 +80,14 @@ Marks specific (room, day, time-block) combinations as unavailable. This file is
 | ------ | -------- | ----------------------------------------------------------- | -------------------------------------------------- |
 | Room   | ✅       | `Room`, `Location Name`, `Location`, `Room Name`, `room`, `room_name` | Room to block (should match a room in rooms.csv)   |
 | Day    | ✅       | `Day`, `Weekday`, `day`, `day_index`, `Day Index`           | `0`–`6` (Monday = 0) or a day name, e.g., "Monday" |
-| Block  | ✅       | `Block`, `Time Block`, `block`, `block_index`, `Block Index` | `0`–`4` or a time string, e.g., "9AM-11AM"         |
+| Block  | ✅       | `Block`, `Time Block`, `block`, `block_index`, `Block Index` | `0`–`4` or a time string, e.g., "8AM-10AM" (block 0); the old labels such as "9AM-11AM" still mean the same block |
 
 **Example:**
 
 ```csv
 Room,Day,Block
 Shillman 105,0,2
-West Village H 212,Monday,9AM-11AM
+West Village H 212,Monday,8AM-10AM
 ```
 
 ### combined_exams.csv (optional)
@@ -266,7 +266,7 @@ erDiagram
     }
     time_slots {
         uuid time_slot_id PK
-        string slot_label "e.g. 9AM-11AM"
+        string slot_label "e.g. 8AM-10AM"
         string day "Monday..Sunday"
         time start_time
         time end_time

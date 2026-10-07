@@ -13,7 +13,7 @@ from sqlalchemy import func, select
 
 from src.api.deps import get_current_user, get_db
 from src.api.routes import schedule
-from src.domain.constants import BLOCK_TIMES
+from src.domain.constants import EXAM_BLOCKS
 from src.schemas.db import (
     Courses,
     Datasets,
@@ -105,10 +105,10 @@ def _add(db, sched, rooms, crn, course, instructor, slot=None, room=None):
     if slot is not None:
         day, block = slot
         time_slot = TimeSlots(
-            slot_label=BLOCK_TIMES[block],
+            slot_label=EXAM_BLOCKS[block].label,
             day=DayEnum(day),
-            start_time=datetime.time(9 + block),
-            end_time=datetime.time(11 + block),
+            start_time=EXAM_BLOCKS[block].start,
+            end_time=EXAM_BLOCKS[block].end,
             dataset_id=dataset_id,
         )
         db.add(time_slot)
@@ -125,8 +125,8 @@ def _add(db, sched, rooms, crn, course, instructor, slot=None, room=None):
 
 
 def _base_schedule(db, owner):
-    """Monday, 4 blocks: CRN 101 at 9AM in Hall A, 103 at 2PM in Room B, 102
-    unscheduled. Room B is blocked out at 11:30AM."""
+    """Monday, 4 blocks: CRN 101 at 8AM in Hall A, 103 at 1PM in Room B, 102
+    unscheduled. Room B is blocked out at 10:30AM."""
     dataset = make_dataset(db, owner)
     dataset.file_paths = [
         {"type": file_type, "storage_key": f"k/{file_type}.csv", "metadata": {}}
@@ -182,15 +182,15 @@ def test_owner_gets_ranked_clear_blocks_and_nothing_is_written(db_session):
         "student_max_per_day": 3,
         "instructor_max_per_day": 3,
     }
-    # 9AM double-books S1 and the instructor; 2PM double-books S3.
-    # 4:30PM: one back-to-back; 11:30AM: two, plus the instructor's.
+    # 8AM double-books S1 and the instructor; 1PM double-books S3.
+    # 3:30PM: one back-to-back; 10:30AM: two, plus the instructor's.
     assert _slots(body["candidates"]) == [(0, 3), (0, 1)]
     best, second = body["candidates"]
-    assert best["block_time"] == "4:30PM-6:30PM"
+    assert best["block_time"] == "3:30PM-5:30PM"
     assert best["room"] == {"name": "Room B", "capacity": 5}
     assert best["other_rooms"] == [{"name": "Hall A", "capacity": 50}]
     assert best["clear"] is True
-    # Room B is blocked out at 11:30AM
+    # Room B is blocked out at 10:30AM
     assert second["room"] == {"name": "Hall A", "capacity": 50}
     assert second["other_rooms"] == []
     assert second["conflicts"] == {
@@ -206,17 +206,17 @@ def test_owner_gets_ranked_clear_blocks_and_nothing_is_written(db_session):
         {
             "student_id": "S1",
             "blocks": [0, 1],
-            "block_times": ["9AM-11AM", "11:30AM-1:30PM"],
+            "block_times": ["8AM-10AM", "10:30AM-12:30PM"],
         },
         {
             "student_id": "S3",
             "blocks": [1, 2],
-            "block_times": ["11:30AM-1:30PM", "2PM-4PM"],
+            "block_times": ["10:30AM-12:30PM", "1PM-3PM"],
         },
     ]
     assert second["instructor"]["back_to_back"] is True
     assert second["instructor"]["day_blocks"] == [0, 1]
-    assert second["instructor"]["day_block_times"] == ["9AM-11AM", "11:30AM-1:30PM"]
+    assert second["instructor"]["day_block_times"] == ["8AM-10AM", "10:30AM-12:30PM"]
     assert body["no_room_blocks"] == []
     assert [e["crn"] for e in body["instructor_exams"]] == ["101", "102"]
     assert body["instructor_exams"][1]["day"] is None
@@ -307,7 +307,7 @@ def test_deleted_dataset_is_409_before_any_input_check(db_session):
         ({"instructor_id": "nan"}, "Enter the instructor ID."),
         (
             {"crn": "101"},
-            "CRN 101 is already in this schedule (Monday 9AM-11AM in Hall A).",
+            "CRN 101 is already in this schedule (Monday 8AM-10AM in Hall A).",
         ),
         ({"crn": "102"}, "CRN 102 is already in this schedule, unscheduled."),
         ({"crn": "960"}, "CRN 960 has no rows in enrollments.csv."),

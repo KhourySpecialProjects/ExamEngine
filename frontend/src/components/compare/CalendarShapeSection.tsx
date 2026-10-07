@@ -13,7 +13,7 @@ export function CalendarShapeSection() {
   const shape = calendarShape(columns.map((c) => c.schedule.summary));
   const shapeOf = (id: string) =>
     shape.schedules[columns.findIndex((c) => c.id === id)];
-  // Axis label: the start ("11:30AM"); hover: the whole block ("11:30AM-1:30PM").
+  // Axis label: the start ("10:30AM"); hover: the whole block ("10:30AM-12:30PM").
   const blocks = shape.blocks.map((block) => ({
     label: block.split("-")[0].trim(),
     title: block,

@@ -39,7 +39,7 @@ const lateAddSearch = vi.mocked(apiClient.schedules.lateAddSearch);
 const lateAddSave = vi.mocked(apiClient.schedules.lateAddSave);
 const personExams = vi.mocked(apiClient.schedules.personExams);
 
-const TIMES = ["9AM-11AM", "11:30AM-1:30PM", "2PM-4PM", "4:30PM-6:30PM"];
+const TIMES = ["8AM-10AM", "10:30AM-12:30PM", "1PM-3PM", "3:30PM-5:30PM"];
 const DAYS = ["Monday", "Tuesday", "Wednesday"];
 
 const NO_CONFLICTS = {
@@ -208,7 +208,7 @@ describe("LateAddDialog", () => {
     ).toBeTruthy();
     expect(
       screen.getByText(
-        "Other sections of CS 1000: CRN 200 (Wednesday 4:30PM-6:30PM), CRN 201 (unscheduled)",
+        "Other sections of CS 1000: CRN 200 (Wednesday 3:30PM-5:30PM), CRN 201 (unscheduled)",
       ),
     ).toBeTruthy();
     expect(
@@ -217,8 +217,8 @@ describe("LateAddDialog", () => {
 
     const radios = screen.getAllByRole("radio");
     expect(radios.map((radio) => radio.parentElement?.textContent)).toEqual([
-      "1.Tuesday 9AM-11AM",
-      "2.Monday 2PM-4PM",
+      "1.Tuesday 8AM-10AM",
+      "2.Monday 1PM-3PM",
     ]);
     // The best block starts selected.
     expect(radios[0]).toHaveProperty("checked", true);
@@ -362,7 +362,7 @@ describe("LateAddDialog", () => {
     fireEvent.click(
       within(row).getByRole("button", { name: "Instructor back-to-back" }),
     );
-    expect(within(row).getByText("11:30AM-1:30PM, 2PM-4PM")).toBeTruthy();
+    expect(within(row).getByText("10:30AM-12:30PM, 1PM-3PM")).toBeTruthy();
     // One person: no "Copy all".
     expect(within(row).queryByText("Copy all")).toBeNull();
     expect(
@@ -432,7 +432,7 @@ describe("LateAddDialog", () => {
     expect(within(candidateRow(0, 0)).queryByRole("combobox")).toBeNull();
 
     const picker = screen.getByRole("combobox", {
-      name: "Room for Tuesday 11:30AM-1:30PM",
+      name: "Room for Tuesday 10:30AM-12:30PM",
     });
     expect(picker.textContent).toContain("Room 11 (capacity 40) · best fit");
     fireEvent.keyDown(picker, { key: "Enter" });
@@ -484,11 +484,11 @@ describe("LateAddDialog", () => {
     expect(screen.getByRole("heading", { level: 3 }).textContent).toContain(
       "No block has a free room that fits",
     );
-    expect(screen.getByText("Monday 9AM-11AM:").textContent).toBe(
-      "Monday 9AM-11AM: Small Room (capacity 12)",
+    expect(screen.getByText("Monday 8AM-10AM:").textContent).toBe(
+      "Monday 8AM-10AM: Small Room (capacity 12)",
     );
-    expect(screen.getByText("Monday 11:30AM-1:30PM:").textContent).toBe(
-      "Monday 11:30AM-1:30PM: no free room",
+    expect(screen.getByText("Monday 10:30AM-12:30PM:").textContent).toBe(
+      "Monday 10:30AM-12:30PM: no free room",
     );
     expect(screen.queryAllByRole("radio")).toHaveLength(0);
   });
@@ -496,14 +496,14 @@ describe("LateAddDialog", () => {
   it("shows a server error inline and clears it on the next search", async () => {
     vi.spyOn(console, "error").mockImplementation(() => {});
     lateAddSearch.mockRejectedValueOnce(
-      new Error("CRN 90001 is already in this schedule (Monday 9AM-11AM)."),
+      new Error("CRN 90001 is already in this schedule (Monday 8AM-10AM)."),
     );
     openDialog();
     fillForm();
     fireEvent.click(screen.getByRole("button", { name: "Find blocks" }));
 
     expect((await screen.findByRole("alert")).textContent).toContain(
-      "CRN 90001 is already in this schedule (Monday 9AM-11AM).",
+      "CRN 90001 is already in this schedule (Monday 8AM-10AM).",
     );
     expect(screen.queryByRole("heading", { level: 3 })).toBeNull();
 
@@ -616,7 +616,7 @@ describe("LateAddDialog save step", () => {
     expect(screen.queryByRole("checkbox")).toBeNull();
 
     const picker = screen.getByRole("combobox", {
-      name: "Room for Tuesday 2PM-4PM",
+      name: "Room for Tuesday 1PM-3PM",
     });
     fireEvent.keyDown(picker, { key: "Enter" });
     fireEvent.keyDown(
@@ -763,7 +763,7 @@ describe("LateAddDialog save step", () => {
 
     await fail();
     const picker = screen.getByRole("combobox", {
-      name: "Room for Monday 9AM-11AM",
+      name: "Room for Monday 8AM-10AM",
     });
     fireEvent.keyDown(picker, { key: "Enter" });
     fireEvent.keyDown(

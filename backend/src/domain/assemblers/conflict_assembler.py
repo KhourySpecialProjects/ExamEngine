@@ -8,7 +8,7 @@ class ConflictAssembler:
     Assemble conflict analysis data for API responses.
 
     Enriches raw conflict data with:
-    - Block time labels (e.g., "9AM-11AM")
+    - Block time labels (e.g., "8AM-10AM")
     - Course names (resolved from CRN)
     - Human-readable conflict type labels
 

@@ -20,7 +20,7 @@ const doubleBook = (
   entity_id: student,
   day,
   block,
-  block_time: ["9AM-11AM", "11:30AM-1:30PM", "2PM-4PM"][block],
+  block_time: ["8AM-10AM", "10:30AM-12:30PM", "1PM-3PM"][block],
   crn,
   course: `CS ${crn}`,
   conflicting_crn: conflictingCrn,
@@ -45,8 +45,8 @@ describe("buildConflictRows", () => {
     expect(rows[0].instances).toEqual([
       {
         day: "Monday",
-        time: "9AM-11AM",
-        slots: ["9AM-11AM"],
+        time: "8AM-10AM",
+        slots: ["8AM-10AM"],
         courses: [
           { course: "CS 1", crn: "1" },
           { course: "CS 2", crn: "2" },
@@ -80,9 +80,9 @@ describe("buildConflictRows", () => {
     expect(rows).toHaveLength(1);
     expect(rows[0].conflictCount).toBe(3);
     expect(rows[0].instances.map((i) => `${i.day} ${i.time}`)).toEqual([
-      "Monday 9AM-11AM",
-      "Monday 2PM-4PM",
-      "Wednesday 9AM-11AM",
+      "Monday 8AM-10AM",
+      "Monday 1PM-3PM",
+      "Wednesday 8AM-10AM",
     ]);
   });
 
@@ -122,8 +122,8 @@ describe("buildConflictRows", () => {
       block_times: times,
     });
     const rows = personRows([
-      record("Tuesday", [0, 1], ["9AM-11AM", "11:30AM-1:30PM"]),
-      record("Monday", [1, 2], ["11:30AM-1:30PM", "2PM-4PM"]),
+      record("Tuesday", [0, 1], ["8AM-10AM", "10:30AM-12:30PM"]),
+      record("Monday", [1, 2], ["10:30AM-12:30PM", "1PM-3PM"]),
     ]);
 
     expect(rows).toHaveLength(1);
@@ -131,14 +131,14 @@ describe("buildConflictRows", () => {
     expect(rows[0].instances).toEqual([
       {
         day: "Monday",
-        time: "11:30AM-1:30PM, 2PM-4PM",
-        slots: ["11:30AM-1:30PM", "2PM-4PM"],
+        time: "10:30AM-12:30PM, 1PM-3PM",
+        slots: ["10:30AM-12:30PM", "1PM-3PM"],
         courses: [],
       },
       {
         day: "Tuesday",
-        time: "9AM-11AM, 11:30AM-1:30PM",
-        slots: ["9AM-11AM", "11:30AM-1:30PM"],
+        time: "8AM-10AM, 10:30AM-12:30PM",
+        slots: ["8AM-10AM", "10:30AM-12:30PM"],
         courses: [],
       },
     ]);
@@ -165,7 +165,7 @@ describe("buildConflictRows", () => {
           student_id: "000000007",
           day: "Friday",
           block: 1,
-          block_time: "11:30AM-1:30PM",
+          block_time: "10:30AM-12:30PM",
           crn: "10",
           course: "Unknown",
           conflicting_crns: ["11"],
@@ -192,7 +192,7 @@ describe("buildConflictRows", () => {
       size: 250,
       day: "Friday",
       block: 2,
-      block_time: "2PM-4PM",
+      block_time: "1PM-3PM",
     });
 
     expect(buildConflictRows([large("1"), large("2")], new Map())).toEqual([
@@ -350,7 +350,7 @@ describe("summarizeConflictsByCourse", () => {
           student_id: "000000004",
           day: "Wednesday",
           blocks: [0, 1],
-          block_times: ["9AM-11AM", "11:30AM-1:30PM"],
+          block_times: ["8AM-10AM", "10:30AM-12:30PM"],
         },
       ],
       new Map(),

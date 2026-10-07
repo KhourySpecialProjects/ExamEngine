@@ -702,6 +702,17 @@ class DatasetService:
             raise DatasetNotFoundError(f"Dataset {dataset_id} not found")
         return dataset.common_exam_groups
 
+    def get_groups_for_viewer(self, dataset_id: UUID, user_id: UUID) -> Datasets:
+        """The dataset whose combined/common groups the user may read.
+
+        Its owner, or anyone a schedule of it is shared with. Generation keeps
+        the owner-only `get_merges` / `get_common_exams`.
+        """
+        dataset = self.dataset_repo.get_by_id_for_group_reader(dataset_id, user_id)
+        if not dataset:
+            raise DatasetNotFoundError(f"Dataset {dataset_id} not found")
+        return dataset
+
     def list_all_datasets(self) -> list[dict[str, Any]]:
         """List every active dataset across all users, with its owner (admin)."""
         return [

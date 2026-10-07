@@ -83,7 +83,7 @@ function summary(overrides: Partial<ScheduleSummary> = {}): ScheduleSummary {
         { day: "Monday", exams: 1, seats: 30 },
         { day: "Tuesday", exams: 1, seats: 30 },
       ],
-      blocks: [{ label: "9AM-11AM", exams: 2 }],
+      blocks: [{ label: "8AM-10AM", exams: 2 }],
       matrix: [[1], [1]],
     },
     groups: { combined: noGroup, common: noGroup },

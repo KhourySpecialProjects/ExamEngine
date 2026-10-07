@@ -18,6 +18,7 @@ from src.services.dataset import DatasetService
 from src.services.schedule import ScheduleService
 from src.services.schedule.late_add import LateAddService
 from src.services.schedule.person_exams import PersonExamsService
+from src.services.schedule.rooms import ScheduleRoomsService
 from src.services.schedule_validation import ScheduleValidationService
 from src.services.storage import storage
 
@@ -162,6 +163,19 @@ def get_person_exams_service(db: Session = Depends(get_db)) -> PersonExamsServic
     """Dependency injection for PersonExamsService."""
     return PersonExamsService(
         ScheduleRepo(db), ExamAssignmentRepo(db), DatasetRepo(db), storage
+    )
+
+
+def get_schedule_rooms_service(
+    db: Session = Depends(get_db),
+) -> ScheduleRoomsService:
+    """Dependency injection for ScheduleRoomsService."""
+    return ScheduleRoomsService(
+        ScheduleRepo(db),
+        ExamAssignmentRepo(db),
+        DatasetRepo(db),
+        RoomRepo(db),
+        storage,
     )
 
 

@@ -7,6 +7,7 @@ import { useQueryStates } from "nuqs";
 import { Suspense, use, useEffect } from "react";
 import { toast } from "sonner";
 import { ViewTabSwitcher } from "@/components/common/ViewTabSwitcher";
+import { ExploreView } from "@/components/explore/ExploreView";
 import { LateAddDialog } from "@/components/schedule/LateAddDialog";
 import { ScheduleDetails } from "@/components/schedule/ScheduleDetails";
 import { ShareScheduleDialog } from "@/components/schedule/ShareScheduleDialog";
@@ -29,10 +30,12 @@ import ListView from "@/components/visualization/list/ListView";
 import { useScheduleData } from "@/lib/hooks/useScheduleData";
 import { type ScheduleView, scheduleViewParams } from "@/lib/scheduleView";
 import { useAuthStore } from "@/lib/store/authStore";
+import { useExplorePeopleStore } from "@/lib/store/explorePeopleStore";
 import { useSchedulesStore } from "@/lib/store/schedulesStore";
 import { exportScheduleRowsAsCsv } from "@/lib/utils";
 
-// The view and conflict type come from the URL (useSearchParams via nuqs).
+// The view, conflict type and Explore kind come from the URL (useSearchParams
+// via nuqs).
 export default function SchedulePage({
   params,
 }: {
@@ -47,11 +50,18 @@ export default function SchedulePage({
 }
 
 function ScheduleDetailPage({ scheduleId }: { scheduleId: string }) {
-  const [{ view: activeView, type: conflictType }, setViewParams] =
-    useQueryStates(scheduleViewParams);
-  // A conflict type only means something on the Conflicts view.
+  const [
+    {
+      view: activeView,
+      type: conflictType,
+      kind: exploreKind,
+      q: exploreQuery,
+    },
+    setViewParams,
+  ] = useQueryStates(scheduleViewParams);
+  // A conflict type or Explore lookup only means something on its own view.
   const setActiveView = (view: ScheduleView) =>
-    setViewParams({ view, type: null });
+    setViewParams({ view, type: null, kind: null, q: null });
   const router = useRouter();
   const { user } = useAuthStore();
 
@@ -64,6 +74,11 @@ function ScheduleDetailPage({ scheduleId }: { scheduleId: string }) {
       });
     });
   }, [scheduleId, fetchSchedule]);
+
+  // Explore's looked-up people (sessionStorage), restored after mounting.
+  useEffect(() => {
+    useExplorePeopleStore.persist.rehydrate();
+  }, []);
 
   const { schedule } = useScheduleData();
 
@@ -126,7 +141,7 @@ function ScheduleDetailPage({ scheduleId }: { scheduleId: string }) {
         </Breadcrumb>
       </div>
       {schedule && <ScheduleDetails schedule={schedule} />}
-      <div className="flex items-center justify-between">
+      <div className="flex flex-wrap items-center justify-between gap-3">
         <ViewTabSwitcher activeView={activeView} onViewChange={setActiveView} />
         <div className="flex items-center gap-3">
           {canShare && schedule && (
@@ -173,6 +188,18 @@ function ScheduleDetailPage({ scheduleId }: { scheduleId: string }) {
         <ConflictView
           type={conflictType}
           onTypeChange={(type) => setViewParams({ type })}
+        />
+      )}
+      {activeView === "explore" && schedule && (
+        <ExploreView
+          scheduleId={scheduleId}
+          schedule={schedule}
+          kind={exploreKind}
+          query={exploreQuery}
+          // A history entry per lookup, so Back returns to the previous room.
+          onLookupChange={(kind, q) =>
+            setViewParams({ kind, q }, { history: "push" })
+          }
         />
       )}
 

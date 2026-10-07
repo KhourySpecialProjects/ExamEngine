@@ -188,8 +188,8 @@ describe("calendarShape", () => {
           days_used: 1,
           days: [{ day: "Tuesday", exams: 4, seats: 40 }],
           blocks: [
-            { label: "2PM-4PM", exams: 3 },
-            { label: "7PM-9PM", exams: 1 },
+            { label: "1PM-3PM", exams: 3 },
+            { label: "6PM-8PM", exams: 1 },
           ],
           matrix: [[3, 1]],
         },
@@ -203,8 +203,8 @@ describe("calendarShape", () => {
             { day: "Tuesday", exams: 1, seats: 10 },
           ],
           blocks: [
-            { label: "9AM-11AM", exams: 2 },
-            { label: "11:30AM-1:30PM", exams: 5 },
+            { label: "8AM-10AM", exams: 2 },
+            { label: "10:30AM-12:30PM", exams: 5 },
           ],
           matrix: [
             [2, 4],
@@ -216,10 +216,10 @@ describe("calendarShape", () => {
 
     expect(shape.days).toEqual(["Monday", "Tuesday"]);
     expect(shape.blocks).toEqual([
-      "9AM-11AM",
-      "11:30AM-1:30PM",
-      "2PM-4PM",
-      "7PM-9PM",
+      "8AM-10AM",
+      "10:30AM-12:30PM",
+      "1PM-3PM",
+      "6PM-8PM",
     ]);
     expect(shape.schedules[0]).toEqual({
       days: [0, 4],

@@ -213,7 +213,7 @@ class TimeSlots(Base):
     Maps DSATUR algorithm output (day_index, block_index) to actual times.
     Not in CSV - created dynamically by the algorithm.
 
-    Example: Day=Monday, Block=0 → 9:00 AM - 11:00 AM
+    Example: Day=Monday, Block=0 → 8:00 AM - 10:00 AM
     """
 
     __tablename__ = "time_slots"

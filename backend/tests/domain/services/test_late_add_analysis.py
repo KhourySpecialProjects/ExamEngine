@@ -29,8 +29,8 @@ def _exam(crn, slot, room=None, instructor=None):
     )
 
 
-# Monday: 101 (I1) and 102 (I2) at 9AM, 107 (I2) at 11:30AM, 103 (I1) at 2PM,
-# 106 at 4:30PM. Tuesday: 104 at 9AM. 105 is unscheduled.
+# Monday: 101 (I1) and 102 (I2) at 8AM, 107 (I2) at 10:30AM, 103 (I1) at 1PM,
+# 106 at 3:30PM. Tuesday: 104 at 8AM. 105 is unscheduled.
 BASE = BaseSchedule(
     exams=[
         _exam("101", (MON, 0), "R1", "I1"),
@@ -56,7 +56,7 @@ BASE = BaseSchedule(
     ),
 )
 
-# What generation stored for BASE: s3 (2PM, 4:30PM) and I2 (9AM, 11:30AM)
+# What generation stored for BASE: s3 (1PM, 3:30PM) and I2 (8AM, 10:30AM)
 # have back-to-back exams on Monday; s1 is over the daily limit of 1.
 STORED = {
     "hard_conflicts": {
@@ -67,7 +67,7 @@ STORED = {
                 "entity_id": "s1",
                 "day": "Monday",
                 "block": 0,
-                "block_time": "9AM-11AM",
+                "block_time": "8AM-10AM",
                 "crn": "102",
                 "course": "C 102",
                 "conflicting_crn": None,
@@ -82,7 +82,7 @@ STORED = {
                 "student_id": "s3",
                 "day": "Monday",
                 "blocks": [2, 3],
-                "block_times": ["2PM-4PM", "4:30PM-6:30PM"],
+                "block_times": ["1PM-3PM", "3:30PM-5:30PM"],
             }
         ],
         "back_to_back_instructors": [
@@ -90,7 +90,7 @@ STORED = {
                 "instructor_name": "I2",
                 "day": "Monday",
                 "blocks": [0, 1],
-                "block_times": ["9AM-11AM", "11:30AM-1:30PM"],
+                "block_times": ["8AM-10AM", "10:30AM-12:30PM"],
             }
         ],
         "large_courses_not_early": [],
@@ -136,7 +136,7 @@ def _hard(entity, crn=None, block=0):
         "entity_id": entity,
         "day": "Monday",
         "block": block,
-        "block_time": {0: "9AM-11AM", 1: "11:30AM-1:30PM"}[block],
+        "block_time": {0: "8AM-10AM", 1: "10:30AM-12:30PM"}[block],
         "crn": "900",
         "course": "LATE 900",
         "conflicting_crn": crn,
@@ -151,7 +151,7 @@ def test_hard_entries_are_pairs_per_base_crn_and_one_per_person_over_the_limit()
 
     assert STORED == before  # the base analysis is not modified
     hard = result["hard_conflicts"]
-    # s1 sits 101 and 102 at 9AM: one pair each; the instructor sits 101.
+    # s1 sits 101 and 102 at 8AM: one pair each; the instructor sits 101.
     assert hard["student_double_book"] == [_hard("s1", "101"), _hard("s1", "102")]
     assert hard["instructor_double_book"] == [_hard("I1", "101")]
     # The existing s1 entry stays; the late exam adds one per person over.
@@ -160,7 +160,7 @@ def test_hard_entries_are_pairs_per_base_crn_and_one_per_person_over_the_limit()
         _hard("s1"),
         _hard("s3"),
     ]
-    # I1: 9AM, 2PM and the late exam is 3 > 2.
+    # I1: 8AM, 1PM and the late exam is 3 > 2.
     assert hard["instructor_gt_max_per_day"] == [_hard("I1")]
 
 
@@ -174,7 +174,7 @@ def test_statistics_are_recomputed_from_the_lists_and_the_exams():
         # s1, s2, s3, s4 from placed CRNs + s9; s5 only sits 105.
         "num_students": 5,
         "num_rooms": 3,  # R1, R2 and the late exam's R3
-        "slots_used": 5,  # Monday 9AM is already used
+        "slots_used": 5,  # Monday 8AM is already used
         "unplaced_exams": 0,
         "student_double_book_count": 2,
         "instructor_double_book_count": 1,
@@ -190,8 +190,8 @@ def test_statistics_are_recomputed_from_the_lists_and_the_exams():
 
 
 def test_back_to_back_entries_are_extended_in_place_or_added_per_person_and_day():
-    # Monday 11:30AM: s1 (9AM) and I1 (9AM, 2PM) become back-to-back; s3
-    # already is (2PM, 4:30PM) and gains 11:30AM.
+    # Monday 10:30AM: s1 (8AM) and I1 (8AM, 1PM) become back-to-back; s3
+    # already is (1PM, 3:30PM) and gains 10:30AM.
     result = _analysis(_late({"s1", "s3"}), MON, 1)
 
     students = result["soft_conflicts"]["back_to_back_students"]
@@ -200,13 +200,13 @@ def test_back_to_back_entries_are_extended_in_place_or_added_per_person_and_day(
             "student_id": "s3",
             "day": "Monday",
             "blocks": [1, 2, 3],
-            "block_times": ["11:30AM-1:30PM", "2PM-4PM", "4:30PM-6:30PM"],
+            "block_times": ["10:30AM-12:30PM", "1PM-3PM", "3:30PM-5:30PM"],
         },
         {
             "student_id": "s1",
             "day": "Monday",
             "blocks": [0, 1],
-            "block_times": ["9AM-11AM", "11:30AM-1:30PM"],
+            "block_times": ["8AM-10AM", "10:30AM-12:30PM"],
         },
     ]
     instructors = result["soft_conflicts"]["back_to_back_instructors"]
@@ -214,7 +214,7 @@ def test_back_to_back_entries_are_extended_in_place_or_added_per_person_and_day(
         "instructor_name": "I1",
         "day": "Monday",
         "blocks": [0, 1, 2],
-        "block_times": ["9AM-11AM", "11:30AM-1:30PM", "2PM-4PM"],
+        "block_times": ["8AM-10AM", "10:30AM-12:30PM", "1PM-3PM"],
     }
     assert len(instructors) == 2
     assert result["statistics"]["back_to_back_students_count"] == 2
@@ -222,7 +222,7 @@ def test_back_to_back_entries_are_extended_in_place_or_added_per_person_and_day(
 
 
 def test_existing_back_to_back_entry_gains_a_non_adjacent_late_block():
-    # s3 (2PM, 4:30PM) and I2 (9AM, 11:30AM) at 7PM: s3 gets an adjacent
+    # s3 (1PM, 3:30PM) and I2 (8AM, 10:30AM) at 6PM: s3 gets an adjacent
     # block, I2 does not, but the late exam is one more exam that day for both.
     result = _analysis(_late({"s3"}, instructor=" I2 "), MON, 4)
 
@@ -233,7 +233,7 @@ def test_existing_back_to_back_entry_gains_a_non_adjacent_late_block():
             "instructor_name": "I2",
             "day": "Monday",
             "blocks": [0, 1, 4],
-            "block_times": ["9AM-11AM", "11:30AM-1:30PM", "7PM-9PM"],
+            "block_times": ["8AM-10AM", "10:30AM-12:30PM", "6PM-8PM"],
         }
     ]
 
@@ -260,7 +260,7 @@ def test_large_late_exam_on_or_after_the_cutoff_is_listed():
             "size": LARGE_COURSE_THRESHOLD,
             "day": "Thursday",
             "block": 2,
-            "block_time": "2PM-4PM",
+            "block_time": "1PM-3PM",
         }
     ]
     assert result["statistics"]["large_courses_not_early_count"] == 1
@@ -294,7 +294,7 @@ def test_base_without_an_analysis_gets_a_complete_one():
 
 
 def test_base_double_book_counts_each_sitting_in_the_daily_limit_delta():
-    # s1 sits 101 (R1) and 102 (R2) at 9AM: two exams, as the Validator counts
+    # s1 sits 101 (R1) and 102 (R2) at 8AM: two exams, as the Validator counts
     base = BaseSchedule(
         exams=[
             _exam("101", (MON, 0), "R1"),

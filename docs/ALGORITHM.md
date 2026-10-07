@@ -66,7 +66,9 @@ stored in the schedule's conflict analysis and shown on the Conflicts tab.
 
 ### Time Slots
 
-Each day has up to 5 exam blocks: 9AM-11AM, 11:30AM-1:30PM, 2PM-4PM, 4:30PM-6:30PM, 7PM-9PM. The Generate Schedule dialog chooses 4 or 5 blocks per day (`blocks_per_day`, default 5); with 4 the 7PM-9PM block is never used. `max_days` (1–7, Monday first) sets the number of days.
+Each day has up to 5 exam blocks: 8AM-10AM, 10:30AM-12:30PM, 1PM-3PM, 3:30PM-5:30PM, 6PM-8PM (`EXAM_BLOCKS` in `backend/src/domain/constants.py`, the only definition). The engines work with block indices (0 = 8AM-10AM); the clock times are only stored and shown. The Generate Schedule dialog chooses 4 or 5 blocks per day (`blocks_per_day`, default 5); with 4 the 6PM-8PM block is never used. `max_days` (1–7, Monday first) sets the number of days.
+
+Before the times were corrected, the blocks were labeled 9AM-11AM, 11:30AM-1:30PM, 2PM-4PM, 4:30PM-6:30PM and 7PM-9PM (`LEGACY_EXAM_BLOCKS`). At startup the backend relabels any saved data still on those times to the block with the same index (`backend/src/core/relabel_blocks.py`): time slots, stored conflict analyses, late additions and room blockout counts. Room blockout files may still name the old times; they parse to the same block index.
 
 ### Soft constraints (optimised after hard conflicts)
 
@@ -166,8 +168,8 @@ moves to a block where all of that block's room units still fit (`RoomPools.fits
 `seats_fit` per pool).
 
 The quadratic `weight_slot_balance` term (default 1) is what keeps every block in use:
-without it the back-to-back term alone makes an alternating 9AM / 2PM / 7PM pattern
-optimal whenever rooms allow, leaving the 11:30AM and 4:30PM blocks empty. The marginal
+without it the back-to-back term alone makes an alternating 8AM / 1PM / 6PM pattern
+optimal whenever rooms allow, leaving the 10:30AM and 3:30PM blocks empty. The marginal
 cost of adding an exam to a block holding `n` is `2n + 1`, so empty blocks fill first
 and the optimizer trades a few back-to-backs for an even load.
 

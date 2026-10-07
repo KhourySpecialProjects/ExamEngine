@@ -5,6 +5,8 @@ from typing import Any
 
 import pandas as pd
 
+from src.domain.constants import EXAM_BLOCKS, LEGACY_EXAM_BLOCKS
+
 
 class ColumnType(Enum):
     """Data types for CSV columns."""
@@ -330,12 +332,11 @@ _DAY_NAME_TO_INDEX = {
         ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]
     )
 }
+# Block labels, current and legacy, by index; lowercase without spaces.
 _BLOCK_TIME_TO_INDEX = {
-    "9am-11am": 0,
-    "11:30am-1:30pm": 1,
-    "2pm-4pm": 2,
-    "4:30pm-6:30pm": 3,
-    "7pm-9pm": 4,
+    block.label.lower(): index
+    for blocks in (EXAM_BLOCKS, LEGACY_EXAM_BLOCKS)
+    for index, block in enumerate(blocks)
 }
 
 
@@ -354,7 +355,11 @@ def parse_day(value: Any) -> int | None:
 
 
 def parse_block(value: Any) -> int | None:
-    """Parse block value: accepts 0-4 integer or time string like '9AM-11AM'."""
+    """Parse block value: accepts 0-4 integer or time string like '8AM-10AM'.
+
+    The labels the app used before the times were corrected ('9AM-11AM', ...)
+    still parse, to the same block index.
+    """
     if pd.isna(value):
         return None
     s = str(value).strip().lower().replace(" ", "")
@@ -373,10 +378,10 @@ class RoomBlockoutSchema:
     Expected CSV format:
         Room,Day,Block
         Shillman 105,0,2
-        West Village H 212,Monday,9AM-11AM
+        West Village H 212,Monday,8AM-10AM
 
     Day accepts 0-6 (Mon=0) or full day names.
-    Block accepts 0-4 or time strings (e.g. '9AM-11AM').
+    Block accepts 0-4 or time strings (e.g. '8AM-10AM').
     """
 
     V1_COLUMNS = [

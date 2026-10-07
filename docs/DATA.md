@@ -80,14 +80,14 @@ Marks specific (room, day, time-block) combinations as unavailable. This file is
 | ------ | -------- | ----------------------------------------------------------- | -------------------------------------------------- |
 | Room   | ✅       | `Room`, `Location Name`, `Location`, `Room Name`, `room`, `room_name` | Room to block (should match a room in rooms.csv)   |
 | Day    | ✅       | `Day`, `Weekday`, `day`, `day_index`, `Day Index`           | `0`–`6` (Monday = 0) or a day name, e.g., "Monday" |
-| Block  | ✅       | `Block`, `Time Block`, `block`, `block_index`, `Block Index` | `0`–`4` or a time string, e.g., "9AM-11AM"         |
+| Block  | ✅       | `Block`, `Time Block`, `block`, `block_index`, `Block Index` | `0`–`4` or a time string, e.g., "8AM-10AM" (block 0); the old labels such as "9AM-11AM" still mean the same block |
 
 **Example:**
 
 ```csv
 Room,Day,Block
 Shillman 105,0,2
-West Village H 212,Monday,9AM-11AM
+West Village H 212,Monday,8AM-10AM
 ```
 
 ### combined_exams.csv (optional)
@@ -266,7 +266,7 @@ erDiagram
     }
     time_slots {
         uuid time_slot_id PK
-        string slot_label "e.g. 9AM-11AM"
+        string slot_label "e.g. 8AM-10AM"
         string day "Monday..Sunday"
         time start_time
         time end_time
@@ -428,15 +428,30 @@ student's (NUId) or instructor's exams in a schedule
 (`backend/src/services/schedule/person_exams.py`). It is read-only. The owner and anyone the
 schedule is shared with may use it (anyone else gets 404); a blank ID is 400. Instructors are
 matched against the trimmed `courses.instructor_name` of the schedule's exams (a `nan` ID never
-matches) and need no files. Students are looked up in the dataset's uploaded enrollments file,
-parsed unfiltered (`services/dataset/uploaded_files.py`): 409 when the dataset was deleted, 500
-when the file can't be read; enrolled CRNs that aren't in the schedule are skipped. An ID with no
-exams gets an empty list. The response is `{kind, person_id, exams, days, block_times}`: `exams`
+matches) and need no files. Students are looked up in the dataset's uploaded enrollments file
+(only that file is downloaded, `download_uploaded_file` in `services/dataset/uploaded_files.py`):
+409 when the dataset was deleted, 500 when the file can't be read; enrolled CRNs that aren't in
+the schedule are skipped. An ID with no exams gets an empty list. The response is
+`{kind, person_id, exams, days, block_times}`: `exams`
 are `{crn, course_code, day, day_name, block, block_time, room}` (`day` 0–6, Monday = 0;
 `block` 0-based), placed and unroomed exams by day and block, then unscheduled ones (day,
 block and room `null`; an unroomed exam has `room: null`). `days` (Monday first) and
 `block_times` (earliest first) describe the schedule's week: the run's `max_days` and
 `blocks_per_day`, extended to the last day and block any exam of the schedule uses.
+
+### Schedule rooms
+
+`GET /api/schedule/{id}/rooms` lists every room of the schedule's dataset with its capacity and
+blocked times, for the Explore tab (`backend/src/services/schedule/rooms.py`). It is read-only;
+the owner and anyone the schedule is shared with may use it (anyone else gets 404). Rooms come
+from the `rooms` table; blocked times are parsed from the uploaded room_blockouts file (only that
+file is downloaded; recipients see the blocked slots, never the file). The response is
+`{rooms, blockouts, days, block_times}`: `rooms` are `{name, capacity, blocked}` by name, with
+`blocked` a list of `{day, day_name, block, block_time}` by day and block (a blockouts row for a
+room that isn't in the dataset is ignored). `blockouts` is `"ok"` when the file was read,
+`"none_uploaded"` when the dataset has none, and `"unavailable"` when the dataset was deleted or
+the file can't be downloaded or parsed; the rooms are listed either way, with empty `blocked`.
+`days` and `block_times` are the same week as in person exams.
 
 ## S3 Storage Structure
 

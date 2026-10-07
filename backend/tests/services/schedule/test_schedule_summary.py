@@ -225,11 +225,11 @@ class TestConflicts:
     def test_a_three_way_double_book_is_one_occurrence(self):
         counts = count_conflicts(
             [
-                _double_book("s1", "Monday", "9AM-11AM", "1", "2"),
-                _double_book("s1", "Monday", "9AM-11AM", "1", "3"),
-                _double_book("s1", "Monday", "9AM-11AM", "2", "3"),
-                _double_book("s1", "Tuesday", "9AM-11AM", "4", "5"),
-                _double_book("s2", "Monday", "9AM-11AM", "1", "2"),
+                _double_book("s1", "Monday", "8AM-10AM", "1", "2"),
+                _double_book("s1", "Monday", "8AM-10AM", "1", "3"),
+                _double_book("s1", "Monday", "8AM-10AM", "2", "3"),
+                _double_book("s1", "Tuesday", "8AM-10AM", "4", "5"),
+                _double_book("s2", "Monday", "8AM-10AM", "1", "2"),
             ]
         )
 
@@ -239,9 +239,9 @@ class TestConflicts:
         record = {"conflict_type": "student_gt_max_per_day", "student_id": "s1"}
         counts = count_conflicts(
             [
-                {**record, "day": "Monday", "block_time": "9AM-11AM", "crn": "1"},
-                {**record, "day": "Monday", "block_time": "2PM-4PM", "crn": "2"},
-                {**record, "day": "Tuesday", "block_time": "9AM-11AM", "crn": "3"},
+                {**record, "day": "Monday", "block_time": "8AM-10AM", "crn": "1"},
+                {**record, "day": "Monday", "block_time": "1PM-3PM", "crn": "2"},
+                {**record, "day": "Tuesday", "block_time": "8AM-10AM", "crn": "3"},
             ]
         )
 
@@ -251,8 +251,8 @@ class TestConflicts:
         record = {"conflict_type": "back_to_back_instructor", "entity_id": "Dr X"}
         counts = count_conflicts(
             [
-                {**record, "day": "Monday", "block_times": ["9AM", "11:30AM"]},
-                {**record, "day": "Monday", "block_times": ["11:30AM", "2PM"]},
+                {**record, "day": "Monday", "block_times": ["8AM", "10:30AM"]},
+                {**record, "day": "Monday", "block_times": ["10:30AM", "1PM"]},
             ]
         )
 
@@ -262,8 +262,8 @@ class TestConflicts:
     def test_records_without_a_person_each_count_once(self):
         counts = count_conflicts(
             [
-                _double_book(None, "Monday", "9AM-11AM", "1", "2"),
-                _double_book("", "Monday", "9AM-11AM", "1", "2"),
+                _double_book(None, "Monday", "8AM-10AM", "1", "2"),
+                _double_book("", "Monday", "8AM-10AM", "1", "2"),
             ]
         )
 

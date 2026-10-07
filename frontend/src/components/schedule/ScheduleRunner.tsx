@@ -208,7 +208,7 @@ export function ScheduleRunner() {
               <div className="space-y-1">
                 <Label>Exam Blocks Per Day</Label>
                 <p className="text-xs text-muted-foreground">
-                  4 uses the four earliest blocks (no 7PM-9PM exams)
+                  4 uses the four earliest blocks (no 6PM-8PM exams)
                 </p>
               </div>
               <ButtonGroup aria-label="Exam blocks per day">

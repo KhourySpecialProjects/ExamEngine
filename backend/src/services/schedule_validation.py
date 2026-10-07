@@ -12,7 +12,6 @@ from collections.abc import Iterator, Mapping
 from typing import Any
 from uuid import UUID
 
-from src.domain.constants import BLOCK_TIMES, DAY_NAMES
 from src.domain.validation import (
     STATUSES,
     CheckFinished,
@@ -31,13 +30,12 @@ from src.repo.exam_assignment import ExamAssignmentRepo
 from src.repo.schedule import ScheduleRepo
 from src.schemas.db import Datasets, ExamAssignments
 from src.services.dataset.uploaded_files import load_uploaded_files, stored_groups
+from src.services.schedule.slots import slot_indices
 from src.services.storage import storage
 
 
 logger = logging.getLogger("examengine.validation")
 
-_DAY_INDEX = {name: index for index, name in enumerate(DAY_NAMES)}
-_BLOCK_INDEX = {label: index for index, label in BLOCK_TIMES.items()}
 _LOGGED_EXAMPLES = 5
 
 
@@ -92,11 +90,12 @@ class ScheduleValidationService:
 
 
 def _schedule_row(assignment: ExamAssignments) -> ScheduleRow:
-    slot, room, course = assignment.time_slot, assignment.room, assignment.course
+    room, course = assignment.room, assignment.course
+    day_index, block_index = slot_indices(assignment) or (None, None)
     return ScheduleRow(
         crn=str(course.crn),
-        day_index=_DAY_INDEX[slot.day.value] if slot is not None else None,
-        block_index=_BLOCK_INDEX[slot.slot_label] if slot is not None else None,
+        day_index=day_index,
+        block_index=block_index,
         room=room.location if room is not None else None,
         room_capacity=room.capacity if room is not None else None,
         enrollment_count=course.enrollment_count,

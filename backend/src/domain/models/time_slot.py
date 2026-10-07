@@ -6,7 +6,7 @@ class TimeSlot:
     """Represents a specific exam time slot."""
 
     day: str  # e.g., "Monday", "Tuesday"
-    block: str  # e.g., "9AM-11AM", "11:30AM-1:30PM"
+    block: str  # e.g., "8AM-10AM", "10:30AM-12:30PM"
 
     def __post_init__(self):
         """Validate data."""

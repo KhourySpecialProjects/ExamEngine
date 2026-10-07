@@ -4,6 +4,7 @@ from sqlalchemy import Engine, create_engine, text
 from sqlalchemy.orm import Session, sessionmaker
 
 from src.core.config import get_settings
+from src.core.relabel_blocks import relabel_block_times
 from src.schemas.db import Base
 
 
@@ -57,6 +58,7 @@ def init_db(bind: Engine = engine) -> None:
     """
     Base.metadata.create_all(bind=bind)
     _add_missing_columns(bind)
+    _relabel_legacy_block_times(bind)
 
 
 def _add_missing_columns(bind: Engine) -> None:
@@ -75,3 +77,11 @@ def _add_missing_columns(bind: Engine) -> None:
                 "ADD COLUMN IF NOT EXISTS common_exam_groups JSONB DEFAULT NULL"
             )
         )
+
+
+def _relabel_legacy_block_times(bind: Engine) -> None:
+    """Move saved data to the corrected exam block times; one transaction."""
+    if bind.dialect.name != "postgresql":
+        return
+    with bind.begin() as connection:
+        relabel_block_times(connection)

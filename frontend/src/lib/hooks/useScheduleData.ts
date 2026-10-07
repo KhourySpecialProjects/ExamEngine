@@ -149,13 +149,13 @@ function convertToCalendarRows(
     Sun: "Sunday",
   };
 
-  // Helper function to extract time from Block format "0 (9:00-11:00)" -> "9:00-11:00"
+  // Helper function to extract time from Block format "0 (8:00-10:00)" -> "8:00-10:00"
   const extractTimeFromBlock = (blockStr: string): string => {
-    // If it's already just a time (like "9:00-11:00"), return it
+    // If it's already just a time (like "8:00-10:00"), return it
     if (!blockStr.includes("(")) {
       return blockStr;
     }
-    // Extract the part in parentheses: "0 (9:00-11:00)" -> "9:00-11:00"
+    // Extract the part in parentheses: "0 (8:00-10:00)" -> "8:00-10:00"
     const match = blockStr.match(/\(([^)]+)\)/);
     return match ? match[1] : blockStr;
   };
@@ -244,7 +244,7 @@ function convertToCalendarRows(
       });
 
       // Count unique conflicts for this cell (not per-exam to avoid double-counting)
-      // Extract time from timeSlot format "0 (9:00-11:00)" -> "9:00-11:00" to match conflict map
+      // Extract time from timeSlot format "0 (8:00-10:00)" -> "8:00-10:00" to match conflict map
       const normalizedTimeSlot = extractTimeFromBlock(timeSlot);
       const cellConflictKey = `${frontendDay}-${normalizedTimeSlot}`;
       // Use conflictMap count (unique conflicts per cell) instead of summing exam conflicts

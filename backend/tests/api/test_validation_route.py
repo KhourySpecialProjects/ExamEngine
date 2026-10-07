@@ -264,7 +264,7 @@ def _service(dataset) -> ScheduleValidationService:
         )
     )
     assignments.get_all_for_schedule.return_value = [
-        _assignment("100", DayEnum.Wednesday, "2PM-4PM", "R1", 10),
+        _assignment("100", DayEnum.Wednesday, "1PM-3PM", "R1", 10),
         _assignment("200"),
     ]
     analyses.get_by_schedule_id.return_value = SimpleNamespace(

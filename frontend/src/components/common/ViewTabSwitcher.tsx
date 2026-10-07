@@ -1,7 +1,14 @@
 "use client";
 
-// biome-ignore lint/suspicious/noShadowRestrictedNames: false postive
-import { AlertTriangle, BarChart3, LayoutGrid, List, Map } from "lucide-react";
+import {
+  AlertTriangle,
+  BarChart3,
+  Compass,
+  LayoutGrid,
+  List,
+  // biome-ignore lint/suspicious/noShadowRestrictedNames: false postive
+  Map,
+} from "lucide-react";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import type { ScheduleView } from "@/lib/scheduleView";
 
@@ -54,6 +61,13 @@ export function ViewTabSwitcher({
         >
           <AlertTriangle className="h-4 w-4" />
           Conflicts
+        </TabsTrigger>
+        <TabsTrigger
+          value="explore"
+          className="gap-2 data-[state=active]:bg-black data-[state=active]:text-white transition-all duration-300"
+        >
+          <Compass className="h-4 w-4" />
+          Explore
         </TabsTrigger>
       </TabsList>
     </Tabs>

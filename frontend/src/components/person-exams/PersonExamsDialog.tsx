@@ -1,5 +1,7 @@
-import { Loader2 } from "lucide-react";
+import { Compass, Loader2 } from "lucide-react";
+import Link from "next/link";
 import { CopyButton } from "@/components/common/CopyButton";
+import { Button } from "@/components/ui/button";
 import {
   Dialog,
   DialogContent,
@@ -8,7 +10,11 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import type { PersonExam, PersonKind } from "@/lib/api/schedules";
+import { useExamGroups } from "@/lib/hooks/useExamGroups";
 import { usePersonExams } from "@/lib/hooks/usePersonExams";
+import { scheduleHref } from "@/lib/scheduleView";
+import { useExplorePeopleStore } from "@/lib/store/explorePeopleStore";
+import { useSchedulesStore } from "@/lib/store/schedulesStore";
 import { PersonExams } from "./PersonExams";
 
 /** How an ID of each kind is named in labels: "NUId 001234567", "instructor I-1". */
@@ -17,7 +23,11 @@ export const PERSON_ID_LABEL: Record<PersonKind, string> = {
   instructor: "instructor",
 };
 
-/** Loads one person's exams in a schedule and shows them (list + exam week). */
+/**
+ * Loads one person's exams in a schedule and shows them (list + exam week).
+ * "Open in Explore" switches the schedule page to Explore with this person;
+ * it is left out with a proposed late add, which only this dialog can draw.
+ */
 export function PersonExamsDialog({
   scheduleId,
   kind,
@@ -32,6 +42,14 @@ export function PersonExamsDialog({
   proposed?: PersonExam | null;
   onClose: () => void;
 }) {
+  const pickPerson = useExplorePeopleStore((state) => state.pick);
+  // The schedule page has this schedule loaded; its dataset holds the groups.
+  const datasetId = useSchedulesStore((state) =>
+    state.currentSchedule?.schedule_id === scheduleId
+      ? state.currentSchedule.dataset_id
+      : null,
+  );
+  const groups = useExamGroups(datasetId);
   const { result, error, isLoading } = usePersonExams(
     scheduleId,
     kind,
@@ -52,6 +70,21 @@ export function PersonExamsDialog({
               ? `In this schedule, plus the proposed late add CRN ${proposed.crn} (dashed).`
               : "In this schedule. Unscheduled exams are listed last."}
           </DialogDescription>
+          {!proposed && (
+            <Button asChild variant="link" className="h-auto self-start p-0">
+              <Link
+                href={scheduleHref(scheduleId, { view: "explore", kind })}
+                onClick={() => {
+                  // The ID goes to sessionStorage, not the URL.
+                  pickPerson(scheduleId, kind, personId);
+                  onClose();
+                }}
+              >
+                <Compass className="size-4" aria-hidden />
+                Open in Explore
+              </Link>
+            </Button>
+          )}
         </DialogHeader>
         <div className="max-h-[65vh] overflow-y-auto pr-1">
           {isLoading && (
@@ -65,7 +98,9 @@ export function PersonExamsDialog({
               {error}
             </p>
           )}
-          {result && <PersonExams result={result} proposed={proposed} />}
+          {result && (
+            <PersonExams result={result} proposed={proposed} groups={groups} />
+          )}
         </div>
       </DialogContent>
     </Dialog>

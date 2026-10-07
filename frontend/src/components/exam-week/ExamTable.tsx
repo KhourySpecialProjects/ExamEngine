@@ -10,6 +10,7 @@ import {
 } from "@/components/ui/table";
 import { cn } from "@/lib/utils";
 import { slotOf, type WeekExam } from "./examWeek";
+import { Pivot } from "./Pivot";
 
 export type ExamColumn =
   | "day"
@@ -30,44 +31,26 @@ const HEADERS: Record<ExamColumn, string> = {
   size: "Size",
 };
 
-/** A clickable value that switches what Explore looks up. */
-function Pivot({
-  label,
-  onClick,
-  children,
-}: {
-  label: string;
-  onClick: () => void;
-  children: ReactNode;
-}) {
-  return (
-    <button
-      type="button"
-      aria-label={label}
-      title={label}
-      onClick={onClick}
-      className="cursor-pointer underline decoration-dotted underline-offset-2 hover:text-primary"
-    >
-      {children}
-    </button>
-  );
-}
-
 /**
- * Exams as a table in the given order. `doubleBooked` slot keys get a
- * "Double-booked" badge. With `onInstructorClick` an instructor ID is a link.
+ * Exams as a table in the given order. `doubleBooked` and `blocked` slot keys
+ * get a "Double-booked" / "Blocked slot" badge. With `onInstructorClick` and
+ * `onRoomClick` an instructor ID and a room are links.
  */
 export function ExamTable({
   exams,
   columns = ["day", "time", "crn", "course", "room"],
   doubleBooked,
+  blocked,
   onInstructorClick,
+  onRoomClick,
   className,
 }: {
   exams: WeekExam[];
   columns?: ExamColumn[];
   doubleBooked?: ReadonlySet<string>;
+  blocked?: ReadonlySet<string>;
   onInstructorClick?: (instructorId: string) => void;
+  onRoomClick?: (room: string) => void;
   className?: string;
 }) {
   const cell = (exam: WeekExam, column: ExamColumn): ReactNode => {
@@ -90,6 +73,9 @@ export function ExamTable({
               {slot && doubleBooked?.has(slot) && (
                 <Badge variant="destructive">Double-booked</Badge>
               )}
+              {slot && blocked?.has(slot) && (
+                <Badge variant="destructive">Blocked slot</Badge>
+              )}
             </span>
           </TableCell>
         );
@@ -108,15 +94,26 @@ export function ExamTable({
         );
       case "course":
         return <TableCell key={column}>{exam.course_code}</TableCell>;
-      case "room":
+      case "room": {
+        const room = exam.room;
         return (
           <TableCell
             key={column}
-            className={cn("font-mono", !exam.room && "text-muted-foreground")}
+            className={cn("font-mono", !room && "text-muted-foreground")}
           >
-            {exam.room ?? (slot ? "No room" : "—")}
+            {room && onRoomClick ? (
+              <Pivot
+                label={`Explore room ${room}`}
+                onClick={() => onRoomClick(room)}
+              >
+                {room}
+              </Pivot>
+            ) : (
+              (room ?? (slot ? "No room" : "—"))
+            )}
           </TableCell>
         );
+      }
       case "instructor": {
         const id = exam.instructor;
         return (

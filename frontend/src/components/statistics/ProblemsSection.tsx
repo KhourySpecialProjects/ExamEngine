@@ -7,6 +7,7 @@ import {
   Users,
 } from "lucide-react";
 import type { ReactNode } from "react";
+import { Collapsible } from "@/components/common/Collapsible";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -86,22 +87,6 @@ function ProblemCard({
         )}
       </Card>
     </section>
-  );
-}
-
-/** Collapsed by default so a long list never pushes the page down. */
-function Collapsible({
-  summary,
-  children,
-}: {
-  summary: string;
-  children: ReactNode;
-}) {
-  return (
-    <details className="text-xs">
-      <summary className="cursor-pointer font-medium">{summary}</summary>
-      <div className="mt-2 max-h-48 overflow-y-auto">{children}</div>
-    </details>
   );
 }
 

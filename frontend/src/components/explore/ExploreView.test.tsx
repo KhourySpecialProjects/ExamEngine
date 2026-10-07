@@ -1,7 +1,11 @@
 import { fireEvent, render, screen, within } from "@testing-library/react";
 import { useState } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import type { PersonExam, ScheduleExam } from "@/lib/api/schedules";
+import type {
+  PersonExam,
+  ScheduleExam,
+  ScheduleRoomsResult,
+} from "@/lib/api/schedules";
 import type { ExploreKind } from "@/lib/scheduleView";
 import { useExplorePeopleStore } from "@/lib/store/explorePeopleStore";
 import { makeSchedule } from "@/test/summary";
@@ -9,12 +13,41 @@ import { ExploreView } from "./ExploreView";
 import { instructorOptions } from "./PersonExplore";
 
 vi.mock("@/lib/api/client", () => ({
-  apiClient: { schedules: { personExams: vi.fn() } },
+  apiClient: { schedules: { personExams: vi.fn(), rooms: vi.fn() } },
 }));
 
 import { apiClient } from "@/lib/api/client";
 
 const personExams = vi.mocked(apiClient.schedules.personExams);
+const rooms = vi.mocked(apiClient.schedules.rooms);
+
+const DAYS = ["Monday", "Tuesday"];
+const TIMES = ["9AM-11AM", "11:30AM-1:30PM"];
+
+/** Hall is blocked on Monday 9AM (where its two exams are) and Tuesday 11:30AM. */
+function roomsResult(
+  blockouts: ScheduleRoomsResult["blockouts"] = "ok",
+): ScheduleRoomsResult {
+  return {
+    rooms: [
+      { name: "Empty", capacity: 10, blocked: [] },
+      {
+        name: "Hall",
+        capacity: 40,
+        blocked:
+          blockouts === "ok"
+            ? [
+                { day: 0, day_name: DAYS[0], block: 0, block_time: TIMES[0] },
+                { day: 1, day_name: DAYS[1], block: 1, block_time: TIMES[1] },
+              ]
+            : [],
+      },
+    ],
+    blockouts,
+    days: DAYS,
+    block_times: TIMES,
+  };
+}
 
 function row(
   crn: string,
@@ -50,23 +83,33 @@ function exam(
     crn,
     course_code: `CS ${crn}`,
     day,
-    day_name: day == null ? null : ["Monday", "Tuesday"][day],
+    day_name: day == null ? null : DAYS[day],
     block,
-    block_time: block == null ? null : ["9AM-11AM", "11:30AM-1:30PM"][block],
+    block_time: block == null ? null : TIMES[block],
     room: day == null ? null : "Hall",
   };
 }
 
-function Explore({ initialKind = "student" }: { initialKind?: ExploreKind }) {
-  const [kind, setKind] = useState<ExploreKind>(initialKind);
+function Explore({
+  initialKind = "student",
+  initialQuery = null,
+}: {
+  initialKind?: ExploreKind;
+  initialQuery?: string | null;
+}) {
+  const [lookup, setLookup] = useState({
+    kind: initialKind,
+    query: initialQuery,
+  });
   return (
     <ExploreView
       scheduleId="s1"
       schedule={makeSchedule({
         schedule: { complete: ROWS, calendar: {}, total_exams: ROWS.length },
       })}
-      kind={kind}
-      onKindChange={setKind}
+      kind={lookup.kind}
+      query={lookup.query}
+      onLookupChange={(kind, query) => setLookup({ kind, query })}
     />
   );
 }
@@ -93,12 +136,14 @@ describe("ExploreView", () => {
     sessionStorage.clear();
     useExplorePeopleStore.setState({ people: {} });
     personExams.mockReset();
+    rooms.mockReset();
+    rooms.mockResolvedValue(roomsResult());
     personExams.mockImplementation(async (_s, kind, personId) => ({
       kind,
       person_id: personId,
       exams: [exam("100", 0, 0), exam("200", 0, 0), exam("300", null, null)],
-      days: ["Monday", "Tuesday"],
-      block_times: ["9AM-11AM", "11:30AM-1:30PM"],
+      days: DAYS,
+      block_times: TIMES,
     }));
   });
 
@@ -178,6 +223,105 @@ describe("ExploreView", () => {
       await screen.findByRole("table", { name: "Exam week" }),
     ).toBeTruthy();
     expect(personExams).toHaveBeenLastCalledWith("s1", "student", "001234567");
+  });
+
+  it("shows a room's exams and blocked slots, flagging exams inside one", async () => {
+    render(<Explore initialKind="room" initialQuery="Hall" />);
+
+    const week = await screen.findByRole("table", { name: "Exam week" });
+    expect(rooms).toHaveBeenCalledWith("s1");
+    expect(screen.getByRole("heading").textContent).toBe(
+      "Room Hall(capacity 40)",
+    );
+    const blockedWithExams = within(week).getByTestId("week-0-0");
+    expect(blockedWithExams.textContent).toBe(
+      "Blocked100CS 100Hall200CS 200Hall",
+    );
+    for (const block of blockedWithExams.querySelectorAll("[title]")) {
+      expect(block.getAttribute("title")).toContain("in a blocked slot");
+    }
+    expect(within(week).getByTestId("week-1-1").textContent).toBe("Blocked");
+    expect(within(week).getByTestId("week-1-0").textContent).toBe("");
+    expect(
+      within(screen.getByRole("list", { name: "Legend" }))
+        .getAllByRole("listitem")
+        .map((li) => li.textContent),
+    ).toEqual([
+      "Exam",
+      "Blocked (room not available)",
+      "Exam in a blocked slot",
+    ]);
+
+    fireEvent.click(screen.getByRole("button", { name: "List" }));
+
+    // No Room column, no double-book marks: a room holds combined exams.
+    expect(listRows()).toEqual([
+      ["Monday", "9AM-11AMBlocked slot", "100", "CS 100", "I-1", "30"],
+      ["Monday", "9AM-11AMBlocked slot", "200", "CS 200", "I-2", "12"],
+    ]);
+    const blockedTimes = screen.getByText("Blocked times (2)")
+      .parentElement as HTMLDetailsElement;
+    expect(blockedTimes.open).toBe(false);
+    expect(
+      within(blockedTimes)
+        .getAllByRole("listitem", { hidden: true })
+        .map((li) => li.textContent),
+    ).toEqual(["Monday 9AM-11AM", "Tuesday 11:30AM-1:30PM"]);
+  });
+
+  it("picks a room from the list of every room", async () => {
+    // cmdk measures its list and scrolls the active item into view.
+    global.ResizeObserver ??= class {
+      observe() {}
+      unobserve() {}
+      disconnect() {}
+    };
+    Element.prototype.scrollIntoView ??= () => {};
+    render(<Explore initialKind="room" />);
+    fireEvent.click(await screen.findByRole("combobox", { name: "Room" }));
+
+    const options = await screen.findAllByRole("option");
+    expect(options.map((o) => o.textContent)).toEqual([
+      "Emptycapacity 10 · 0 exams",
+      "Hallcapacity 40 · 2 exams",
+    ]);
+    fireEvent.click(options[0]);
+
+    expect(
+      await screen.findByText("No exams in this room in this schedule."),
+    ).toBeTruthy();
+    expect(screen.getByText("0 exams, 0 blocked slots")).toBeTruthy();
+  });
+
+  it("says when the room's blocked times can't be read", async () => {
+    rooms.mockResolvedValue(roomsResult("unavailable"));
+    render(<Explore initialKind="room" initialQuery="Hall" />);
+
+    expect(
+      await screen.findByText(
+        "Blocked times are unavailable: the dataset's room blockouts file can't be read.",
+      ),
+    ).toBeTruthy();
+    expect(screen.getByTestId("week-0-0").textContent).toBe(
+      "100CS 100Hall200CS 200Hall",
+    );
+  });
+
+  it("explores a room clicked in a student's calendar", async () => {
+    render(<Explore />);
+    lookUpStudent("001234567");
+    expect(rooms).not.toHaveBeenCalled();
+
+    fireEvent.click(
+      (await screen.findAllByRole("button", { name: "Explore room Hall" }))[0],
+    );
+
+    expect(screen.getByRole("button", { name: "Room" }).ariaPressed).toBe(
+      "true",
+    );
+    expect((await screen.findByRole("heading")).textContent).toBe(
+      "Room Hall(capacity 40)",
+    );
   });
 });
 

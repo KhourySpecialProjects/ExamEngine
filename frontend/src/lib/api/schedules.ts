@@ -404,6 +404,31 @@ export interface PersonExamsResult {
   block_times: string[];
 }
 
+/** A (day, block) slot in which a room can't be used. */
+export interface BlockedSlot {
+  /** Day index, Monday = 0. */
+  day: number;
+  day_name: string;
+  /** Block index, 0-based. */
+  block: number;
+  block_time: string;
+}
+
+/** `GET /schedule/{id}/rooms`: every room of the schedule's dataset. */
+export interface ScheduleRoomsResult {
+  /** By name; `blocked` by day and block. */
+  rooms: { name: string; capacity: number; blocked: BlockedSlot[] }[];
+  /**
+   * "ok" when the room_blockouts file was read, "none_uploaded" when the
+   * dataset has none, "unavailable" when it was deleted or can't be read.
+   */
+  blockouts: "ok" | "none_uploaded" | "unavailable";
+  /** The schedule's exam days, Monday first. */
+  days: string[];
+  /** The schedule's blocks per day, earliest first. */
+  block_times: string[];
+}
+
 export interface ScheduleResult {
   schedule_id: string;
   dataset_id: string;
@@ -672,5 +697,10 @@ export class SchedulesAPI extends BaseAPI {
     return this.request(`/schedule/${scheduleId}/person-exams?${query}`, {
       method: "GET",
     });
+  }
+
+  /** Every room with its capacity and blocked times. Owner or share recipient. */
+  async rooms(scheduleId: string): Promise<ScheduleRoomsResult> {
+    return this.request(`/schedule/${scheduleId}/rooms`, { method: "GET" });
   }
 }

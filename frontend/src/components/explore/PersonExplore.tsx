@@ -1,12 +1,8 @@
 import { Loader2 } from "lucide-react";
 import { type ReactNode, useEffect, useMemo, useState } from "react";
 import { CopyButton } from "@/components/common/CopyButton";
-import {
-  byWeek,
-  doubleBookedSlots,
-  examsBySlot,
-  type WeekExam,
-} from "@/components/exam-week/examWeek";
+import type { ExamGroups } from "@/components/exam-week/examGroups";
+import { byWeek, type WeekExam } from "@/components/exam-week/examWeek";
 import { PERSON_ID_LABEL } from "@/components/person-exams/PersonExamsDialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -50,6 +46,7 @@ export function instructorOptions(exams: ScheduleExam[]) {
 export function PersonExplore({
   scheduleId,
   schedule,
+  groups,
   kind,
   display,
   toolbar,
@@ -58,6 +55,7 @@ export function PersonExplore({
 }: {
   scheduleId: string;
   schedule: ScheduleResult;
+  groups: ExamGroups;
   kind: PersonKind;
   display: ExploreDisplay;
   /** Shown at the end of the lookup row (the Calendar / List switch). */
@@ -167,10 +165,21 @@ export function PersonExplore({
           display={display}
           columns={
             kind === "student"
-              ? ["day", "time", "crn", "course", "room", "instructor", "size"]
-              : ["day", "time", "crn", "course", "room", "size"]
+              ? [
+                  "day",
+                  "time",
+                  "crn",
+                  "course",
+                  "room",
+                  "instructor",
+                  "size",
+                  "group",
+                ]
+              : ["day", "time", "crn", "course", "room", "size", "group"]
           }
-          doubleBooked={doubleBookedSlots(examsBySlot(exams))}
+          groups={groups}
+          rows={rows}
+          markDoubleBooks
           onInstructorClick={(id) => onExplorePerson("instructor", id)}
           onRoomClick={onRoomClick}
           emptyText={`No exams for this ${kind} in this schedule.`}

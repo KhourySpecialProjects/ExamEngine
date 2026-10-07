@@ -9,6 +9,20 @@ export interface WeekExam extends PersonExam {
   proposed?: boolean;
   instructor?: string | null;
   size?: number | null;
+  /** Label of the combined exam (same block, same room) it belongs to. */
+  combined?: string | null;
+  /** Label of the common exam (same block, different rooms) it belongs to. */
+  common?: string | null;
+}
+
+/**
+ * The exam a section sits as part of: its common group, else its combined
+ * group, else itself. Sections of one group are one exam for a person.
+ */
+function examUnit(exam: WeekExam): string {
+  if (exam.common) return `common:${exam.common}`;
+  if (exam.combined) return `combined:${exam.combined}`;
+  return `crn:${exam.crn}`;
 }
 
 /** Key of a (day, block) slot. */
@@ -43,11 +57,16 @@ export function examsBySlot(exams: WeekExam[]): Map<string, WeekExam[]> {
   return perSlot;
 }
 
-/** Keys of the slots holding two or more of `exams` (a person's double-books). */
+/**
+ * Keys of the slots holding two or more different exams (a person's
+ * double-books); sections of one combined or common group count once.
+ */
 export function doubleBookedSlots(
   perSlot: Map<string, WeekExam[]>,
 ): Set<string> {
   return new Set(
-    [...perSlot].filter(([, exams]) => exams.length > 1).map(([key]) => key),
+    [...perSlot]
+      .filter(([, exams]) => new Set(exams.map(examUnit)).size > 1)
+      .map(([key]) => key),
   );
 }

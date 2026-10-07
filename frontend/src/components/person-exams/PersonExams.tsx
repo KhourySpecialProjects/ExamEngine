@@ -1,6 +1,11 @@
 import { ExamTable } from "@/components/exam-week/ExamTable";
 import { ExamWeekGrid } from "@/components/exam-week/ExamWeekGrid";
 import {
+  type ExamGroups,
+  NO_GROUPS,
+  withGroups,
+} from "@/components/exam-week/examGroups";
+import {
   byWeek,
   doubleBookedSlots,
   examsBySlot,
@@ -10,20 +15,25 @@ import type { PersonExam, PersonExamsResult } from "@/lib/api/schedules";
 
 /**
  * One person's exams: a short list, then the schedule's exam week with each
- * exam blocked out. Two or more exams in one block (a double-book) are red.
+ * exam blocked out. Two or more different exams in one block (a double-book)
+ * are red; sections of one combined or common exam (`groups`) count once.
  * `proposed` is a late-add candidate, drawn dashed.
  */
 export function PersonExams({
   result,
   proposed,
+  groups = NO_GROUPS,
 }: {
   result: PersonExamsResult;
   proposed?: PersonExam | null;
+  groups?: ExamGroups;
 }) {
   const exams: WeekExam[] = [
     ...result.exams,
     ...(proposed ? [{ ...proposed, proposed: true }] : []),
-  ].sort(byWeek);
+  ]
+    .map((exam) => withGroups(exam, groups))
+    .sort(byWeek);
   const perSlot = examsBySlot(exams);
 
   if (exams.length === 0) {

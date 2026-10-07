@@ -1,5 +1,6 @@
 import { Loader2 } from "lucide-react";
 import { type ReactNode, useMemo } from "react";
+import type { ExamGroups } from "@/components/exam-week/examGroups";
 import { byWeek } from "@/components/exam-week/examWeek";
 import type { ScheduleResult, ScheduleRoomsResult } from "@/lib/api/schedules";
 import type { ScheduleRoomsState } from "@/lib/hooks/useScheduleRooms";
@@ -17,6 +18,7 @@ import { weekExam } from "./scheduleRows";
  */
 export function RoomExplore({
   schedule,
+  groups,
   room,
   rooms,
   display,
@@ -25,6 +27,7 @@ export function RoomExplore({
   onInstructorClick,
 }: {
   schedule: ScheduleResult;
+  groups: ExamGroups;
   room: string | null;
   rooms: ScheduleRoomsState;
   display: ExploreDisplay;
@@ -85,9 +88,11 @@ export function RoomExplore({
       {rooms.result && picked && (
         <RoomResults
           rows={rows}
+          groups={groups}
           room={picked}
           result={rooms.result}
           display={display}
+          onRoomChange={onRoomChange}
           onInstructorClick={onInstructorClick}
         />
       )}
@@ -97,15 +102,19 @@ export function RoomExplore({
 
 function RoomResults({
   rows,
+  groups,
   room,
   result,
   display,
+  onRoomChange,
   onInstructorClick,
 }: {
   rows: ScheduleResult["schedule"]["complete"];
+  groups: ExamGroups;
   room: ScheduleRoomsResult["rooms"][number];
   result: ScheduleRoomsResult;
   display: ExploreDisplay;
+  onRoomChange: (room: string) => void;
   onInstructorClick: (instructorId: string) => void;
 }) {
   const exams = useMemo(
@@ -131,9 +140,13 @@ function RoomResults({
       blockTimes={result.block_times}
       display={display}
       // Combined exams share a room and a block: no double-book marks.
-      columns={["day", "time", "crn", "course", "instructor", "size"]}
+      columns={["day", "time", "crn", "course", "instructor", "size", "group"]}
+      groups={groups}
+      rows={rows}
       blockouts={{ slots: room.blocked, status: result.blockouts }}
       onInstructorClick={onInstructorClick}
+      // From a common exam's sections to the other rooms.
+      onRoomClick={onRoomChange}
       emptyText="No exams in this room in this schedule."
     />
   );

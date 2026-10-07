@@ -1,4 +1,10 @@
-import { fireEvent, render, screen, within } from "@testing-library/react";
+import {
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+  within,
+} from "@testing-library/react";
 import { useState } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type {
@@ -14,13 +20,18 @@ import { ExploreView } from "./ExploreView";
 import { instructorOptions } from "./PersonExplore";
 
 vi.mock("@/lib/api/client", () => ({
-  apiClient: { schedules: { personExams: vi.fn(), rooms: vi.fn() } },
+  apiClient: {
+    schedules: { personExams: vi.fn(), rooms: vi.fn() },
+    datasets: { getCourseMerges: vi.fn(), getCommonExams: vi.fn() },
+  },
 }));
 
 import { apiClient } from "@/lib/api/client";
 
 const personExams = vi.mocked(apiClient.schedules.personExams);
 const rooms = vi.mocked(apiClient.schedules.rooms);
+const getCourseMerges = vi.mocked(apiClient.datasets.getCourseMerges);
+const getCommonExams = vi.mocked(apiClient.datasets.getCommonExams);
 
 const DAYS = ["Monday", "Tuesday"];
 const TIMES = ["9AM-11AM", "11:30AM-1:30PM"];
@@ -43,6 +54,7 @@ function roomsResult(
               ]
             : [],
       },
+      { name: "Lab", capacity: 30, blocked: [] },
     ],
     blockouts,
     days: DAYS,
@@ -141,6 +153,10 @@ describe("ExploreView", () => {
     personExams.mockReset();
     rooms.mockReset();
     rooms.mockResolvedValue(roomsResult());
+    getCourseMerges.mockReset();
+    getCourseMerges.mockResolvedValue({});
+    getCommonExams.mockReset();
+    getCommonExams.mockResolvedValue({});
     personExams.mockImplementation(async (_s, kind, personId) => ({
       kind,
       person_id: personId,
@@ -169,9 +185,27 @@ describe("ExploreView", () => {
 
     // Instructor and size come from the schedule's rows; "nan" is no instructor.
     expect(listRows()).toEqual([
-      ["Monday", "9AM-11AMDouble-booked", "100", "CS 100", "Hall", "I-1", "30"],
-      ["Monday", "9AM-11AMDouble-booked", "200", "CS 200", "Hall", "I-2", "12"],
-      ["Unscheduled", "—", "300", "CS 300", "—", "—", "30"],
+      [
+        "Monday",
+        "9AM-11AMDouble-booked",
+        "100",
+        "CS 100",
+        "Hall",
+        "I-1",
+        "30",
+        "—",
+      ],
+      [
+        "Monday",
+        "9AM-11AMDouble-booked",
+        "200",
+        "CS 200",
+        "Hall",
+        "I-2",
+        "12",
+        "—",
+      ],
+      ["Unscheduled", "—", "300", "CS 300", "—", "—", "30", "—"],
     ]);
   });
 
@@ -240,7 +274,9 @@ describe("ExploreView", () => {
     expect(blockedWithExams.textContent).toBe(
       "Blocked100CS 100Hall200CS 200Hall",
     );
-    for (const block of blockedWithExams.querySelectorAll("[title]")) {
+    const blocks = blockedWithExams.querySelectorAll("[title^='CRN']");
+    expect(blocks).toHaveLength(2);
+    for (const block of blocks) {
       expect(block.getAttribute("title")).toContain("in a blocked slot");
     }
     expect(within(week).getByTestId("week-1-1").textContent).toBe("Blocked");
@@ -259,8 +295,8 @@ describe("ExploreView", () => {
 
     // No Room column, no double-book marks: a room holds combined exams.
     expect(listRows()).toEqual([
-      ["Monday", "9AM-11AMBlocked slot", "100", "CS 100", "I-1", "30"],
-      ["Monday", "9AM-11AMBlocked slot", "200", "CS 200", "I-2", "12"],
+      ["Monday", "9AM-11AMBlocked slot", "100", "CS 100", "I-1", "30", "—"],
+      ["Monday", "9AM-11AMBlocked slot", "200", "CS 200", "I-2", "12", "—"],
     ]);
     const blockedTimes = screen.getByText("Blocked times (2)")
       .parentElement as HTMLDetailsElement;
@@ -287,6 +323,7 @@ describe("ExploreView", () => {
     expect(options.map((o) => o.textContent)).toEqual([
       "Emptycapacity 10 · 0 exams",
       "Hallcapacity 40 · 2 exams",
+      "Labcapacity 30 · 0 exams",
     ]);
     fireEvent.click(options[0]);
 
@@ -352,8 +389,17 @@ describe("ExploreView", () => {
 
       fireEvent.click(screen.getByRole("button", { name: "List" }));
       expect(listRows()).toEqual([
-        ["Monday", "9AM-11AM", "100", "CS 100", "Hall", "I-1", "30"],
-        ["Tuesday", "11:30AM-1:30PM", "101", "CS 100", "Hall", "I-2", "30"],
+        ["Monday", "9AM-11AM", "100", "CS 100", "Hall", "I-1", "30", "—"],
+        [
+          "Tuesday",
+          "11:30AM-1:30PM",
+          "101",
+          "CS 100",
+          "Hall",
+          "I-2",
+          "30",
+          "—",
+        ],
       ]);
     });
 
@@ -375,6 +421,72 @@ describe("ExploreView", () => {
         { value: "101", detail: "CS 100" },
         { value: "200", detail: "CS 200" },
       ]);
+    });
+  });
+
+  describe("combined and common exams", () => {
+    // 100 + 200 are one combined exam in Hall; it belongs to a common exam
+    // with 900 in Lab, all Monday 9AM.
+    const GROUP_ROWS = [
+      row("100", "I-1"),
+      row("200", "I-1", { Size: 12 }),
+      row("900", "I-9", { Room: "Lab" }),
+    ];
+    beforeEach(() => {
+      getCourseMerges.mockResolvedValue({ "CS Combined": ["100", "200"] });
+      getCommonExams.mockResolvedValue({ "CS Common": ["100", "900"] });
+    });
+
+    it("frames a room's combined exam and lists its common exam's sections", async () => {
+      render(
+        <Explore initialKind="room" initialQuery="Hall" rows={GROUP_ROWS} />,
+      );
+
+      const frame = await screen.findByTestId("combined-exam");
+      expect(getCourseMerges).toHaveBeenCalledWith("d1");
+      expect(frame.textContent).toBe(
+        "CS CombinedHall · 42 students100 CS 100200 CS 200",
+      );
+      expect(
+        within(screen.getByRole("list", { name: "Legend" }))
+          .getAllByRole("listitem")
+          .map((li) => li.textContent),
+      ).toContain("Combined exam (sections share a room)");
+
+      fireEvent.click(
+        within(frame).getByRole("button", {
+          name: "Common exam CS Common: show its sections",
+        }),
+      );
+      const sections = await screen.findByRole("list", {
+        name: "Sections of CS Common",
+      });
+      expect(
+        within(sections)
+          .getAllByRole("listitem")
+          .map((li) => li.textContent),
+      ).toEqual(["100CS 100Hall", "200CS 200Hall", "900CS 900Lab"]);
+
+      fireEvent.click(
+        within(sections).getByRole("button", { name: "Explore room Lab" }),
+      );
+      expect((await screen.findByRole("heading")).textContent).toBe(
+        "Room Lab(capacity 30)",
+      );
+    });
+
+    it("does not call sections of one combined exam a double-book", async () => {
+      render(<Explore rows={GROUP_ROWS} />);
+      await waitFor(() => expect(getCommonExams).toHaveBeenCalled());
+
+      lookUpStudent("001234567");
+      fireEvent.click(await screen.findByRole("button", { name: "List" }));
+
+      // 100 and 200 share Monday 9AM but are one exam; 300 is unscheduled.
+      await waitFor(() =>
+        expect(listRows()[0][7]).toBe("CS CombinedCS Common"),
+      );
+      expect(screen.queryByText("Double-booked")).toBeNull();
     });
   });
 });

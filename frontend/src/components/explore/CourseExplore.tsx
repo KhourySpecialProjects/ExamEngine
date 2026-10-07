@@ -1,5 +1,6 @@
 import { Loader2 } from "lucide-react";
 import { type ReactNode, useMemo } from "react";
+import type { ExamGroups } from "@/components/exam-week/examGroups";
 import { byWeek } from "@/components/exam-week/examWeek";
 import type { ScheduleExam, ScheduleResult } from "@/lib/api/schedules";
 import type { ScheduleRoomsState } from "@/lib/hooks/useScheduleRooms";
@@ -32,6 +33,7 @@ export function courseOptions(rows: ScheduleExam[]): LookupOption[] {
  */
 export function CourseExplore({
   schedule,
+  groups,
   course,
   rooms,
   display,
@@ -41,6 +43,7 @@ export function CourseExplore({
   onRoomClick,
 }: {
   schedule: ScheduleResult;
+  groups: ExamGroups;
   /** A CRN or a course code. */
   course: string | null;
   rooms: ScheduleRoomsState;
@@ -134,7 +137,10 @@ export function CourseExplore({
             "room",
             "instructor",
             "size",
+            "group",
           ]}
+          groups={groups}
+          rows={rows}
           onInstructorClick={onInstructorClick}
           onRoomClick={onRoomClick}
           emptyText="No exams."

@@ -10,6 +10,7 @@ import {
 } from "@/components/ui/table";
 import { cn } from "@/lib/utils";
 import { slotOf, type WeekExam } from "./examWeek";
+import { CombinedMark, CommonBadge } from "./GroupMarks";
 import { Pivot } from "./Pivot";
 
 export type ExamColumn =
@@ -19,7 +20,8 @@ export type ExamColumn =
   | "course"
   | "room"
   | "instructor"
-  | "size";
+  | "size"
+  | "group";
 
 const HEADERS: Record<ExamColumn, string> = {
   day: "Day",
@@ -29,12 +31,15 @@ const HEADERS: Record<ExamColumn, string> = {
   room: "Room",
   instructor: "Instructor",
   size: "Size",
+  group: "Group",
 };
 
 /**
  * Exams as a table in the given order. `doubleBooked` and `blocked` slot keys
  * get a "Double-booked" / "Blocked slot" badge. With `onInstructorClick` and
- * `onRoomClick` an instructor ID and a room are links.
+ * `onRoomClick` an instructor ID and a room are links. The Group column names
+ * an exam's combined and common groups; with `commonSections` the common
+ * badge lists the group's sections.
  */
 export function ExamTable({
   exams,
@@ -43,6 +48,7 @@ export function ExamTable({
   blocked,
   onInstructorClick,
   onRoomClick,
+  commonSections,
   className,
 }: {
   exams: WeekExam[];
@@ -51,6 +57,7 @@ export function ExamTable({
   blocked?: ReadonlySet<string>;
   onInstructorClick?: (instructorId: string) => void;
   onRoomClick?: (room: string) => void;
+  commonSections?: (label: string) => WeekExam[];
   className?: string;
 }) {
   const cell = (exam: WeekExam, column: ExamColumn): ReactNode => {
@@ -140,6 +147,34 @@ export function ExamTable({
             {exam.size ?? "—"}
           </TableCell>
         );
+      case "group": {
+        const { combined, common } = exam;
+        return (
+          <TableCell key={column} className="text-xs">
+            {!combined && !common && (
+              <span className="text-muted-foreground">—</span>
+            )}
+            <div className="space-y-0.5">
+              {combined && (
+                <div className="flex items-center gap-1 text-blue-800">
+                  <CombinedMark label={combined} />
+                  {combined}
+                </div>
+              )}
+              {common && (
+                <div className="flex items-center gap-1 text-violet-800">
+                  <CommonBadge
+                    label={common}
+                    sections={commonSections && (() => commonSections(common))}
+                    onRoomClick={onRoomClick}
+                  />
+                  {common}
+                </div>
+              )}
+            </div>
+          </TableCell>
+        );
+      }
     }
   };
 

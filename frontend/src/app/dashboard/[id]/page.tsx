@@ -51,12 +51,17 @@ export default function SchedulePage({
 
 function ScheduleDetailPage({ scheduleId }: { scheduleId: string }) {
   const [
-    { view: activeView, type: conflictType, kind: exploreKind },
+    {
+      view: activeView,
+      type: conflictType,
+      kind: exploreKind,
+      q: exploreQuery,
+    },
     setViewParams,
   ] = useQueryStates(scheduleViewParams);
-  // A conflict type or Explore kind only means something on its own view.
+  // A conflict type or Explore lookup only means something on its own view.
   const setActiveView = (view: ScheduleView) =>
-    setViewParams({ view, type: null, kind: null });
+    setViewParams({ view, type: null, kind: null, q: null });
   const router = useRouter();
   const { user } = useAuthStore();
 
@@ -190,7 +195,11 @@ function ScheduleDetailPage({ scheduleId }: { scheduleId: string }) {
           scheduleId={scheduleId}
           schedule={schedule}
           kind={exploreKind}
-          onKindChange={(kind) => setViewParams({ kind })}
+          query={exploreQuery}
+          // A history entry per lookup, so Back returns to the previous room.
+          onLookupChange={(kind, q) =>
+            setViewParams({ kind, q }, { history: "push" })
+          }
         />
       )}
 

@@ -8,7 +8,6 @@ import {
   type WeekExam,
 } from "@/components/exam-week/examWeek";
 import { PERSON_ID_LABEL } from "@/components/person-exams/PersonExamsDialog";
-import { isPersonId } from "@/components/person-exams/PersonIdActions";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import type {
@@ -24,6 +23,7 @@ import {
   examCount,
 } from "./ExploreResults";
 import { LookupCombobox } from "./LookupCombobox";
+import { instructorOf } from "./scheduleRows";
 
 const HEADING: Record<PersonKind, string> = {
   student: "Student",
@@ -34,9 +34,8 @@ const HEADING: Record<PersonKind, string> = {
 export function instructorOptions(exams: ScheduleExam[]) {
   const counts = new Map<string, number>();
   for (const exam of exams) {
-    if (!isPersonId(exam.Instructor)) continue;
-    const id = exam.Instructor.trim();
-    counts.set(id, (counts.get(id) ?? 0) + 1);
+    const id = instructorOf(exam);
+    if (id) counts.set(id, (counts.get(id) ?? 0) + 1);
   }
   return [...counts]
     .sort(([a], [b]) => a.localeCompare(b))
@@ -55,6 +54,7 @@ export function PersonExplore({
   display,
   toolbar,
   onExplorePerson,
+  onRoomClick,
 }: {
   scheduleId: string;
   schedule: ScheduleResult;
@@ -63,6 +63,7 @@ export function PersonExplore({
   /** Shown at the end of the lookup row (the Calendar / List switch). */
   toolbar: ReactNode;
   onExplorePerson: (kind: PersonKind, id: string) => void;
+  onRoomClick: (room: string) => void;
 }) {
   const { current, recent } =
     useExplorePeopleStore((state) => state.people[scheduleId]?.[kind]) ??
@@ -83,10 +84,9 @@ export function PersonExplore({
     return (result?.exams ?? [])
       .map((exam) => {
         const row = byCrn.get(exam.crn);
-        const instructor = row?.Instructor;
         return {
           ...exam,
-          instructor: isPersonId(instructor) ? instructor.trim() : null,
+          instructor: instructorOf(row),
           size: row?.Size ?? null,
         };
       })
@@ -172,6 +172,7 @@ export function PersonExplore({
           }
           doubleBooked={doubleBookedSlots(examsBySlot(exams))}
           onInstructorClick={(id) => onExplorePerson("instructor", id)}
+          onRoomClick={onRoomClick}
           emptyText={`No exams for this ${kind} in this schedule.`}
         />
       )}

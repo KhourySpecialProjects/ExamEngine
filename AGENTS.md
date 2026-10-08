@@ -62,6 +62,15 @@ User docs (public, `/docs`): Fumadocs; MDX pages in `frontend/content/docs/` (ea
 `next dev`/`next build` compile the content into `frontend/.source/` (gitignored); on a fresh
 checkout run `npx fumadocs-mdx` once before `tsc`. The search index is `/docs/search.json`, not
 under `/api/` (the proxy sends `/api/` to the backend).
+Docs images are WebP screenshots in `frontend/content/docs/images/`, made by
+`cd frontend && npm run docs:screenshots` (Playwright, `docs-screenshots/`; needs the dev stack
+up, and creates and wipes its own `docs-demo@` account; prerequisites in the script header). They
+come from the downloadable synthetic sample files in `frontend/public/sample-data/` (served at
+`/sample-data/*.csv`), regenerated with `backend/.venv/bin/python backend/script/gen_test_data.py
+--students 500 --courses 50 --clique-size 25 --rooms 10 --max-capacity 120 --gen-eds 3
+--sectioned-courses 4 --sections-min 2 --sections-max 3 --common-groups 1 --combined-groups 1
+--oversize-combined 1 --blockouts 3 --seed 2026 --lf --out frontend/public/sample-data`.
+Never screenshot real datasets.
 
 ## Branches and environments
 

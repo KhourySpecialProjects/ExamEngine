@@ -311,7 +311,7 @@ def build_groups(
     return combined, common
 
 
-def write_csvs(out: str, data: dict) -> None:
+def write_csvs(out: str, data: dict, lineterminator: str = "\r\n") -> None:
     os.makedirs(out, exist_ok=True)
     files = {
         "courses.csv": (
@@ -339,7 +339,7 @@ def write_csvs(out: str, data: dict) -> None:
             files[name] = ([column, "CRN"], rows)
     for name, (header, rows) in files.items():
         with open(os.path.join(out, name), "w", newline="") as f:
-            w = csv.writer(f)
+            w = csv.writer(f, lineterminator=lineterminator)
             w.writerow(header)
             w.writerows(rows)
 
@@ -405,13 +405,18 @@ def main() -> None:
         help="combined groups larger than the biggest room (left unscheduled)",
     )
     ap.add_argument("--seed", type=int, default=4535)
+    ap.add_argument(
+        "--lf",
+        action="store_true",
+        help="LF line endings (default CRLF, the csv module's default)",
+    )
     ap.add_argument("--out", default="sample_data_large")
     args = ap.parse_args()
     if not 2 <= args.sections_min <= args.sections_max:
         ap.error("need 2 <= --sections-min <= --sections-max")
 
     data = build_dataset(args)
-    write_csvs(args.out, data)
+    write_csvs(args.out, data, "\n" if args.lf else "\r\n")
 
     sizes = sorted(data["_per_crn"].values())
     max_cap = max(cap for _, cap in data["_rooms"])

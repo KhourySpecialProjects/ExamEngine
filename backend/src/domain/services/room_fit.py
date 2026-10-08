@@ -55,8 +55,8 @@ def large_only_problem(rooms: Iterable[Room]) -> str | None:
     if bigger:
         other = max(bigger, key=lambda room: room.capacity)
         return (
-            f"LargeOnly room {large.name} ({large.capacity:g} seats) must seat more "
-            f"than every other room, but {other.name} seats {other.capacity:g}"
+            f"LargeOnly room {large.name} ({large.capacity} seats) must seat more "
+            f"than every other room, but {other.name} seats {other.capacity}"
         )
     return None
 

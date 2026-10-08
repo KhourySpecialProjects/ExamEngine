@@ -314,7 +314,7 @@ JSON written by the scheduler:
 
 - `runs.parameters`: the generation settings, `{student_max_per_day, instructor_max_per_day,
   avoid_back_to_back, max_days, blocks_per_day, prioritize_large_courses, algorithm,
-  time_budget_seconds}`. Runs from before a setting existed lack its key. A late-add run adds
+  time_budget_seconds, promote_rooms}`. Runs from before a setting existed lack its key. A late-add run adds
   `based_on_schedule_id`, `original_schedule_id` and `late_additions` (see "Late-add lineage").
 - `conflict_analyses.conflicts`: `{hard_conflicts, soft_conflicts, statistics,
   unscheduled_groups}`. `hard_conflicts` holds `student_double_book`, `instructor_double_book`,
@@ -338,7 +338,7 @@ stored metadata; never the uploaded files. It is the `summary` field of
 
 | Field | Meaning |
 | --- | --- |
-| `settings` | The run's settings. `algorithm` falls back to `runs.algorithm_name` for runs from before it was recorded; settings a run didn't record are `null`, except `blocks_per_day`, which is 5 (the only option then) |
+| `settings` | The run's settings. `algorithm` falls back to `runs.algorithm_name` for runs from before it was recorded; settings a run didn't record are `null`, except `blocks_per_day`, which is 5 (the only option then), and `promote_rooms`, which is `false` (no earlier run promoted) |
 | `settings_assumed` | Settings filled in that way (`["blocks_per_day"]` or `[]`) |
 | `settings_unused` | Recorded settings the run's algorithm ignores: Classic (`dsatur`) `["time_budget_seconds", "avoid_back_to_back"]`, Optimized (`annealing`) `["prioritize_large_courses"]` |
 | `unique_students` | From the enrollments upload metadata; `null` when unknown |
@@ -346,7 +346,7 @@ stored metadata; never the uploaded files. It is the `summary` field of
 | `unscheduled`, `unroomed` | The exams (`crn`, `course`, `size`) and their summed enrollment. `unscheduled` also has the stored `groups` and `other_crns` (unscheduled CRNs no group explains) |
 | `over_capacity` | `{crn, course, size, room, capacity}`, largest overflow first |
 | `conflicts` | Per type: `people` (distinct students or instructors; distinct exams for `large_courses_late`) and `instances`. Types: `student_double_book`, `instructor_double_book`, `student_over_daily_limit`, `instructor_over_daily_limit`, `student_back_to_back`, `instructor_back_to_back`, `large_courses_late` |
-| `rooms` | `used` (distinct rooms with a placed exam); `average_fill` (mean of size / capacity per placed exam with a known capacity, each capped at 100%, one decimal); `fill_buckets` (`under_50`, `from_50_to_75`, `from_75_to_90`, `from_90_to_100`; lower bound inclusive) |
+| `rooms` | `used` (different rooms holding a placed exam at any time in the exam period; reusing rooms across blocks lowers it); `uses` (room uses, see below: how many rooms are in use, summed over the blocks); `average_fill` (mean of size / capacity per placed exam with a known capacity, each capped at 100%, one decimal); `fill_buckets` (`under_50`, `from_50_to_75`, `from_75_to_90`, `from_90_to_100`; lower bound inclusive); `by_capacity` (room fill per fixed room-size bin, smallest first: capacities up to 30, 31–50, 51–80, 81–120, 121–200, 201+, each `{min, max, uses, students, seats, crowded, fill, average_fill}` with `max` `null` for the open bin. A *room use* is one room in one block, its students summed over every CRN seated there (a combined group counts once); rooms without a known capacity are left out. `fill` = students / seats and `average_fill` = the mean of each use's students / capacity, both in percent, one decimal, `null` without uses; `crowded` = uses at least 90% full). The Compare page shows `used` and `uses` as "Different rooms used" and `by_capacity` as "Room fill by room size" |
 | `calendar` | `slots_used` and `days_used` (distinct (day, block) pairs and days holding an exam, unroomed included); `days` (placed exams and seats per day, Monday first); `blocks` (placed exams per block, earliest first); `matrix` (placed exams per `[day][block]` in those orders) |
 | `groups` | `combined` and `common`: group count, and the exams (any state) in them with their summed enrollment. A combined group with any CRN in a common group counts as common as a whole |
 | `blockouts` | Rooms blocked and blocked (room, slot) entries, from the room blockouts upload metadata |

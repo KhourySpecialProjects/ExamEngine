@@ -86,7 +86,7 @@ export function ScheduleRunner() {
         </Button>
       </DialogTrigger>
 
-      <DialogContent className="max-w-2xl">
+      <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>Optimize Exam Schedule</DialogTitle>
           <DialogDescription>
@@ -333,6 +333,29 @@ export function ScheduleRunner() {
                 onCheckedChange={(checked) => {
                   if (isGenerating) return;
                   setParameters({ prioritize_large_courses: checked });
+                }}
+                disabled={isGenerating}
+              />
+            </div>
+
+            <Separator />
+
+            {/* Room Promotion */}
+            <div className="flex items-center justify-between">
+              <div className="space-y-1">
+                <Label htmlFor="promote-rooms">Promote to Larger Rooms</Label>
+                <p className="text-xs text-muted-foreground">
+                  After scheduling, move the fullest exams into larger free
+                  rooms in the same block, up to twice their enrollment (room
+                  for alternate-seat spacing)
+                </p>
+              </div>
+              <Switch
+                id="promote-rooms"
+                checked={parameters.promote_rooms ?? false}
+                onCheckedChange={(checked) => {
+                  if (isGenerating) return;
+                  setParameters({ promote_rooms: checked });
                 }}
                 disabled={isGenerating}
               />

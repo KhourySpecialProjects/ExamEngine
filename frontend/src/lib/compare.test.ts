@@ -11,6 +11,7 @@ import {
   compareIds,
   compareSettings,
   delta,
+  fillDelta,
   formatDelta,
   isScheduleId,
   moveColumn,
@@ -101,6 +102,13 @@ describe("difference from the baseline", () => {
     expect(formatDelta(-2)).toBe("−2");
     expect(formatDelta(0)).toBe("±0");
   });
+
+  it("gives a fill change in percentage points to one decimal, lower better", () => {
+    // 47.3 − 86.1 is −38.800000000000004 in floating point.
+    expect(fillDelta(47.3, 86.1)).toEqual({ value: -38.8, tone: "better" });
+    expect(fillDelta(60.2, 60.2)).toEqual({ value: 0, tone: "same" });
+    expect(fillDelta(50.1, 50)).toEqual({ value: 0.1, tone: "worse" });
+  });
 });
 
 describe("compareSettings", () => {
@@ -113,7 +121,7 @@ describe("compareSettings", () => {
     expect(differing.map((s) => s.label)).toEqual(["Max exam days"]);
     expect(differing[0].rows.map((r) => r.value)).toEqual(["7", "5"]);
     expect(same.map((s) => s.label)).toContain("Algorithm");
-    expect(same).toHaveLength(7);
+    expect(same).toHaveLength(8);
   });
 
   it("treats a setting one algorithm ignores as different from a used one", () => {

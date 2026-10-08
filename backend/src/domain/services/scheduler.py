@@ -7,7 +7,12 @@ from src.domain.constants import BLOCKS_PER_DAY
 from src.domain.models import Room, SchedulingDataset
 from src.domain.services.conflict_detector import Conflict, ConflictDetector
 from src.domain.services.constraint_evaluator import SoftConstraintEvaluator
-from src.domain.services.room_fit import RoomPools, large_only_cutoff, room_allows
+from src.domain.services.room_fit import (
+    RoomPools,
+    large_only_cutoff,
+    promote_to_larger_rooms,
+    room_allows,
+)
 from src.domain.value_objects import SchedulingState, SoftPenalty
 
 
@@ -100,6 +105,7 @@ class Scheduler:
         weight_b2b_instructor: int = 2,
         merges: dict[str, list[str]] | None = None,
         common_groups: dict[str, list[str]] | None = None,
+        promote_rooms: bool = False,
     ):
         """
         Initialize scheduler.
@@ -117,6 +123,8 @@ class Scheduler:
             merges: Combined groups, label → CRNs sharing one slot and one room.
             common_groups: Common groups, label → CRNs sharing one slot in
                 distinct rooms.
+            promote_rooms: After seating, move crowded exams into larger free
+                rooms of the same block (``promote_to_larger_rooms``).
 
         Raises:
             ValueError: blocks_per_day is outside 1..BLOCKS_PER_DAY, a CRN is in
@@ -133,6 +141,7 @@ class Scheduler:
         self.state = SchedulingState()
         self.merges = merges or {}
         self.common_groups = common_groups or {}
+        self.promote_rooms = promote_rooms
         # One entry per room name (last row wins, as when rooms are saved): a
         # name listed twice is still one room and can hold one exam at a time.
         self.rooms: list[Room] = list(
@@ -301,8 +310,6 @@ class Scheduler:
         """Mark groups and sections that no room inventory can ever seat."""
         rooms = self.rooms
         max_capacity = max((room.capacity for room in rooms), default=0)
-        # Capacities can be parsed as floats; show whole seats.
-        seats = f"{max_capacity:g}"
 
         for unit, crns in self.room_units.items():
             tg = self.crn_to_time_group[crns[0]]
@@ -313,7 +320,7 @@ class Scheduler:
                 self._mark_unscheduled(tg, "No rooms are available")
             elif enrollment > max_capacity:
                 self._mark_unscheduled(
-                    tg, f"{enrollment} students; largest room seats {seats}"
+                    tg, f"{enrollment} students; largest room seats {max_capacity}"
                 )
         oversized_units: dict[str, str] = {}
         for unit in self.unit_to_merge_label:
@@ -323,7 +330,7 @@ class Scheduler:
             elif enrollment > max_capacity:
                 oversized_units[unit] = (
                     f"Combined enrollment {enrollment} exceeds the largest room "
-                    f"capacity {seats}"
+                    f"capacity {max_capacity}"
                 )
             else:
                 continue
@@ -343,7 +350,7 @@ class Scheduler:
                     f"Contains combined group "
                     f"{self.unit_to_merge_label[oversized]} with "
                     f"{self.unit_enrollment[oversized]} students, more than the "
-                    f"largest room capacity {seats}",
+                    f"largest room capacity {max_capacity}",
                 )
             elif self._pack_units(units, rooms) is None:
                 self._mark_unscheduled(
@@ -732,7 +739,8 @@ class Scheduler:
 
         Slots were only chosen where their units fit (``_units_fit``), so every
         unit gets a distinct, unblocked room at least its size; no room is ever
-        over capacity.
+        over capacity. With ``promote_rooms``, crowded units then move into
+        larger free rooms of their slot.
 
         Returns:
             CRN → room name for every placed course.
@@ -748,6 +756,13 @@ class Scheduler:
             plan = self._pack_units(units, rooms)
             if plan is None:
                 raise RuntimeError(f"Exams placed at slot {slot} do not fit its rooms")
+            if self.promote_rooms:
+                plan = promote_to_larger_rooms(
+                    plan,
+                    {unit: self.unit_enrollment[unit] for unit in units},
+                    rooms,
+                    self.large_only_cutoff,
+                )
             for unit, room_name in plan.items():
                 for crn in self.room_units[unit]:
                     room_assignments[crn] = room_name

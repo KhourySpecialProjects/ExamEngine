@@ -3,7 +3,11 @@
  * URL names, column moves, differences from the baseline, the settings diff,
  * publishability and the shared chart scales.
  */
-import type { ConflictMetric, ScheduleSummary } from "@/lib/api/schedules";
+import type {
+  CapacityBin,
+  ConflictMetric,
+  ScheduleSummary,
+} from "@/lib/api/schedules";
 import {
   conflictDescriptions,
   conflictTypeMap,
@@ -150,6 +154,27 @@ export function formatDelta(value: number): string {
   if (value === 0) return "±0";
   const size = Math.abs(value).toLocaleString();
   return value > 0 ? `+${size}` : `−${size}`;
+}
+
+/**
+ * Change in a fill percentage, in percentage points to one decimal (computed
+ * in tenths, so no float noise). Lower fill is better: less crowded rooms.
+ */
+export function fillDelta(value: number, baseline: number): Delta {
+  const tenths = delta(Math.round(value * 10), Math.round(baseline * 10));
+  return { ...tenths, value: tenths.value / 10 };
+}
+
+// Room-size bins
+
+/** "Up to 30 seats", "31–50 seats" or "201+ seats". */
+export function capacityBinLabel({
+  min,
+  max,
+}: Pick<CapacityBin, "min" | "max">): string {
+  if (max === null) return `${min}+ seats`;
+  if (min <= 1) return `Up to ${max} seats`;
+  return `${min}–${max} seats`;
 }
 
 // Settings

@@ -23,6 +23,7 @@ export const useSchedulesStore = create<SchedulesState>((set, get) => ({
     blocks_per_day: 5,
     algorithm: "dsatur",
     time_budget_seconds: 15,
+    promote_rooms: false,
   },
 
   deleteSchedule: async (scheduleId: string) => {

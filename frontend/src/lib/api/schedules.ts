@@ -11,6 +11,8 @@ export interface ScheduleParameters {
   algorithm?: "dsatur" | "annealing";
   /** Annealing search time budget in seconds. */
   time_budget_seconds?: 5 | 15 | 30;
+  /** After seating, move crowded exams into larger free rooms of the same block. */
+  promote_rooms?: boolean;
 }
 
 /** One flat `conflicts.breakdown` record; populated fields vary by `conflict_type`. */
@@ -113,6 +115,8 @@ export interface ScheduleSettings {
   instructor_max_per_day: number | null;
   avoid_back_to_back: boolean | null;
   prioritize_large_courses: boolean | null;
+  /** Runs from before the setting existed never promoted: false, not null. */
+  promote_rooms: boolean;
 }
 
 export type FillBucket =
@@ -120,6 +124,25 @@ export type FillBucket =
   | "from_50_to_75"
   | "from_75_to_90"
   | "from_90_to_100";
+
+/**
+ * Room fill over the room uses (one room in one block, students summed over
+ * the CRNs seated there) of rooms whose capacity is in `min`..`max`.
+ */
+export interface CapacityBin {
+  min: number;
+  /** null: no upper bound. */
+  max: number | null;
+  uses: number;
+  students: number;
+  seats: number;
+  /** Room uses at least 90% full. */
+  crowded: number;
+  /** students / seats in percent (one decimal); null when there are no uses. */
+  fill: number | null;
+  /** Mean of each room use's students / capacity in percent; null without uses. */
+  average_fill: number | null;
+}
 
 /**
  * Every number shown about one schedule, computed by the server from saved
@@ -157,10 +180,15 @@ export interface ScheduleSummary {
   over_capacity: OverCapacityExam[];
   conflicts: Record<ConflictMetric, ConflictCount>;
   rooms: {
+    /** Different rooms holding a placed exam at any time in the exam period. */
     used: number;
+    /** Room uses: one room in one block holding a placed exam. */
+    uses: number;
     /** Mean seats filled per placed exam, capped at 100% per exam (0-100). */
     average_fill: number;
     fill_buckets: Record<FillBucket, number>;
+    /** Fill per room-size bin, smallest rooms first; always every bin. */
+    by_capacity: CapacityBin[];
   };
   calendar: {
     /** Distinct (day, block) pairs holding an exam, unroomed included. */
@@ -599,6 +627,9 @@ export class SchedulesAPI extends BaseAPI {
         "prioritize_large_courses",
         parameters.prioritize_large_courses.toString(),
       );
+    }
+    if (parameters.promote_rooms !== undefined) {
+      queryParams.append("promote_rooms", parameters.promote_rooms.toString());
     }
     return this.request(
       `/schedule/generate/${dataset_id}${queryParams.toString() ? `?${queryParams}` : ""}`,

@@ -5,6 +5,7 @@ Tests cover:
 - Student IDs keep their leading zeros (canonical and alias headers)
 - Numeric columns are still inferred as numbers
 - Zero-padded IDs flow unchanged through the scheduler and analyzer
+- A rooms.csv row without a capacity doesn't break room promotion
 """
 
 import pandas as pd
@@ -86,3 +87,26 @@ def test_zero_padded_student_id_reported_in_conflicts():
     assert {c["entity_id"] for c in double_books} == {"001234567"}
     back_to_back = analysis.soft_conflicts.back_to_back_students
     assert [c["student_id"] for c in back_to_back] == ["001234567"]
+
+
+def test_promotion_works_when_a_room_row_has_no_capacity():
+    """
+    A blank capacity drops that row and once made the other capacities floats,
+    which room promotion rejected. The 38-student exam moves from 40 to 70 seats.
+    """
+    enrollments_csv = "Student_PIDM,CRN\n" + "".join(
+        f"{i:09d},11310\n" for i in range(38)
+    )
+    dataset = DatasetFactory.from_dataframes_to_scheduling_dataset(
+        courses_df=read_upload_csv(
+            b"CRN,CourseID,Enrollment\n11310,CS 2500,38\n", "courses"
+        ),
+        enrollment_df=read_upload_csv(enrollments_csv.encode(), "enrollments"),
+        rooms_df=read_upload_csv(
+            b"Room,Capacity\nSmall,40\nBig,70\nUnknown,\n", "rooms"
+        ),
+    )
+
+    result = Scheduler(dataset=dataset, max_days=1, promote_rooms=True).schedule()
+
+    assert result.room_assignments == {"11310": "Big"}

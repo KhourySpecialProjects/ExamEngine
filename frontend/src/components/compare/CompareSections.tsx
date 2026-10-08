@@ -6,14 +6,16 @@ import {
   ExternalLink,
 } from "lucide-react";
 import Link from "next/link";
-import { useState } from "react";
+import { type ReactNode, useState } from "react";
 import type { FillBucket } from "@/lib/api/schedules";
 import {
   CONFLICT_ROWS,
+  capacityBinLabel,
   compareSettings,
   countOf,
   type Delta,
   delta,
+  fillDelta,
   formatDelta,
   publishBlockers,
 } from "@/lib/compare";
@@ -39,7 +41,7 @@ const TONE_WORDS: Record<Delta["tone"], string> = {
   same: "same as the baseline",
 };
 
-function DeltaBadge({ value }: { value: Delta }) {
+function DeltaBadge({ value, unit = "" }: { value: Delta; unit?: string }) {
   return (
     <span
       className={cn(
@@ -49,6 +51,7 @@ function DeltaBadge({ value }: { value: Delta }) {
       title={TONE_WORDS[value.tone]}
     >
       {formatDelta(value.value)}
+      {unit}
       <span className="sr-only"> ({TONE_WORDS[value.tone]})</span>
     </span>
   );
@@ -254,11 +257,31 @@ export function RoomsSection() {
   return (
     <CompareSection title="Rooms">
       <MetricRow
-        label="Rooms used"
+        label="Different rooms used"
+        info={
+          <>
+            <p>
+              How many different rooms hold an exam at any time in the exam
+              period. Reusing the same rooms block after block lowers it.
+            </p>
+            <p className="mt-2 text-muted-foreground">
+              Room uses: one room in one block, i.e. how many rooms are in use
+              summed over the blocks.
+            </p>
+          </>
+        }
         cell={(column) => (
-          <span className="text-sm font-semibold tabular-nums">
-            {column.schedule.summary.rooms.used.toLocaleString()}
-          </span>
+          <div className="text-sm">
+            <span className="font-semibold tabular-nums">
+              {column.schedule.summary.rooms.used.toLocaleString()}
+            </span>
+            <div className="text-xs text-muted-foreground tabular-nums">
+              {countOf(column.schedule.summary.rooms.uses, [
+                "room use",
+                "room uses",
+              ])}
+            </div>
+          </div>
         )}
       />
       <MetricRow
@@ -286,5 +309,93 @@ export function RoomsSection() {
         )}
       />
     </CompareSection>
+  );
+}
+
+export function RoomSizeSection() {
+  const columns = shownColumns(useGridColumns());
+  const baseline = columns.find((c) => c.isBaseline);
+  // The server always returns the same fixed bins, in the same order.
+  const bins = columns[0]?.schedule.summary.rooms.by_capacity ?? [];
+  return (
+    <CompareSection title="Room fill by room size">
+      {bins.map((bin, index) => {
+        const label = capacityBinLabel(bin);
+        return (
+          <MetricRow
+            key={label}
+            label={label}
+            info={
+              <>
+                <p>
+                  Over every room use in rooms of this size: seats filled
+                  (students seated ÷ seats) and the average exam&apos;s fill
+                  (the mean of each room use&apos;s fill, so small exams count
+                  as much as large ones). A room use is one room in one block;
+                  the CRNs of a combined group sharing it count together.
+                </p>
+                <p className="mt-2 text-muted-foreground">
+                  Crowded: room uses at least 90% full. Lower fill means roomier
+                  exams.
+                </p>
+              </>
+            }
+            cell={(column) => {
+              const own = column.schedule.summary.rooms.by_capacity[index];
+              if (!own || own.fill === null || own.average_fill === null) {
+                return (
+                  <span className="text-sm text-muted-foreground">
+                    No room uses
+                  </span>
+                );
+              }
+              const base =
+                baseline && !column.isBaseline
+                  ? baseline.schedule.summary.rooms.by_capacity[index]
+                  : null;
+              return (
+                <div className="space-y-0.5 text-sm">
+                  <FillLine value={own.fill} baseline={base?.fill}>
+                    <span className="font-semibold">
+                      {own.fill}% of seats filled
+                    </span>
+                  </FillLine>
+                  <FillLine
+                    value={own.average_fill}
+                    baseline={base?.average_fill}
+                  >
+                    Average exam {own.average_fill}% full
+                  </FillLine>
+                  <div className="text-xs text-muted-foreground tabular-nums">
+                    {countOf(own.uses, ["room use", "room uses"])} ·{" "}
+                    {own.crowded.toLocaleString()} crowded
+                  </div>
+                </div>
+              );
+            }}
+          />
+        );
+      })}
+    </CompareSection>
+  );
+}
+
+/** A fill figure, then its change from the baseline's (when there is one). */
+function FillLine({
+  value,
+  baseline,
+  children,
+}: {
+  value: number;
+  baseline: number | null | undefined;
+  children: ReactNode;
+}) {
+  return (
+    <div className="flex flex-wrap items-center gap-x-2 gap-y-1 tabular-nums">
+      {children}
+      {baseline != null && (
+        <DeltaBadge value={fillDelta(value, baseline)} unit=" pts" />
+      )}
+    </div>
   );
 }

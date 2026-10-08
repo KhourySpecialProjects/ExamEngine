@@ -1,4 +1,5 @@
 import type {
+  CapacityBin,
   LateAddition,
   ScheduleResult,
   ScheduleSettings,
@@ -15,9 +16,32 @@ export const CLASSIC_SETTINGS: ScheduleSettings = {
   instructor_max_per_day: 2,
   avoid_back_to_back: true,
   prioritize_large_courses: false,
+  promote_rooms: false,
 };
 
 const noConflicts = { people: 0, instances: 0 };
+
+/** The server's room-size bins (`rooms.by_capacity`), every one empty. */
+export function makeCapacityBins(): CapacityBin[] {
+  const ranges: [number, number | null][] = [
+    [0, 30],
+    [31, 50],
+    [51, 80],
+    [81, 120],
+    [121, 200],
+    [201, null],
+  ];
+  return ranges.map(([min, max]) => ({
+    min,
+    max,
+    uses: 0,
+    students: 0,
+    seats: 0,
+    crowded: 0,
+    fill: null,
+    average_fill: null,
+  }));
+}
 
 /** A publishable Classic schedule's summary: 3 exams, no conflicts. */
 export function makeSummary(
@@ -49,6 +73,7 @@ export function makeSummary(
     },
     rooms: {
       used: 1,
+      uses: 1,
       average_fill: 50,
       fill_buckets: {
         under_50: 0,
@@ -56,6 +81,7 @@ export function makeSummary(
         from_75_to_90: 0,
         from_90_to_100: 0,
       },
+      by_capacity: makeCapacityBins(),
     },
     calendar: { slots_used: 0, days_used: 0, days: [], blocks: [], matrix: [] },
     groups: {

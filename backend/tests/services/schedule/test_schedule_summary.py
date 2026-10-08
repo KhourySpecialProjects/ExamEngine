@@ -141,6 +141,78 @@ class TestExams:
         assert calendar["days_used"] == 2
 
 
+class TestRoomSizeBins:
+    @staticmethod
+    def _bins(exams) -> dict:
+        """`rooms.by_capacity` keyed by each bin's largest capacity (None = open)."""
+        return {b["max"]: b for b in _summary(exams)["rooms"]["by_capacity"]}
+
+    def test_every_bin_is_listed_and_capacities_fall_on_their_bounds(self):
+        bins = self._bins(
+            [
+                _exam("1", 10, "Monday", 9, "A", 30),
+                _exam("2", 10, "Monday", 9, "B", 31),
+                _exam("3", 10, "Monday", 9, "C", 200),
+                _exam("4", 10, "Monday", 9, "D", 201),
+            ]
+        )
+
+        assert [(b["min"], m) for m, b in bins.items()] == [
+            (0, 30),
+            (31, 50),
+            (51, 80),
+            (81, 120),
+            (121, 200),
+            (201, None),
+        ]
+        assert {m: b["uses"] for m, b in bins.items()} == {
+            30: 1,
+            50: 1,
+            80: 0,
+            120: 0,
+            200: 1,
+            None: 1,
+        }
+        assert bins[80]["fill"] is None
+
+    def test_a_room_use_sums_the_crns_seated_there(self):
+        # Combined CRNs 1 + 2 share A in one block (one use, 36 of 40: crowded);
+        # 3 uses A again in another block (10 of 40); 4 uses B (10 of 50).
+        exams = [
+            _exam("1", 18, "Monday", 9, "A", 40),
+            _exam("2", 18, "Monday", 9, "A", 40),
+            _exam("3", 10, "Monday", 14, "A", 40),
+            _exam("4", 10, "Monday", 9, "B", 50),
+        ]
+        rooms = _summary(exams)["rooms"]
+
+        # Two different rooms, three room uses.
+        assert (rooms["used"], rooms["uses"]) == (2, 3)
+        assert self._bins(exams)[50] == {
+            "min": 31,
+            "max": 50,
+            "uses": 3,
+            "students": 56,
+            "seats": 130,
+            "crowded": 1,
+            # Seats filled overall, then the mean of 90%, 25% and 20%.
+            "fill": 43.1,
+            "average_fill": 45.0,
+        }
+
+    def test_crowded_starts_at_ninety_percent_and_unknown_capacity_is_left_out(self):
+        bins = self._bins(
+            [
+                _exam("1", 26, "Monday", 9, "A", 30),
+                _exam("2", 27, "Monday", 9, "B", 30),
+                _exam("3", 50, "Monday", 9, "C", 0),
+            ]
+        )
+
+        assert (bins[30]["uses"], bins[30]["crowded"]) == (2, 1)
+        assert sum(b["uses"] for b in bins.values()) == 2
+
+
 class TestDatasetContext:
     def test_a_combined_exam_listed_in_a_common_group_is_common_as_a_whole(self):
         summary = _summary(
@@ -287,6 +359,8 @@ class TestSettings:
         assert assumed == ["blocks_per_day"]
         assert settings["max_days"] is None
         assert settings["avoid_back_to_back"] is None
+        # Room promotion did not exist yet, so these runs never promoted.
+        assert settings["promote_rooms"] is False
 
     def test_recorded_settings_are_used_as_stored(self):
         params = {
@@ -298,6 +372,7 @@ class TestSettings:
             "avoid_back_to_back": False,
             "prioritize_large_courses": True,
             "time_budget_seconds": 30,
+            "promote_rooms": True,
         }
 
         settings, assumed = resolve_settings("Annealing", params)

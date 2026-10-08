@@ -90,11 +90,17 @@ def _random_dataset(seed: int, large_only: bool = False):
 @pytest.mark.parametrize("algorithm", ALGORITHMS)
 @pytest.mark.parametrize("seed", range(8))
 @pytest.mark.parametrize("large_only", [False, True])
-def test_no_room_is_ever_over_capacity(algorithm, seed, large_only):
+@pytest.mark.parametrize("promote_rooms", [False, True])
+def test_no_room_is_ever_over_capacity(algorithm, seed, large_only, promote_rooms):
     dataset, merges, commons = _random_dataset(seed, large_only)
     capacity = {room.name: room.capacity for room in dataset.rooms}
     scheduler = _scheduler(
-        algorithm, dataset, max_days=2, merges=merges, common_groups=commons
+        algorithm,
+        dataset,
+        max_days=2,
+        merges=merges,
+        common_groups=commons,
+        promote_rooms=promote_rooms,
     )
 
     result = scheduler.schedule()
@@ -111,6 +117,33 @@ def test_no_room_is_ever_over_capacity(algorithm, seed, large_only):
         cutoff = max(r.capacity for r in dataset.rooms if not r.large_only)
         for (slot, room), students in _seated(dataset, result).items():
             assert (room == "Hall") == (students > cutoff), (slot, room, students)
+
+
+@pytest.mark.parametrize("algorithm", ALGORITHMS)
+def test_promotion_moves_a_combined_group_as_one_and_skips_blocked_rooms(algorithm):
+    # One slot. M (C1 + C2 = 40) fills Small; Big is blocked out, so M takes Mid.
+    dataset = _dataset(
+        {"C1": 20, "C2": 20},
+        {"Small": 40, "Mid": 70, "Big": 80},
+        blockouts={"Big": frozenset({(0, 0)})},
+    )
+
+    def rooms(promote_rooms: bool) -> dict[str, str]:
+        return (
+            _scheduler(
+                algorithm,
+                dataset,
+                max_days=1,
+                blocks_per_day=1,
+                merges={"M": ["C1", "C2"]},
+                promote_rooms=promote_rooms,
+            )
+            .schedule()
+            .room_assignments
+        )
+
+    assert rooms(False) == {"C1": "Small", "C2": "Small"}
+    assert rooms(True) == {"C1": "Mid", "C2": "Mid"}
 
 
 @pytest.mark.parametrize("algorithm", ALGORITHMS)

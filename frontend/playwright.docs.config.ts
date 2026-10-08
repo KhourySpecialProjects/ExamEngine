@@ -3,7 +3,7 @@ import { defineConfig, devices } from "@playwright/test";
 /**
  * Docs screenshots (not tests): `npm run docs:screenshots` drives the local dev
  * stack and writes the images used by content/docs. See
- * docs-screenshots/quickstart.screenshots.ts for prerequisites.
+ * docs-screenshots/docs.screenshots.ts for prerequisites.
  */
 export default defineConfig({
   testDir: "./docs-screenshots",
@@ -12,7 +12,7 @@ export default defineConfig({
   workers: 1,
   retries: 0,
   reporter: "list",
-  timeout: 5 * 60_000,
+  timeout: 3 * 60_000,
   expect: { timeout: 30_000 },
   use: {
     ...devices["Desktop Chrome"],

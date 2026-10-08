@@ -123,26 +123,38 @@ type ShotOptions = {
   toasts?: boolean;
 };
 
-/** Save an element as content/docs/images/<name>.webp. */
+/**
+ * Save an element, or the smallest area holding several, as
+ * content/docs/images/<name>.webp.
+ */
 async function shot(
   page: Page,
-  target: Locator,
+  target: Locator | Locator[],
   name: string,
   { pad = 0, maxHeight = Infinity, toasts = false }: ShotOptions = {},
 ) {
-  await target.scrollIntoViewIfNeeded();
-  const box = await target.boundingBox();
-  if (!box) throw new Error(`${name}: element not visible`);
+  const targets = Array.isArray(target) ? target : [target];
+  await targets[0].scrollIntoViewIfNeeded();
+  const boxes = [];
+  for (const t of targets) {
+    const box = await t.boundingBox();
+    if (!box) throw new Error(`${name}: element not visible`);
+    boxes.push(box);
+  }
+  const left = Math.min(...boxes.map((b) => b.x));
+  const top = Math.min(...boxes.map((b) => b.y));
+  const right = Math.max(...boxes.map((b) => b.x + b.width));
+  const bottom = Math.max(...boxes.map((b) => b.y + b.height));
   const scroll = await page.evaluate(() => ({ x: scrollX, y: scrollY }));
   // Let entrance animations (dialogs, toasts, popovers) settle.
   await page.waitForTimeout(500);
   const png = await page.screenshot({
     fullPage: true,
     clip: {
-      x: Math.max(0, box.x + scroll.x - pad),
-      y: Math.max(0, box.y + scroll.y - pad),
-      width: box.width + 2 * pad,
-      height: Math.min(box.height, maxHeight) + 2 * pad,
+      x: Math.max(0, left + scroll.x - pad),
+      y: Math.max(0, top + scroll.y - pad),
+      width: right - left + 2 * pad,
+      height: Math.min(bottom - top, maxHeight) + 2 * pad,
     },
     // The Next dev-tools badge (nextjs-portal) never belongs in the docs.
     style: `nextjs-portal { display: none !important; }${
@@ -171,7 +183,7 @@ const toast = (page: Page, title: string) =>
 
 // The `page` fixture carries the config's viewport and scale, and starts with
 // no cookies (the login page redirects signed-in users).
-test("quickstart screenshots", async ({ page }) => {
+test("docs screenshots", async ({ page }) => {
   await mkdir(OUT_DIR, { recursive: true });
 
   const admin = await apiSession(ADMIN.email, ADMIN.password);
@@ -190,6 +202,7 @@ test("quickstart screenshots", async ({ page }) => {
     await signUp.locator("#su-name").fill(DEMO.name);
     await signUp.locator("#su-email").fill(DEMO.email);
     await signUp.locator("#su-password").fill(DEMO.password);
+    await signUp.locator("#su-password").blur();
     await shot(page, signUp, "signup");
 
     await page.getByRole("tab", { name: "Sign in" }).click();
@@ -206,6 +219,7 @@ test("quickstart screenshots", async ({ page }) => {
 
     await signIn.locator("#email").fill(DEMO.email);
     await signIn.locator("#password").fill(DEMO.password);
+    await signIn.locator("#password").blur();
     await shot(page, signIn, "signin");
     await signIn.getByRole("button", { name: "Login" }).click();
     await page.waitForURL("**/dashboard");
@@ -260,6 +274,35 @@ test("quickstart screenshots", async ({ page }) => {
     await expect(dialog).toBeHidden();
   });
 
+  await test.step("header, user menu and tour", async () => {
+    const header = page.locator("header").first();
+    await shot(page, header, "header");
+
+    // Not by role: while the menu is open, Radix hides the rest from ARIA.
+    const userButton = header.locator("button", { hasText: DEMO.name });
+    await userButton.click();
+    const menu = page.getByRole("menu");
+    const headerRight = header.locator(":scope > div").last();
+    await shot(page, [headerRight, menu], "user-menu", { pad: 8 });
+    await page.keyboard.press("Escape");
+    await expect(menu).toBeHidden();
+
+    await header.locator("button:has(svg.lucide-circle-question-mark)").click();
+    const card = page
+      .locator('[data-slot="card"]')
+      .filter({ hasText: "1 of 5" });
+    await expect(card).toBeVisible();
+    // The highlighted sidebar and the tour card, cropped below the card.
+    const sidebar = page.locator("#control-center");
+    const sidebarTop = (await sidebar.boundingBox())?.y ?? 0;
+    const cardBox = await card.boundingBox();
+    await shot(page, [sidebar, card], "tour", {
+      maxHeight: (cardBox ? cardBox.y + cardBox.height : 0) - sidebarTop + 16,
+    });
+    await card.locator("button:has(svg.lucide-x)").click();
+    await expect(card).toBeHidden();
+  });
+
   await test.step("review the Classic schedule", async () => {
     const list = page.locator("#schedule-view");
     await expect(list.getByRole("link", { name: OPTIMIZED })).toBeVisible();
@@ -295,6 +338,14 @@ test("quickstart screenshots", async ({ page }) => {
     const download = page.waitForEvent("download");
     await page.getByRole("button", { name: "Export Schedule" }).click();
     expect((await download).suggestedFilename()).toBe("schedule_exams.csv");
+  });
+
+  await test.step("change password form", async () => {
+    await page.goto("/dashboard/settings");
+    const card = page
+      .locator('[data-slot="card"]')
+      .filter({ has: page.getByText("Change Password", { exact: true }) });
+    await shot(page, card, "change-password");
   });
 
   await wipeDemo(demo.api);

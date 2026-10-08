@@ -57,6 +57,11 @@ via `nuqs`, the first being the baseline),
 `components/` (feature dirs, `common/` shared pieces such as `table/PaginationBar`, `ui/`
 Shadcn), `lib/api/` (API client), `lib/store/` (Zustand), `lib/hooks/`. Generation settings are
 listed once in `lib/scheduleSettings.ts`. Tests sit next to the code as `*.test.ts(x)`.
+User docs (public, `/docs`): Fumadocs; MDX pages in `frontend/content/docs/` (each folder's
+`meta.json` sets sidebar title and order), route in `app/docs/`, source in `lib/docs/source.ts`.
+`next dev`/`next build` compile the content into `frontend/.source/` (gitignored); on a fresh
+checkout run `npx fumadocs-mdx` once before `tsc`. The search index is `/docs/search.json`, not
+under `/api/` (the proxy sends `/api/` to the backend).
 
 ## Branches and environments
 
@@ -135,7 +140,7 @@ trigger only on `main`/`master` (EXENG-40). Run the checks locally before claimi
 | `cd backend && .venv/bin/pytest -q -p no:cacheprovider --no-cov` | all backend tests (DB tests need the dev stack's Postgres; they skip without it) |
 | `cd backend && .venv/bin/ruff check --no-fix <files>` | backend lint (`pyproject.toml` sets `fix = true`, so plain `ruff check` rewrites files) |
 | `cd frontend && npx vitest run` | frontend unit tests (bare `vitest` starts watch mode) |
-| `cd frontend && npx tsc --noEmit --incremental false` | frontend type check |
+| `cd frontend && npx tsc --noEmit --incremental false` | frontend type check (fresh checkout: `npx fumadocs-mdx` first) |
 | `cd frontend && npx biome check <files>` | frontend lint (read-only without `--write`) |
 | `cd frontend && npm run test:e2e` | Playwright e2e (needs `npx playwright install` once) |
 

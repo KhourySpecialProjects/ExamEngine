@@ -9,7 +9,7 @@ declare global {
   }
 }
 
-import { CircleQuestionMark, Settings } from "lucide-react";
+import { BookOpen, CircleQuestionMark, Settings } from "lucide-react";
 import Image from "next/image";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -65,6 +65,13 @@ export function DashboardHeader() {
           variant="ghost"
         >
           <CircleQuestionMark className="h-5 w-5"></CircleQuestionMark>
+        </Button>
+
+        {/* Documentation */}
+        <Button asChild size="icon" variant="ghost">
+          <Link href="/docs" aria-label="Docs" title="Docs">
+            <BookOpen className="h-5 w-5" />
+          </Link>
         </Button>
 
         {/* Settings */}

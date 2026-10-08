@@ -3,6 +3,7 @@ import { RootProvider } from "fumadocs-ui/provider";
 import { LayoutDashboard } from "lucide-react";
 import type { Metadata } from "next";
 import Image from "next/image";
+import { SectionHeading } from "@/components/docs/SectionHeading";
 import { source } from "@/lib/docs/source";
 
 export const metadata: Metadata = {
@@ -36,6 +37,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
             icon: <LayoutDashboard />,
           },
         ]}
+        sidebar={{ components: { Separator: SectionHeading } }}
         themeSwitch={{ enabled: false }}
       >
         {children}

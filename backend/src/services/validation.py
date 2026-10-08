@@ -140,7 +140,7 @@ def get_file_statistics(
             if large is not None:
                 stats["large_only_room"] = {
                     "name": large.name,
-                    "capacity": int(large.capacity),
+                    "capacity": large.capacity,
                     "cutoff": int(large_only_cutoff(rooms)),
                 }
 

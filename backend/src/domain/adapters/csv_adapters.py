@@ -525,7 +525,9 @@ class RoomAdapter:
             try:
                 room = Room(
                     name=row["Location Name"],
-                    capacity=row["Capacity"],
+                    # Whole after parse_capacity, but float when the column
+                    # had a blank capacity (NaN).
+                    capacity=int(row["Capacity"]),
                     large_only=bool(row["LargeOnly"]) if has_large_only else False,
                 )
                 rooms.append(room)

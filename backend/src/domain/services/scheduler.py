@@ -310,8 +310,6 @@ class Scheduler:
         """Mark groups and sections that no room inventory can ever seat."""
         rooms = self.rooms
         max_capacity = max((room.capacity for room in rooms), default=0)
-        # Capacities can be parsed as floats; show whole seats.
-        seats = f"{max_capacity:g}"
 
         for unit, crns in self.room_units.items():
             tg = self.crn_to_time_group[crns[0]]
@@ -322,7 +320,7 @@ class Scheduler:
                 self._mark_unscheduled(tg, "No rooms are available")
             elif enrollment > max_capacity:
                 self._mark_unscheduled(
-                    tg, f"{enrollment} students; largest room seats {seats}"
+                    tg, f"{enrollment} students; largest room seats {max_capacity}"
                 )
         oversized_units: dict[str, str] = {}
         for unit in self.unit_to_merge_label:
@@ -332,7 +330,7 @@ class Scheduler:
             elif enrollment > max_capacity:
                 oversized_units[unit] = (
                     f"Combined enrollment {enrollment} exceeds the largest room "
-                    f"capacity {seats}"
+                    f"capacity {max_capacity}"
                 )
             else:
                 continue
@@ -352,7 +350,7 @@ class Scheduler:
                     f"Contains combined group "
                     f"{self.unit_to_merge_label[oversized]} with "
                     f"{self.unit_enrollment[oversized]} students, more than the "
-                    f"largest room capacity {seats}",
+                    f"largest room capacity {max_capacity}",
                 )
             elif self._pack_units(units, rooms) is None:
                 self._mark_unscheduled(

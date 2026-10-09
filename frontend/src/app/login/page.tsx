@@ -231,7 +231,7 @@ function LoginContent() {
               About
             </Link>
             <Link
-              href="/faq"
+              href="/docs/faq"
               className="px-3 py-1 rounded-full bg-slate-900 text-white text-sm"
             >
               FAQ

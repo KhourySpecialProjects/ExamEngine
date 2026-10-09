@@ -1,0 +1,136 @@
+---
+title: Troubleshooting
+description: What an error or an odd result means, and what to do about it.
+---
+
+## An upload fails
+
+When a file is rejected, nothing is saved. A **Validation failed** message names each file with a
+problem, and that file's slot in the **Upload Dataset** dialog turns red with the reason. The other
+files show **Not uploaded: another file failed validation**: fix the bad file and upload them all
+again.
+
+| Message | What to do |
+| --- | --- |
+| **Invalid file type**: Please upload a CSV file | Only files ending in `.csv` (lowercase) are accepted. Save the file as CSV, or rename `.CSV` to `.csv`. |
+| **Required files are missing (courses, enrollments, rooms)** | Add a file to each of the three required slots. |
+| **Dataset of name: … already exists** | You already have a dataset with this name. Choose another name. The check is case-sensitive, and the name of a deleted dataset can be used again. |
+| **File is empty** | The file has no content. Export it again from its source. |
+| **Missing columns: CSV columns \{…\} don't match any known schema for …** | A required column is missing or has a header ExamEngine doesn't recognize. The message lists the headers it found, not the missing one. Compare them with the column list below. |
+| **Invalid CSV: …** | The file isn't valid CSV, for example a row with the wrong number of fields or a stray quote. Open it in a spreadsheet and save it as CSV again. |
+| **LargeOnly must be y/yes/1/true or n/no/0/false (blank means no)** | Fix the listed rows of the rooms file. |
+| **Only one room may be marked LargeOnly** | Mark at most one room. |
+| **LargeOnly room … must seat more than every other room** | Only the single largest room can be large-only. Unmark it, or mark the largest room instead. |
+| Messages about an **exam group** or **common group** | The combined or common exams file has a problem: a row missing its group or CRN, a group with fewer than two CRNs, a CRN in two groups, or CRNs that aren't in the courses file or have no students. The message names the group and the rows or CRNs. |
+
+Headers are matched without regard to case or surrounding spaces, and extra columns are ignored.
+The required columns are:
+
+| File | Required columns |
+| --- | --- |
+| Courses | `CRN`, `CourseID`, and the enrollment count (`Enrollment` or `num_students`). An instructor column (`Instructor Name` or `instructor_name`) is optional, but sections without it have no instructor conflicts. |
+| Enrollments | `NUID`, `CRN` |
+| Rooms | `Room` (or `room_name`), `Capacity`; optionally `LargeOnly` |
+| Room blockouts | `Room`, `Day`, `Block` |
+| Combined exams | `ExamGroup`, `CRN` |
+| Common exams | `Common_Group` (or `CommonGroup`), `CRN` |
+
+The files in [the sample data](/docs/start/quickstart) use these headers.
+
+Some problems don't stop the upload: duplicate CRNs in the courses file (the last row wins) and
+enrollment rows for CRNs that aren't in the courses file (ignored). **Validate Schedule** reports
+both, under **Duplicate rows** and **Enrollments for unknown courses**.
+
+The upload can also succeed with a warning, such as **Some sections are larger than every room**.
+The exams it names will be left unscheduled; see
+[Many exams are unscheduled](#many-exams-are-unscheduled).
+
+## Generation fails
+
+A failed run shows a **Generation failed** message with the reason.
+
+- **Schedule name '…' already exists**: every schedule name can be used once among your schedules,
+  across all datasets. A run that failed also keeps its name: it stays in the schedules list with
+  a red **Failed** badge. Choose another name, or delete the failed schedule first.
+- **Course data validation failed** followed by rows such as **Row 3: Missing CRN**: a row of the
+  courses file is missing its CRN, course code or enrollment, or has a negative enrollment. The row
+  numbers count from 0 and don't include the header row, so row 3 is the fifth line of the file.
+  Fix the file and upload it as a new dataset.
+- **Failed to connect to backend** or **Request failed with status …**: the app couldn't reach
+  the server, or the server stopped the request. Wait a moment and try again; if it keeps
+  happening, contact your ExamEngine administrator.
+
+Running out of rooms or having conflicts never makes a run fail: those exams are left unscheduled
+or the conflicts are reported.
+
+## Generation takes a long time
+
+**Classic** places every exam in a single pass and has no time setting. **Optimized** keeps
+improving the schedule for up to the **Optimization Time** you chose (5, 15 or 30 seconds), and
+then needs time to save the result. If runs take too long, choose a shorter **Optimization Time**
+or use **Classic**.
+
+While a schedule generates, the button reads **Generating...** and the schedules list shows the
+new schedule as **Running**. Keep the page open until the **Schedule generated!** message appears.
+
+## Many exams are unscheduled
+
+An exam is left unscheduled only when it can't get a room: conflicts never cause it. Open the
+schedule's **Statistics** tab: under **Needs attention**, **Unscheduled exams** lists each section,
+combined exam or common exam with its reason. In the **List** tab the reason shows when you point
+at **Unscheduled**.
+
+| Reason | What to do |
+| --- | --- |
+| **… students; largest room seats …** | The section is larger than every room. Add a larger room to the rooms file, or split the section. |
+| **Combined enrollment … exceeds the largest room capacity …** | A combined exam's total is larger than every room. Add a larger room, or split the group in the combined exams file. |
+| **No time block has a free, unblocked room large enough for its … students** | A room big enough exists, but in every exam block it is taken by another exam or blocked out. Allow more exam blocks (**Maximum Days for Exam Period**, **Exam Blocks Per Day** set to 5), or remove room blockouts. |
+| **No time block has … free, unblocked rooms large enough for its exams** | A common exam needs one room per section, all in the same exam block, and no block has enough of them free. Same fixes as above. |
+| Mentions the **large-only room** | Exams larger than every other room can only use the large-only room, and no other exam may use it. If many exams need it, it can be taken in every block. |
+| **No rooms are available** | The rooms file has no usable rooms: every row is missing a name or has no capacity. |
+
+Then generate again from the corrected dataset, or with more days or blocks. Courses with no
+enrolled students are skipped rather than listed as unscheduled, since nobody sits their exam.
+
+## Late Add finds no free room
+
+When Late Add shows **No block has a free room that fits**, every room big enough for the exam is
+already in use, blocked out, or reserved as the large-only room, in every exam block. Late Add
+never moves a scheduled exam to make space, so it can't save this exam.
+
+Below the message, **Largest free room open to this exam, per block** shows, for each block, the
+biggest room that is still free; **no free room** means none is free at all. Compare those
+capacities with the number of students shown at the top of the results: it is the number of
+students enrolled in the CRN in the enrollments file.
+
+There is no way to force the exam in. To place it, add the course to your courses file, upload the
+files as a new dataset, and generate a new schedule. See [Late Add](/docs/changing/late-add).
+
+## A schedule won't open
+
+A **Failed to load schedule** message saying **Schedule … not found** means one of these:
+
+- The schedule was deleted.
+- It belongs to someone else and isn't shared with you. Ask its owner to
+  [share it](/docs/working-with-others/sharing).
+- The link is wrong or incomplete.
+
+The message is the same in each case, so it doesn't tell you whether a schedule you can't see
+exists. Other cases:
+
+- A schedule still generating shows as **Running** in the list. Wait until it finishes before you
+  open it.
+- A schedule with a red **Failed** badge opens with no exams. Delete it and generate again.
+
+## The dataset was deleted
+
+Deleting a dataset can't be undone, but the schedules made from it are kept. They show a red
+**Deleted** badge next to the dataset name. You can still view them, use every tab, export, share,
+validate and compare them. What no longer works, because the uploaded files are gone:
+
+- **Late Add** is disabled. Pointing at it explains that the dataset was deleted.
+- In **Explore**, looking up a student by NUId fails. Instructors, rooms and courses still work,
+  but a room's **Blocked times** list is unavailable.
+- **Validate Schedule** marks the checks that need the files as **Skipped**.
+
+To generate new schedules, upload the same files again as a new dataset.

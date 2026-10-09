@@ -6,6 +6,10 @@
     "calendar-views",
     "list-view",
     "statistics",
+    "conflicts",
+    "explore",
+    "validating",
+    "comparing",
     "exporting"
   ]
 }

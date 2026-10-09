@@ -69,7 +69,7 @@ export function DashboardHeader() {
 
         {/* Documentation */}
         <Button asChild size="icon" variant="ghost">
-          <Link href="/docs" aria-label="Docs" title="Docs">
+          <Link id="docs-id" href="/docs" aria-label="Docs" title="Docs">
             <BookOpen className="h-5 w-5" />
           </Link>
         </Button>

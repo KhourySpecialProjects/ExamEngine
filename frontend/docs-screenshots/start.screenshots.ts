@@ -155,7 +155,7 @@ test("docs screenshots", async ({ page }) => {
     await header.locator("button:has(svg.lucide-circle-question-mark)").click();
     const card = page
       .locator('[data-slot="card"]')
-      .filter({ hasText: "1 of 5" });
+      .filter({ hasText: "1 of 6" });
     await expect(card).toBeVisible();
     // The highlighted sidebar and the tour card, cropped below the card.
     const sidebar = page.locator("#control-center");

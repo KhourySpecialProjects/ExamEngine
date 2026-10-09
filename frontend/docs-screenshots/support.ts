@@ -29,6 +29,12 @@ export const PENDING = {
   email: "docs-pending@northeastern.edu",
   password: "Docs-pending-2026!",
 };
+/** A second approved account: the recipient in the Sharing screenshots. */
+export const VIEWER = {
+  name: "Viewer Demo",
+  email: "docs-viewer@northeastern.edu",
+  password: "Docs-viewer-2026!",
+};
 export const DATASET = "Sample data";
 export const CLASSIC = "Sample schedule (Classic)";
 export const OPTIMIZED = "Sample schedule (Optimized)";

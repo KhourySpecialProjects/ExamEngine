@@ -25,10 +25,15 @@ those sections (e.g. 4 of 6 BIOL sections); some contain a combined pair
 in an otherwise empty block. Standalone combined groups pair unused sibling
 sections or, failing that, unrelated unused CRNs (cross-listing). With
 --oversize-combined, extra combined groups exceed the largest room so the
-unscheduled path is exercised.
+unscheduled path is exercised. With --late-adds, extra CRNs (exams that missed
+generation) are enrolled by existing students but written only to
+enrollments.csv, after every other row; the script prints a course code and an
+instructor ID to enter for each in the Late Add dialog.
 
-Deterministic for a given --seed. With all group/section options at their
-defaults (0), output is identical to earlier versions of this script. Output is
+Deterministic for a given --seed. With all group/section/late-add options at
+their defaults (0), output is identical to earlier versions of this script.
+Late adds come from their own random stream and are drawn last, so adding them
+leaves every other file and row unchanged. Output is
 regenerable, so the output dir is gitignored rather than committed. Examples:
 
     python backend/script/gen_test_data.py \\
@@ -144,9 +149,11 @@ def build_dataset(args: argparse.Namespace) -> dict[str, list]:
     per_crn: dict[str, int] = defaultdict(int)
     enroll: list[tuple[str, str]] = []
     offerings_of_student: dict[str, set[str]] = defaultdict(set)
+    students_of_prog: dict[int, list[str]] = defaultdict(list)
     for s in range(1, args.students + 1):
         sid = f"{100000 + s:09d}"
         p = rng.randrange(n_prog)
+        students_of_prog[p].append(sid)
         load = rng.choices(LOADS, weights)[0]
         picked: set[str] = set()
         guard = 0
@@ -190,6 +197,30 @@ def build_dataset(args: argparse.Namespace) -> dict[str, list]:
     course_rows = [
         [c, code, per_crn[c], instr_of[c], dept, TERM] for c, code, dept, _ in courses
     ]
+
+    # Late adds: a new section of an existing course, enrolled by students of
+    # its program, in enrollments.csv only. Own stream, drawn after everything
+    # else, so every other file and row stays as in a run without them.
+    lrng = random.Random(args.seed + 3)  # noqa: S311
+    late_adds: list[tuple[str, str, str, int]] = []  # crn, code, instructor, size
+    for _ in range(args.late_adds):
+        p = lrng.randrange(n_prog)
+        offering = lrng.choice(prog_courses[p])
+        eligible = [
+            sid
+            for sid in students_of_prog[p]
+            if offering not in offerings_of_student[sid]
+        ]
+        if not eligible:
+            continue
+        size = min(len(eligible), lrng.randint(20, 35))
+        c = str(crn)
+        crn += 1
+        for sid in sorted(lrng.sample(eligible, size)):
+            enroll.append((sid, c))
+            offerings_of_student[sid].add(offering)
+        late_adds.append((c, code_of[offering], lrng.choice(faculty[p]), size))
+
     return {
         "courses": course_rows,
         "enrollments": enroll,
@@ -199,6 +230,7 @@ def build_dataset(args: argparse.Namespace) -> dict[str, list]:
         "common_exams": common,
         "_per_crn": per_crn,
         "_rooms": rooms,
+        "_late_adds": late_adds,
     }
 
 
@@ -404,6 +436,12 @@ def main() -> None:
         default=0,
         help="combined groups larger than the biggest room (left unscheduled)",
     )
+    ap.add_argument(
+        "--late-adds",
+        type=int,
+        default=0,
+        help="CRNs only in enrollments.csv (exams that missed generation)",
+    )
     ap.add_argument("--seed", type=int, default=4535)
     ap.add_argument(
         "--lf",
@@ -442,6 +480,11 @@ def main() -> None:
             f"  combined_groups={len(combined)} (inside common={inner}, "
             f"oversize={oversize}) common_groups={len(common)} "
             f"common_crns={sum(len(v) for v in common.values())}"
+        )
+    for c, code, instructor, size in data["_late_adds"]:
+        print(
+            f"  late add: CRN {c}, course code {code}, instructor ID {instructor}, "
+            f"{size} students"
         )
 
 

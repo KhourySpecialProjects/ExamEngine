@@ -69,8 +69,9 @@ come from the downloadable synthetic sample files in `frontend/public/sample-dat
 `/sample-data/*.csv`), regenerated with `backend/.venv/bin/python backend/script/gen_test_data.py
 --students 500 --courses 50 --clique-size 25 --rooms 10 --max-capacity 120 --gen-eds 3
 --sectioned-courses 4 --sections-min 2 --sections-max 3 --common-groups 1 --combined-groups 1
---oversize-combined 1 --blockouts 3 --seed 2026 --lf --out frontend/public/sample-data`.
-Never screenshot real datasets.
+--oversize-combined 1 --blockouts 3 --late-adds 1 --seed 2026 --lf --out frontend/public/sample-data`
+(`--late-adds 1` adds one CRN that is only in enrollments.csv, for the Late Add docs; the
+script prints the course code and instructor ID to enter). Never screenshot real datasets.
 
 ## Branches and environments
 

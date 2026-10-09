@@ -2,7 +2,8 @@
  * Screenshots for the user docs (content/docs), taken from the running app with
  * the synthetic sample files in public/sample-data. Re-run after UI changes:
  *
- *   cd frontend && npm run docs:screenshots
+ *   cd frontend && npm run docs:screenshots            # every section
+ *   cd frontend && npm run docs:screenshots generating # start + one section
  *
  * Prerequisites:
  * - The local dev stack is up (`docker compose --profile dev up -d`): the app at
@@ -15,171 +16,35 @@
  * The script creates two accounts if they are missing: docs-demo@ (approved; the
  * one in the screenshots) and docs-pending@ (never approved, for the "pending"
  * message). The demo account is reserved for this script: its datasets and
- * schedules are deleted at the start and the end of every run.
+ * schedules are deleted at the start and the end (wipe.teardown.ts) of every
+ * run.
+ *
+ * This file covers the Start section and leaves the demo account signed up,
+ * with the sample dataset and both sample schedules (support.ts). Each other
+ * section has its own `<section>.screenshots.ts`, which runs after this one
+ * (playwright.docs.config.ts) and starts from a signed-out page: use `signIn`.
  *
  * Images are written as WebP to content/docs/images/<name>.webp.
  */
-import { mkdir, writeFile } from "node:fs/promises";
+import { mkdir } from "node:fs/promises";
 import path from "node:path";
+import { expect, test } from "@playwright/test";
 import {
-  type APIRequestContext,
-  expect,
-  type Locator,
-  type Page,
-  request,
-  test,
-} from "@playwright/test";
-
-const API = process.env.DOCS_API_URL ?? "http://localhost:8100/api";
-const ADMIN = {
-  email: process.env.DOCS_ADMIN_EMAIL ?? "theadmin@northeastern.edu",
-  password: process.env.DOCS_ADMIN_PASSWORD ?? "admin",
-};
-const DEMO = {
-  name: "Demo User",
-  email: "docs-demo@northeastern.edu",
-  password: "Docs-demo-2026!",
-};
-const PENDING = {
-  name: "Pending Demo",
-  email: "docs-pending@northeastern.edu",
-  password: "Docs-pending-2026!",
-};
-const DATASET = "Sample data";
-const CLASSIC = "Sample schedule (Classic)";
-const OPTIMIZED = "Sample schedule (Optimized)";
-
-const SAMPLE_DIR = path.join(__dirname, "..", "public", "sample-data");
-const OUT_DIR = path.join(__dirname, "..", "content", "docs", "images");
-const SAMPLE_FILES = [
-  "courses",
-  "enrollments",
-  "rooms",
-  "room_blockouts",
-  "combined_exams",
-  "common_exams",
-] as const;
-
-/** A logged-in API session (the auth cookie lives in the context). */
-async function apiSession(email: string, password: string) {
-  const api = await request.newContext({ baseURL: `${API}/` });
-  const res = await api.post("auth/login", {
-    form: { username: email, password },
-  });
-  return { api, ok: res.ok(), status: res.status() };
-}
-
-/** Sign up an account if needed; approve it when `approve` is set. */
-async function ensureAccount(
-  admin: APIRequestContext,
-  account: typeof DEMO,
-  approve: boolean,
-) {
-  const anon = await request.newContext({ baseURL: `${API}/` });
-  const res = await anon.post("auth/signup", {
-    data: {
-      name: account.name,
-      email: account.email,
-      password: account.password,
-    },
-  });
-  // 400 = already registered: fine, the account exists from an earlier run.
-  if (!res.ok() && res.status() !== 400) {
-    throw new Error(
-      `signup ${account.email}: ${res.status()} ${await res.text()}`,
-    );
-  }
-  await anon.dispose();
-  if (!approve) return;
-  const pending = await (await admin.get("admin/users/pending")).json();
-  const user = (pending as { email: string; user_id: string }[]).find(
-    (u) => u.email === account.email,
-  );
-  if (user) {
-    const ok = await admin.post(`admin/users/${user.user_id}/approve`);
-    expect(ok.ok(), `approve ${account.email}`).toBe(true);
-  }
-}
-
-/** Delete every schedule and dataset the demo account owns. */
-async function wipeDemo(api: APIRequestContext) {
-  const schedules = await (await api.get("schedule")).json();
-  for (const s of schedules as { schedule_id: string; is_owner?: boolean }[]) {
-    if (s.is_owner === false) continue;
-    await api.delete(`schedule/${s.schedule_id}`);
-  }
-  const datasets = await (await api.get("datasets")).json();
-  for (const d of datasets as { dataset_id: string }[]) {
-    await api.delete(`datasets/${d.dataset_id}`);
-  }
-}
-
-type ShotOptions = {
-  /** CSS pixels of surrounding page to include. */
-  pad?: number;
-  /** Crop to this many CSS pixels from the top. */
-  maxHeight?: number;
-  /** Keep toasts visible (they are hidden by default, as they cover things). */
-  toasts?: boolean;
-};
-
-/**
- * Save an element, or the smallest area holding several, as
- * content/docs/images/<name>.webp.
- */
-async function shot(
-  page: Page,
-  target: Locator | Locator[],
-  name: string,
-  { pad = 0, maxHeight = Infinity, toasts = false }: ShotOptions = {},
-) {
-  const targets = Array.isArray(target) ? target : [target];
-  await targets[0].scrollIntoViewIfNeeded();
-  const boxes = [];
-  for (const t of targets) {
-    const box = await t.boundingBox();
-    if (!box) throw new Error(`${name}: element not visible`);
-    boxes.push(box);
-  }
-  const left = Math.min(...boxes.map((b) => b.x));
-  const top = Math.min(...boxes.map((b) => b.y));
-  const right = Math.max(...boxes.map((b) => b.x + b.width));
-  const bottom = Math.max(...boxes.map((b) => b.y + b.height));
-  const scroll = await page.evaluate(() => ({ x: scrollX, y: scrollY }));
-  // Let entrance animations (dialogs, toasts, popovers) settle.
-  await page.waitForTimeout(500);
-  const png = await page.screenshot({
-    fullPage: true,
-    clip: {
-      x: Math.max(0, left + scroll.x - pad),
-      y: Math.max(0, top + scroll.y - pad),
-      width: right - left + 2 * pad,
-      height: Math.min(bottom - top, maxHeight) + 2 * pad,
-    },
-    // The Next dev-tools badge (nextjs-portal) never belongs in the docs.
-    style: `nextjs-portal { display: none !important; }${
-      toasts ? "" : " [data-sonner-toaster] { visibility: hidden !important; }"
-    }`,
-  });
-  // Playwright writes PNG or JPEG only; the browser re-encodes it as WebP.
-  const webp = await page.evaluate(async (base64) => {
-    const img = new Image();
-    img.src = `data:image/png;base64,${base64}`;
-    await img.decode();
-    const canvas = document.createElement("canvas");
-    canvas.width = img.naturalWidth;
-    canvas.height = img.naturalHeight;
-    canvas.getContext("2d")?.drawImage(img, 0, 0);
-    return canvas.toDataURL("image/webp", 0.9).split(",")[1];
-  }, png.toString("base64"));
-  await writeFile(
-    path.join(OUT_DIR, `${name}.webp`),
-    Buffer.from(webp, "base64"),
-  );
-}
-
-const toast = (page: Page, title: string) =>
-  page.locator("[data-sonner-toast]", { hasText: title });
+  ADMIN,
+  apiSession,
+  CLASSIC,
+  DATASET,
+  DEMO,
+  ensureAccount,
+  OPTIMIZED,
+  OUT_DIR,
+  PENDING,
+  SAMPLE_DIR,
+  SAMPLE_FILES,
+  shot,
+  toast,
+  wipeDemo,
+} from "./support";
 
 // The `page` fixture carries the config's viewport and scale, and starts with
 // no cookies (the login page redirects signed-in users).
@@ -348,7 +213,6 @@ test("docs screenshots", async ({ page }) => {
     await shot(page, card, "change-password");
   });
 
-  await wipeDemo(demo.api);
   await demo.api.dispose();
   await admin.api.dispose();
 });

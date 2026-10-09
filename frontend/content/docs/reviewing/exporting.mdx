@@ -1,0 +1,41 @@
+---
+title: Exporting
+description: Download a schedule as a CSV file, one row per exam, and what each column holds.
+---
+
+**Export Schedule**, to the right of the tabs on the schedule page, downloads the whole schedule
+as a CSV file named `schedule_exams.csv`. Anyone who can open the schedule can export it,
+including a schedule shared with you or one whose dataset was deleted. The export is the same
+whichever tab is open: it doesn't follow the List view's search or sorting.
+
+![The schedule's tabs and buttons, with Export Schedule on the right](../images/schedule-toolbar.webp)
+
+## The file
+
+The file has a header line and one row per exam (section), placed or not. Spreadsheet programs
+such as Excel open it directly.
+
+| Column | What it holds |
+| --- | --- |
+| **CRN** | The section's CRN. |
+| **Course** | The course, for example `MATH 1005`. |
+| **Day** | The exam's day, for example `Monday`. Empty when the exam is unscheduled. |
+| **Start Time** | When the exam's block starts, in 24-hour time (`08:00`, `14:30`). Empty when the exam is unscheduled. |
+| **End Time** | When the block ends, in 24-hour time. Empty when the exam is unscheduled. |
+| **Room** | The exam's room. Empty when the exam is unscheduled or has no room. |
+| **Capacity** | The room's number of seats; `0` when there is no room. |
+| **Size** | The number of students enrolled. |
+| **Valid** | `false` when the exam is part of a hard conflict (a double-booking or someone over the daily limit) or has more students than its room's seats; otherwise `true`. An unscheduled exam is `true`: check **Day** for those. |
+| **Instructor** | The instructor, as in the dataset's courses file. Empty when there is none. |
+
+The rows of a combined exam each carry their own section's CRN and size, with the same day, time
+and room. The exams that have a day and time but no room are the ones in **Needs attention** under
+**Exams without a room**; see [Statistics](/docs/reviewing/statistics).
+
+## When the export doesn't start
+
+- **Schedule empty**, **Nothing to export**: the schedule has no exams.
+- **Export failed**: something went wrong building the file. Try again; the message gives the
+  reason.
+
+When the download starts, a message confirms **Export started**.

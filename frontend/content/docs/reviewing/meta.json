@@ -1,4 +1,11 @@
 {
   "title": "Reviewing a schedule",
-  "pages": []
+  "pages": [
+    "schedules-list",
+    "schedule-page",
+    "calendar-views",
+    "list-view",
+    "statistics",
+    "exporting"
+  ]
 }

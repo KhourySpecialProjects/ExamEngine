@@ -1,0 +1,61 @@
+---
+title: Exam days and blocks
+description: The exam blocks of a day, what 4 or 5 blocks per day means, and how many days a schedule can use.
+---
+
+Every exam is two hours long and sits in one block of one day. The Generate Schedule dialog sets
+how many of each the engines may use: **Maximum Days for Exam Period** and **Exam Blocks Per
+Day**. Together they make the schedule's time slots; the engines never add slots beyond them.
+
+## The blocks
+
+A day has up to five blocks, with 30 minutes between them:
+
+| Block | Time | Used with 4 blocks per day | Used with 5 blocks per day |
+| --- | --- | --- | --- |
+| 1 | 8AM-10AM | Yes | Yes |
+| 2 | 10:30AM-12:30PM | Yes | Yes |
+| 3 | 1PM-3PM | Yes | Yes |
+| 4 | 3:30PM-5:30PM | Yes | Yes |
+| 5 | 6PM-8PM | No | Yes |
+
+The times are fixed; you can't change them in ExamEngine.
+
+## 4 or 5 blocks per day
+
+**Exam Blocks Per Day** is 5 by default. With 4, the engines use the four earliest blocks and
+never schedule an exam from 6PM to 8PM, as the dialog says: **4 uses the four earliest blocks (no
+6PM-8PM exams)**.
+
+Four blocks a day means 20% fewer time slots. Expect more conflicts and back-to-backs, and
+possibly exams left unscheduled when the rooms run out of free blocks. If you need evening-free
+exams, try **Optimized**, which copes better with fewer slots
+([Classic vs Optimized](/docs/generating/classic-vs-optimized)), or allow more days.
+
+## Days
+
+**Maximum Days for Exam Period** goes from 1 to 7 (7 by default). Days always start on Monday: 5
+days is Monday to Friday, 6 adds Saturday and 7 adds Sunday. Schedules use day names only, not
+calendar dates.
+
+So a schedule has at most 7 × 5 = 35 time slots, and at least 1 × 4 = 4.
+
+Days interact with two other rules:
+
+- **Daily limits.** **Maximum Exams Per Student Per Day** and **Maximum Exams Per Instructor Per
+  Day** count exams per day, so fewer days make the limits harder to keep.
+- **Large classes early.** Both engines try to keep exams with 100 or more students on Monday,
+  Tuesday or Wednesday, and the later in the week, the worse they rate it. A schedule placing one
+  on Thursday or later lists it under **Large Course Not Early** on the Conflicts tab.
+
+## Back-to-back exams
+
+Two exams are back-to-back when they are in consecutive blocks of the same day, for example
+8AM-10AM and 10:30AM-12:30PM. An exam at 6PM-8PM and one at 8AM-10AM the next morning are not
+back-to-back.
+
+## Room blockouts
+
+A room blockout makes a room unavailable in one block of one day. The engines never seat an exam
+in a blocked room. Blockouts in the 6PM-8PM block don't matter for a schedule with 4 blocks per
+day, and blockouts on days beyond **Maximum Days for Exam Period** don't matter either.

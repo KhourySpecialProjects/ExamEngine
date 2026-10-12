@@ -16,7 +16,7 @@ Contains course/section information. One row per CRN — if a CRN appears on mul
 | ---------------- | -------- | ------------------------------------------------------------------------------------------------------------- | ----------------------------------------------- |
 | crn              | ✅       | `Course_Reference_Number`, `CRN`, `Course Registration Number`, `crn`                                         | Unique course/section identifier                |
 | course_code      | ✅       | `Course_Identification`, `CourseID`, `Course ID`, `Course Code`, `course_subject_code`, `course_code`         | e.g., "CS 4535"                                 |
-| enrollment_count | ✅       | `Total_Enrollment`, `Enrollment`, `num_students`, `Student Count`, `Size`, `UG_Enrollment`, `enrollment_count` | Number of students (non-negative integer; sections with 0 are dropped before scheduling) |
+| enrollment_count | ✅       | `Total_Enrollment`, `Enrollment`, `num_students`, `Student Count`, `Size`, `UG_Enrollment`, `enrollment_count` | Number of students (non-negative integer; sections with 0, blank or non-numeric enrollment are dropped before scheduling) |
 | instructor_name  | ❌       | `Primary_Instructor_PIDM`, `Instructor Name`, `Instructor`, `Faculty Name`, `Professor`, `instructor_name`    | Instructor's name                               |
 | department       | ❌       | `Course_Department_Code`, `Course_Department_Desc`, `department`, `dept`                                       | Department code, e.g., "CSCI"                   |
 | examination_term | ❌       | `Academic_Period_NUFreeze`, `Academic_Period`, `exam_term`, `examination_term`                                | e.g., "Fall 2025"                               |
@@ -58,7 +58,7 @@ Available exam rooms and their capacities.
 | Column     | Required | Accepted Names                                                                                          | Description                        |
 | ---------- | -------- | ------------------------------------------------------------------------------------------------------ | ---------------------------------- |
 | room_name  | ✅       | `Location Name`, `Room`, `Room Name`, `Location`, `Building + Room`, `Location Formal Name`, `room_name` | Room identifier                    |
-| capacity   | ✅       | `Capacity`, `Seats`, `Max Capacity`, `capacity`                                                         | Maximum seating (positive integer) |
+| capacity   | ✅       | `Capacity`, `Seats`, `Max Capacity`, `capacity`                                                         | Maximum seating (positive integer; rows with a blank, non-numeric, 0 or negative capacity are skipped) |
 | large_only | ❌       | `LargeOnly`, `Large Only`, `Large_Only`, `Large-Only`                                                   | `y`/`yes`/`1`/`true` marks the large-only room; `n`/`no`/`0`/`false` or blank means no (any case) |
 
 > **Large-only room.** At most one room may be marked, and it must seat more than every other room; otherwise, or for any other value, the upload is rejected (HTTP 400, `errors.rooms`). The marked room takes exactly the exams (lone sections, or combined groups by summed enrollment) larger than the largest other room (the cutoff), and those exams can use no other room. Generation, Late Add and the Schedule Validator (`rooms.large_only`; `data.large_only_marks` re-checks the marks) all apply this rule; without the column, or with every value no, nothing changes. The upload response reports the room as `files.rooms.large_only_room: {name, capacity, cutoff}` (absent when no room is marked), and the sidebar shows it under the dataset.
@@ -177,18 +177,17 @@ When bad values are caught:
 
 | File | At upload | When a schedule is generated |
 | ---- | --------- | ---------------------------- |
-| courses, enrollments, rooms | Only the required **columns** are checked (plus statistics). Course rows are also parsed when combined or common exams are attached; then a bad course row rejects the upload. A rooms.csv `LargeOnly` column is fully checked (see rooms.csv). | **courses:** a row with a missing CRN or course code, or an invalid enrollment, fails generation (up to 10 rows listed). **enrollments:** rows missing the student or CRN are skipped; rows whose CRN isn't in courses.csv are ignored. **rooms:** rows missing the name or capacity, or with capacity ≤ 0, are skipped (generation fails only if no room is valid); invalid `LargeOnly` marks fail generation. Sections with 0 enrollment are dropped. |
+| courses, enrollments, rooms | Only the required **columns** are checked (plus statistics). Course rows are also parsed when combined or common exams are attached; then a bad course row rejects the upload. A rooms.csv `LargeOnly` column is fully checked (see rooms.csv). | **courses:** a row with a missing CRN or course code, or a negative enrollment, fails generation (up to 10 rows listed). A blank, non-numeric or 0 enrollment drops the row silently: the section is treated as having no students. **enrollments:** rows missing the student or CRN are skipped; rows whose CRN isn't in courses.csv are ignored. **rooms:** rows missing the name or capacity, or with a non-numeric capacity or one ≤ 0, are skipped; if no room is left, generation still completes, with every exam unscheduled ("No rooms are available"). Invalid `LargeOnly` marks fail generation. |
 | combined_exams, common_exams | Any invalid row or group rejects the upload (rules above) | – |
 | room_blockouts | Invalid rows are skipped individually | Same |
 
 ### Common Validation Errors
 
-| Error                                      | When                                | Cause                         | Fix                       |
-| ------------------------------------------ | ----------------------------------- | ----------------------------- | ------------------------- |
-| "Missing columns: …"                       | Upload                              | A required column isn't there | Use accepted column names |
-| "CSV columns don't match any known schema" | Upload                              | Column names not recognized   | Use accepted column names |
-| "Row N: Missing CRN"                       | Generation (or upload with groups)  | Empty or null CRN value       | Ensure all rows have CRN  |
-| "Enrollment count cannot be negative"      | Generation (or upload with groups)  | Negative number in enrollment | Fix data or remove row    |
+| Error | When | Cause | Fix |
+| ----- | ---- | ----- | --- |
+| "Missing columns: CSV columns {…} don't match any known schema for `<file>`" | Upload | A required column isn't there or isn't recognized; the braces list the columns that were found, not the missing ones | Use accepted column names |
+| "Row N: Missing CRN" (also "Missing course code") | Generation (or upload with groups) | Empty or null CRN or course code; N counts data rows from 0 | Ensure all rows have both |
+| "Row N: Invalid Total_Enrollment value: …" and "Row N: Enrollment count cannot be negative" | Generation (or upload with groups) | Negative number in enrollment | Fix data or remove row |
 
 ## Database Operations
 
@@ -354,8 +353,9 @@ stored metadata; never the uploaded files. It is the `summary` field of
 
 `instances` counts occurrences the way the Conflicts tab merges records: one per person, day and
 time for double-books (a 3-way double-book, stored as 3 pairs, is 1), one per person and day for
-the daily limits, one per record for back-to-back and large courses late. A record without a
-person counts as its own person.
+the daily limits, one per person, day and block pair for back-to-back (two records for the same
+pair count once), and one per record for large courses late. A record without a person counts as
+its own person.
 
 `GET /api/schedule/compare?ids=<id>&ids=<id>…` takes 1–4 distinct schedule IDs (duplicates are
 dropped; more than 4 is 422) and returns `{schedules: [...]}` in the requested order. A schedule
@@ -399,6 +399,8 @@ is not `true`. In one transaction (any failure saves nothing) it writes:
   `parameters` are described under "Late-add lineage". `algorithm` and `blocks_per_day` are
   always recorded (a legacy base's DSATUR and assumed 5 become explicit); other settings the
   base run never recorded stay absent;
+- a `time_slots` row for the chosen day and block, only if the dataset has none yet (no
+  generation or earlier late add from the dataset has used that slot);
 - the `schedules` row, a copy of every base `exam_assignments` row (unscheduled and unroomed
   ones too) plus the late exam's, and the `conflict_analyses` row.
 
@@ -472,7 +474,7 @@ Files are private (no public access); the backend reads them with the configured
 
 ## Troubleshooting
 
-### "Dataset already exists"
+### "Dataset of name: … already exists"
 
 A dataset with the same name exists. Use a unique name or delete the existing one.
 

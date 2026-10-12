@@ -25,8 +25,8 @@ the [Quickstart](/docs/start/quickstart#4-upload-a-dataset).
   **Common exams**: `Common_Group`, `CRN`.
 
 Headers are matched without regard to case, and a few other common names are accepted. Extra
-columns are ignored. If a file is rejected, see
-[Troubleshooting](/docs/reference/troubleshooting#an-upload-fails).
+columns are ignored. Every accepted header is in the [CSV reference](/docs/your-data/csv-reference).
+If a file is rejected, see [Troubleshooting](/docs/reference/troubleshooting#an-upload-fails).
 
 ### Can I reuse datasets across runs?
 
@@ -91,7 +91,8 @@ schedule, so you can compare them.
 ### Why might a run fail?
 
 The most common cause is a schedule name you have already used, including the name of an earlier
-run that failed. Others are rows in the courses file without a CRN, course code or enrollment.
+run that failed. Others are rows in the courses file without a CRN or course code, or with a
+negative enrollment.
 Missing columns and malformed files are caught earlier, when you upload. Rooms that are too small
 don't make a run fail: those exams are left unscheduled. See
 [Troubleshooting](/docs/reference/troubleshooting#generation-fails).

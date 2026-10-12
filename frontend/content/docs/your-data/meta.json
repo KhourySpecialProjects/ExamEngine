@@ -1,4 +1,9 @@
 {
   "title": "Your data",
-  "pages": []
+  "pages": [
+    "preparing-your-files",
+    "csv-reference",
+    "uploading-a-dataset",
+    "managing-datasets"
+  ]
 }

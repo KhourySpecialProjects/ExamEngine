@@ -24,7 +24,8 @@ again.
 | Messages about an **exam group** or **common group** | The combined or common exams file has a problem: a row missing its group or CRN, a group with fewer than two CRNs, a CRN in two groups, or CRNs that aren't in the courses file or have no students. The message names the group and the rows or CRNs. |
 
 Headers are matched without regard to case or surrounding spaces, and extra columns are ignored.
-The required columns are:
+The required columns are below; the [CSV reference](/docs/your-data/csv-reference) lists every
+header accepted for each.
 
 | File | Required columns |
 | --- | --- |
@@ -53,9 +54,9 @@ A failed run shows a **Generation failed** message with the reason.
   across all datasets. A run that failed also keeps its name: it stays in the schedules list with
   a red **Failed** badge. Choose another name, or delete the failed schedule first.
 - **Course data validation failed** followed by rows such as **Row 3: Missing CRN**: a row of the
-  courses file is missing its CRN, course code or enrollment, or has a negative enrollment. The row
-  numbers count from 0 and don't include the header row, so row 3 is the fifth line of the file.
-  Fix the file and upload it as a new dataset.
+  courses file is missing its CRN or course code, or has a negative enrollment. The row numbers
+  count from 0 and don't include the header row, so row 3 is the fifth line of the file. Fix the
+  file and upload it as a new dataset.
 - **Failed to connect to backend** or **Request failed with status …**: the app couldn't reach
   the server, or the server stopped the request. Wait a moment and try again; if it keeps
   happening, contact your ExamEngine administrator.

@@ -57,6 +57,26 @@ via `nuqs`, the first being the baseline),
 `components/` (feature dirs, `common/` shared pieces such as `table/PaginationBar`, `ui/`
 Shadcn), `lib/api/` (API client), `lib/store/` (Zustand), `lib/hooks/`. Generation settings are
 listed once in `lib/scheduleSettings.ts`. Tests sit next to the code as `*.test.ts(x)`.
+User docs (public, `/docs`): Fumadocs; MDX pages in `frontend/content/docs/` (each folder's
+`meta.json` sets sidebar title and order), route in `app/docs/`, source in `lib/docs/source.ts`.
+`next dev`/`next build` compile the content into `frontend/.source/` (gitignored); on a fresh
+checkout run `npx fumadocs-mdx` once before `tsc`. The search index is `/docs/search.json`, not
+under `/api/` (the proxy sends `/api/` to the backend).
+Docs images are WebP screenshots in `frontend/content/docs/images/`, made by
+`cd frontend && npm run docs:screenshots [section-file-stem]` (Playwright, `docs-screenshots/`;
+needs the dev stack up; prerequisites in the script header). `start.screenshots.ts` creates the
+`docs-demo@` account with its demo dataset and schedules, each section's
+`<section>.screenshots.ts` runs after it, and `wipe.teardown.ts` deletes the demo data at the end.
+`lib/docs/content.test.ts` fails on a sidebar entry without a page, a page missing from every
+`meta.json`, or a missing image. The demo data comes from the downloadable synthetic sample files
+in `frontend/public/sample-data/` (served at
+`/sample-data/*.csv`), regenerated with `backend/.venv/bin/python backend/script/gen_test_data.py
+--students 500 --courses 50 --clique-size 25 --rooms 10 --max-capacity 120 --gen-eds 3
+--sectioned-courses 4 --sections-min 2 --sections-max 3 --common-groups 1 --combined-groups 1
+--oversize-combined 1 --blockouts 3 --late-adds 1 --seed 2026 --lf --out frontend/public/sample-data`
+(`--late-adds 1` adds one CRN that is only in enrollments.csv, for the Late Add docs; the
+script prints the course code and instructor ID to enter). Docs text and images follow the
+no-local-dataset-specifics rule: synthetic data only, never screenshot real datasets.
 
 ## Branches and environments
 
@@ -82,7 +102,9 @@ Follow this for every bug, feature or improvement.
 4. **Implement and verify.** Run the checks in "Verify your changes", then smoke-test the changed
    path against the local stack (API calls and/or the browser). The dev containers hot-reload from
    the main checkout, so the user can look at the branch right away (frontend on host port 3100
-   with the committed override).
+   with the committed override). A user-visible change updates its `/docs` page
+   (`frontend/content/docs/`) in the same PR and reruns the screenshots for the affected images
+   (`cd frontend && npm run docs:screenshots <section-file-stem>`).
 5. **User review.** Let the user try it locally before opening a PR.
 6. **PR into `develop`.** Conventional-commit title with the issue key, e.g.
    `feat(schedule): ... (EXENG-87)`. Body: "Closes EXENG-N", then What / Verification. Move the
@@ -135,7 +157,7 @@ trigger only on `main`/`master` (EXENG-40). Run the checks locally before claimi
 | `cd backend && .venv/bin/pytest -q -p no:cacheprovider --no-cov` | all backend tests (DB tests need the dev stack's Postgres; they skip without it) |
 | `cd backend && .venv/bin/ruff check --no-fix <files>` | backend lint (`pyproject.toml` sets `fix = true`, so plain `ruff check` rewrites files) |
 | `cd frontend && npx vitest run` | frontend unit tests (bare `vitest` starts watch mode) |
-| `cd frontend && npx tsc --noEmit --incremental false` | frontend type check |
+| `cd frontend && npx tsc --noEmit --incremental false` | frontend type check (fresh checkout: `npx fumadocs-mdx` first) |
 | `cd frontend && npx biome check <files>` | frontend lint (read-only without `--write`) |
 | `cd frontend && npm run test:e2e` | Playwright e2e (needs `npx playwright install` once) |
 

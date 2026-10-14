@@ -1,0 +1,72 @@
+---
+title: Preparing your files
+description: The six CSV files a dataset is made of, what each one is for, and how they fit together.
+---
+
+A dataset is one term's data, uploaded as CSV files. Three files are required and three are
+optional:
+
+| File | Required | What it holds |
+| --- | --- | --- |
+| **Courses** | Yes | One row per course section (CRN): its course, how many students it has and, optionally, its instructor. |
+| **Enrollments** | Yes | One row per student per section: which student (NUId) sits which CRN's exam. |
+| **Rooms** | Yes | One row per exam room and how many people it seats. Optionally marks one large-only room. |
+| **Room blockouts** | No | Times when a room can't be used for exams. |
+| **Combined exams** | No | Sections that sit one exam together: same time, same room. |
+| **Common exams** | No | Sections that sit their exams at the same time, each in its own room. |
+
+The column each file needs, the header names ExamEngine recognizes and what happens to bad values
+are in the [CSV reference](/docs/your-data/csv-reference).
+
+## How the files fit together
+
+The **CRN** ties the files together. Every CRN in the enrollments, combined exams and common exams
+files should be a CRN in the courses file, and every room in the room blockouts file should be a
+room in the rooms file.
+
+- **Courses** decides which exams there are: each CRN with an enrollment above 0 gets an exam. Its
+  enrollment number is the exam's size, the number of seats it needs.
+- **Enrollments** decides who sits each exam, so it is what student conflicts are counted from:
+  two exams in the same block, too many in one day, or back-to-back.
+- **Rooms** decides where exams can go. An exam is only ever seated in a room with at least as many
+  seats as its size.
+- **Instructors** come from the courses file. Sections with the same instructor value count as one
+  instructor's exams: ExamEngine keeps them apart where it can and applies the per-day limit to them.
+
+ExamEngine doesn't check that the two counts of a section agree. A section's size comes from the
+courses file, while its conflicts come from the enrollments file. If a section's enrollment number
+is out of date, it may get a room that is too small or too large for the students actually listed.
+
+Rows that don't line up are mostly dropped quietly rather than rejected:
+
+- An enrollment row for a CRN that isn't in the courses file is ignored.
+- A course with an enrollment of 0, or a blank one, gets no exam. It isn't listed as unscheduled
+  either, since nobody sits it.
+- A room blockout for a room that isn't in the rooms file has no effect.
+
+The combined and common exams files are stricter: a CRN in them that isn't in the courses file, or
+that has no students, rejects the upload.
+
+## Before you upload
+
+- **Save as CSV.** Each file must be a comma-separated file whose name ends in `.csv` (lowercase).
+  From a spreadsheet, use **Save as** or **Download** with the CSV format.
+- **Keep the header row.** The first line names the columns. Headers are matched without regard to
+  case or spaces around them, and several common names are accepted for each column. Columns
+  ExamEngine doesn't use are ignored, so you can leave them in.
+- **One row per section in the courses file.** If a CRN appears on several rows, only the last one
+  is used.
+- **Check NUIds.** Student IDs are read as text, so leading zeros are kept. If a spreadsheet has
+  already turned `001234567` into `1234567`, export the IDs again as text.
+- **Check the instructor column.** A section with a blank instructor has no instructor conflicts.
+  A spreadsheet error such as `#VALUE!` is read as an instructor name, so every section with it
+  looks like it has the same instructor.
+
+You can't change a dataset after it is uploaded. To fix a file, upload the corrected files as a new
+dataset and generate from that one. See [Uploading a dataset](/docs/your-data/uploading-a-dataset).
+
+## Sample files
+
+The [Quickstart](/docs/start/quickstart#3-download-the-sample-files) has a small set of sample
+files, one of each kind, with made-up data. Use them as a template: they use headers ExamEngine
+recognizes and upload without errors.

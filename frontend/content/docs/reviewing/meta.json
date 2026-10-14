@@ -1,0 +1,15 @@
+{
+  "title": "Reviewing a schedule",
+  "pages": [
+    "schedules-list",
+    "schedule-page",
+    "calendar-views",
+    "list-view",
+    "statistics",
+    "conflicts",
+    "explore",
+    "validating",
+    "comparing",
+    "exporting"
+  ]
+}

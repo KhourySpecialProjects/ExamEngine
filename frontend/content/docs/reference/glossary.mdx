@@ -1,0 +1,24 @@
+---
+title: Glossary
+description: The terms ExamEngine uses, in alphabetical order.
+---
+
+| Term | Meaning |
+| --- | --- |
+| **Back-to-back** | One person has exams in two neighboring exam blocks on the same day, such as 8AM-10AM and 10:30AM-12:30PM. The last block of one day and the first block of the next don't count. See [Conflict types](/docs/reference/conflict-types). |
+| **Baseline** | On the Compare page, the schedule the others are measured against: the first column, marked **Baseline**. Differences such as conflict counts are shown as better or worse than the baseline. Use **Set as baseline** in a column's menu to change it. |
+| **Combined exam** | Several sections (CRNs) that sit one exam together: the same exam block and one shared room, seated by their total enrollment. Listed in the optional combined exams file. If the total is larger than every room, the whole group stays unscheduled. |
+| **Common exam** | Several sections (CRNs) that sit their exam in the same exam block, each in its own room. Listed in the optional common exams file. A combined exam inside a common exam keeps its one shared room. |
+| **CRN** | Course Reference Number: one section of a course. Each CRN gets one exam, unless it is part of a combined exam. |
+| **Dataset** | One upload of your CSV files: courses, enrollments and rooms, plus any optional room blockouts, combined exams and common exams files. You can generate any number of schedules from one dataset. |
+| **Double-book** | One person has two different exams in the same exam block. Sections of one combined exam are one exam. A student enrolled in two sections of one common exam is double-booked, because those sections sit in different rooms at the same time. |
+| **Exam block** | One of the five fixed exam times in a day: 8AM-10AM, 10:30AM-12:30PM, 1PM-3PM, 3:30PM-5:30PM and 6PM-8PM. With **Exam Blocks Per Day** set to 4, the 6PM-8PM block isn't used. |
+| **Instructor ID** | The value in the instructor column of the courses file, exactly as you uploaded it. The app shows it in the **Instructor** column and asks for it in Late Add. A section without one has no instructor conflicts. |
+| **Large course not early** | A section with 100 or more students whose exam is on Thursday or later. Both engines try to put large courses earlier in the week. |
+| **Late add** | Adding an exam that missed generation to a finished schedule, in a free room, without moving any other exam. The result is saved as a new schedule, a version. Exams added this way carry a **Late add** badge. See [Late Add](/docs/changing/late-add). |
+| **NUId** | A student's Northeastern ID, from the enrollments file. The app uses it wherever it names a student, for example in the Conflicts tab and in Explore. |
+| **Per-day limit** | The most exams one student, or one instructor, should have on one day. Set by **Maximum Exams Per Student Per Day** and **Maximum Exams Per Instructor Per Day** when you generate. A day with more is a per-day limit conflict. |
+| **Schedule** | One run of the scheduler on a dataset with your chosen settings: a day, exam block and room for every exam it could place. Each schedule name can be used only once among your schedules. |
+| **Unroomed** | An exam with a day and time but no room, shown as **No Room** in the List view and under **Exams without a room** in Statistics. Generation and Late Add always give each placed exam a room, so you should only see this in schedules made by older versions of ExamEngine. |
+| **Unscheduled** | An exam that got no day, time or room: it is bigger than every room, or no exam block had a free room big enough for it. Statistics lists each one with the reason under **Unscheduled exams**. See [Troubleshooting](/docs/reference/troubleshooting#many-exams-are-unscheduled). |
+| **Version** | A schedule saved by Late Add. It has every exam of the schedule it started from plus the late exam. Its details show **Late add to** (the schedule it was made from) and **Original:** (the first generated schedule in the chain). The schedule it came from never changes. |

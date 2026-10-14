@@ -82,6 +82,21 @@ export const steps = [
         pointerPadding: 5,
         pointerRadius: 11,
       },
+      {
+        icon: <>📖</>,
+        title: "Read the docs",
+        content: (
+          <>
+            Open the documentation for step-by-step guides to every part of
+            ExamEngine.
+          </>
+        ),
+        selector: "#docs-id",
+        side: "bottom" as const,
+        showControls: true,
+        pointerPadding: 5,
+        pointerRadius: 11,
+      },
     ],
   },
 ];

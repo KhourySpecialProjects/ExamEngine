@@ -472,6 +472,14 @@ export default function AboutPage() {
             >
               <Link href="/login#signup">Create an account</Link>
             </Button>
+            <Button
+              asChild
+              size="lg"
+              variant="outline"
+              className="border-gray-200 text-gray-900 hover:bg-gray-50"
+            >
+              <Link href="/docs">Read the docs</Link>
+            </Button>
           </div>
         </div>
       </section>

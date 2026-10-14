@@ -1,0 +1,59 @@
+---
+title: Conflict types
+description: The seven kinds of conflict ExamEngine counts, and which ones need fixing.
+---
+
+Every schedule is checked for seven kinds of conflict. The **Conflicts** tab has one tab per kind
+and repeats these definitions under **Conflict Definitions** at the bottom of the page. See
+[Conflicts](/docs/reviewing/conflicts) for how to read that tab.
+
+## Hard and soft conflicts
+
+The double-book and per-day limit types are **hard conflicts**: the schedulers avoid them first,
+and a schedule that has any isn't ready to publish. Statistics counts them under **Hard
+conflicts**, and Compare lists schedules with them as not ready to publish.
+
+Back-to-back and large-course types are **soft**: the schedulers keep them low, but a schedule can
+have them and still be fine to publish.
+
+Neither kind stops a schedule from being generated. ExamEngine places every exam it can find a
+room for and reports the conflicts that remain.
+
+## The seven types
+
+| Conflict | Kind | Definition |
+| --- | --- | --- |
+| **Student Double-Book** | Hard | A student is scheduled for more than one exam at the same time. Requires resolution. |
+| **Student Per-Day Limit** | Hard | A student has more exams in one day than the configured maximum. |
+| **Student Back-to-Back** | Soft | A student has exams in consecutive time blocks on the same day. |
+| **Instructor Double-Book** | Hard | An instructor is scheduled to proctor/teach more than one exam at the same time. |
+| **Instructor Per-Day Limit** | Hard | An instructor has more exams in one day than the configured maximum. |
+| **Instructor Back-to-Back** | Soft | An instructor has exams in consecutive time blocks on the same day. |
+| **Large Course Not Early** | Soft | Courses with 100+ students scheduled Thursday or later in the week. |
+
+## Details
+
+- **Double-book**: sections of one combined exam share one room, so they are one exam. Sections
+  of a common exam sit in different rooms at the same time, so a student enrolled in two of them
+  is always double-booked, wherever the common exam goes. The upload warns about these students
+  (**Students enrolled in multiple sections of a common exam**).
+- **Per-day limit**: "the configured maximum" is **Maximum Exams Per Student Per Day** or
+  **Maximum Exams Per Instructor Per Day** in the schedule's settings, so the same exams can be a
+  conflict in one schedule and not in another.
+- **Back-to-back**: consecutive blocks are neighbors on the same day, such as 8AM-10AM and
+  10:30AM-12:30PM; the 30-minute break between them doesn't help. The last block of one day and
+  the first block of the next don't count. Each person is counted once per day.
+- **Large course not early**: the size is the section's own enrollment, even when it is part of a
+  combined exam. Any block from Monday to Wednesday counts as early.
+- **Instructors**: a section without an instructor in the courses file has no instructor
+  conflicts.
+
+## Settings that affect conflicts
+
+The settings you choose in **Generate Schedule** change how hard the schedulers try to avoid each
+kind. See [Settings](/docs/generating/settings).
+
+- **Avoid Back-to-Back Exams**: used by **Optimized** only. **Classic** always tries to avoid
+  back-to-back exams, whatever the switch says.
+- **Prioritize Large Classes**: used by **Classic** only, where it places the largest exams first.
+  Both engines always try to keep large courses early in the week.

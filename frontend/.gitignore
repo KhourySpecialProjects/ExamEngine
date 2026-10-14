@@ -14,3 +14,6 @@ node_modules
 .env.local
 
 tsconfig.tsbuildinfo
+
+# Fumadocs output generated from content/docs
+.source

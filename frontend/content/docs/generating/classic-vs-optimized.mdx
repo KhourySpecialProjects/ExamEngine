@@ -1,0 +1,83 @@
+---
+title: Classic vs Optimized
+description: The two scheduling engines, what each one does, and when to pick which.
+---
+
+The **Algorithm** setting in the Generate Schedule dialog picks one of two engines. Both work on
+the same dataset with the same rules, and both produce the same kind of schedule; they differ in
+how hard they look for a better one.
+
+## What both engines do
+
+- Use only the days and blocks you allow (**Maximum Days for Exam Period**, **Exam Blocks Per
+  Day**).
+- Seat every exam in a room that's big enough and not blocked out at that time. No room is ever
+  over capacity, and no two exams share a room in the same block, except the sections of a
+  combined exam, which sit together.
+- Keep combined and common exams together in one block. See
+  [Combined and common exams](/docs/generating/combined-and-common-exams).
+- Put hard conflicts first: double-booked students and instructors, and people over their daily
+  limit. Both avoid them wherever they can, before anything else.
+- Then try to avoid back-to-back exams and to keep large classes (100 or more students) early in
+  the week, Monday to Wednesday.
+- Leave an exam unscheduled, with a reason, when it can't be seated anywhere. See
+  [Why exams end up unscheduled](/docs/generating/unscheduled-exams).
+
+## Classic
+
+Classic goes through the exams once, in a fixed order, and gives each the best block still
+available. Common exams come first. The rest are sorted into sets of exams that share no
+students, the set with the most students first, and the largest exams first within each set.
+Once an exam is placed, it stays there.
+
+When Classic compares blocks for an exam, it takes the block with the fewest hard conflicts. On a
+tie it looks, in this order, at: large classes late in the week, student back-to-backs,
+instructor back-to-backs, how many exams the instructor already has that day, and how full the
+block is. The first difference decides; if there is none, the earliest block wins.
+
+- Fast: usually a few seconds.
+- **Prioritize Large Classes** changes its order: the largest exams go first.
+- **Avoid Back-to-Back Exams** and **Optimization Time** have no effect.
+
+The dialog describes it as **DSATUR greedy — the original one-pass scheduler**; schedules show it
+as **Classic (DSATUR)**, and the schedules list as **DSATUR**.
+
+## Optimized
+
+Optimized first builds a complete schedule, placing the hardest-to-place exams first. Then, for
+the **Optimization Time** you choose (5, 15 or 30 seconds), it keeps trying changes (moving an
+exam group to another block, swapping the contents of two blocks) and keeps the best schedule it
+finds.
+
+It scores a schedule as a whole: hard conflicts count so heavily that no other gain can make up
+for one; after that, student back-to-backs, instructor back-to-backs, large classes late in the
+week, and an even spread of exams across the blocks all count, each with its own weight. So it
+can accept one back-to-back to remove several others, which Classic can't.
+
+- Takes about the time you choose, plus a few seconds to load and save.
+- Usually ends with fewer hard conflicts and fewer back-to-backs than Classic, most clearly on
+  large datasets or a short exam period.
+- Two runs with the same settings can differ a little, because the search stops on the clock.
+- **Avoid Back-to-Back Exams** turned off makes it ignore back-to-backs, for students and
+  instructors.
+- **Prioritize Large Classes** has no effect: it always counts large classes late in the week.
+
+The dialog describes it as **Saturation + annealing — searches for fewer conflicts and
+back-to-backs**; schedules show it as **Optimized (annealing)**, and the schedules list as
+**Annealing**.
+
+## Which one to pick
+
+| If you want… | Pick |
+| --- | --- |
+| A quick first look at a new dataset | Classic |
+| The fewest conflicts and back-to-backs for a schedule you'll publish | Optimized, 15s or 30s |
+| To check whether a short exam period (fewer days, 4 blocks) can work | Optimized |
+| Back-to-backs ignored, for example to compare against | Optimized, with **Avoid Back-to-Back Exams** off (Classic always avoids them) |
+
+You don't have to choose up front: generate one schedule with each engine from the same dataset,
+then compare them (see [Comparing schedules](/docs/reviewing/comparing)).
+
+Neither engine can seat an exam that is larger than every room, or fix problems in the uploaded
+files. If both engines leave the same exams unscheduled, the cause is usually in the data; see
+[Why exams end up unscheduled](/docs/generating/unscheduled-exams).

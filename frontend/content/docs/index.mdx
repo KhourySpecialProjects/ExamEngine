@@ -1,0 +1,54 @@
+---
+title: Overview
+description: ExamEngine builds a final-exam schedule from your course, enrollment and room files.
+---
+
+ExamEngine gives every final exam a day, a time and a room. You upload a few CSV files that
+describe the term, choose a few settings, and ExamEngine builds a schedule that keeps students
+and instructors out of overlapping exams and fits every exam in a room that is large enough.
+Anything it could not avoid, it reports, so you can see exactly where the schedule needs
+attention.
+
+New to ExamEngine? Start with the [Quickstart](/docs/start/quickstart): it takes you from a new
+account to an exported schedule with a set of sample files.
+
+## Key ideas
+
+**Dataset.** The set of CSV files for one term, uploaded under a name you choose. Three files are
+required: courses (one row per course section, or CRN), enrollments (which student is in which
+section) and rooms (each room and how many people it seats). Three are optional: room blockouts
+(times a room can't be used), combined exams and common exams (see below). You can generate as
+many schedules as you like from one dataset.
+
+**Schedule.** The result of one generation run: every exam with its day, time and room, saved with
+the settings you chose and the conflicts that remain. Schedules are kept until you delete them, so
+you can try different settings and compare the results.
+
+**Exam block.** A day has up to five exam blocks: 8AM-10AM, 10:30AM-12:30PM, 1PM-3PM,
+3:30PM-5:30PM and 6PM-8PM. The exam period lasts up to seven days, Monday to Sunday. You choose
+how many days and whether to use the evening block when you generate.
+
+**Combined and common exams.** A combined exam is several sections that sit one exam together, at
+the same time and in the same room. A common exam is several sections that sit their exams at the
+same time, each in its own room.
+
+**Conflict.** A situation the schedule could not avoid. The serious ones (hard conflicts) are a
+student or instructor with two exams at the same time, or with more exams in one day than the
+daily limit you set. The others are back-to-back exams (exams in consecutive blocks on the same
+day) and large courses (100 or more students) scheduled Thursday or later.
+
+**Unscheduled exam.** An exam that got no day, time or room, for example because more students
+take it than the largest room seats. ExamEngine lists every unscheduled exam with the reason.
+
+**Classic and Optimized.** The two ways to generate a schedule. Classic is fast and places exams
+one at a time. Optimized keeps improving the schedule for a few seconds and usually ends with
+fewer conflicts and back-to-back exams.
+
+## Suggested reading order
+
+1. [Quickstart: your first schedule](/docs/start/quickstart), with the sample files.
+2. [Finding your way around](/docs/start/finding-your-way-around): the parts of the screen.
+3. [Accounts and sign-in](/docs/start/accounts): signing up, signing in and your password.
+
+Use the sidebar to browse, or search with <kbd>Ctrl</kbd>+<kbd>K</kbd> (<kbd>⌘</kbd>+<kbd>K</kbd>
+on a Mac).

@@ -773,19 +773,19 @@ describe("LateAddDialog save step", () => {
     expect(screen.queryByRole("alert")).toBeNull();
   });
 
-  it("warns about newer versions with links but still allows saving", async () => {
-    await search(result({ candidates: [candidate(0, 0)] }), [
+  it("offers no search on a schedule with a newer version, only links to it", () => {
+    openDialog([
       { id: "s3", name: "Fall + 7", created_at: "2026-01-05T10:00:00" },
       { id: "s4", name: "Fall + 8", created_at: "2026-01-04T10:00:00" },
     ]);
 
     expect(screen.getByText(/already has newer versions/).textContent).toBe(
-      "This schedule already has newer versions: Fall + 7, Fall + 8. The new schedule won't include their late adds.",
+      "This schedule already has newer versions: Fall + 7, Fall + 8. Late adds go on the newest version, so open it and use Late Add there.",
     );
     expect(
       screen.getByRole("link", { name: "Fall + 8" }).getAttribute("href"),
     ).toBe("/dashboard/s4");
-    expect(saveButton()).toHaveProperty("disabled", false);
+    expect(screen.queryByRole("button", { name: "Find blocks" })).toBeNull();
   });
 
   it("has no save step when no block has a room", async () => {

@@ -1,11 +1,9 @@
 "use client";
 
-import { AlertTriangle, Loader2, Save } from "lucide-react";
-import Link from "next/link";
+import { Loader2, Save } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { type FormEvent, Fragment, useState } from "react";
+import { type FormEvent, useState } from "react";
 import { toast } from "sonner";
-import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
@@ -14,7 +12,6 @@ import type {
   LateAddCandidate,
   LateAddConflictCounts,
   LateAddSearchResult,
-  ScheduleLineage,
 } from "@/lib/api/schedules";
 import { useSchedulesStore } from "@/lib/store/schedulesStore";
 import { plural, slotKey } from "./LateAddResults";
@@ -62,7 +59,6 @@ export interface LateAddSaveFormProps {
   candidate: LateAddCandidate;
   /** The chosen room in that block. */
   room: string;
-  newerVersions: ScheduleLineage["newer_versions"];
   /** Closes the dialog: called before leaving for another schedule. */
   onLeave: () => void;
 }
@@ -74,7 +70,6 @@ export function LateAddSaveForm({
   result,
   candidate,
   room,
-  newerVersions,
   onLeave,
 }: LateAddSaveFormProps) {
   const router = useRouter();
@@ -130,35 +125,6 @@ export function LateAddSaveForm({
       aria-label="Save as new schedule"
       className="space-y-3 border-t pt-4"
     >
-      {newerVersions.length > 0 && (
-        <Alert className="border-amber-300 bg-amber-50 text-amber-900">
-          <AlertTriangle className="h-4 w-4" />
-          <AlertDescription className="text-amber-900">
-            <p>
-              This schedule already has{" "}
-              {newerVersions.length === 1
-                ? "a newer version"
-                : "newer versions"}
-              :{" "}
-              {newerVersions.map((version, index) => (
-                <Fragment key={version.id}>
-                  {index > 0 && ", "}
-                  <Link
-                    href={`/dashboard/${version.id}`}
-                    onClick={onLeave}
-                    className="font-medium underline"
-                  >
-                    {version.name}
-                  </Link>
-                </Fragment>
-              ))}
-              . The new schedule won't include{" "}
-              {newerVersions.length === 1 ? "its" : "their"} late adds.
-            </p>
-          </AlertDescription>
-        </Alert>
-      )}
-
       <p className="text-sm">
         Saves a new schedule with CRN {result.crn} on {candidate.day_name}{" "}
         {candidate.block_time} in {room}. This schedule is not changed.

@@ -16,6 +16,7 @@ from src.api.deps import (
 from src.core.exceptions import (
     DatasetDeletedError,
     DatasetNotFoundError,
+    NewerVersionError,
     PlacementConflictError,
     StorageError,
     ValidationError,
@@ -24,6 +25,7 @@ from src.repo.schedule import ScheduleRepo
 from src.repo.schedule_share import ScheduleShareRepo
 from src.schemas.db import Schedules, Users
 from src.services.schedule import ScheduleService
+from src.services.schedule.chain_sharing import ChainSharing
 from src.services.schedule.late_add import LateAddSearchResponse, LateAddService
 from src.services.schedule.person_exams import (
     PersonExamsResponse,
@@ -238,10 +240,12 @@ async def search_late_add(
     """
     Find a block and room for one exam that missed generation (read-only).
 
-    Only the schedule's owner may search; anyone else gets 404. 409 when the
-    dataset was deleted, 400 for a blank field (a "nan" instructor ID counts as
-    blank), a CRN already in the schedule, a CRN that courses.csv schedules with
-    a nonzero enrollment, or a CRN without enrollment rows.
+    The owner and anyone the schedule is shared with may search; anyone else
+    gets 404. 409 when the schedule already has a newer late-add version (late
+    adds go on the newest version) or the dataset was deleted, 400 for a blank
+    field (a "nan" instructor ID counts as blank), a CRN already in the
+    schedule, a CRN that courses.csv schedules with a nonzero enrollment, or a
+    CRN without enrollment rows.
     """
     try:
         result = await late_add_service.search(
@@ -251,7 +255,7 @@ async def search_late_add(
             request.course_code,
             request.instructor_id,
         )
-    except DatasetDeletedError as e:
+    except (DatasetDeletedError, NewerVersionError) as e:
         raise HTTPException(status_code=409, detail=str(e)) from e
     except ValidationError as e:
         raise HTTPException(status_code=400, detail=str(e)) from e
@@ -285,12 +289,13 @@ async def save_late_add(
     """
     Save the schedule plus one late exam as a new schedule; the base is unchanged.
 
-    The placement is re-checked on the server. Same 404/409/400 as the search,
-    plus 400 for a blank, too long or taken name or a block outside the
-    schedule's window, and 409 when the room can't take the exam in that block
-    (used, blocked out, too small) or the block has hard conflicts and
-    `accept_conflicts` is false. Returns the new schedule as
-    `GET /schedule/{id}` does.
+    The new schedule belongs to the caller and is shared with everyone else in
+    the chain's group (see `chain_sharing`). The placement is re-checked on
+    the server. Same 404/409/400 as the search, plus 400 for a blank, too long
+    or taken name or a block outside the schedule's window, and 409 when the
+    room can't take the exam in that block (used, blocked out, too small) or the
+    block has hard conflicts and `accept_conflicts` is false. Returns the new
+    schedule as `GET /schedule/{id}` does.
     """
     try:
         new_schedule_id = await late_add_service.save(
@@ -305,7 +310,7 @@ async def save_late_add(
             schedule_name=request.schedule_name,
             accept_conflicts=request.accept_conflicts,
         )
-    except (DatasetDeletedError, PlacementConflictError) as e:
+    except (DatasetDeletedError, NewerVersionError, PlacementConflictError) as e:
         raise HTTPException(status_code=409, detail=str(e)) from e
     except ValidationError as e:
         raise HTTPException(status_code=400, detail=str(e)) from e
@@ -406,9 +411,11 @@ async def share_schedule(
     db: Session = Depends(get_db),
 ):
     """
-    Share a schedule with another user.
+    Share a schedule, and the rest of its late-add chain, with another user.
 
-    Only the schedule owner can share it.
+    Only the schedule owner can share it. The user gets every schedule of the
+    chain (earlier and later versions, whoever owns them) they don't own or
+    have yet; the response is their share of this schedule.
     """
     schedule_repo = ScheduleRepo(db)
     share_repo = ScheduleShareRepo(db)
@@ -468,34 +475,13 @@ async def share_schedule(
             status_code=status.HTTP_404_NOT_FOUND, detail="User not found"
         )
 
-    # Check if share already exists
-    existing_share = share_repo.get_share_by_schedule_and_user(
-        schedule_id, shared_with_user_id
+    ChainSharing(schedule_repo, share_repo).share_chain(
+        schedule, shared_with_user_id, current_user.user_id, share_data.permission
     )
-    if existing_share:
-        # Update existing share
-        updated_share = share_repo.update_share_permission(
-            existing_share.share_id, share_data.permission
-        )
-        if updated_share:
-            return ShareResponse(
-                share_id=str(updated_share.share_id),
-                schedule_id=str(updated_share.schedule_id),
-                shared_with_user_id=str(updated_share.shared_with_user_id),
-                shared_with_user_name=shared_with_user.name,
-                shared_with_user_email=shared_with_user.email,
-                permission=updated_share.permission,
-                shared_by_user_id=str(updated_share.shared_by_user_id),
-                shared_at=updated_share.shared_at.isoformat(),
-            )
-
-    # Create new share
-    share = share_repo.create_share(
-        schedule_id=schedule_id,
-        shared_with_user_id=shared_with_user_id,
-        permission=share_data.permission,
-        shared_by_user_id=current_user.user_id,
-    )
+    share = share_repo.get_share_by_schedule_and_user(schedule_id, shared_with_user_id)
+    share.permission = share_data.permission
+    db.commit()
+    db.refresh(share)
 
     return ShareResponse(
         share_id=str(share.share_id),
@@ -567,7 +553,7 @@ async def unshare_schedule(
     current_user: Users = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    """Remove a share (owner only)."""
+    """Remove a user's share (owner only) from every schedule of the chain."""
     share_repo = ScheduleShareRepo(db)
     schedule_repo = ScheduleRepo(db)
 
@@ -603,5 +589,8 @@ async def unshare_schedule(
             detail="Only schedule owners can remove shares",
         )
 
-    share_repo.delete_share(share_id)
+    ChainSharing(schedule_repo, share_repo).unshare_chain(
+        schedule, share.shared_with_user_id
+    )
+    db.commit()
     return {"message": "Share removed successfully"}

@@ -31,6 +31,12 @@ class PlacementConflictError(AppExceptionError):
     pass
 
 
+class NewerVersionError(AppExceptionError):
+    """A late add on a schedule that already has a newer version (no branching)."""
+
+    pass
+
+
 class DatasetExistsError(AppExceptionError):
     """Dataset of same name already exists"""
 

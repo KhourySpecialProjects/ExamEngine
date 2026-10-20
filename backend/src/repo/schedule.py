@@ -98,6 +98,48 @@ class ScheduleRepo(BaseRepo[Schedules]):
         )
         return list(self.db.execute(stmt).scalars().all())
 
+    def has_newer_version(self, schedule_id: UUID) -> bool:
+        """Whether any existing late-add schedule is based on this one, whoever
+        can view it. (Deleting a schedule keeps its run, so join the schedule.)"""
+        stmt = select(
+            select(Schedules.schedule_id)
+            .join(Runs, Schedules.run_id == Runs.run_id)
+            .where(Runs.parameters["based_on_schedule_id"].astext == str(schedule_id))
+            .exists()
+        )
+        return bool(self.db.execute(stmt).scalar())
+
+    def lock(self, schedule_id: UUID) -> None:
+        """Lock the schedule's row until the transaction ends (SELECT … FOR UPDATE)."""
+        self.db.execute(
+            select(Schedules.schedule_id)
+            .where(Schedules.schedule_id == schedule_id)
+            .with_for_update()
+        )
+
+    def get_chain(self, schedule: Schedules) -> list[Schedules]:
+        """The schedule's late-add chain, whoever can view it, runs loaded.
+
+        The generated schedule at its start plus every late-add version whose
+        run records it as `original_schedule_id`; a schedule without late adds
+        is a chain of one.
+        """
+        original = (schedule.run.parameters or {}).get("original_schedule_id") or str(
+            schedule.schedule_id
+        )
+        stmt = (
+            select(Schedules)
+            .join(Runs, Schedules.run_id == Runs.run_id)
+            .options(joinedload(Schedules.run))
+            .where(
+                or_(
+                    Schedules.schedule_id == UUID(original),
+                    Runs.parameters["original_schedule_id"].astext == original,
+                )
+            )
+        )
+        return list(self.db.execute(stmt).scalars().unique().all())
+
     def name_exists(self, schedule_name: str, user_id: UUID) -> bool:
         """Check if schedule name is already taken by a specific user."""
         stmt = (

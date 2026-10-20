@@ -364,11 +364,15 @@ nothing else. Others are `status: "ok"` with name, `created_at`, `run_status`, `
 {dataset_id, dataset_name, uploaded_at, deleted}`, the owner/share fields and `summary`.
 
 `POST /api/schedule/{id}/late-add/search` with `{crn, course_code, instructor_id}` finds a block
-for one exam that missed generation (see "Late add" in `ALGORITHM.md`). It is read-only. Only
-the schedule's owner may use it (anyone else gets 404); a deleted dataset is 409, since its files
-are gone; a blank field (an instructor ID of `nan`, any case, counts as blank), a CRN already in
-the schedule (placed or unscheduled), a CRN that courses.csv lists with a nonzero enrollment (a
-scheduled course, not a late add) or a CRN with no rows in enrollments.csv is 400. A courses.csv
+for one exam that missed generation (see "Late add" in `ALGORITHM.md`). It is read-only. The
+schedule's owner and anyone it is shared with may use it (anyone else gets 404; a share's
+`permission` is not checked). 409 when the schedule's chain has a version saved after it (one
+with more late additions, by anyone, viewable or not, even past a deleted version; late adds go
+on the newest version, so a chain never branches) or the dataset was
+deleted, since its files are gone; a blank field (an instructor ID of `nan`, any case, counts
+as blank), a CRN already in the schedule (placed or unscheduled), a CRN that courses.csv lists
+with a nonzero enrollment (a scheduled course, not a late add) or a CRN with no rows in
+enrollments.csv is 400. A courses.csv
 CRN with zero enrollment (skipped by generation) is allowed with a note. It reads the schedule,
 its run settings, the dataset's rooms and its combined and common groups from the database, and
 the courses, enrollments and room blockouts from the uploaded files, parsed unfiltered
@@ -388,7 +392,10 @@ on the server: 400 for a blank name, a name over 50 characters, a name the calle
 or a block outside the base run's window; 409 when the room is not one of the dataset's rooms,
 is used by an exam in that block, is blocked out then or is too small (so also when the outcome
 is No room), or when the block has a student or instructor hard conflict and `accept_conflicts`
-is not `true`. In one transaction (any failure saves nothing) it writes:
+is not `true`. The chain lock (a Postgres advisory transaction lock keyed on the chain's
+original id, `ScheduleRepo.lock_chain`) is taken and the newer-version check repeated before
+writing, so two saves from one chain can't both succeed. In one transaction
+(any failure saves nothing) it writes:
 
 - a `courses` row for the late CRN: `course_subject_code` = the course code, `instructor_name` =
   the instructor ID, `enrollment_count` = its distinct students, the base's dataset,
@@ -402,7 +409,22 @@ is not `true`. In one transaction (any failure saves nothing) it writes:
 - a `time_slots` row for the chosen day and block, only if the dataset has none yet (no
   generation or earlier late add from the dataset has used that slot);
 - the `schedules` row, a copy of every base `exam_assignments` row (unscheduled and unroomed
-  ones too) plus the late exam's, and the `conflict_analyses` row.
+  ones too) plus the late exam's, and the `conflict_analyses` row;
+- a `schedule_shares` row (`permission` `"view"`, `shared_by_user_id` = the caller) for each
+  member of the chain's group other than the caller (see "Late-add chains").
+
+### Late-add chains
+
+A chain is a generated schedule plus every late-add schedule whose run records it as
+`original_schedule_id` (`ScheduleRepo.get_chain`); its group is the original's owner plus
+everyone who has a share of a chain schedule (`services/schedule/chain_sharing.py`). Owners of
+later versions belong through their shares, so a removed user stays out of later versions but
+keeps those they own. A late-add save shares the new schedule with the group.
+`POST /api/schedule/{id}/share` (owner of that schedule only) adds the user to every chain
+schedule they don't own or have yet and returns their share of `{id}`;
+`DELETE /api/schedule/shares/{share_id}` (owner of that share's schedule only) removes the
+user's shares of every chain schedule. A user is never shared a schedule they own. Saving,
+sharing and unsharing all hold the chain lock, so none works from a stale group.
 
 ### Late-add lineage
 
@@ -418,7 +440,7 @@ and `settings_unused`.
 | --- | --- |
 | `based_on`, `original` | `{id, name, available}`; `null` for generated schedules. A deleted schedule, or one the caller can't view, is `available: false` with `name: null` |
 | `late_additions` | The stored entries (`crn`, `course_code`, `instructor_id`, `size`, `day`, `day_name`, `block`, `block_time`, `room`, `outcome`, `conflicts`, `added_by`, `added_by_name`, `added_at`, `schedule_id` of the version that added it); `[]` for generated schedules |
-| `newer_versions` | `{id, name, created_at}` of schedules based directly on this one that the caller can view, newest first |
+| `newer_versions` | `{id, name, created_at}` of the chain's versions saved after this one (more late additions) that the caller can view, newest first |
 
 Each `GET /api/schedule` item has `late_add_count` (0 for generated schedules) and
 `based_on_name` (`null` for generated schedules and when the base is deleted or not viewable).

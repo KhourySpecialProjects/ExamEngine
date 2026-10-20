@@ -4,6 +4,7 @@ import asyncio
 import copy
 import datetime
 from unittest.mock import patch
+from uuid import UUID
 
 import pytest
 from sqlalchemy import func, select
@@ -13,6 +14,7 @@ from src.repo.conflict_analyses import ConflictAnalysesRepo
 from src.repo.dataset import DatasetRepo
 from src.repo.exam_assignment import ExamAssignmentRepo
 from src.repo.schedule import ScheduleRepo
+from src.repo.schedule_share import ScheduleShareRepo
 from src.repo.time_slot import TimeSlotRepo
 from src.schemas.db import (
     ConflictAnalyses,
@@ -21,9 +23,13 @@ from src.schemas.db import (
     Rooms,
     Runs,
     Schedules,
+    ScheduleShares,
     TimeSlots,
 )
+from src.services.schedule.chain_sharing import ChainSharing
 from src.services.schedule_validation import ScheduleValidationService
+from tests.api.test_compare_schedules_route import _app as _view_app
+from tests.api.test_compare_schedules_route import _get
 from tests.api.test_late_add_search_route import _app, _post
 from tests.db.builders import (
     make_dataset,
@@ -299,6 +305,7 @@ def _counts(db) -> dict[str, int]:
             ExamAssignments,
             ConflictAnalyses,
             TimeSlots,
+            ScheduleShares,
         )
     }
 
@@ -512,21 +519,58 @@ def test_v1_to_v2_to_v3_chain_keeps_every_version_valid(db_session, shape):
 def test_unchanged_late_course_row_is_reused_and_a_changed_one_is_not(db_session):
     owner = make_user(db_session, "Owner")
     v1 = _generated_base(db_session, owner)
+    repo = ScheduleRepo(db_session)
 
-    first = _save(db_session, owner, v1.schedule_id, LATE_A)
-    branch = _save(db_session, owner, v1.schedule_id, {**LATE_A, "schedule_name": "B"})
-    changed = _save(
-        db_session,
-        owner,
-        v1.schedule_id,
+    for body in (
+        LATE_A,
+        {**LATE_A, "schedule_name": "B"},
         {**LATE_A, "course_code": "LATE 9001", "schedule_name": "C"},
-    )
+    ):
+        status, saved = _save(db_session, owner, v1.schedule_id, body)
+        assert status == 200, saved
+        assert _shares_of(db_session, saved["schedule_id"]) == []
+        # v1 takes the next late add once this version is gone.
+        assert repo.delete_schedule_cascade(UUID(saved["schedule_id"]), owner.user_id)
 
-    assert [status for status, _ in (first, branch, changed)] == [200, 200, 200]
     rows = db_session.execute(
         select(Courses.course_subject_code).where(Courses.crn == "900")
     ).scalars()
     assert sorted(rows) == ["LATE 9000", "LATE 9001"]
+
+
+def test_a_schedule_is_409_while_its_chain_has_a_later_version(db_session):
+    owner = make_user(db_session, "Owner")
+    recipient = make_user(db_session, "Recipient")
+    v1 = _generated_base(db_session, owner)
+    status, v2 = _save(db_session, owner, v1.schedule_id, LATE_A)
+    assert status == 200, v2
+    status, v3 = _save(db_session, owner, v2["schedule_id"], LATE_B)
+    assert status == 200, v3
+    # Shared after the versions were saved, so the recipient can't see them:
+    # still blocked.
+    share_schedule(db_session, v1, owner, recipient)
+    db_session.commit()
+    before = _counts(db_session)
+    other_name = {**LATE_A, "schedule_name": "Other"}
+
+    status, body = _call(
+        db_session, recipient, v1.schedule_id, "late-add/search", LATE_A
+    )
+    assert status == 409
+    assert body["detail"].startswith("This schedule already has a newer version.")
+    for user in (owner, recipient):
+        status, body = _save(db_session, user, v1.schedule_id, other_name)
+        assert status == 409
+        assert body["detail"].startswith("This schedule already has a newer version.")
+    assert _counts(db_session) == before
+
+    # Deleting the middle version doesn't unblock v1: v3 is still later.
+    repo = ScheduleRepo(db_session)
+    assert repo.delete_schedule_cascade(UUID(v2["schedule_id"]), owner.user_id)
+    assert _save(db_session, recipient, v1.schedule_id, other_name)[0] == 409
+    assert repo.delete_schedule_cascade(UUID(v3["schedule_id"]), owner.user_id)
+    status, body = _save(db_session, recipient, v1.schedule_id, other_name)
+    assert status == 200, body
 
 
 @pytest.mark.parametrize(
@@ -702,20 +746,14 @@ def test_name_taken_by_another_user_is_fine_and_fifty_characters_is_allowed(
     assert body["schedule_name"] == "x" * 50
 
 
-def test_only_the_owner_may_save_and_a_deleted_dataset_is_409(db_session):
+def test_a_stranger_gets_404_and_a_deleted_dataset_is_409(db_session):
     owner = make_user(db_session, "Owner")
-    viewer = make_user(db_session, "Viewer")
     stranger = make_user(db_session, "Stranger")
     v1 = _generated_base(db_session, owner)
-    share_schedule(db_session, v1, owner, viewer)
     before = _counts(db_session)
 
-    for user in (viewer, stranger):
-        status, body = _save(db_session, user, v1.schedule_id, LATE_A)
-        assert (status, body) == (
-            404,
-            {"detail": f"Schedule {v1.schedule_id} not found"},
-        )
+    status, body = _save(db_session, stranger, v1.schedule_id, LATE_A)
+    assert (status, body) == (404, {"detail": f"Schedule {v1.schedule_id} not found"})
 
     v1.run.dataset.deleted_at = datetime.datetime.now()
     db_session.flush()
@@ -724,21 +762,116 @@ def test_only_the_owner_may_save_and_a_deleted_dataset_is_409(db_session):
     assert _counts(db_session) == before
 
 
-def test_failure_after_some_writes_leaves_nothing_behind(db_session):
+def _shares_of(db, schedule_id) -> list[tuple]:
+    return sorted(
+        (str(s.shared_with_user_id), str(s.shared_by_user_id), s.permission)
+        for s in db.execute(
+            select(ScheduleShares).where(ScheduleShares.schedule_id == schedule_id)
+        ).scalars()
+    )
+
+
+def test_each_version_belongs_to_its_saver_and_is_shared_with_the_group(db_session):
+    bob = make_user(db_session, "Bob")
+    sam = make_user(db_session, "Sam")
+    jane = make_user(db_session, "Jane")
+    stranger = make_user(db_session, "Stranger")
+    v1 = _generated_base(db_session, bob)
+    share_schedule(db_session, v1, bob, sam)
+    share_schedule(db_session, v1, bob, jane)
+    db_session.commit()
+    v1_before = _stored_state(db_session, v1.schedule_id)
+
+    status, v2 = _save(db_session, jane, v1.schedule_id, LATE_A)
+
+    assert status == 200, v2
+    assert (v2["is_owner"], v2["created_by_user_id"]) == (True, str(jane.user_id))
+    entry = v2["lineage"]["late_additions"][0]
+    assert (entry["added_by"], entry["added_by_name"]) == (str(jane.user_id), "Jane")
+    assert _stored_state(db_session, v1.schedule_id) == v1_before
+    assert _shares_of(db_session, v2["schedule_id"]) == sorted(
+        [
+            (str(bob.user_id), str(jane.user_id), "view"),
+            (str(sam.user_id), str(jane.user_id), "view"),
+        ]
+    )
+
+    # Sam can't branch from v1; he adds to v2, and v3 goes to Bob and Jane.
+    assert _save(db_session, sam, v1.schedule_id, LATE_B)[0] == 409
+    status, v3 = _save(db_session, sam, v2["schedule_id"], LATE_B)
+    assert status == 200, v3
+    assert _shares_of(db_session, v3["schedule_id"]) == sorted(
+        [
+            (str(bob.user_id), str(sam.user_id), "view"),
+            (str(jane.user_id), str(sam.user_id), "view"),
+        ]
+    )
+    assert [e["crn"] for e in v3["lineage"]["late_additions"]] == ["900", "950"]
+
+    # Bob opens every version and is pointed from v1 to v3 and v2, newest first.
+    bob_app = _view_app(db_session, bob)
+    for version in (v2, v3):
+        status, body = _get(bob_app, f"/api/schedule/{version['schedule_id']}", [])
+        assert status == 200, body
+        assert (body["is_owner"], body["is_shared"]) == (False, True)
+    status, base = _get(bob_app, f"/api/schedule/{v1.schedule_id}", [])
+    assert [v["id"] for v in base["lineage"]["newer_versions"]] == [
+        v3["schedule_id"],
+        v2["schedule_id"],
+    ]
+
+    status, body = _save(db_session, stranger, v3["schedule_id"], LATE_A)
+    assert status == 404
+
+
+def test_someone_removed_from_the_chain_keeps_their_version_but_not_later_ones(
+    db_session,
+):
+    bob = make_user(db_session, "Bob")
+    sam = make_user(db_session, "Sam")
+    jane = make_user(db_session, "Jane")
+    v1 = _generated_base(db_session, bob)
+    share_schedule(db_session, v1, bob, sam)
+    share_schedule(db_session, v1, bob, jane)
+    db_session.commit()
+    status, v2 = _save(db_session, jane, v1.schedule_id, LATE_A)
+    assert status == 200, v2
+
+    ChainSharing(ScheduleRepo(db_session), ScheduleShareRepo(db_session)).unshare_chain(
+        v1, jane.user_id
+    )
+    db_session.commit()
+    status, v3 = _save(db_session, sam, v2["schedule_id"], LATE_B)
+
+    assert status == 200, v3
+    assert _shares_of(db_session, v3["schedule_id"]) == [
+        (str(bob.user_id), str(sam.user_id), "view")
+    ]
+    assert ScheduleRepo(db_session).get_by_id_for_user(
+        UUID(v2["schedule_id"]), jane.user_id
+    )
+
+
+@pytest.mark.parametrize("saver", ["owner", "recipient"])
+def test_failure_after_some_writes_leaves_nothing_behind(db_session, saver):
     owner = make_user(db_session, "Owner")
+    recipient = make_user(db_session, "Recipient")
     v1 = _generated_base(db_session, owner)
+    share_schedule(db_session, v1, owner, recipient)
+    db_session.commit()
+    user = owner if saver == "owner" else recipient
     before = _counts(db_session)
 
     with patch.object(
         ConflictAnalysesRepo, "add_analysis", side_effect=RuntimeError("disk full")
     ):
-        status, body = _save(db_session, owner, v1.schedule_id, LATE_A)
+        status, body = _save(db_session, user, v1.schedule_id, LATE_A)
 
     assert status == 500
     assert "disk full" in body["detail"]
     assert _counts(db_session) == before
     # Nothing half-saved blocks a retry under the same name.
-    status, body = _save(db_session, owner, v1.schedule_id, LATE_A)
+    status, body = _save(db_session, user, v1.schedule_id, LATE_A)
     assert status == 200, body
 
 

@@ -284,7 +284,7 @@ export interface ScheduleLineage {
   original: ScheduleRef | null;
   /** Cumulative, oldest first. */
   late_additions: LateAddition[];
-  /** Viewable late-add versions based directly on this schedule, newest first. */
+  /** Viewable late-add versions of this schedule's chain saved after it, newest first. */
   newer_versions: { id: string; name: string; created_at: string }[];
 }
 

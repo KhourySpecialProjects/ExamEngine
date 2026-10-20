@@ -159,7 +159,7 @@ function ScheduleDetailPage({ scheduleId }: { scheduleId: string }) {
               scheduleName={schedule.schedule_name}
             />
           )}
-          {canShare && schedule && (
+          {schedule && (
             <LateAddDialog
               scheduleId={scheduleId}
               scheduleName={schedule.schedule_name}

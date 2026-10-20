@@ -4,8 +4,9 @@
  * header for prerequisites), on the demo account's Classic sample schedule.
  *
  * The late-add exam is the sample's enrollment-only CRN (gen_test_data.py
- * --late-adds, see AGENTS.md). The test saves one late-add version and shares
- * the Classic schedule with the docs-viewer@ account (created and approved
+ * --late-adds, see AGENTS.md). The test saves one late-add version, shows the
+ * Classic schedule's Late Add pointing at it, and shares the Classic schedule
+ * (with it, the version) with the docs-viewer@ account (created and approved
  * here); both are removed before it ends.
  */
 import {
@@ -106,30 +107,7 @@ test("late add and sharing screenshots", async ({ page }) => {
   try {
     await signIn(page);
 
-    await test.step("save a late-add version", async () => {
-      await openClassic();
-      const dialog = await searchLateAdd(page);
-      const save = dialog.getByRole("form", { name: "Save as new schedule" });
-      await expect(save.locator("#late-add-schedule-name")).toHaveValue(
-        VERSION,
-      );
-      await save.getByRole("button", { name: "Save as new schedule" }).click();
-      await expect(toast(page, `Saved ${VERSION}`)).toBeVisible();
-      await expect(dialog).toBeHidden();
-      await expect(
-        page.getByRole("link", { name: CLASSIC, exact: true }).first(),
-      ).toBeVisible();
-
-      const details = page
-        .locator('[data-slot="card"]')
-        .filter({ hasText: "Late add to" });
-      await expect(
-        details.getByRole("table", { name: "Late additions" }),
-      ).toBeVisible();
-      await shot(page, details, "late-add-version");
-    });
-
-    await test.step("search results and the save form", async () => {
+    await test.step("search results, the save form and the saved version", async () => {
       await openClassic();
       const dialog = await searchLateAdd(page);
       const first = dialog
@@ -143,7 +121,9 @@ test("late add and sharing screenshots", async ({ page }) => {
 
       // Crop the dialog above the save form.
       const save = dialog.getByRole("form", { name: "Save as new schedule" });
-      await expect(save.getByText("already has a newer version")).toBeVisible();
+      await expect(save.locator("#late-add-schedule-name")).toHaveValue(
+        VERSION,
+      );
       const top = (await dialog.boundingBox())?.y ?? 0;
       const saveTop = (await save.boundingBox())?.y ?? 0;
       await shot(page, dialog, "late-add-results", {
@@ -162,6 +142,31 @@ test("late add and sharing screenshots", async ({ page }) => {
       await page.keyboard.press("Escape");
       await expect(exams).toBeHidden();
       await expect(dialog).toBeVisible();
+
+      await save.getByRole("button", { name: "Save as new schedule" }).click();
+      await expect(toast(page, `Saved ${VERSION}`)).toBeVisible();
+      await expect(dialog).toBeHidden();
+      await expect(
+        page.getByRole("link", { name: CLASSIC, exact: true }).first(),
+      ).toBeVisible();
+      const details = page
+        .locator('[data-slot="card"]')
+        .filter({ hasText: "Late add to" });
+      await expect(
+        details.getByRole("table", { name: "Late additions" }),
+      ).toBeVisible();
+      await shot(page, details, "late-add-version");
+    });
+
+    await test.step("Late Add on a schedule with a newer version", async () => {
+      await openClassic();
+      await page.getByRole("button", { name: "Late Add", exact: true }).click();
+      const dialog = page.getByRole("dialog", { name: `Late Add: ${CLASSIC}` });
+      await expect(dialog.getByRole("link", { name: VERSION })).toBeVisible();
+      await expect(
+        dialog.getByRole("button", { name: "Find blocks" }),
+      ).toHaveCount(0);
+      await shot(page, dialog, "late-add-newer-version");
       await page.keyboard.press("Escape");
       await expect(dialog).toBeHidden();
     });
@@ -191,13 +196,18 @@ test("late add and sharing screenshots", async ({ page }) => {
       });
       await signIn(page, VIEWER);
       const list = page.locator("#schedule-view");
-      await expect(list.getByText(`Shared by ${DEMO.name}`)).toBeVisible();
+      await expect(
+        list.getByText(`Shared by ${DEMO.name}`).first(),
+      ).toBeVisible();
       await shot(page, list, "sharing-recipient-list");
 
       await openClassic();
       await expect(
-        page.getByRole("button", { name: "Validate Schedule" }),
+        page.getByRole("button", { name: "Late Add", exact: true }),
       ).toBeVisible();
+      await expect(
+        page.getByRole("button", { name: "Share", exact: true }),
+      ).toBeHidden();
       await shot(page, toolbar(page), "sharing-recipient-toolbar", { pad: 8 });
     });
   } finally {

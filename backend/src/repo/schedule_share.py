@@ -18,32 +18,23 @@ class ScheduleShareRepo(BaseRepo[ScheduleShares]):
     def __init__(self, db: Session):
         super().__init__(ScheduleShares, db)
 
-    def create_share(
+    def add_share(
         self,
         schedule_id: UUID,
         shared_with_user_id: UUID,
         permission: str,
         shared_by_user_id: UUID,
     ) -> ScheduleShares:
-        """
-        Create a new schedule share.
-
-        Args:
-            schedule_id: Schedule to share
-            shared_with_user_id: User to share with
-            permission: "view" or "edit"
-            shared_by_user_id: User creating the share
-
-        Returns:
-            Created share
-        """
+        """Add a share (permission "view" or "edit"); flushes, the caller commits."""
         share = ScheduleShares(
             schedule_id=schedule_id,
             shared_with_user_id=shared_with_user_id,
             permission=permission,
             shared_by_user_id=shared_by_user_id,
         )
-        return self.create(share)
+        self.db.add(share)
+        self.db.flush()
+        return share
 
     def get_share(self, share_id: UUID) -> ScheduleShares | None:
         """Get share by ID."""
@@ -56,6 +47,15 @@ class ScheduleShareRepo(BaseRepo[ScheduleShares]):
             select(ScheduleShares)
             .where(ScheduleShares.schedule_id == schedule_id)
             .order_by(ScheduleShares.shared_at.desc())
+        )
+        return list(self.db.execute(stmt).scalars().all())
+
+    def get_shares_for_schedules(
+        self, schedule_ids: list[UUID]
+    ) -> list[ScheduleShares]:
+        """Every share of those schedules."""
+        stmt = select(ScheduleShares).where(
+            ScheduleShares.schedule_id.in_(schedule_ids)
         )
         return list(self.db.execute(stmt).scalars().all())
 
@@ -90,24 +90,6 @@ class ScheduleShareRepo(BaseRepo[ScheduleShares]):
         )
         return self.db.execute(stmt).scalars().first()
 
-    def update_share_permission(
-        self, share_id: UUID, permission: str
-    ) -> ScheduleShares | None:
-        """Update share permission."""
-        share = self.get_share(share_id)
-        if share:
-            share.permission = permission
-            return self.update(share)
-        return None
-
-    def delete_share(self, share_id: UUID) -> bool:
-        """Delete a share."""
-        share = self.get_share(share_id)
-        if share:
-            self.delete(share)
-            return True
-        return False
-
     def delete_share_by_schedule_and_user(
         self, schedule_id: UUID, shared_with_user_id: UUID
     ) -> bool:
@@ -117,6 +99,19 @@ class ScheduleShareRepo(BaseRepo[ScheduleShares]):
             self.delete(share)
             return True
         return False
+
+    def delete_shares_for_user(
+        self, schedule_ids: list[UUID], shared_with_user_id: UUID
+    ) -> None:
+        """Delete the user's shares of those schedules; flushes, the caller commits."""
+        for share in self.db.execute(
+            select(ScheduleShares).where(
+                ScheduleShares.schedule_id.in_(schedule_ids),
+                ScheduleShares.shared_with_user_id == shared_with_user_id,
+            )
+        ).scalars():
+            self.db.delete(share)
+        self.db.flush()
 
     def user_has_access(
         self, schedule_id: UUID, user_id: UUID, required_permission: str = "view"

@@ -1,7 +1,15 @@
 "use client";
 
-import { CalendarPlus, Loader2, Search } from "lucide-react";
-import { type ComponentProps, type FormEvent, useRef, useState } from "react";
+import { AlertTriangle, CalendarPlus, Loader2, Search } from "lucide-react";
+import Link from "next/link";
+import {
+  type ComponentProps,
+  type FormEvent,
+  Fragment,
+  useRef,
+  useState,
+} from "react";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -27,7 +35,11 @@ interface LateAddDialogProps {
   scheduleName: string;
   /** The dataset's uploaded files are gone, so nothing can be searched. */
   datasetDeleted?: boolean;
-  /** Late-add versions already based on this schedule (`lineage.newer_versions`). */
+  /**
+   * Late-add versions of this schedule's chain saved after it
+   * (`lineage.newer_versions`): late adds go on the newest version, so any
+   * here blocks the search.
+   */
   newerVersions?: ScheduleLineage["newer_versions"];
 }
 
@@ -135,37 +147,66 @@ export function LateAddDialog({
           </DialogDescription>
         </DialogHeader>
 
-        <form
-          onSubmit={handleSearch}
-          className="flex flex-wrap items-end gap-3"
-          aria-label="Late add exam"
-        >
-          {FIELDS.map(({ id, label }) => (
-            <div key={id} className="space-y-1">
-              <Label htmlFor={`late-add-${id}`}>{label}</Label>
-              <Input
-                id={`late-add-${id}`}
-                value={input[id]}
-                onChange={(e) => setInput({ ...input, [id]: e.target.value })}
-                autoComplete="off"
-                className="w-40"
-              />
-            </div>
-          ))}
-          <Button type="submit" disabled={incomplete || isSearching}>
-            {isSearching ? (
-              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-            ) : (
-              <Search className="mr-2 h-4 w-4" />
+        {newerVersions.length > 0 ? (
+          <Alert className="border-amber-300 bg-amber-50 text-amber-900">
+            <AlertTriangle className="h-4 w-4" />
+            <AlertDescription className="text-amber-900">
+              <p>
+                This schedule already has{" "}
+                {newerVersions.length === 1
+                  ? "a newer version"
+                  : "newer versions"}
+                :{" "}
+                {newerVersions.map((version, index) => (
+                  <Fragment key={version.id}>
+                    {index > 0 && ", "}
+                    <Link
+                      href={`/dashboard/${version.id}`}
+                      onClick={() => handleOpenChange(false)}
+                      className="font-medium underline"
+                    >
+                      {version.name}
+                    </Link>
+                  </Fragment>
+                ))}
+                . Late adds go on the newest version, so open it and use Late
+                Add there.
+              </p>
+            </AlertDescription>
+          </Alert>
+        ) : (
+          <form
+            onSubmit={handleSearch}
+            className="flex flex-wrap items-end gap-3"
+            aria-label="Late add exam"
+          >
+            {FIELDS.map(({ id, label }) => (
+              <div key={id} className="space-y-1">
+                <Label htmlFor={`late-add-${id}`}>{label}</Label>
+                <Input
+                  id={`late-add-${id}`}
+                  value={input[id]}
+                  onChange={(e) => setInput({ ...input, [id]: e.target.value })}
+                  autoComplete="off"
+                  className="w-40"
+                />
+              </div>
+            ))}
+            <Button type="submit" disabled={incomplete || isSearching}>
+              {isSearching ? (
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              ) : (
+                <Search className="mr-2 h-4 w-4" />
+              )}
+              {isSearching ? "Searching…" : "Find blocks"}
+            </Button>
+            {error && (
+              <p role="alert" className="basis-full text-sm text-destructive">
+                {error}
+              </p>
             )}
-            {isSearching ? "Searching…" : "Find blocks"}
-          </Button>
-          {error && (
-            <p role="alert" className="basis-full text-sm text-destructive">
-              {error}
-            </p>
-          )}
-        </form>
+          </form>
+        )}
 
         {result && (
           <div className="max-h-[50vh] overflow-y-auto pr-2">
@@ -187,7 +228,6 @@ export function LateAddDialog({
             result={result}
             candidate={chosen}
             room={rooms[slotKey(chosen)] ?? chosen.room.name}
-            newerVersions={newerVersions}
             onLeave={() => handleOpenChange(false)}
           />
         )}

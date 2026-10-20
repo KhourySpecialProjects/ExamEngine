@@ -1,6 +1,6 @@
 from uuid import UUID
 
-from sqlalchemy import exists, func, or_, select
+from sqlalchemy import and_, exists, func, or_, select
 from sqlalchemy.orm import Session, joinedload
 
 from src.repo.base import BaseRepo
@@ -11,6 +11,11 @@ from src.schemas.db import (
     ScheduleShares,
     StatusEnum,
 )
+
+
+# First key of the advisory lock on a late-add chain (the second is a hash of
+# the chain's original schedule id), so it can't collide with other locks.
+CHAIN_LOCK_NAMESPACE = 214
 
 
 class ScheduleRepo(BaseRepo[Schedules]):
@@ -85,18 +90,87 @@ class ScheduleRepo(BaseRepo[Schedules]):
         )
         return dict(self.db.execute(stmt).tuples().all())
 
-    def get_newer_versions(self, schedule_id: UUID, user_id: UUID) -> list[Schedules]:
-        """Viewable schedules saved as late adds based on this one, newest first."""
+    @staticmethod
+    def chain_original_id(schedule: Schedules) -> str:
+        """The id of the generated schedule that starts the schedule's late-add
+        chain (the schedule itself when it isn't a late-add version)."""
+        return (schedule.run.parameters or {}).get("original_schedule_id") or str(
+            schedule.schedule_id
+        )
+
+    def _newer_in_chain(self, schedule: Schedules):
+        """Condition: a late-add version of the schedule's chain with more late
+        additions than it, so saved after it. Counting late additions, not
+        comparing creation times or `based_on`, still finds versions past a
+        deleted one. Needs `Runs` joined."""
+        depth = len((schedule.run.parameters or {}).get("late_additions") or [])
+        return and_(
+            Runs.parameters["original_schedule_id"].astext
+            == self.chain_original_id(schedule),
+            func.jsonb_array_length(Runs.parameters["late_additions"]) > depth,
+        )
+
+    def get_newer_versions(self, schedule: Schedules, user_id: UUID) -> list[Schedules]:
+        """Viewable late-add versions of the chain saved after this schedule,
+        newest first."""
         stmt = (
             select(Schedules)
             .join(Runs, Schedules.run_id == Runs.run_id)
-            .where(
-                Runs.parameters["based_on_schedule_id"].astext == str(schedule_id),
-                self._viewable_by(user_id),
+            .where(self._newer_in_chain(schedule), self._viewable_by(user_id))
+            .order_by(
+                func.jsonb_array_length(Runs.parameters["late_additions"]).desc(),
+                Schedules.created_at.desc(),
             )
-            .order_by(Schedules.created_at.desc())
         )
         return list(self.db.execute(stmt).scalars().all())
+
+    def has_newer_version(self, schedule: Schedules) -> bool:
+        """Whether the chain has a version saved after this schedule, whoever can
+        view it. (Deleting a schedule keeps its run, so join the schedule.)"""
+        stmt = select(
+            select(Schedules.schedule_id)
+            .join(Runs, Schedules.run_id == Runs.run_id)
+            .where(self._newer_in_chain(schedule))
+            .exists()
+        )
+        return bool(self.db.execute(stmt).scalar())
+
+    def lock_chain(self, schedule: Schedules) -> None:
+        """Take the schedule's chain lock until the transaction ends.
+
+        Saving a version and sharing or unsharing the chain all take it, so
+        they run one at a time per chain. A Postgres advisory lock, keyed on
+        the original's id, works even after the original was deleted.
+        """
+        self.db.execute(
+            select(
+                func.pg_advisory_xact_lock(
+                    CHAIN_LOCK_NAMESPACE,
+                    func.hashtext(self.chain_original_id(schedule)),
+                )
+            )
+        )
+
+    def get_chain(self, schedule: Schedules) -> list[Schedules]:
+        """The schedule's late-add chain, whoever can view it, runs loaded.
+
+        The generated schedule at its start plus every late-add version whose
+        run records it as `original_schedule_id`; a schedule without late adds
+        is a chain of one.
+        """
+        original = self.chain_original_id(schedule)
+        stmt = (
+            select(Schedules)
+            .join(Runs, Schedules.run_id == Runs.run_id)
+            .options(joinedload(Schedules.run))
+            .where(
+                or_(
+                    Schedules.schedule_id == UUID(original),
+                    Runs.parameters["original_schedule_id"].astext == original,
+                )
+            )
+        )
+        return list(self.db.execute(stmt).scalars().unique().all())
 
     def name_exists(self, schedule_name: str, user_id: UUID) -> bool:
         """Check if schedule name is already taken by a specific user."""

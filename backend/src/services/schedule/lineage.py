@@ -9,6 +9,7 @@ from typing import Any
 from uuid import UUID
 
 from src.repo.schedule import ScheduleRepo
+from src.schemas.db import Schedules
 
 
 def _uuid(value: Any) -> UUID | None:
@@ -35,13 +36,10 @@ def _ref(schedule_id: UUID | None, names: dict[UUID, str]) -> dict[str, Any] | N
 
 
 def build_lineage(
-    repo: ScheduleRepo,
-    schedule_id: UUID,
-    parameters: dict[str, Any] | None,
-    user_id: UUID,
+    repo: ScheduleRepo, schedule: Schedules, user_id: UUID
 ) -> dict[str, Any]:
-    """The `lineage` field of `GET /api/schedule/{id}`."""
-    params = parameters or {}
+    """The `lineage` field of `GET /api/schedule/{id}`; `schedule.run` loaded."""
+    params = schedule.run.parameters or {}
     based_on = based_on_id(params)
     original = _uuid(params.get("original_schedule_id"))
     names = repo.get_viewable_names(
@@ -57,6 +55,6 @@ def build_lineage(
                 "name": s.schedule_name,
                 "created_at": s.created_at.isoformat(),
             }
-            for s in repo.get_newer_versions(schedule_id, user_id)
+            for s in repo.get_newer_versions(schedule, user_id)
         ],
     }

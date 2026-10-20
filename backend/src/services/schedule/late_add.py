@@ -3,9 +3,12 @@
 The base schedule comes from the database; enrollments and room blockouts come
 from the dataset's uploaded files, parsed unfiltered, because generation drops
 enrollment rows for CRNs that are not in the courses file. The placement itself
-is `src.domain.services.late_add`. Saving never modifies the base: it writes a
-new version (courses row, run, schedule, copied assignments + the late exam,
-conflict analysis) in one transaction.
+is `src.domain.services.late_add`. The owner and anyone the base is shared with
+may search and save, but only on the newest version of a chain: a schedule that
+already has a late-add version is refused, so chains never branch. Saving never
+modifies the base: it writes a new version (courses row, run, schedule, copied
+assignments + the late exam, conflict analysis) owned by the saver and shared
+with the rest of the chain's group (`chain_sharing`), in one transaction.
 """
 
 import asyncio
@@ -22,6 +25,7 @@ from pydantic import BaseModel
 
 from src.core.exceptions import (
     DatasetDeletedError,
+    NewerVersionError,
     PlacementConflictError,
     StorageError,
     ValidationError,
@@ -56,12 +60,17 @@ from src.repo.schedule import ScheduleRepo
 from src.repo.time_slot import TimeSlotRepo
 from src.schemas.db import Datasets, ExamAssignments, Runs, Schedules, StatusEnum, Users
 from src.services.dataset.uploaded_files import load_uploaded_files, stored_groups
+from src.services.schedule.chain_sharing import ChainSharing
 from src.services.schedule.slots import slot_indices
 from src.services.schedule.summary import resolve_settings
 from src.services.storage.interface import IStorage
 
 
 DATASET_DELETED_MESSAGE = "The dataset's uploaded files are no longer available"
+NEWER_VERSION_MESSAGE = (
+    "This schedule already has a newer version. Late adds go on the newest "
+    "version, so open it and use Late Add there."
+)
 
 LATE_ADD_ALGORITHM_NAME = "Late add"
 # schedules.schedule_name is String(50).
@@ -211,6 +220,7 @@ class LateAddService:
         course_repo: CourseRepo,
         time_slot_repo: TimeSlotRepo,
         conflict_analyses_repo: ConflictAnalysesRepo,
+        chain_sharing: ChainSharing,
         storage: IStorage,
     ):
         self.schedule_repo = schedule_repo
@@ -220,6 +230,7 @@ class LateAddService:
         self.course_repo = course_repo
         self.time_slot_repo = time_slot_repo
         self.conflict_analyses_repo = conflict_analyses_repo
+        self.chain_sharing = chain_sharing
         self.storage = storage
 
     async def search(
@@ -230,7 +241,7 @@ class LateAddService:
         course_code: str,
         instructor_id: str,
     ) -> LateAddSearchResponse | None:
-        """Ranked blocks for the late exam; None if the caller doesn't own it."""
+        """Ranked blocks for the late exam; None if the caller can't view it."""
         context = await self.load_context(
             schedule_id, user_id, crn, course_code, instructor_id
         )
@@ -286,17 +297,20 @@ class LateAddService:
     ) -> LateAddContext | None:
         """Check the request and load the base schedule and the late exam.
 
-        Returns None when the schedule doesn't exist or the caller doesn't own
-        it (shared viewers included). Raises `DatasetDeletedError` when the
-        dataset was deleted, `ValidationError` for a blank field (a "nan"
-        instructor ID counts as blank), a CRN already in the schedule, a CRN
-        that courses.csv schedules with a nonzero enrollment or a CRN without
-        enrollment rows, and `StorageError` when the uploaded files can't be
-        read.
+        Returns None when the schedule doesn't exist or the caller can't view
+        it (the owner and anyone it is shared with can). Raises
+        `NewerVersionError` when its chain has a version saved after it (by
+        anyone), `DatasetDeletedError` when the dataset was deleted,
+        `ValidationError` for a blank field (a "nan" instructor ID counts as
+        blank), a CRN already in the schedule, a CRN that courses.csv schedules
+        with a nonzero enrollment or a CRN without enrollment rows, and
+        `StorageError` when the uploaded files can't be read.
         """
         schedule = self.schedule_repo.get_with_run_details(schedule_id, user_id)
-        if schedule is None or schedule.run.user_id != user_id:
+        if schedule is None:
             return None
+        if self.schedule_repo.has_newer_version(schedule):
+            raise NewerVersionError(NEWER_VERSION_MESSAGE)
         run = schedule.run
         dataset = self.dataset_repo.get_by_id(run.dataset_id)
         if dataset is None or dataset.deleted_at is not None:
@@ -381,13 +395,15 @@ class LateAddService:
     ) -> UUID | None:
         """Save the base schedule plus the late exam as a new schedule.
 
-        Returns the new schedule's ID, or None when the caller doesn't own the
+        Returns the new schedule's ID, or None when the caller can't view the
         base (as `load_context`). The placement is re-evaluated here, never
         taken from the client. Raises `ValidationError` for a bad name or a
         block outside the window, `PlacementConflictError` when the room can't
         take the exam in that block or the block has hard conflicts that were
-        not accepted, and whatever `load_context` raises. Every row is written
-        in one transaction: on any error nothing is saved.
+        not accepted, `NewerVersionError` when a version was saved after the
+        base meanwhile, and whatever `load_context` raises. The chain lock is
+        held while writing, so two saves from one chain can't both succeed.
+        Every row is written in one transaction: on any error nothing is saved.
         """
         context = await self.load_context(
             schedule_id, user.user_id, crn, course_code, instructor_id
@@ -417,6 +433,9 @@ class LateAddService:
         )
         db = self.schedule_repo.db
         try:
+            self.schedule_repo.lock_chain(context.schedule)
+            if self.schedule_repo.has_newer_version(context.schedule):
+                raise NewerVersionError(NEWER_VERSION_MESSAGE)
             self._write_version(
                 context, placement, room, name, user, new_schedule_id, parameters
             )
@@ -458,7 +477,7 @@ class LateAddService:
         new_schedule_id: UUID,
         parameters: dict[str, Any],
     ) -> None:
-        """Flush the course, run, schedule and assignment rows (no commit)."""
+        """Flush the version's rows and its shares with the group (no commit)."""
         dataset_id = context.dataset.dataset_id
         late = context.late
         course = self.course_repo.get_or_add_late_course(
@@ -499,6 +518,9 @@ class LateAddService:
                     "room_id": room_ids[room],
                 }
             ],
+        )
+        self.chain_sharing.share_new_version(
+            context.schedule, new_schedule_id, user.user_id
         )
 
 

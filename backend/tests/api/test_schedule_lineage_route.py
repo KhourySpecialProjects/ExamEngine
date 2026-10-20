@@ -128,12 +128,12 @@ def test_v3_points_at_v2_and_v1_with_cumulative_additions(db_session):
     assert [e["crn"] for e in v2_lineage["late_additions"]] == ["901"]
 
 
-def test_newer_versions_are_direct_children_the_caller_can_view_newest_first(
+def test_newer_versions_are_later_chain_versions_the_caller_can_view_newest_first(
     db_session,
 ):
     me = make_user(db_session, "Me")
     colleague = make_user(db_session, "Colleague")
-    v1, v2, _v3 = _chain(db_session, me)
+    v1, v2, v3 = _chain(db_session, me)
     branch = _late_add(
         db_session,
         me,
@@ -143,15 +143,20 @@ def test_newer_versions_are_direct_children_the_caller_can_view_newest_first(
         created_at=datetime.datetime(2026, 1, 2, 9),
     )
 
+    # Newest first: V3 has the most late additions; Branch and V2 one each.
     newer = _lineage(db_session, me, v1.schedule_id)["lineage"]["newer_versions"]
-    # V3 is based on V2, not on V1.
     assert [(n["id"], n["name"]) for n in newer] == [
+        (str(v3.schedule_id), "V3"),
         (str(branch.schedule_id), "Branch"),
         (str(v2.schedule_id), "V2"),
     ]
-    assert newer[0]["created_at"] == "2026-01-02T09:00:00"
+    assert newer[1]["created_at"] == "2026-01-02T09:00:00"
+    # Only V3 is later than V2; V3 has none.
+    newer = _lineage(db_session, me, v2.schedule_id)["lineage"]["newer_versions"]
+    assert [n["name"] for n in newer] == ["V3"]
+    assert _lineage(db_session, me, v3.schedule_id)["lineage"]["newer_versions"] == []
 
-    # A colleague who can see V1 and V2 but not the branch sees only V2.
+    # A colleague who can see V1 and V2 but not the rest sees only V2.
     share_schedule(db_session, v1, me, colleague)
     share_schedule(db_session, v2, me, colleague)
     newer = _lineage(db_session, colleague, v1.schedule_id)["lineage"]["newer_versions"]

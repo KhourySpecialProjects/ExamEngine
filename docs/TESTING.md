@@ -83,7 +83,7 @@ cd frontend
 npx vitest run                          # Run once
 npm test                                # = vitest: watch mode in a terminal, single run in CI
 npx vitest run src/components/schedule  # One directory
-npx tsc --noEmit --incremental false    # Type check
+npx tsc --noEmit --incremental false    # Type check (fresh checkout: `npx fumadocs-mdx` first)
 npx biome check <files>                 # Lint without rewriting files
 
 npm run test:e2e                        # Playwright (run `npx playwright install` once)

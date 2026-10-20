@@ -304,9 +304,7 @@ class ScheduleService:
                 blockouts=blockout_slots,
                 unscheduled_groups=unscheduled_groups,
             ),
-            "lineage": build_lineage(
-                self.schedule_repo, schedule_id, schedule.run.parameters, user_id
-            ),
+            "lineage": build_lineage(self.schedule_repo, schedule, user_id),
         }
 
     async def compare_schedules(

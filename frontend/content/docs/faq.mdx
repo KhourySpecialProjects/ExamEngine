@@ -1,0 +1,212 @@
+---
+title: FAQ
+description: Short answers to common questions about uploading data, generating, reviewing and sharing schedules.
+---
+
+## Your data
+
+### What files do I need to upload?
+
+Three CSV files are required: courses, enrollments and rooms. Three more are optional: room
+blockouts, combined exams and common exams. Click **Upload CSV** under **Datasets Controls** in
+the Controls Center, name the dataset, add the files and click **Upload All Files**. See step 4 of
+the [Quickstart](/docs/start/quickstart#4-upload-a-dataset).
+
+### What columns are required in each CSV?
+
+- **Courses**: `CRN`, `CourseID` and the enrollment count (`Enrollment` or `num_students`). The
+  instructor column (`Instructor Name` or `instructor_name`) is optional, but a section without an
+  instructor is left out of instructor conflicts and limits.
+- **Enrollments**: `NUID`, `CRN`.
+- **Rooms**: `Room` (or `room_name`) and `Capacity`, plus an optional `LargeOnly` column (yes or
+  no). Mark at most one room, and it must seat more than every other room: exams too big for every
+  other room can only go there, and no other exam may use it.
+- **Room blockouts**: `Room`, `Day`, `Block`. **Combined exams**: `ExamGroup`, `CRN`.
+  **Common exams**: `Common_Group`, `CRN`.
+
+Headers are matched without regard to case, and a few other common names are accepted. Extra
+columns are ignored. Every accepted header is in the [CSV reference](/docs/your-data/csv-reference).
+If a file is rejected, see [Troubleshooting](/docs/reference/troubleshooting#an-upload-fails).
+
+### Can I reuse datasets across runs?
+
+Yes. A dataset stays in the dataset picker until you delete it, and you can generate any number of
+schedules from it without uploading the files again. Each schedule needs a name you haven't used
+before.
+
+### How do I remove a dataset?
+
+Select it in the dataset picker under **Datasets Controls**, click the trash icon next to it and
+click **Continue**. This can't be undone. Schedules made from the dataset are kept and show it as
+**Deleted**; you can still view, export, share, validate and compare them, but Late Add and student
+lookups no longer work. See [The dataset was
+deleted](/docs/reference/troubleshooting#the-dataset-was-deleted).
+
+## Generating
+
+### How do I adjust constraints?
+
+In the **Generate Schedule** dialog, before you generate:
+
+- **Maximum Exams Per Student Per Day** and **Maximum Exams Per Instructor Per Day** (1 to 5).
+- **Maximum Days for Exam Period** (1 to 7, starting Monday).
+- **Exam Blocks Per Day**: 5, or 4 to leave out the 6PM-8PM block.
+- **Algorithm**: **Classic** or **Optimized**.
+- **Optimization Time** (Optimized only): 5, 15 or 30 seconds.
+- **Avoid Back-to-Back Exams** and **Prioritize Large Classes**.
+- **Promote to Larger Rooms**: after scheduling, moves the fullest exams into larger free rooms in
+  the same block, at most twice their enrollment, so instructors can use alternate-seat spacing.
+
+See [Settings](/docs/generating/settings) for what each one does.
+
+### How are conflicts handled?
+
+Both engines, Classic and Optimized, only put an exam in a room that is big enough, free and not
+blocked out, and keep combined and common exams together. They try hardest to keep students and
+instructors from having two exams at once or more exams in a day than your limits allow, then try
+to avoid back-to-back exams and to schedule courses of 100 or more students before Thursday.
+
+Conflicts are kept as low as possible, not forbidden: if some can't be avoided, the schedule is
+still made and reports them. Two settings apply to one engine only:
+
+- **Avoid Back-to-Back Exams** affects Optimized only. Classic always tries to avoid back-to-back
+  exams.
+- **Prioritize Large Classes** affects Classic only, which then places the largest exams first.
+  Optimized ignores it.
+
+See [Classic vs Optimized](/docs/generating/classic-vs-optimized) and
+[Conflict types](/docs/reference/conflict-types).
+
+### How long does generation take?
+
+Classic places all exams in a single pass. Optimized keeps improving the schedule for up to the
+**Optimization Time** you choose (5, 15 or 30 seconds), then saves it. You can generate again with
+other settings at any time without uploading your data again.
+
+### Do I need to restart after changing parameters?
+
+No. Choose new settings and generate again under a new name. Each run is saved as its own
+schedule, so you can compare them.
+
+### Why might a run fail?
+
+The most common cause is a schedule name you have already used, including the name of an earlier
+run that failed. Others are rows in the courses file without a CRN or course code, or with a
+negative enrollment.
+Missing columns and malformed files are caught earlier, when you upload. Rooms that are too small
+don't make a run fail: those exams are left unscheduled. See
+[Troubleshooting](/docs/reference/troubleshooting#generation-fails).
+
+## Reviewing
+
+### What if conflicts remain?
+
+The **Conflicts** tab lists every conflict by person or by course, and **Statistics** shows the
+totals and what needs attention. Exams that couldn't be scheduled are listed in **Statistics** with
+the reason, and marked **Unscheduled** in the **List** tab. Change your settings or your files and
+generate again. Courses with no enrolled students are skipped, since nobody sits their exam.
+
+### How do I interpret the conflict breakdown?
+
+The **Conflicts** tab has one tab per conflict type, showing the students, instructors or courses
+involved; **Conflict Definitions** at the bottom explains each type. **Statistics** shows the
+totals. Use them to decide which settings or input files to change before you generate again. See
+[Conflict types](/docs/reference/conflict-types).
+
+### Where do I see what changed?
+
+Each schedule shows the settings it was generated with at the top of its page. To see how
+schedules differ, tick two to four of them in the schedules list and click **Compare**: it shows
+which settings differ, and their conflicts, calendar shape and room use side by side. It doesn't
+list individual exams that moved. See [Comparing schedules](/docs/reviewing/comparing).
+
+### How do I compare schedules?
+
+In the schedules list, tick the boxes of two to four completed schedules, yours or shared with you,
+and click **Compare** in the bar that appears. The first column is the **Baseline**; every other
+schedule's numbers show whether they are better or worse than it. Use a column's menu to **Set as
+baseline**, move or remove it, or **Add schedule** to add another. See
+[Comparing schedules](/docs/reviewing/comparing).
+
+### How do I check that a schedule is correct?
+
+Open the schedule and click **Validate Schedule**, then **Run Validation**. It re-checks the
+schedule against the dataset's original files without changing anything: every course accounted
+for, rooms big enough, free and not blocked out, combined and common exams together, the conflict
+counts, and the data itself. Each check passes, warns, fails or is skipped, with examples. Anyone
+who can view the schedule can run it. See [Validating a schedule](/docs/reviewing/validating).
+
+### How do I see one student's or instructor's exams?
+
+Next to a student NUId or instructor ID (in the Conflicts tab, a course's conflict details, the List
+view's Instructor column, the late additions table and Late Add results), the calendar icon opens
+that person's exams in the schedule: a short list, then the exam week with each exam's CRN, course
+and room. Two different exams in the same block show in red; sections of one combined or common
+exam count as one exam. Opened from Late Add results, the exam being added is shown dashed in the
+block you're looking at. **Open in Explore** shows the same person in the Explore tab. Anyone who
+can view the schedule can use it.
+
+### What does the Explore tab show?
+
+Explore looks up one room, student, instructor or course in the schedule and shows its exams as a
+calendar (the default) or a list. Pick a room from the list of every room to also see its blocked
+times: striped orange on the calendar, and under **Blocked times** below the list. An exam in a
+blocked slot shows in red. Sections of a combined exam in the same block are drawn as one framed
+block with the group's name, room and total students; a common exam has a violet badge that lists
+all its sections and their rooms. The list's Group column names both. Type a student's NUId, or
+choose an instructor; recent lookups are listed for quick switching. Choose a CRN to see when its
+exam is, or a course code to see all its sections. Rooms in the results, and instructors in the
+list, are links to their own lookup. The room or course is kept in the page address so you can
+share the link; student and instructor IDs never are (they stay in this browser tab until you close
+it). Anyone who can view the schedule can use Explore. See [Explore](/docs/reviewing/explore).
+
+### Can I export results?
+
+Yes. **Export Schedule** on the schedule page downloads every exam as one CSV file, including
+unscheduled ones: CRN, course, day, start and end time, room, capacity, size, valid (false when the
+exam has a conflict or is over its room's capacity), and instructor. Anyone who can view the
+schedule can export it. See
+[Exporting](/docs/reviewing/exporting).
+
+## Changing and sharing
+
+### Can I add an exam that missed generation?
+
+Yes. Anyone who can open the schedule, its owner or someone it's shared with, can use **Late
+Add**. Enter the CRN, course code and instructor ID, then **Find blocks**. The CRN must be in the
+enrollments file but not already in the schedule. No scheduled exam moves: the exam only goes in
+rooms that are free and not blocked out. When some blocks have no student or instructor conflict,
+only those blocks are listed. If there are none, every block with a free room is listed, fewest
+conflicts first, and each conflict expands to the students or instructor involved. Searching never
+changes the schedule. Late Add is unavailable when the schedule's dataset was deleted. See
+[Late Add](/docs/changing/late-add).
+
+### How do I save a late add, and what happens to the original?
+
+Pick a block (and room), name the new schedule, and choose **Save as new schedule**. The schedule
+you started from is never changed: the save creates a new version with all of its exams plus the
+late one, and opens it. A block with a student or instructor double-book or per-day limit conflict
+can only be saved after you tick the box that lists them; back-to-back and large-course conflicts
+don't need it. Versions chain, so a late add on that new version makes a third one with both late
+exams. The schedule page shows which schedule a version is a late add to, the original it started
+from, and a table of every late-added exam; those exams are marked **Late add** in the List and
+calendar views, and the schedules list shows **Late add** in the Algorithm column. Late adds go on
+the newest version only: on a schedule that already has a newer version, Late Add links to it
+instead of searching.
+
+### Can I share a schedule with teammates?
+
+Yes. The schedule's owner can open it, click **Share**, choose a user and click **Share
+Schedule**. Shared users can view the schedule and use every tab, **Validate Schedule**, **Export
+Schedule**, **Late Add** and Compare, but can't share it further. A share covers all the late-add
+versions of the schedule, and a late add anyone saves is shared with everyone else who has them.
+To stop sharing, click the red **×** next to the user under **Current Shares**. See
+[Sharing](/docs/working-with-others/sharing).
+
+## Getting help
+
+### Is there a tutorial or onboarding walkthrough?
+
+Yes. Click **?** in the header for a five-step tour of the main controls: the Controls Center,
+**Upload CSV**, **Generate Schedule**, the schedules list and Settings. You can replay it any time.
+This documentation covers everything else: the book icon in the header opens it.

@@ -1,0 +1,72 @@
+---
+title: Combined and common exams
+description: How the scheduler places sections that sit one exam together, or their exams at the same time.
+---
+
+Two optional upload files group sections (CRNs) together. Both engines treat the groups the same
+way.
+
+| Kind | File | Same block | Room |
+| --- | --- | --- | --- |
+| **Combined exam** | `combined_exams.csv` | Yes | One shared room for all its sections |
+| **Common exam** | `common_exams.csv` | Yes | A separate room for each section |
+
+## Combined exams
+
+The sections of a combined exam sit one exam together, in one room, at one time: for example
+several sections of one course taught by the same instructor. The scheduler treats the group as a
+single exam whose size is the total enrollment of its sections, and seats it in one room that
+holds them all.
+
+## Common exams
+
+The sections of a common exam take the same exam at the same time, each in its own room: for
+example every section of a course with one shared final, so no one can pass the questions on to a
+later sitting. The scheduler puts all the sections in one block and gives each one a different
+room.
+
+A common exam can include a combined exam. If any section of a combined exam is listed in a common
+exam, the whole combined exam belongs to it and gets one room, and every other section gets a room
+of its own. For example, combined `{11111, 22222}` and common `{11111, 33333, 44444}` make one exam
+block with three rooms: `11111` and `22222` together, `33333`, and `44444`.
+
+## How they are placed
+
+- A group is never split: all its sections get the same day and block, or none of them is
+  scheduled.
+- A block is only used if every exam in it, the group's own included, can have its own room that
+  is big enough and not blocked out at that time.
+- Classic places common exams before every other exam, those with the most rooms first, so they get
+  their rooms before other exams compete for them.
+- Conflicts are counted for the whole group: a block is only good for a common exam if it's good
+  for every section's students and instructors.
+
+A student enrolled in two sections of one common exam has to be in two rooms at once. ExamEngine
+can't avoid that, so the upload warns you (**Students enrolled in multiple sections of a common
+exam**), and the schedule reports those students as double-booked.
+
+## When a group can't fit
+
+ExamEngine checks the groups against your rooms when you upload them. If a group can never be
+seated, the upload still succeeds but shows a warning, and the sidebar lists the group under
+**will be unscheduled**:
+
+- A combined exam with more students than the largest room: **Some combined exams exceed room
+  capacity**.
+- A common exam whose sections can't all be seated at once, each in its own room, even with every
+  room free: **Some common exams cannot fit the room inventory**. A common exam that contains an
+  oversized combined exam can't fit either.
+
+When you generate, these groups are left unscheduled as a whole. A group can also turn out to fit
+nowhere only during generation: every block it could use is short of free, unblocked rooms that
+are big enough. Then it is left unscheduled too.
+
+Each unscheduled group is listed with its reason under **Needs attention** on the schedule's
+**Statistics** tab, as **Combined exam:** or **Common exam:** followed by its name. See
+[Why exams end up unscheduled](/docs/generating/unscheduled-exams) for each reason and what to do.
+
+## On the schedule
+
+On the schedule, every section of a group shows the same day and time. Each section of a common
+exam has its own room; the sections of a combined exam share one. See
+[Calendar views](/docs/reviewing/calendar-views) and [List view](/docs/reviewing/list-view).

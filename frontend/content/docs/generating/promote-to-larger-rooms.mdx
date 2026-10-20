@@ -1,0 +1,50 @@
+---
+title: Promote to Larger Rooms
+description: Move the fullest exams into bigger free rooms after scheduling, to leave space for alternate-seat spacing.
+---
+
+**Promote to Larger Rooms** is a switch in the Generate Schedule dialog, off by default. Both
+engines use it.
+
+## How rooms are chosen without it
+
+Once every exam has its day and block, each block's exams get their rooms, largest exam first,
+each in the smallest free room that seats it and isn't blocked out at that time. This keeps the big
+rooms available for the exams that need them, but it also packs exams tightly: an exam of 40
+students can end up in a 42-seat room while a 70-seat room stands empty in the same block.
+
+## What the switch does
+
+With the switch on, a second pass runs on each block after the rooms are assigned:
+
+1. Among the exams in the block, take the fullest one (students ÷ seats) that can move.
+2. Move it to the largest free room in that block that seats more than its current room but no
+   more than twice its students.
+3. Its old room becomes free for the other exams. Repeat until no exam can move.
+
+An exam can move only to a room that is free in that block and not blocked out, and that the
+large-only rule allows (see [Why exams end up unscheduled](/docs/generating/unscheduled-exams)).
+The sections of a combined exam move together, as one exam.
+
+In the example above, the 40-student exam moves from the 42-seat room into the 70-seat room (70 is
+no more than 2 × 40 = 80). A 30-student exam would not go there: 70 seats is more than twice 30.
+
+The twice-the-students cap leaves room to seat students in every other seat, without putting a
+small exam in a huge hall. An exam that is already at most half full never moves.
+
+## What it doesn't change
+
+- No exam changes day or block, and the conflicts are exactly the same as without the switch.
+- No exam is left unscheduled because of it, and no exam gets a room that's too small.
+- Only rooms nobody else is using in that block are taken.
+
+## When to use it
+
+Turn it on when you want spacing in the exam rooms: fewer exams in rooms that are nearly full, and
+the spare seats spread across the exams that need them most.
+
+Leave it off when you want the free rooms kept free. For example, adding an exam later with
+[Late add](/docs/changing/late-add) only uses rooms that are free in a block, and promotion may
+have taken the larger ones.
+
+The schedule page shows the choice as **Promote to larger rooms**: **Yes** or **No**.

@@ -1,5 +1,8 @@
 @import "tailwindcss";
 @import "tw-animate-css";
+/* Docs (/docs): Fumadocs styles, its colours mapped onto the shadcn tokens below. */
+@import "fumadocs-ui/css/shadcn.css";
+@import "fumadocs-ui/css/preset.css";
 
 @custom-variant dark (&:is(.dark *));
 

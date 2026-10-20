@@ -11,6 +11,9 @@ Full workflow: `AGENTS.md` → "Development workflow".
   smoke test yourself before saying work is done.
 - Never put local dataset specifics (dataset names, CRNs, rooms, IDs, counts) in PRs, comments,
   issues or committed files.
+- A user-visible change updates its `/docs` page (`frontend/content/docs/`) in the same PR and
+  reruns the screenshots for affected images (`cd frontend && npm run docs:screenshots <section>`).
+  Docs use synthetic data only.
 - Never commit local edits to `docker-compose.override.yml`.
 - Promote `develop` → `staging` only when the user asks, after the data-safety check and the
   two-axis code review; merge with `--match-head-commit`.

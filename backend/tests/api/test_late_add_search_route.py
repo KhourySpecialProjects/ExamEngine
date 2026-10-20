@@ -267,18 +267,23 @@ def test_unknown_instructor_is_noted(db_session):
     assert any("I-404" in note for note in body["notes"])
 
 
-def test_shared_viewer_and_stranger_get_404_and_nothing_is_downloaded(db_session):
+def test_a_recipient_may_search_and_a_stranger_gets_404_without_a_download(
+    db_session,
+):
     owner = make_user(db_session, "Owner")
-    viewer = make_user(db_session, "Viewer")
+    recipient = make_user(db_session, "Recipient")
     stranger = make_user(db_session, "Stranger")
     sched = _base_schedule(db_session, owner)
-    share_schedule(db_session, sched, owner, viewer)
+    share_schedule(db_session, sched, owner, recipient)
 
-    for user in (viewer, stranger):
-        status, body, storage = _search(db_session, user, sched)
-        assert status == 404
-        assert body["detail"] == f"Schedule {sched.schedule_id} not found"
-        storage.download_file.assert_not_called()
+    status, body, _ = _search(db_session, recipient, sched)
+    assert status == 200, body
+    assert body == _search(db_session, owner, sched)[1]
+
+    status, body, storage = _search(db_session, stranger, sched)
+    assert status == 404
+    assert body["detail"] == f"Schedule {sched.schedule_id} not found"
+    storage.download_file.assert_not_called()
 
     missing = SimpleNamespace(schedule_id=uuid.uuid4())
     assert _search(db_session, owner, missing)[0] == 404

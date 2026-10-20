@@ -1,0 +1,213 @@
+---
+title: CSV reference
+description: The columns of each upload file, the header names ExamEngine accepts, and what it does with bad values.
+---
+
+Every file starts with a header row. ExamEngine finds each column by its header, matched without
+regard to case or spaces around it, and accepts several names for each one: the tables below list
+them all. Columns that aren't listed are ignored. A file missing a required column is rejected
+when you upload it.
+
+The [sample files](/docs/start/quickstart#3-download-the-sample-files) use the first header named
+for each column below.
+
+## Courses
+
+One row per course section (CRN).
+
+| Column | Required | Accepted headers | Values |
+| --- | --- | --- | --- |
+| CRN | Yes | `CRN`, `crn`, `Course_Reference_Number`, `Course Registration Number` | The section's CRN. A number saved by a spreadsheet as `11310.0` is read as `11310`. |
+| Course | Yes | `CourseID`, `Course ID`, `Course Code`, `course_code`, `course_subject_code`, `Course_Identification` | The course, as shown in the app, for example `CS 4535`. |
+| Enrollment | Yes | `Enrollment`, `num_students`, `enrollment_count`, `Student Count`, `Size`, `UG_Enrollment`, `Total_Enrollment` | How many students the section has: a whole number, 0 or more. It is the exam's size, the seats it needs. |
+| Instructor | No | `Instructor Name`, `instructor_name`, `Instructor`, `Faculty Name`, `Professor`, `Primary_Instructor_PIDM` | The instructor's name or ID. Sections with the same value share an instructor. |
+| Department | No | `department`, `dept`, `Course_Department_Code`, `Course_Department_Desc` | Saved with the course; not used to schedule. |
+| Term | No | `examination_term`, `exam_term`, `Academic_Period`, `Academic_Period_NUFreeze` | Saved with the course; not used to schedule. |
+
+```csv
+CRN,CourseID,Enrollment,Instructor Name,department,examination_term
+11310,CS 3500,150,Dr. Smith,CSCI,Fall 2025
+11311,CS 4535,45,Dr. Johnson,CSCI,Fall 2025
+```
+
+- **A CRN on several rows:** only the last row is used.
+- **Enrollment of 0, blank or not a number:** the section gets no exam and isn't reported as
+  unscheduled.
+- **No instructor, or a blank instructor cell:** the section has no instructor conflicts and isn't
+  counted toward any instructor's per-day limit.
+- **A row without a CRN or a course, or with a negative enrollment:** the upload succeeds, but
+  generating a schedule from the dataset fails and names the rows. See
+  [Generation fails](/docs/reference/troubleshooting#generation-fails). If you also upload a
+  combined or common exams file, the upload reads every course row to check the groups, so the
+  same rows reject the upload instead, with **Could not check exam groups against courses/rooms**
+  on the group file's slot.
+- **More students than the largest room seats:** the upload succeeds with a warning, and the
+  section will be left unscheduled. See [Uploading a dataset](/docs/your-data/uploading-a-dataset#warnings).
+
+## Enrollments
+
+One row per student per section. Only these two columns are read.
+
+| Column | Required | Accepted headers | Values |
+| --- | --- | --- | --- |
+| NUId | Yes | `NUID`, `NU ID`, `Student ID`, `Student Number`, `student_id`, `PIDM`, `student_pidm`, `Student_PIDM` | The student's ID, kept as text, so leading zeros stay. |
+| CRN | Yes | `CRN`, `crn`, `Course_Reference_Number`, `Course Registration Number` | A CRN from the courses file. |
+
+```csv
+NUID,CRN
+001234567,11310
+001234567,11311
+001234568,11310
+```
+
+- **A CRN that isn't in the courses file:** the row is ignored.
+- **A row without a student or a CRN:** the row is skipped.
+
+## Rooms
+
+One row per room.
+
+| Column | Required | Accepted headers | Values |
+| --- | --- | --- | --- |
+| Room | Yes | `Room`, `room_name`, `Room Name`, `Location`, `Location Name`, `Location Formal Name`, `Building + Room` | The room's name, as the schedule shows it. |
+| Capacity | Yes | `Capacity`, `capacity`, `Seats`, `Max Capacity` | How many people it seats: a whole number above 0. |
+| Large-only | No | `LargeOnly`, `Large Only`, `Large_Only`, `Large-Only` | `y`, `yes`, `1` or `true` marks the large-only room; `n`, `no`, `0`, `false` or blank means no. Any case. |
+
+```csv
+Room,Capacity
+Shillman 105,200
+Ell Hall 312,75
+Curry Student Center 440,150
+```
+
+- **A row without a name, or with a capacity that is blank, not a number, 0 or negative:** the room
+  is skipped when you generate. If no room is left, every exam is left unscheduled with the reason
+  **No rooms are available**.
+- **An exam is only seated in a room with at least as many seats as its size.** Exams larger than
+  every room are left unscheduled.
+
+### The large-only room
+
+You can mark one room, typically a large hall, as **large-only**. Exams too big for every other
+room can then only go there, and no other exam may use it. That keeps the hall free for the exams
+that need it.
+
+- Mark at most one room, and it must seat more than every other room. Otherwise the upload is
+  rejected.
+- Any value other than those in the table above rejects the upload, naming the rows.
+- Without the column, or with every value no, rooms work as usual.
+
+The sidebar shows the marked room under **Current Dataset**, with the size above which exams must
+use it. See [Managing datasets](/docs/your-data/managing-datasets#the-current-dataset-panel).
+
+## Room blockouts (optional)
+
+One row per room and exam block in which the room can't be used.
+
+| Column | Required | Accepted headers | Values |
+| --- | --- | --- | --- |
+| Room | Yes | `Room`, `room`, `room_name`, `Room Name`, `Location`, `Location Name` | A room name exactly as in the rooms file. |
+| Day | Yes | `Day`, `day`, `Weekday`, `day_index`, `Day Index` | `0` to `6`, with Monday `0`, or the day's full name, for example `Monday`. |
+| Block | Yes | `Block`, `block`, `Time Block`, `block_index`, `Block Index` | `0` to `4`, or the block's time. See below. |
+
+| Block | Time |
+| --- | --- |
+| `0` | `8AM-10AM` |
+| `1` | `10:30AM-12:30PM` |
+| `2` | `1PM-3PM` |
+| `3` | `3:30PM-5:30PM` |
+| `4` | `6PM-8PM` |
+
+Times are matched without regard to case or spaces. The times ExamEngine used before, from
+`9AM-11AM` to `7PM-9PM`, still mean the same blocks.
+
+```csv
+Room,Day,Block
+Shillman 105,0,2
+Ell Hall 312,Monday,8AM-10AM
+```
+
+- **A row with a missing or unrecognized value**, such as a day of `Mon` or a block of `5`, is
+  skipped. Nothing reports it.
+- **A room that isn't in the rooms file:** the row has no effect.
+
+## Combined exams (optional)
+
+Sections that sit one exam together: the same block and the same room. One row per section, with
+the name of its group. A group needs at least two sections. How the scheduler places them:
+[Combined and common exams](/docs/generating/combined-and-common-exams).
+
+| Column | Required | Accepted headers | Values |
+| --- | --- | --- | --- |
+| Group | Yes | `ExamGroup`, `Exam Group`, `Exam_Group`, `Group`, `group_id`, `merge_group`, `merge_group_id`, `Common Exam` | The group's name, shown in the app. |
+| CRN | Yes | `CRN`, `crn`, `Course_Reference_Number`, `Course Registration Number` | A CRN from the courses file. |
+
+```csv
+ExamGroup,CRN
+MATH Combined Final,11315
+MATH Combined Final,11316
+PHYS Combined Final,11320
+PHYS Combined Final,11321
+```
+
+The header `Common Exam` belongs to this file, not to the common exams file.
+
+## Common exams (optional)
+
+Sections that sit their exams in the same block, each in its own room. Same layout as combined
+exams, with a different group header.
+
+| Column | Required | Accepted headers | Values |
+| --- | --- | --- | --- |
+| Group | Yes | `Common_Group`, `CommonGroup`, `Common Group`, `common_group` | The group's name, shown in the app. |
+| CRN | Yes | `CRN`, `crn`, `Course_Reference_Number`, `Course Registration Number` | A CRN from the courses file. |
+
+```csv
+Common_Group,CRN
+BIOL 1101 Final,11111
+BIOL 1101 Final,33333
+BIOL 1101 Final,44444
+```
+
+The two group files have different group headers on purpose: a combined exams file added to the
+**Common Exams** slot is rejected rather than read as common exams.
+
+**Combined exams inside a common exam.** If a CRN in a common group belongs to a combined exam, the
+whole combined exam joins the common group and still shares one room. Listing one of its CRNs or
+all of them makes no difference. With a combined exam `11111` + `22222`, the example above becomes
+one exam block with three rooms: `11111` and `22222` together, `33333`, and `44444`.
+
+## Rules for the group files
+
+Unlike the other files, the combined and common exams files are checked row by row when you upload,
+and any problem rejects the upload. The message names the group, and row numbers count the header
+as row 1, like a spreadsheet.
+
+| Problem | Example message |
+| --- | --- |
+| A row has a group but no CRN, or a CRN but no group | `row 5: missing CRN` |
+| A CRN has a decimal part | `row 7: CRN '11316.9' is not a whole number` |
+| A CRN is in two groups of the same file | `CRN 11316 is in multiple exam groups: 'A', 'B'` |
+| A group has fewer than two different CRNs | `exam group 'A' needs at least 2 distinct CRNs (found 1)` |
+| Two group names differ only in capitalization or spacing | `exam groups 'MATH Final', 'math final' differ only in capitalization or spacing` |
+| The file has no groups at all | `no exam groups found` |
+| A CRN isn't in the courses file | `exam group 'A': CRNs not found in courses: ['11399']` |
+| A CRN has an enrollment of 0 or none in the courses file | `exam group 'A': CRNs with zero enrollment cannot be merged: ['11316']` |
+
+The common exams file has the same rules, with "common group" in the messages, plus two more:
+
+| Problem | Example message |
+| --- | --- |
+| A combined exam's sections are listed in different common groups | `combined group 'X' is split across common groups 'A', 'B'; a combined group must stay in one common group` |
+| A common group has fewer than two rooms' worth of sections, for example only the sections of one combined exam | `common group 'A': needs at least 2 room units (separate CRNs or combined groups) after including combined groups (found 1)` |
+
+Some things are allowed:
+
+- Blank lines, and the same group and CRN on two rows (counted once).
+- Group names are read exactly as written, apart from spaces at either end: `01` and `1` are two
+  different groups.
+
+Groups that pass these checks can still be impossible to seat: a combined exam bigger than every
+room, or a common exam that can't get enough rooms at once. Those don't reject the upload. They
+are saved, and the upload warns about them. See
+[Uploading a dataset](/docs/your-data/uploading-a-dataset#warnings).

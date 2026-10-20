@@ -18,32 +18,6 @@ class ScheduleShareRepo(BaseRepo[ScheduleShares]):
     def __init__(self, db: Session):
         super().__init__(ScheduleShares, db)
 
-    def create_share(
-        self,
-        schedule_id: UUID,
-        shared_with_user_id: UUID,
-        permission: str,
-        shared_by_user_id: UUID,
-    ) -> ScheduleShares:
-        """
-        Create a new schedule share.
-
-        Args:
-            schedule_id: Schedule to share
-            shared_with_user_id: User to share with
-            permission: "view" or "edit"
-            shared_by_user_id: User creating the share
-
-        Returns:
-            Created share
-        """
-        share = self.add_share(
-            schedule_id, shared_with_user_id, permission, shared_by_user_id
-        )
-        self.db.commit()
-        self.db.refresh(share)
-        return share
-
     def add_share(
         self,
         schedule_id: UUID,
@@ -51,7 +25,7 @@ class ScheduleShareRepo(BaseRepo[ScheduleShares]):
         permission: str,
         shared_by_user_id: UUID,
     ) -> ScheduleShares:
-        """`create_share` without the commit: flushes; the caller commits."""
+        """Add a share (permission "view" or "edit"); flushes, the caller commits."""
         share = ScheduleShares(
             schedule_id=schedule_id,
             shared_with_user_id=shared_with_user_id,

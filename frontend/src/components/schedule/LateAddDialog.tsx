@@ -36,8 +36,9 @@ interface LateAddDialogProps {
   /** The dataset's uploaded files are gone, so nothing can be searched. */
   datasetDeleted?: boolean;
   /**
-   * Late-add versions already based on this schedule (`lineage.newer_versions`):
-   * late adds go on the newest version, so any here blocks the search.
+   * Late-add versions of this schedule's chain saved after it
+   * (`lineage.newer_versions`): late adds go on the newest version, so any
+   * here blocks the search.
    */
   newerVersions?: ScheduleLineage["newer_versions"];
 }

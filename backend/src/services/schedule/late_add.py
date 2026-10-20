@@ -57,7 +57,6 @@ from src.repo.dataset import DatasetRepo
 from src.repo.exam_assignment import ExamAssignmentRepo
 from src.repo.room import RoomRepo
 from src.repo.schedule import ScheduleRepo
-from src.repo.schedule_share import ScheduleShareRepo
 from src.repo.time_slot import TimeSlotRepo
 from src.schemas.db import Datasets, ExamAssignments, Runs, Schedules, StatusEnum, Users
 from src.services.dataset.uploaded_files import load_uploaded_files, stored_groups
@@ -221,6 +220,7 @@ class LateAddService:
         course_repo: CourseRepo,
         time_slot_repo: TimeSlotRepo,
         conflict_analyses_repo: ConflictAnalysesRepo,
+        chain_sharing: ChainSharing,
         storage: IStorage,
     ):
         self.schedule_repo = schedule_repo
@@ -230,10 +230,8 @@ class LateAddService:
         self.course_repo = course_repo
         self.time_slot_repo = time_slot_repo
         self.conflict_analyses_repo = conflict_analyses_repo
+        self.chain_sharing = chain_sharing
         self.storage = storage
-        self.chain_sharing = ChainSharing(
-            schedule_repo, ScheduleShareRepo(schedule_repo.db)
-        )
 
     async def search(
         self,
@@ -243,7 +241,7 @@ class LateAddService:
         course_code: str,
         instructor_id: str,
     ) -> LateAddSearchResponse | None:
-        """Ranked blocks for the late exam; None if the caller doesn't own it."""
+        """Ranked blocks for the late exam; None if the caller can't view it."""
         context = await self.load_context(
             schedule_id, user_id, crn, course_code, instructor_id
         )
@@ -301,8 +299,8 @@ class LateAddService:
 
         Returns None when the schedule doesn't exist or the caller can't view
         it (the owner and anyone it is shared with can). Raises
-        `NewerVersionError` when a late-add version was already saved from it
-        (by anyone), `DatasetDeletedError` when the dataset was deleted,
+        `NewerVersionError` when its chain has a version saved after it (by
+        anyone), `DatasetDeletedError` when the dataset was deleted,
         `ValidationError` for a blank field (a "nan" instructor ID counts as
         blank), a CRN already in the schedule, a CRN that courses.csv schedules
         with a nonzero enrollment or a CRN without enrollment rows, and
@@ -311,7 +309,7 @@ class LateAddService:
         schedule = self.schedule_repo.get_with_run_details(schedule_id, user_id)
         if schedule is None:
             return None
-        if self.schedule_repo.has_newer_version(schedule_id):
+        if self.schedule_repo.has_newer_version(schedule):
             raise NewerVersionError(NEWER_VERSION_MESSAGE)
         run = schedule.run
         dataset = self.dataset_repo.get_by_id(run.dataset_id)
@@ -402,9 +400,9 @@ class LateAddService:
         taken from the client. Raises `ValidationError` for a bad name or a
         block outside the window, `PlacementConflictError` when the room can't
         take the exam in that block or the block has hard conflicts that were
-        not accepted, `NewerVersionError` when another version was saved from
-        the base meanwhile, and whatever `load_context` raises. The base row is
-        locked while writing, so two saves from one base can't both succeed.
+        not accepted, `NewerVersionError` when a version was saved after the
+        base meanwhile, and whatever `load_context` raises. The chain lock is
+        held while writing, so two saves from one chain can't both succeed.
         Every row is written in one transaction: on any error nothing is saved.
         """
         context = await self.load_context(
@@ -435,8 +433,8 @@ class LateAddService:
         )
         db = self.schedule_repo.db
         try:
-            self.schedule_repo.lock(schedule_id)
-            if self.schedule_repo.has_newer_version(schedule_id):
+            self.schedule_repo.lock_chain(context.schedule)
+            if self.schedule_repo.has_newer_version(context.schedule):
                 raise NewerVersionError(NEWER_VERSION_MESSAGE)
             self._write_version(
                 context, placement, room, name, user, new_schedule_id, parameters

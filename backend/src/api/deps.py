@@ -10,12 +10,14 @@ from src.repo.exam_assignment import ExamAssignmentRepo
 from src.repo.room import RoomRepo
 from src.repo.run import RunRepo
 from src.repo.schedule import ScheduleRepo
+from src.repo.schedule_share import ScheduleShareRepo
 from src.repo.time_slot import TimeSlotRepo
 from src.repo.user import UserRepo
 from src.schemas.db import Users
 from src.services.auth import AuthService
 from src.services.dataset import DatasetService
 from src.services.schedule import ScheduleService
+from src.services.schedule.chain_sharing import ChainSharing
 from src.services.schedule.late_add import LateAddService
 from src.services.schedule.person_exams import PersonExamsService
 from src.services.schedule.rooms import ScheduleRoomsService
@@ -155,6 +157,7 @@ def get_late_add_service(db: Session = Depends(get_db)) -> LateAddService:
         CourseRepo(db),
         TimeSlotRepo(db),
         ConflictAnalysesRepo(db),
+        ChainSharing(ScheduleRepo(db), ScheduleShareRepo(db)),
         storage,
     )
 
